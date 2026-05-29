@@ -1,0 +1,258 @@
+{
+  "$schema": "https://json.schemastore.org/cloudflare-config.json",
+  "name": "CS:GO Marketplace",
+  "description": "Cloudflare configuration for CS:GO Marketplace with DDoS protection",
+  "zones": [
+    {
+      "name": "yourdomain.com",
+      "settings": {
+        "security_level": "medium",
+        "ssl": "full_strict",
+        "always_use_https": "on",
+        "automatic_https_rewrites": "on",
+        "browser_check": "on",
+        "challenge_ttl": 1800,
+        "development_mode": "off",
+        "email_obfuscation": "on",
+        "hotlink_protection": "on",
+        "ip_geolocation": "on",
+        "ipv6": "on",
+        "min_tls_version": "1.2",
+        "opportunistic_encryption": "on",
+        "tls_1_3": "on",
+        "waf": "on",
+        "websockets": "on"
+      },
+      "firewall_rules": [
+        {
+          "description": "Block High Threat Score",
+          "action": "block",
+          "expression": "(cf.threat_score gt 10)"
+        },
+        {
+          "description": "Rate Limit API Endpoints",
+          "action": "challenge",
+          "expression": "(http.request.uri.path contains \"/api/\" and rate.requests.1m gt 100)"
+        },
+        {
+          "description": "Rate Limit Auth Endpoints",
+          "action": "block",
+          "expression": "(http.request.uri.path contains \"/auth/\" and rate.requests.1m gt 5)"
+        },
+        {
+          "description": "Block Known Bad Bots",
+          "action": "block",
+          "expression": "(cf.client.bot and cf.bot_management.score lt 30)"
+        },
+        {
+          "description": "Challenge Suspicious Countries",
+          "action": "managed_challenge",
+          "expression": "(ip.geoip.country in {\"CN\" \"RU\" \"KP\" \"IR\"} and cf.threat_score gt 5)"
+        },
+        {
+          "description": "Block SQL Injection Attempts",
+          "action": "block",
+          "expression": "(http.request.uri.query contains \"union select\" or http.request.uri.query contains \"drop table\" or http.request.uri.query contains \"--\" or http.request.uri.query contains \"1=1\")"
+        },
+        {
+          "description": "Block XSS Attempts",
+          "action": "block",
+          "expression": "(http.request.uri.query contains \"<script\" or http.request.uri.query contains \"javascript:\" or http.request.uri.query contains \"onerror=\")"
+        }
+      ],
+      "page_rules": [
+        {
+          "targets": [
+            {
+              "target": "url",
+              "constraint": {
+                "operator": "matches",
+                "value": "*yourdomain.com/*.{jpg,jpeg,png,gif,ico,css,js,svg,woff,woff2,ttf,eot,webp}"
+              }
+            }
+          ],
+          "actions": [
+            {
+              "id": "cache_level",
+              "value": "cache_everything"
+            },
+            {
+              "id": "edge_cache_ttl",
+              "value": 2592000
+            }
+          ],
+          "priority": 1,
+          "status": "active"
+        },
+        {
+          "targets": [
+            {
+              "target": "url",
+              "constraint": {
+                "operator": "matches",
+                "value": "*yourdomain.com/api/*"
+              }
+            }
+          ],
+          "actions": [
+            {
+              "id": "security_level",
+              "value": "high"
+            },
+            {
+              "id": "cache_level",
+              "value": "bypass"
+            }
+          ],
+          "priority": 2,
+          "status": "active"
+        },
+        {
+          "targets": [
+            {
+              "target": "url",
+              "constraint": {
+                "operator": "matches",
+                "value": "*yourdomain.com/auth/*"
+              }
+            }
+          ],
+          "actions": [
+            {
+              "id": "security_level",
+              "value": "high"
+            },
+            {
+              "id": "cache_level",
+              "value": "bypass"
+            },
+            {
+              "id": "browser_check",
+              "value": "on"
+            }
+          ],
+          "priority": 3,
+          "status": "active"
+        }
+      ],
+      "rate_limiting_rules": [
+        {
+          "description": "API Rate Limit",
+          "match": {
+            "request": {
+              "url": "*yourdomain.com/api/*"
+            }
+          },
+          "threshold": 100,
+          "period": 60,
+          "action": {
+            "mode": "challenge",
+            "timeout": 3600
+          }
+        },
+        {
+          "description": "Auth Rate Limit",
+          "match": {
+            "request": {
+              "url": "*yourdomain.com/auth/*"
+            }
+          },
+          "threshold": 5,
+          "period": 60,
+          "action": {
+            "mode": "ban",
+            "timeout": 3600
+          }
+        },
+        {
+          "description": "Checkout Rate Limit",
+          "match": {
+            "request": {
+              "url": "*yourdomain.com/checkout*"
+            }
+          },
+          "threshold": 10,
+          "period": 60,
+          "action": {
+            "mode": "simulate",
+            "timeout": 600
+          }
+        }
+      ],
+      "load_balancing": {
+        "pools": [
+          {
+            "name": "primary-pool",
+            "description": "Primary origin pool",
+            "enabled": true,
+            "minimum_origins": 1,
+            "origins": [
+              {
+                "name": "origin-1",
+                "address": "your-server-ip",
+                "enabled": true,
+                "weight": 1
+              }
+            ],
+            "notification_email": "alerts@yourdomain.com"
+          }
+        ]
+      }
+    }
+  ],
+  "ddos_protection": {
+    "http": {
+      "enabled": true,
+      "sensitivity": "medium"
+    },
+    "layer3_4": {
+      "enabled": true,
+      "sensitivity": "medium"
+    },
+    "advanced": {
+      "tcp_protection": true,
+      "udp_protection": true,
+      "override_action": "challenge"
+    }
+  },
+  "bot_management": {
+    "enabled": true,
+    "fight_mode": true,
+    "detection_ids": true,
+    "verified_bots": {
+      "action": "allow",
+      "bots": [
+        "googlebot",
+        "bingbot",
+        "slackbot",
+        "discordbot"
+      ]
+    }
+  },
+  "waf": {
+    "managed_rulesets": [
+      {
+        "id": "owasp-core-ruleset",
+        "enabled": true,
+        "mode": "block"
+      },
+      {
+        "id": "cloudflare-managed-ruleset",
+        "enabled": true,
+        "mode": "block"
+      }
+    ],
+    "custom_rules": [
+      {
+        "description": "Block suspicious user agents",
+        "expression": "(http.user_agent contains \"sqlmap\" or http.user_agent contains \"nikto\" or http.user_agent contains \"nmap\")",
+        "action": "block"
+      },
+      {
+        "description": "Protect admin endpoints",
+        "expression": "(http.request.uri.path contains \"/admin\" and cf.threat_score gt 5)",
+        "action": "block"
+      }
+    ]
+  }
+}

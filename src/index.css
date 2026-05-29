@@ -1,0 +1,580 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-padding-top: 80px; /* Account for fixed header */
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
+  letter-spacing: -0.011em;
+  background: #0A0B0F;
+  min-height: 100vh;
+  color: #ffffff;
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Ambient glow is painted on a fixed pseudo-element instead of being a
+   background-attachment: fixed on body — that property is a known scroll-perf
+   killer (forces a full repaint per frame) on Safari and macOS. With a fixed
+   ::before the layer is a separate compositor layer that the GPU just blits. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1200px 600px at 80% -10%, rgba(139, 73, 242, 0.14), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(217, 70, 239, 0.07), transparent 60%);
+  will-change: transform;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Skeleton — layered shimmer placeholder. Base is a soft glass tint with a
+   subtle radial highlight; an angled sheen sweeps across every ~1.8s. Use on
+   the same element you'd otherwise put a placeholder on. Honors
+   prefers-reduced-motion via the reduced-motion block lower in this file. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(139, 73, 242, 0.06), transparent 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.04),
+    0 1px 2px rgba(0, 0, 0, 0.2);
+  isolation: isolate;
+}
+.skeleton::before {
+  /* breathing base wash — slow, very subtle */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.025),
+    rgba(255, 255, 255, 0.05)
+  );
+  opacity: 0.6;
+  animation: skeleton-breathe 2.6s ease-in-out infinite;
+}
+.skeleton::after {
+  /* angled sheen sweep */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    transparent 35%,
+    rgba(255, 255, 255, 0.05) 47%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.05) 53%,
+    transparent 65%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: skeleton-shimmer 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
+}
+@keyframes skeleton-shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+@keyframes skeleton-breathe {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 0.85; }
+}
+
+/* Inline text skeleton — for short text rows. Set width via Tailwind. */
+.skeleton-line {
+  display: inline-block;
+  vertical-align: middle;
+  height: 0.9em;
+  border-radius: 6px;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0.05) 30%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.05) 70%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-line-shimmer 1.6s linear infinite;
+}
+@keyframes skeleton-line-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* Pause skeleton animations when the tab is hidden — saves CPU on background
+   tabs. Also pauses when prefers-reduced-motion is set (handled below). */
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton {
+    /* hint to the compositor; helps Safari avoid full repaints on scroll */
+    transform: translateZ(0);
+  }
+}
+:where(html[hidden], body[hidden]) .skeleton::after,
+:where(html[hidden], body[hidden]) .skeleton::before {
+  animation-play-state: paused;
+}
+
+/* Containment helper — opt in per-element with class="contain-card" on
+   grid items / list rows where you know shadows are inside the box.
+   We deliberately *don't* put this on .glass globally, because the floating
+   nav and rail rely on outside shadows that paint containment would clip. */
+.contain-card {
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+
+/* Tooltip — add `data-tooltip="Label"` and `class="tip-r"` (right) or
+   `tip-b` (bottom) to any element. Pure CSS, no JS, no extra paint on the
+   parent. Delayed-show so a quick hover doesn't flash. */
+[data-tooltip] {
+  position: relative;
+}
+[data-tooltip]::before,
+[data-tooltip]::after {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease 0s, transform 0.15s ease 0s;
+  z-index: 60;
+}
+[data-tooltip]::before {
+  content: attr(data-tooltip);
+  background: rgba(20, 22, 30, 0.95);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+[data-tooltip]::after {
+  /* tiny arrow */
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: rgba(20, 22, 30, 0.95);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Right-side tooltip (used by left rail icons) */
+.tip-r::before {
+  left: calc(100% + 14px);
+  top: 50%;
+  transform: translate(-4px, -50%);
+}
+.tip-r::after {
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translate(-4px, -50%) rotate(45deg);
+}
+.tip-r:hover::before,
+.tip-r:hover::after,
+.tip-r:focus-visible::before,
+.tip-r:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+  transition-delay: 0.35s;
+}
+.tip-r:hover::after,
+.tip-r:focus-visible::after {
+  transform: translate(0, -50%) rotate(45deg);
+}
+
+/* Bottom tooltip (used by top-nav icon buttons) */
+.tip-b::before {
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translate(-50%, -4px);
+}
+.tip-b::after {
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translate(-50%, -4px) rotate(45deg);
+}
+.tip-b:hover::before,
+.tip-b:hover::after,
+.tip-b:focus-visible::before,
+.tip-b:focus-visible::after {
+  opacity: 1;
+  transition-delay: 0.35s;
+}
+.tip-b:hover::before,
+.tip-b:focus-visible::before {
+  transform: translate(-50%, 0);
+}
+.tip-b:hover::after,
+.tip-b:focus-visible::after {
+  transform: translate(-50%, 0) rotate(45deg);
+}
+
+/* On-load fade-up — used to bring sections in as data settles. */
+@keyframes rise-in {
+  0%   { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.rise-in {
+  animation: rise-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+/* Stagger helper: add `.rise-in [data-rise]` and these children animate in */
+.rise-in-stagger > * {
+  opacity: 0;
+  animation: rise-in 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.rise-in-stagger > *:nth-child(1)  { animation-delay: 0.00s; }
+.rise-in-stagger > *:nth-child(2)  { animation-delay: 0.06s; }
+.rise-in-stagger > *:nth-child(3)  { animation-delay: 0.12s; }
+.rise-in-stagger > *:nth-child(4)  { animation-delay: 0.18s; }
+.rise-in-stagger > *:nth-child(5)  { animation-delay: 0.24s; }
+.rise-in-stagger > *:nth-child(6)  { animation-delay: 0.30s; }
+.rise-in-stagger > *:nth-child(7)  { animation-delay: 0.36s; }
+.rise-in-stagger > *:nth-child(8)  { animation-delay: 0.42s; }
+
+/* Glass surface primitives — Wolt/iOS */
+.glass {
+  background: rgba(255, 255, 255, 0.04);
+  -webkit-backdrop-filter: saturate(160%) blur(20px);
+  backdrop-filter: saturate(160%) blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05), 0 24px 48px -24px rgba(0, 0, 0, 0.6);
+}
+.glass-strong {
+  background: rgba(20, 22, 30, 0.72);
+  -webkit-backdrop-filter: saturate(180%) blur(28px);
+  backdrop-filter: saturate(180%) blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06), 0 30px 60px -20px rgba(0, 0, 0, 0.7);
+}
+.hairline {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.lift-on-hover {
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.lift-on-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.7);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Accessibility Utilities */
+
+/* Screen reader only content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Skip to main content link */
+.skip-to-main {
+  position: absolute;
+  left: -9999px;
+  z-index: 999;
+  padding: 1rem 1.5rem;
+  background-color: #7c3aed;
+  color: white;
+  text-decoration: none;
+  border-radius: 0.5rem;
+}
+
+.skip-to-main:focus {
+  left: 1rem;
+  top: 1rem;
+}
+
+/* Focus indicators - WCAG 2.1 AA compliant */
+*:focus-visible {
+  outline: 2px solid #8B49F2;
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #8B49F2;
+  outline-offset: 2px;
+}
+
+/* Keyboard navigation focus ring for interactive elements */
+.focus-ring:focus {
+  box-shadow: 0 0 0 3px rgba(139, 73, 242, 0.45);
+  outline: none;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  * {
+    border-width: 2px !important;
+  }
+
+  button, a {
+    text-decoration: underline;
+  }
+}
+
+/* Reduced motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Ensure consistent purple theme across all elements */
+#root {
+  background: inherit;
+  min-height: 100vh;
+}
+
+/* Fix mobile viewport and status bar styling */
+@media (max-width: 768px) {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: rgba(139, 92, 246, 0.2);
+    font-size: 14px; /* Base font size for mobile */
+  }
+  
+  body {
+    background: #111827; /* Static gray-900 background for mobile */
+    -webkit-overflow-scrolling: touch;
+    min-height: 100vh;
+  }
+  
+  /* Remove problematic scaling that causes blank screens */
+  #root {
+    min-height: 100vh;
+    width: 100%;
+  }
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Custom scrollbar */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 3px;
+  border: none;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+.scrollbar-thin::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox scrollbar styling */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+}
+
+/* Custom scrollbar for chat */
+.scrollbar-chat::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollbar-chat::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-chat::-webkit-scrollbar-thumb {
+  background: rgba(168, 85, 247, 0.3);
+  border-radius: 2px;
+}
+
+.scrollbar-chat::-webkit-scrollbar-thumb:hover {
+  background: rgba(168, 85, 247, 0.5);
+}
+
+/* Custom scrollbar for sidebar */
+.scrollbar-sidebar::-webkit-scrollbar {
+  width: 3px;
+}
+
+.scrollbar-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.2);
+  border-radius: 2px;
+}
+
+.scrollbar-sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.4);
+}
+
+.scrollbar-thumb-purple-600::-webkit-scrollbar-thumb {
+  background-color: rgb(147, 51, 234);
+}
+
+.scrollbar-track-transparent::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Custom range slider styles */
+.slider-thumb::-webkit-slider-thumb {
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.5);
+  transition: all 0.2s ease;
+}
+
+.slider-thumb::-webkit-slider-thumb:hover {
+  background: #2563eb;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.7);
+}
+
+.slider-thumb::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.5);
+  transition: all 0.2s ease;
+}
+
+.slider-thumb::-moz-range-thumb:hover {
+  background: #2563eb;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.7);
+}
+
+/* Purple slider for modal */
+.slider-thumb-purple::-webkit-slider-thumb {
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
+  cursor: pointer;
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.6), 0 2px 8px rgba(168, 85, 247, 0.4);
+  transition: all 0.2s ease;
+}
+
+.slider-thumb-purple::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 30px rgba(168, 85, 247, 0.8), 0 4px 12px rgba(168, 85, 247, 0.6);
+}
+
+.slider-thumb-purple::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.6), 0 2px 8px rgba(168, 85, 247, 0.4);
+  transition: all 0.2s ease;
+}
+
+.slider-thumb-purple::-moz-range-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 30px rgba(168, 85, 247, 0.8), 0 4px 12px rgba(168, 85, 247, 0.6);
+}
+
+/* Minimalistic scrollbars for all elements */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.2) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 2px;
+  border: none;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Custom gradient animation for marketplace */
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}

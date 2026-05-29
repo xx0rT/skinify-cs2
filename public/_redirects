@@ -1,0 +1,5 @@
+# Handle client-side routing
+/*    /index.html   200
+
+# Handle auth callback specifically
+/auth/callback    /index.html   200

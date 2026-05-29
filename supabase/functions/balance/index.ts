@@ -1,0 +1,389 @@
+import { createClient } from 'npm:@supabase/supabase-js@2.39.0';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+};
+
+interface BalanceTransaction {
+  steam_id: string;
+  type: 'deposit' | 'purchase' | 'sale' | 'refund' | 'withdrawal' | 'admin_adjustment';
+  amount: number;
+  description: string;
+  reference_id?: string;
+  metadata?: any;
+}
+
+/**
+ * Get user from users table
+ */
+async function getUserBysteamId(supabase: any, steamId: string) {
+  const { data: user, error: userError } = await supabase
+    .from('users')
+    .select('*')
+    .eq('steam_id', steamId)
+    .single();
+
+  if (userError || !user) {
+    throw new Error('User not found. Please log in with Steam first.');
+  }
+
+  return user;
+}
+
+/**
+ * Create a balance transaction
+ */
+async function createBalanceTransaction(
+  supabase: any, 
+  userId: string, 
+  transaction: BalanceTransaction
+) {
+  // Generate unique transaction reference if not provided
+  const transactionRef = transaction.reference_id || `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  const { data, error } = await supabase
+    .from('user_transactions')
+    .insert({
+      user_id: userId,
+      steam_id: transaction.steam_id,
+      type: transaction.type,
+      amount: transaction.amount,
+      description: transaction.description,
+      reference_id: transactionRef,
+      metadata: transaction.metadata,
+      status: 'completed',
+      completed_at: new Date().toISOString()
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to create transaction: ${error.message}`);
+  }
+
+  console.log('=== TRANSACTION CREATED ===');
+  console.log('Transaction ID:', data.id);
+  console.log('Reference ID:', transactionRef);
+  console.log('Type:', transaction.type);
+  console.log('Amount:', transaction.amount);
+  console.log('Description:', transaction.description);
+  
+  // Log item details for purchase transactions
+  if (transaction.type === 'purchase' && transaction.metadata?.items) {
+    console.log('=== PURCHASED ITEMS ===');
+    transaction.metadata.items.forEach((item: any, index: number) => {
+      console.log(`Item ${index + 1}:`, {
+        name: item.name,
+        price: item.price,
+        seller: item.seller_name,
+        type: item.type,
+        condition: item.condition
+      });
+    });
+  }
+  return data;
+}
+
+/**
+ * Main balance handler
+ */
+Deno.serve(async (req) => {
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { 
+      headers: corsHeaders,
+      status: 200 
+    });
+  }
+
+  try {
+    const url = new URL(req.url);
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Supabase configuration missing');
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    if (req.method === 'GET') {
+      // Get user balance and recent transactions
+      const steamId = url.searchParams.get('steam_id');
+      
+      if (!steamId) {
+        return new Response(
+          JSON.stringify({ error: 'steam_id parameter is required' }),
+          { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders }}
+        );
+      }
+
+      console.log(`=== FETCHING BALANCE FOR ${steamId} ===`);
+
+      const user = await getUserBysteamId(supabase, steamId);
+
+      console.log('=== USER BALANCE DATA ===');
+      console.log('Current Balance:', user.current_balance);
+      console.log('Total Deposited:', user.total_deposited);
+      console.log('Total Spent:', user.total_spent);
+      console.log('Total Earned:', user.total_earned);
+      console.log('Pending Balance:', user.pending_balance);
+
+      // Get recent transactions
+      const { data: transactions, error: transactionsError } = await supabase
+        .from('user_transactions')
+        .select('*')
+        .eq('steam_id', steamId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (transactions && transactions.length > 0) {
+        console.log('=== RECENT TRANSACTIONS ===');
+        transactions.slice(0, 5).forEach((tx, idx) => {
+          console.log(`Transaction ${idx + 1}:`, {
+            type: tx.type,
+            amount: tx.amount,
+            description: tx.description,
+            created_at: tx.created_at
+          });
+        });
+      }
+
+      return new Response(
+        JSON.stringify({
+          balance: Number(user.current_balance || 0),
+          pending_balance: Number(user.pending_balance || 0),
+          total_deposited: Number(user.total_deposited || 0),
+          total_spent: Number(user.total_spent || 0),
+          total_earned: Number(user.total_earned || 0),
+          currency: user.currency || 'CZK',
+          transactions: transactions || [],
+          last_updated: user.updated_at
+        }),
+        { 
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          status: 200
+        }
+      );
+      
+    } else if (req.method === 'PUT' && url.pathname.endsWith('/transfer-pending')) {
+      // Transfer pending balance to main balance (for 8-day completion)
+      const { user_id, amount } = await req.json();
+      
+      if (!user_id || !amount) {
+        return new Response(
+          JSON.stringify({ error: 'user_id and amount are required' }),
+          { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders }}
+        );
+      }
+      
+      console.log(`=== TRANSFERRING PENDING TO MAIN BALANCE ===`);
+      console.log('User ID:', user_id);
+      console.log('Amount:', amount);
+      
+      // Get user current balances
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('current_balance, pending_balance, total_earned')
+        .eq('id', user_id)
+        .single();
+        
+      if (userError || !user) {
+        throw new Error('User not found');
+      }
+      
+      const currentBalance = Number(user.current_balance || 0);
+      const pendingBalance = Number(user.pending_balance || 0);
+      const totalEarned = Number(user.total_earned || 0);
+      const transferAmount = Number(amount);
+      
+      if (pendingBalance < transferAmount) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Insufficient pending balance',
+            pending_balance: pendingBalance,
+            requested_amount: transferAmount
+          }),
+          { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders }}
+        );
+      }
+      
+      // Transfer from pending to main balance
+      const newBalance = currentBalance + transferAmount;
+      const newPendingBalance = pendingBalance - transferAmount;
+      const newTotalEarned = totalEarned + transferAmount;
+      
+      const { data: updatedUser, error: updateError } = await supabase
+        .from('users')
+        .update({
+          current_balance: newBalance,
+          pending_balance: newPendingBalance,
+          total_earned: newTotalEarned,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user_id)
+        .select()
+        .single();
+        
+      if (updateError) {
+        throw new Error('Failed to transfer pending balance');
+      }
+      
+      console.log('✅ Pending balance transferred successfully');
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          transferred_amount: transferAmount,
+          new_balance: newBalance,
+          new_pending_balance: newPendingBalance,
+          message: 'Pending balance transferred to main balance'
+        }),
+        { 
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          status: 200
+        }
+      );
+
+    } else if (req.method === 'POST') {
+      // Create a new balance transaction
+      const transactionData: BalanceTransaction = await req.json();
+      
+      console.log(`=== CREATING TRANSACTION ===`);
+      console.log('Transaction data:', {
+        steam_id: transactionData.steam_id,
+        type: transactionData.type,
+        amount: transactionData.amount,
+        description: transactionData.description
+      });
+
+      if (!transactionData.steam_id || !transactionData.type || !transactionData.amount) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Missing required fields: steam_id, type, amount'
+          }),
+          { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders }}
+        );
+      }
+
+      // SECURITY: Block direct deposit transactions - only allow through webhook
+      if (transactionData.type === 'deposit') {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Direct deposit transactions not allowed. Use payment processor.',
+            security_note: 'Deposits must be processed through secure payment webhook'
+          }),
+          { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders }}
+        );
+      }
+      // Validate transaction type
+      const validTypes = ['purchase', 'sale', 'refund', 'withdrawal', 'admin_adjustment'];
+      if (!validTypes.includes(transactionData.type)) {
+        return new Response(
+          JSON.stringify({ 
+            error: `Invalid transaction type. Must be one of: ${validTypes.join(', ')}`
+          }),
+          { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders }}
+        );
+      }
+
+      const user = await getUserBysteamId(supabase, transactionData.steam_id);
+      const transaction = await createBalanceTransaction(supabase, user.id, transactionData);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          transaction_id: transaction.id,
+          reference_id: transaction.reference_id,
+          new_balance: transaction.balance_after,
+          message: 'Transaction completed successfully'
+        }),
+        { 
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          status: 200
+        }
+      );
+
+    } else if (req.method === 'PUT') {
+      // Update transaction status (for cancellations, etc.)
+      const updateData = await req.json();
+      const { reference_id, status, cancel_reason } = updateData;
+      
+      if (!reference_id || !status) {
+        return new Response(
+          JSON.stringify({ error: 'reference_id and status are required' }),
+          { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders }}
+        );
+      }
+      
+      console.log(`=== UPDATING TRANSACTION STATUS ===`);
+      console.log('Reference ID:', reference_id);
+      console.log('New status:', status);
+      
+      // Update transaction status
+      const { data: updatedTransaction, error: updateError } = await supabase
+        .from('user_transactions')
+        .update({
+          status: status,
+          metadata: {
+            cancel_reason: cancel_reason,
+            cancelled_at: new Date().toISOString()
+          }
+        })
+        .eq('reference_id', reference_id)
+        .eq('status', 'pending')
+        .select()
+        .single();
+      
+      if (updateError) {
+        console.error('Failed to update transaction:', updateError);
+        return new Response(
+          JSON.stringify({ error: 'Transaction not found or already processed' }),
+          { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders }}
+        );
+      }
+      
+      console.log('Transaction status updated:', updatedTransaction.id);
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          transaction: updatedTransaction,
+          message: 'Transaction status updated'
+        }),
+        { 
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          status: 200
+        }
+      );
+
+    } else {
+      return new Response(
+        JSON.stringify({ error: 'Method not allowed' }),
+        { 
+          status: 405,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        }
+      );
+    }
+
+  } catch (error) {
+    console.error('=== BALANCE ERROR ===', error);
+    
+    return new Response(
+      JSON.stringify({ 
+        error: error.message || 'Failed to process balance request',
+        timestamp: new Date().toISOString()
+      }),
+      { 
+        status: 500,
+        headers: { 
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      }
+    );
+  }
+});

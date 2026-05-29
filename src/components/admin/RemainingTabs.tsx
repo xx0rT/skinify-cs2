@@ -1,0 +1,1063 @@
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Package, Lock, BarChart3, Settings, MessageSquare, Wrench, Wallet, Activity, Search, RefreshCw, Download, Eye, CreditCard as Edit, Trash2, CheckCircle, X, Shield, TrendingUp, Users, DollarSign, AlertTriangle, Bell, Database, Code, TestTube, FileText, MousePointerClick, Calendar, ShoppingCart } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
+import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+
+export const InventoryTab: React.FC<{ addToast: any }> = ({ addToast }) => {
+  const [listings, setListings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchListings();
+  }, []);
+
+  const fetchListings = async () => {
+    setLoading(true);
+    try {
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('marketplace_listings')
+          .select('*, users(username)')
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (error) throw error;
+        setListings(data || []);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Inventory & Listings</h2>
+          <p className="text-gray-400 text-sm">Manage marketplace listings</p>
+        </div>
+        <button onClick={fetchListings} className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-white flex items-center gap-2">
+          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          Refresh
+        </button>
+      </div>
+
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+          <div className="text-2xl font-bold text-white">{listings.length}</div>
+          <div className="text-gray-400 text-sm">Total Listings</div>
+        </div>
+        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+          <div className="text-2xl font-bold text-green-400">{listings.filter(l => l.status === 'active').length}</div>
+          <div className="text-gray-400 text-sm">Active</div>
+        </div>
+        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+          <div className="text-2xl font-bold text-yellow-400">{listings.filter(l => l.status === 'pending').length}</div>
+          <div className="text-gray-400 text-sm">Pending Review</div>
+        </div>
+        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+          <div className="text-2xl font-bold text-blue-400">{listings.filter(l => (l.price || 0) > 50000).length}</div>
+          <div className="text-gray-400 text-sm">High Value</div>
+        </div>
+      </div>
+
+      <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-700">
+                <th className="text-left py-3 px-4 text-gray-400">Item</th>
+                <th className="text-left py-3 px-4 text-gray-400">Seller</th>
+                <th className="text-left py-3 px-4 text-gray-400">Price</th>
+                <th className="text-left py-3 px-4 text-gray-400">Status</th>
+                <th className="text-right py-3 px-4 text-gray-400">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {listings.length === 0 ? (
+                <tr><td colSpan={5} className="text-center py-8 text-gray-400">No listings found</td></tr>
+              ) : (
+                listings.map((listing) => (
+                  <tr key={listing.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                    <td className="py-3 px-4 text-white">{listing.item_name || 'Unknown Item'}</td>
+                    <td className="py-3 px-4 text-gray-300">{listing.users?.username || 'Unknown'}</td>
+                    <td className="py-3 px-4 text-white font-semibold">{(listing.price || 0).toLocaleString('cs-CZ')} Kč</td>
+                    <td className="py-3 px-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        listing.status === 'active' ? 'bg-green-500/20 text-green-400' :
+                        listing.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                        'bg-gray-500/20 text-gray-400'
+                      }`}>
+                        {listing.status}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button className="text-blue-400 hover:text-blue-300 p-2"><Eye size={16} /></button>
+                        <button className="text-yellow-400 hover:text-yellow-300 p-2"><Edit size={16} /></button>
+                        <button className="text-red-400 hover:text-red-300 p-2"><Trash2 size={16} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+const COLORS = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#EC4899'];
+
+export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
+  const [loading, setLoading] = useState(true);
+  const [todayStats, setTodayStats] = useState<any>(null);
+  const [activityData, setActivityData] = useState<any[]>([]);
+  const [pageStats, setPageStats] = useState<any[]>([]);
+  const [eventStats, setEventStats] = useState<any[]>([]);
+  const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('7d');
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [timeRange]);
+
+  const fetchAnalytics = async () => {
+    setLoading(true);
+    try {
+      if (supabase) {
+        const { data: todayData } = await supabase.rpc('get_today_stats');
+        if (todayData) {
+          setTodayStats(todayData);
+        }
+
+        const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - days);
+
+        const { data: activityRaw } = await supabase
+          .from('user_activity')
+          .select('created_at, event_type, event_data')
+          .gte('created_at', startDate.toISOString())
+          .order('created_at', { ascending: true });
+
+        if (activityRaw) {
+          const groupedByDate: Record<string, any> = {};
+
+          activityRaw.forEach((activity: any) => {
+            const date = new Date(activity.created_at).toLocaleDateString();
+
+            if (!groupedByDate[date]) {
+              groupedByDate[date] = { date, visits: 0, users: 0, deposits: 0, purchases: 0 };
+            }
+
+            if (activity.event_type === 'page_view') {
+              groupedByDate[date].visits += 1;
+            } else if (activity.event_type === 'deposit') {
+              groupedByDate[date].deposits += activity.event_data?.amount || 0;
+            } else if (activity.event_type === 'purchase') {
+              groupedByDate[date].purchases += activity.event_data?.amount || 0;
+            }
+          });
+
+          setActivityData(Object.values(groupedByDate));
+
+          const pageViews = activityRaw.filter((a: any) => a.event_type === 'page_view');
+          const pageCount: Record<string, number> = {};
+
+          pageViews.forEach((view: any) => {
+            const page = view.event_data?.page_url || 'Unknown';
+            pageCount[page] = (pageCount[page] || 0) + 1;
+          });
+
+          const totalViews = Object.values(pageCount).reduce((sum: number, count) => sum + count, 0);
+          const topPages = Object.entries(pageCount)
+            .map(([page, views]) => ({
+              page: page.replace('/', '').replace('-', ' ') || 'Home',
+              views,
+              percentage: Math.round((views / totalViews) * 100)
+            }))
+            .sort((a, b) => b.views - a.views)
+            .slice(0, 10);
+
+          setPageStats(topPages);
+
+          const eventCount: Record<string, number> = {};
+          activityRaw.forEach((a: any) => {
+            eventCount[a.event_type] = (eventCount[a.event_type] || 0) + 1;
+          });
+
+          setEventStats(
+            Object.entries(eventCount).map(([name, value]) => ({
+              name: name.replace('_', ' ').toUpperCase(),
+              value
+            }))
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch analytics:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+            <Activity className="w-6 h-6 text-blue-400" />
+            Analytics Dashboard
+          </h2>
+          <p className="text-gray-400 text-sm mt-1">Monitor user activity and platform metrics</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value as any)}
+            className="bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="7d">Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
+            <option value="90d">Last 90 Days</option>
+          </select>
+          <button
+            onClick={fetchAnalytics}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition"
+          >
+            <RefreshCw size={18} />
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-xl p-6"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <Eye className="w-8 h-8 text-blue-400" />
+            <span className="text-2xl font-bold text-white">{todayStats?.total_visits || 0}</span>
+          </div>
+          <div className="text-gray-300 font-medium">Total Visits Today</div>
+          <div className="text-xs text-gray-400 mt-1">{todayStats?.unique_visitors || 0} unique visitors</div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/30 rounded-xl p-6"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <Users className="w-8 h-8 text-purple-400" />
+            <span className="text-2xl font-bold text-white">{todayStats?.new_registrations || 0}</span>
+          </div>
+          <div className="text-gray-300 font-medium">New Registrations</div>
+          <div className="text-xs text-gray-400 mt-1">Today's sign-ups</div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-gradient-to-br from-green-500/20 to-green-600/20 border border-green-500/30 rounded-xl p-6"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <DollarSign className="w-8 h-8 text-green-400" />
+            <span className="text-2xl font-bold text-white">
+              {todayStats?.deposits_today?.toLocaleString() || 0} Kč
+            </span>
+          </div>
+          <div className="text-gray-300 font-medium">Deposits Today</div>
+          <div className="text-xs text-gray-400 mt-1">Total deposited</div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-gradient-to-br from-orange-500/20 to-orange-600/20 border border-orange-500/30 rounded-xl p-6"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <ShoppingCart className="w-8 h-8 text-orange-400" />
+            <span className="text-2xl font-bold text-white">
+              {todayStats?.purchases_today?.toLocaleString() || 0} Kč
+            </span>
+          </div>
+          <div className="text-gray-300 font-medium">Purchases Today</div>
+          <div className="text-xs text-gray-400 mt-1">Total revenue</div>
+        </motion.div>
+      </div>
+
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+          <TrendingUp className="w-5 h-5 text-blue-400" />
+          Activity Over Time
+        </h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <AreaChart data={activityData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+            <XAxis dataKey="date" stroke="#9CA3AF" />
+            <YAxis stroke="#9CA3AF" />
+            <Tooltip
+              contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }}
+              labelStyle={{ color: '#F3F4F6' }}
+            />
+            <Legend />
+            <Area type="monotone" dataKey="visits" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.6} name="Visits" />
+            <Area type="monotone" dataKey="deposits" stroke="#10B981" fill="#10B981" fillOpacity={0.6} name="Deposits (Kč)" />
+            <Area type="monotone" dataKey="purchases" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.6} name="Purchases (Kč)" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+          <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+            <MousePointerClick className="w-5 h-5 text-purple-400" />
+            Event Distribution
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={eventStats}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                outerRadius={100}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {eventStats.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+          <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-green-400" />
+            Top Pages
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={pageStats} layout="horizontal">
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis type="number" stroke="#9CA3AF" />
+              <YAxis dataKey="page" type="category" width={100} stroke="#9CA3AF" />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }}
+              />
+              <Bar dataKey="views" fill="#3B82F6" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
+        <h3 className="text-xl font-bold text-white mb-4">Quick Stats</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="text-center p-4 bg-gray-700/50 rounded-lg">
+            <div className="text-3xl font-bold text-blue-400">{todayStats?.page_views || 0}</div>
+            <div className="text-gray-400 text-sm mt-1">Page Views Today</div>
+          </div>
+          <div className="text-center p-4 bg-gray-700/50 rounded-lg">
+            <div className="text-3xl font-bold text-purple-400">{todayStats?.clicks || 0}</div>
+            <div className="text-gray-400 text-sm mt-1">Clicks Today</div>
+          </div>
+          <div className="text-center p-4 bg-gray-700/50 rounded-lg">
+            <div className="text-3xl font-bold text-green-400">{todayStats?.unique_visitors || 0}</div>
+            <div className="text-gray-400 text-sm mt-1">Unique Visitors</div>
+          </div>
+          <div className="text-center p-4 bg-gray-700/50 rounded-lg">
+            <div className="text-3xl font-bold text-orange-400">
+              {((todayStats?.page_views || 0) / (todayStats?.unique_visitors || 1)).toFixed(1)}
+            </div>
+            <div className="text-gray-400 text-sm mt-1">Avg Pages/Visitor</div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+export const SupportTab: React.FC<{ addToast: any; user: any }> = ({ addToast, user }) => {
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchTickets();
+  }, [statusFilter]);
+
+  const fetchTickets = async () => {
+    setLoading(true);
+    try {
+      if (supabase) {
+        let query = supabase
+          .from('support_tickets')
+          .select('*, users!support_tickets_user_id_fkey(display_name, avatar_url)')
+          .order('created_at', { ascending: false })
+          .limit(100);
+
+        if (statusFilter !== 'all') {
+          query = query.eq('status', statusFilter);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        setTickets(data || []);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      addToast({ type: 'error', title: 'Error', message: 'Failed to fetch tickets' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchMessages = async (ticketId: string) => {
+    try {
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('support_ticket_messages')
+          .select('*, users:user_id(display_name, avatar_url)')
+          .eq('ticket_id', ticketId)
+          .order('created_at', { ascending: true });
+
+        if (error) throw error;
+        setMessages(data || []);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
+  const updateTicketStatus = async (ticketId: string, newStatus: string) => {
+    try {
+      if (supabase) {
+        const updateData: any = { status: newStatus };
+        if (newStatus === 'resolved' || newStatus === 'closed') {
+          updateData.resolved_at = new Date().toISOString();
+        }
+
+        const { error } = await supabase
+          .from('support_tickets')
+          .update(updateData)
+          .eq('id', ticketId);
+
+        if (error) throw error;
+        addToast({ type: 'success', title: 'Success', message: 'Ticket status updated' });
+        fetchTickets();
+        if (selectedTicket?.id === ticketId) {
+          setSelectedTicket({ ...selectedTicket, status: newStatus });
+        }
+      }
+    } catch (error: any) {
+      addToast({ type: 'error', title: 'Error', message: error.message });
+    }
+  };
+
+  const sendReply = async () => {
+    if (!newMessage.trim() || !selectedTicket) return;
+
+    try {
+      if (supabase && user?.id) {
+        const { error } = await supabase
+          .from('support_ticket_messages')
+          .insert([
+            {
+              ticket_id: selectedTicket.id,
+              user_id: user.id,
+              message: newMessage.trim(),
+              is_staff_reply: true
+            }
+          ]);
+
+        if (error) throw error;
+
+        if (selectedTicket.status === 'open') {
+          await updateTicketStatus(selectedTicket.id, 'in_progress');
+        }
+
+        setNewMessage('');
+        fetchMessages(selectedTicket.id);
+        addToast({ type: 'success', title: 'Success', message: 'Reply sent' });
+      }
+    } catch (error: any) {
+      addToast({ type: 'error', title: 'Error', message: error.message });
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'open': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+      case 'in_progress': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+      case 'resolved': return 'bg-green-500/20 text-green-400 border-green-500/30';
+      case 'closed': return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+      default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'urgent': return 'text-red-400';
+      case 'high': return 'text-orange-400';
+      case 'medium': return 'text-yellow-400';
+      case 'low': return 'text-green-400';
+      default: return 'text-gray-400';
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+      <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+        <MessageSquare className="w-6 h-6 text-purple-400" />
+        Support Tickets Management
+      </h2>
+
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-gray-800/50 rounded-lg p-4 border border-blue-500/30">
+          <div className="text-2xl font-bold text-blue-400">{tickets.filter(t => t.status === 'open').length}</div>
+          <div className="text-gray-400 text-sm">Open</div>
+        </div>
+        <div className="bg-gray-800/50 rounded-lg p-4 border border-yellow-500/30">
+          <div className="text-2xl font-bold text-yellow-400">{tickets.filter(t => t.status === 'in_progress').length}</div>
+          <div className="text-gray-400 text-sm">In Progress</div>
+        </div>
+        <div className="bg-gray-800/50 rounded-lg p-4 border border-green-500/30">
+          <div className="text-2xl font-bold text-green-400">{tickets.filter(t => t.status === 'resolved').length}</div>
+          <div className="text-gray-400 text-sm">Resolved</div>
+        </div>
+        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-500/30">
+          <div className="text-2xl font-bold text-white">{tickets.length}</div>
+          <div className="text-gray-400 text-sm">Total</div>
+        </div>
+      </div>
+
+      <div className="flex gap-2 mb-4">
+        {['all', 'open', 'in_progress', 'resolved', 'closed'].map((status) => (
+          <button
+            key={status}
+            onClick={() => setStatusFilter(status)}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              statusFilter === status
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
+            }`}
+          >
+            {status === 'all' ? 'All' : status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6 overflow-y-auto max-h-[600px]">
+          <h3 className="text-lg font-semibold text-white mb-4">Tickets List</h3>
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : tickets.length === 0 ? (
+            <div className="text-center py-8 text-gray-400">No tickets found</div>
+          ) : (
+            <div className="space-y-3">
+              {tickets.map((ticket) => (
+                <div
+                  key={ticket.id}
+                  onClick={() => {
+                    setSelectedTicket(ticket);
+                    fetchMessages(ticket.id);
+                  }}
+                  className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                    selectedTicket?.id === ticket.id
+                      ? 'border-purple-500 bg-purple-500/10'
+                      : 'border-gray-700 hover:border-gray-600 bg-gray-900/30'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <h4 className="font-semibold text-white text-sm">{ticket.subject}</h4>
+                    <span className={`px-2 py-1 rounded-full text-xs border ${getStatusColor(ticket.status)}`}>
+                      {ticket.status}
+                    </span>
+                  </div>
+                  <p className="text-gray-400 text-xs mb-2 line-clamp-1">{ticket.description}</p>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500">{ticket.users?.display_name || 'Unknown'}</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`font-medium ${getPriorityColor(ticket.priority)}`}>{ticket.priority.toUpperCase()}</span>
+                      <span className="text-gray-500">{new Date(ticket.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6 flex flex-col">
+          {selectedTicket ? (
+            <>
+              <div className="border-b border-gray-700 pb-4 mb-4">
+                <div className="flex items-start justify-between mb-2">
+                  <h3 className="text-lg font-semibold text-white">{selectedTicket.subject}</h3>
+                  <select
+                    value={selectedTicket.status}
+                    onChange={(e) => updateTicketStatus(selectedTicket.id, e.target.value)}
+                    className="bg-gray-900 border border-gray-700 rounded px-3 py-1 text-sm text-white"
+                  >
+                    <option value="open">Open</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </div>
+                <p className="text-gray-400 text-sm mb-3">{selectedTicket.description}</p>
+                <div className="flex items-center gap-4 text-xs text-gray-500">
+                  <span>Category: {selectedTicket.category}</span>
+                  <span className={`font-medium ${getPriorityColor(selectedTicket.priority)}`}>
+                    Priority: {selectedTicket.priority.toUpperCase()}
+                  </span>
+                  <span>{new Date(selectedTicket.created_at).toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto mb-4 space-y-3 max-h-[350px]">
+                {messages.map((msg) => (
+                  <div key={msg.id} className={`flex gap-2 ${msg.is_staff_reply ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] p-3 rounded-lg ${
+                      msg.is_staff_reply
+                        ? 'bg-purple-600/20 border border-purple-500/30 text-white'
+                        : 'bg-gray-900/50 border border-gray-700 text-gray-300'
+                    }`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-medium">
+                          {msg.is_staff_reply ? 'Support (You)' : msg.users?.display_name}
+                        </span>
+                        <span className="text-xs text-gray-500">{new Date(msg.created_at).toLocaleTimeString()}</span>
+                      </div>
+                      <p className="text-sm">{msg.message}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {selectedTicket.status !== 'closed' && (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && sendReply()}
+                    placeholder="Type your reply..."
+                    className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
+                  />
+                  <button
+                    onClick={sendReply}
+                    disabled={!newMessage.trim()}
+                    className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-colors"
+                  >
+                    Send
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-gray-400">
+              <div className="text-center">
+                <MessageSquare className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>Select a ticket to view details</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+export const SettingsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
+  const [settings, setSettings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [editModal, setEditModal] = useState<any>(null);
+  const [editValue, setEditValue] = useState('');
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    setLoading(true);
+    try {
+      if (supabase) {
+        const { data, error } = await supabase.from('system_settings').select('*');
+        if (error) throw error;
+        setSettings(data || []);
+      }
+    } catch (error: any) {
+      console.error('Error:', error);
+      addToast({ type: 'error', title: 'Error', message: error.message || 'Failed to load settings' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openEditModal = (setting: any) => {
+    setEditModal(setting);
+    setEditValue(JSON.stringify(setting.value, null, 2));
+  };
+
+  const handleSave = async () => {
+    try {
+      if (!supabase || !editModal) return;
+
+      const parsedValue = JSON.parse(editValue);
+
+      const { error } = await supabase
+        .from('system_settings')
+        .update({ value: parsedValue, updated_at: new Date().toISOString() })
+        .eq('id', editModal.id);
+
+      if (error) throw error;
+
+      addToast({ type: 'success', title: 'Success', message: 'Setting updated successfully' });
+      setEditModal(null);
+      fetchSettings();
+    } catch (error: any) {
+      addToast({ type: 'error', title: 'Error', message: error.message || 'Failed to update setting' });
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+            <Settings className="w-6 h-6 text-gray-400" />
+            System Settings
+          </h2>
+          <p className="text-gray-400 text-sm">Configure platform settings and parameters</p>
+        </div>
+        <button
+          onClick={fetchSettings}
+          className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-white flex items-center gap-2"
+        >
+          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          Refresh
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {loading ? (
+          <div className="col-span-2 text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+          </div>
+        ) : settings.length === 0 ? (
+          <div className="col-span-2 text-center py-12 text-gray-400">
+            No settings found. Please run the database setup script.
+          </div>
+        ) : (
+          settings.map((setting) => (
+            <div key={setting.id} className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6">
+              <div className="flex justify-between items-start mb-2">
+                <h3 className="text-lg font-bold text-white">{setting.key}</h3>
+                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                  setting.category === 'finance' ? 'bg-green-500/20 text-green-400' :
+                  setting.category === 'security' ? 'bg-red-500/20 text-red-400' :
+                  setting.category === 'system' ? 'bg-blue-500/20 text-blue-400' :
+                  'bg-gray-500/20 text-gray-400'
+                }`}>
+                  {setting.category}
+                </span>
+              </div>
+              <p className="text-gray-400 text-sm mb-4">{setting.description}</p>
+              <div className="bg-gray-700/50 rounded px-3 py-2 text-white font-mono text-sm mb-4 overflow-x-auto">
+                {JSON.stringify(setting.value)}
+              </div>
+              <button
+                onClick={() => openEditModal(setting)}
+                className="w-full bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-white text-sm transition flex items-center justify-center gap-2"
+              >
+                <Edit size={16} />
+                Edit Setting
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      {editModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 max-w-2xl w-full">
+            <h3 className="text-xl font-bold text-white mb-4">Edit Setting: {editModal.key}</h3>
+            <p className="text-gray-400 text-sm mb-4">{editModal.description}</p>
+
+            <div className="mb-4">
+              <label className="block text-gray-300 mb-2">Value (JSON format)</label>
+              <textarea
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white font-mono focus:outline-none focus:border-blue-500"
+                rows={6}
+              />
+              <p className="text-gray-500 text-xs mt-2">Make sure to use valid JSON format</p>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setEditModal(null)}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
+};
+
+export const DeveloperTab: React.FC<{ addToast: any }> = ({ addToast }) => (
+  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+      <Wrench className="w-6 h-6 text-orange-400" />
+      Developer & Maintenance Tools
+    </h2>
+    <div className="grid grid-cols-3 gap-4">
+      {[
+        { icon: Code, label: 'Feature Flags', color: 'blue' },
+        { icon: TestTube, label: 'A/B Testing', color: 'green' },
+        { icon: Database, label: 'Database Tools', color: 'purple' },
+        { icon: FileText, label: 'Audit Trail', color: 'yellow' },
+        { icon: Activity, label: 'System Health', color: 'red' },
+        { icon: Bell, label: 'Alerts Config', color: 'orange' }
+      ].map((tool, i) => (
+        <button
+          key={i}
+          className={`bg-${tool.color}-500/10 border border-${tool.color}-500/30 rounded-lg p-6 hover:bg-${tool.color}-500/20 transition cursor-pointer`}
+        >
+          <tool.icon className={`w-8 h-8 text-${tool.color}-400 mb-3`} />
+          <div className={`text-${tool.color}-300 font-medium`}>{tool.label}</div>
+        </button>
+      ))}
+    </div>
+  </motion.div>
+);
+
+export const WithdrawalsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchWithdrawals();
+  }, []);
+
+  const fetchWithdrawals = async () => {
+    try {
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('transactions')
+          .select('*, users(username)')
+          .eq('type', 'withdrawal')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setWithdrawals(data || []);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
+  const handleApprove = async (id: string) => {
+    try {
+      if (supabase) {
+        await supabase.from('transactions').update({ status: 'completed' }).eq('id', id);
+        addToast({ type: 'success', title: 'Success', message: 'Withdrawal approved' });
+        fetchWithdrawals();
+      }
+    } catch (error) {
+      addToast({ type: 'error', title: 'Error', message: 'Failed to approve withdrawal' });
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    try {
+      if (supabase) {
+        await supabase.from('transactions').update({ status: 'failed' }).eq('id', id);
+        addToast({ type: 'success', title: 'Success', message: 'Withdrawal rejected' });
+        fetchWithdrawals();
+      }
+    } catch (error) {
+      addToast({ type: 'error', title: 'Error', message: 'Failed to reject withdrawal' });
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+      <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+        <Wallet className="w-6 h-6 text-green-400" />
+        Withdrawal Management
+      </h2>
+
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+          <div className="text-2xl font-bold text-yellow-400">{withdrawals.filter(w => w.status === 'pending').length}</div>
+          <div className="text-gray-400 text-sm">Pending</div>
+        </div>
+        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+          <div className="text-2xl font-bold text-green-400">{withdrawals.filter(w => w.status === 'completed').length}</div>
+          <div className="text-gray-400 text-sm">Completed</div>
+        </div>
+        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+          <div className="text-2xl font-bold text-red-400">{withdrawals.filter(w => w.status === 'failed').length}</div>
+          <div className="text-gray-400 text-sm">Failed</div>
+        </div>
+        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+          <div className="text-2xl font-bold text-white">
+            {withdrawals.filter(w => w.status === 'pending').reduce((sum, w) => sum + (w.amount || 0), 0).toLocaleString('cs-CZ')} Kč
+          </div>
+          <div className="text-gray-400 text-sm">Pending Amount</div>
+        </div>
+      </div>
+
+      <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-gray-700">
+              <th className="text-left py-3 px-4 text-gray-400">User</th>
+              <th className="text-left py-3 px-4 text-gray-400">Amount</th>
+              <th className="text-left py-3 px-4 text-gray-400">Method</th>
+              <th className="text-left py-3 px-4 text-gray-400">Status</th>
+              <th className="text-right py-3 px-4 text-gray-400">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {withdrawals.length === 0 ? (
+              <tr><td colSpan={5} className="text-center py-8 text-gray-400">No withdrawals found</td></tr>
+            ) : (
+              withdrawals.map((w) => (
+                <tr key={w.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                  <td className="py-3 px-4 text-white">{w.users?.username || 'Unknown'}</td>
+                  <td className="py-3 px-4 text-white font-semibold">{(w.amount || 0).toLocaleString('cs-CZ')} Kč</td>
+                  <td className="py-3 px-4 text-gray-300">{w.payment_method || 'N/A'}</td>
+                  <td className="py-3 px-4">
+                    <span className={`px-3 py-1 rounded-full text-xs ${
+                      w.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                      w.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                      'bg-red-500/20 text-red-400'
+                    }`}>
+                      {w.status}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    {w.status === 'pending' && (
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => handleApprove(w.id)}
+                          className="text-green-400 hover:text-green-300 px-3 py-1 rounded bg-green-500/10"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleReject(w.id)}
+                          className="text-red-400 hover:text-red-300 px-3 py-1 rounded bg-red-500/10"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </motion.div>
+  );
+};
+
+export const MonitoringTab: React.FC<{ addToast: any }> = ({ addToast }) => {
+  const [activeUsers, setActiveUsers] = useState(0);
+  const [transactionsPerMin, setTransactionsPerMin] = useState(0);
+
+  useEffect(() => {
+    fetchMonitoringData();
+    const interval = setInterval(fetchMonitoringData, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchMonitoringData = async () => {
+    try {
+      if (supabase) {
+        const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+        const [usersData, transactionsData] = await Promise.all([
+          supabase.from('users').select('*', { count: 'exact', head: true }).gte('last_login', fiveMinAgo.toISOString()),
+          supabase.from('transactions').select('*', { count: 'exact', head: true }).gte('created_at', fiveMinAgo.toISOString())
+        ]);
+
+        setActiveUsers(usersData.count || 0);
+        setTransactionsPerMin(((transactionsData.count || 0) / 5).toFixed(1) as any);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+      <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+        <Activity className="w-6 h-6 text-blue-400" />
+        Real-time Monitoring
+      </h2>
+      <div className="grid grid-cols-2 gap-6">
+        <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6">
+          <h3 className="text-xl font-bold mb-4">Active Users</h3>
+          <div className="text-4xl font-bold text-green-400">{activeUsers}</div>
+          <div className="text-sm text-gray-400">Online in last 5 minutes</div>
+        </div>
+        <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6">
+          <h3 className="text-xl font-bold mb-4">Transactions/min</h3>
+          <div className="text-4xl font-bold text-blue-400">{transactionsPerMin}</div>
+          <div className="text-sm text-gray-400">Average rate (last 5 min)</div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
