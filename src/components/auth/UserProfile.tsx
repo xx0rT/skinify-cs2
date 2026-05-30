@@ -1,317 +1,277 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
+  AlertTriangle,
+  ChevronDown,
+  Heart,
   LogOut,
-  DollarSign,
-  User,
+  Package,
+  Plus,
   Settings,
   ShoppingBag,
-  Bell,
-  Shield,
-  ChevronDown,
-  Wallet,
-  TrendingUp,
-  ArrowUpCircle,
-  ArrowDownCircle,
-  RefreshCw,
-  Tag,
   Store,
-  ArrowUpDown,
-  Eye,
-  MessageCircle,
-  Globe
+  TrendingUp,
+  User as UserIcon,
+  Wallet,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useBalanceStore } from '../../store/balanceStore';
-import { useNotificationStore } from '../../store/notificationStore';
-import { useTranslationStore, removeLanguagePrefix } from '../../store/translationStore';
+import { useCurrencyStore } from '../../store/currencyStore';
 import { useToastStore } from '../../store/toastStore';
-import BalanceDisplay from '../balance/BalanceDisplay';
+import { spring, tap } from '../../lib/motion';
+import { openDepositModal } from '../DepositModal';
+
+/**
+ * UserProfile — header avatar dropdown.
+ *
+ * Visual hierarchy (top → bottom):
+ *   1. Identity block (avatar + name + steamid) — the "who"
+ *   2. Balance hero with inline Refill — the "what's mine"
+ *   3. Optional trade-link warning strip — only if missing
+ *   4. Quiet menu of profile shortcuts — the "where to go"
+ *   5. Sign out — the "exit"
+ *
+ * Trigger is intentionally minimal (avatar + chevron, no inline name) so the
+ * header reads cleanly across a busy nav.
+ */
 
 const UserProfile: React.FC = () => {
-  const { user, isOwner, logout } = useAuthStore();
-  const { balance, fetchBalance } = useBalanceStore();
-  const { unreadCount } = useNotificationStore();
-  const { currentLanguage, setLanguageByCode } = useTranslationStore();
+  const { user, logout } = useAuthStore();
+  const { balance, pendingBalance, fetchBalance } = useBalanceStore();
+  const { formatPrice } = useCurrencyStore();
   const { addToast } = useToastStore();
   const navigate = useNavigate();
-  const location = useLocation();
-  const [showDropdown, setShowDropdown] = React.useState(false);
-  const [showLanguageMenu, setShowLanguageMenu] = React.useState(false);
-  const [dropdownPosition, setDropdownPosition] = React.useState({ top: 0, right: 0 });
-  const buttonRef = React.useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
 
-  const languages = [
-    { code: 'en', flag: '🇬🇧', name: 'English' },
-    { code: 'cs', flag: '🇨🇿', name: 'Čeština' },
-    { code: 'de', flag: '🇩🇪', name: 'Deutsch' },
-    { code: 'ru', flag: '🇷🇺', name: 'Русский' }
-  ];
+  useEffect(() => {
+    if (user?.steamId) fetchBalance(user.steamId);
+  }, [user?.steamId]);
 
-  // Fetch balance when component mounts
-  React.useEffect(() => {
-    if (user) {
-      fetchBalance(user.steamId);
-    }
-  }, [user, fetchBalance]);
-
-  // Calculate dropdown position when shown
-  React.useEffect(() => {
-    if (showDropdown && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + 8,
-        right: window.innerWidth - rect.right
-      });
-    }
-  }, [showDropdown]);
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
 
   if (!user) return null;
 
+  const go = (path: string) => {
+    setOpen(false);
+    navigate(path);
+  };
+
+  const initial = (user.displayName || 'U').charAt(0).toUpperCase();
+  const tradeReady = Boolean(user.tradeLink);
+  const pending = Number(pendingBalance || 0);
+
   return (
-    <div className="relative">
-      {/* User Profile Button with Dropdown */}
+    <div className="relative" ref={wrapRef}>
+      {/* ── Trigger — minimal: avatar + caret ──────────────── */}
       <motion.button
-        ref={buttonRef}
-        onClick={() => setShowDropdown(!showDropdown)}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        className="flex items-center space-x-2 md:space-x-3 text-white transition-all duration-300 relative"
+        whileTap={tap}
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Open profile menu"
+        className={`relative h-11 pl-1.5 pr-2 rounded-full flex items-center gap-1 transition-colors ${
+          open ? 'bg-subtle' : 'hover:bg-subtle'
+        }`}
       >
-        <motion.img
-          src={user.avatarUrl}
-          alt={user.displayName}
-          className="w-8 h-8 md:w-10 md:h-10 rounded-full cursor-pointer"
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate('/profile');
-          }}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-        />
-        <div className="hidden sm:flex flex-col text-left">
-          <span className="font-medium flex items-center">
-            {user.displayName}
-            {isOwner && (
-              <span className="ml-1 md:ml-2 px-1.5 md:px-2 py-0.5 text-xs bg-gradient-to-r from-yellow-500 to-orange-500 text-black rounded-full font-bold">
-                VIP
-              </span>
-            )}
-          </span>
-          <span className="text-xs md:text-sm text-green-400 font-medium">
-            {balance.toLocaleString('cs-CZ')} Kč
-          </span>
-        </div>
-        <ChevronDown 
-          size={14} 
-          className={`text-gray-300 transition-transform duration-300 ${showDropdown ? 'rotate-180' : ''}`}
+        <span className="relative w-9 h-9 rounded-full bg-accent text-on-accent grid place-items-center overflow-hidden shrink-0">
+          {user.avatarUrl ? (
+            <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-[13px] font-bold tracking-tight">{initial}</span>
+          )}
+          {/* Status dot — green when trade link is set, amber otherwise */}
+          <span
+            className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-bg ${
+              tradeReady ? 'bg-emerald-500' : 'bg-amber-500'
+            }`}
+            aria-hidden
+          />
+        </span>
+        <ChevronDown
+          size={14}
+          strokeWidth={2.4}
+          className={`text-ink-muted shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
         />
       </motion.button>
 
-      {/* Dropdown Menu */}
-      {showDropdown && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-[998]"
-            onClick={() => setShowDropdown(false)}
-          />
-
-          {/* Dropdown Content */}
+      <AnimatePresence>
+        {open && (
           <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            initial={{ opacity: 0, y: -6, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="fixed w-56 bg-gray-900/60 backdrop-blur-2xl rounded-xl border border-purple-500/20 shadow-[0_8px_32px_rgba(124,58,237,0.25)] z-[999] overflow-hidden"
-            style={{
-              top: `${dropdownPosition.top}px`,
-              right: `${dropdownPosition.right}px`,
-              background: 'linear-gradient(135deg, rgba(17,24,39,0.95) 0%, rgba(31,41,55,0.95) 100%)',
-              backdropFilter: 'blur(20px) saturate(180%)',
-            }}
+            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+            transition={spring}
+            className="absolute right-0 top-full mt-2 z-50 w-[300px] card-elevated overflow-hidden"
+            role="menu"
           >
-            {/* User Info Header */}
-            <div className="p-3 border-b border-white/5">
-              <div className="flex items-center space-x-2">
-                <div className="relative">
-                  <motion.img
-                    src={user.avatarUrl}
-                    alt={user.displayName}
-                    className="w-9 h-9 rounded-lg border border-purple-500/30"
-                    whileHover={{ scale: 1.05 }}
-                  />
-                  <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border border-gray-900"></div>
+            {/* ── 1. Identity ─────────────────────────────── */}
+            <div className="p-4 pb-3 flex items-center gap-3">
+              <div className="w-11 h-11 rounded-full bg-accent text-on-accent grid place-items-center overflow-hidden shrink-0">
+                {user.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-[14px] font-bold tracking-tight">{initial}</span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[14.5px] font-bold text-ink truncate tracking-tight leading-tight">
+                  {user.displayName}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-white text-xs flex items-center gap-1 truncate">
-                    {user.displayName}
-                    {isOwner && (
-                      <span className="px-1 py-0.5 text-[9px] bg-gradient-to-r from-yellow-400 to-orange-500 rounded text-black font-bold">
-                        VIP
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[10px] text-gray-400 flex items-center gap-1">
-                    <div className="w-1 h-1 bg-green-500 rounded-full"></div>
-                    Online
-                  </div>
-                  <div className="text-[9px] text-gray-500 mt-0.5 bg-gray-800/60 backdrop-blur-sm rounded px-1.5 py-0.5 inline-block">
-                    UID: {user.id?.slice(0, 8)}...
-                  </div>
-                </div>
+                <a
+                  href={`https://steamcommunity.com/profiles/${user.steamId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] text-ink-dim hover:text-ink-muted font-medium truncate select-text font-mono mt-0.5 inline-block transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {user.steamId}
+                </a>
               </div>
             </div>
 
-            {/* Balance Display */}
-            <div className="px-3 py-2 border-b border-white/5 bg-gradient-to-r from-purple-500/5 to-transparent">
-              <div className="text-[9px] text-gray-400 mb-0.5">Balance</div>
-              <div className="text-base font-bold text-white">
-                {balance.toLocaleString('cs-CZ')} <span className="text-[10px] text-gray-400">Kč</span>
-              </div>
-            </div>
-
-            {/* Menu Items */}
-            <div className="py-1">
-              <motion.div whileHover={{ x: 2 }} transition={{ duration: 0.2 }}>
-                <Link
-                  to="/profile"
-                  onClick={() => setShowDropdown(false)}
-                  className="flex items-center space-x-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200 group"
-                >
-                  <div className="w-7 h-7 rounded-lg bg-gray-700/50 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
-                    <User size={14} className="text-gray-400 group-hover:text-purple-400 transition-colors" />
-                  </div>
-                  <span className="font-medium text-xs">Profile</span>
-                </Link>
-              </motion.div>
-
-              <motion.div whileHover={{ x: 2 }} transition={{ duration: 0.2 }}>
-                <Link
-                  to="/profile?tab=orders"
-                  onClick={() => setShowDropdown(false)}
-                  className="flex items-center space-x-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200 group"
-                >
-                  <div className="w-7 h-7 rounded-lg bg-gray-700/50 flex items-center justify-center group-hover:bg-orange-500/20 transition-colors">
-                    <ShoppingBag size={14} className="text-gray-400 group-hover:text-orange-400 transition-colors" />
-                  </div>
-                  <span className="font-medium text-xs">Orders</span>
-                </Link>
-              </motion.div>
-
-              <motion.div whileHover={{ x: 2 }} transition={{ duration: 0.2 }}>
-                <Link
-                  to="/profile?tab=shop"
-                  onClick={() => setShowDropdown(false)}
-                  className="flex items-center space-x-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200 group"
-                >
-                  <div className="w-7 h-7 rounded-lg bg-gray-700/50 flex items-center justify-center group-hover:bg-yellow-500/20 transition-colors">
-                    <Store size={14} className="text-gray-400 group-hover:text-yellow-400 transition-colors" />
-                  </div>
-                  <span className="font-medium text-xs">My Shop</span>
-                </Link>
-              </motion.div>
-
-              {/* Admin Panel (Owner Only) */}
-              {isOwner && (
-                <motion.div whileHover={{ x: 2 }} transition={{ duration: 0.2 }}>
-                  <Link
-                    to="/admin"
-                    onClick={() => setShowDropdown(false)}
-                    className="flex items-center space-x-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200 group"
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-gray-700/50 flex items-center justify-center group-hover:bg-yellow-500/20 transition-colors">
-                      <Shield size={14} className="text-gray-400 group-hover:text-yellow-400 transition-colors" />
-                    </div>
-                    <span className="font-medium text-xs">Admin Panel</span>
-                  </Link>
-                </motion.div>
-              )}
-
-              {/* Language Switcher */}
-              <div className="relative">
-                <motion.div whileHover={{ x: 2 }} transition={{ duration: 0.2 }}>
+            {/* ── 2. Balance hero ─────────────────────────── */}
+            <div className="px-2 pb-2">
+              <div className="card-flat p-4">
+                <div className="flex items-center justify-between mb-2">
                   <button
-                    onClick={() => setShowLanguageMenu(!showLanguageMenu)}
-                    className="w-full flex items-center space-x-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200 group"
+                    onClick={() => go('/profile?tab=balance')}
+                    className="text-left flex-1 min-w-0 group"
                   >
-                    <div className="w-7 h-7 rounded-lg bg-gray-700/50 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
-                      <Globe size={14} className="text-gray-400 group-hover:text-purple-400 transition-colors" />
+                    <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-muted">
+                      Available balance
                     </div>
-                    <span className="font-medium text-xs flex items-center gap-1">
-                      <span>{languages.find(l => l.code === currentLanguage?.code)?.flag}</span>
-                      <span>{languages.find(l => l.code === currentLanguage?.code)?.name}</span>
-                    </span>
+                    <div className="text-[22px] font-bold text-ink tabular-nums tracking-tight leading-none mt-1 group-hover:text-accent transition-colors">
+                      {formatPrice(Number(balance || 0))}
+                    </div>
                   </button>
-                </motion.div>
-
-                {showLanguageMenu && (
-                  <motion.div
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="absolute right-full mr-2 bottom-0 w-44 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 overflow-hidden"
+                  <motion.button
+                    whileTap={tap}
+                    whileHover={{ scale: 1.04 }}
+                    onClick={() => {
+                      setOpen(false);
+                      openDepositModal();
+                    }}
+                    className="shrink-0 h-9 w-9 rounded-full bg-accent text-on-accent grid place-items-center"
+                    style={{ boxShadow: '0 6px 16px -6px rgb(var(--accent) / 0.6)' }}
+                    aria-label="Add funds"
+                    title="Add funds"
                   >
-                    {languages.map((lang) => (
-                      <button
-                        key={lang.code}
-                        onClick={() => {
-                          setShowLanguageMenu(false);
-                          setShowDropdown(false);
-                          // Skip if already on this language
-                          if (currentLanguage?.code === lang.code) {
-                            return;
-                          }
-                          // Update language immediately
-                          setLanguageByCode(lang.code.toLowerCase());
-                          // Update URL without reload
-                          let currentPath = removeLanguagePrefix(location.pathname);
-                          if (currentPath === '/') currentPath = '';
-                          const newPath = `/${lang.code.toLowerCase()}${currentPath}`;
-                          navigate(newPath, { replace: true });
-                          addToast({
-                            type: 'success',
-                            title: 'Language Changed',
-                            message: `Switched to ${lang.name}`,
-                            duration: 2000
-                          });
-                        }}
-                        className={`w-full px-3 py-2.5 text-left flex items-center space-x-2 hover:bg-gray-700/50 transition-colors ${
-                          currentLanguage?.code === lang.code ? 'bg-purple-600/20 text-purple-400' : 'text-gray-300'
-                        }`}
-                      >
-                        <span className="text-base">{lang.flag}</span>
-                        <span className="text-xs font-medium">{lang.name}</span>
-                      </button>
-                    ))}
-                  </motion.div>
+                    <Plus size={15} strokeWidth={2.6} />
+                  </motion.button>
+                </div>
+                {pending > 0 && (
+                  <div className="flex items-center justify-between text-[11px] pt-2 border-t border-line">
+                    <span className="text-ink-muted font-medium">Pending release</span>
+                    <span className="text-ink font-bold tabular-nums">
+                      {formatPrice(pending)}
+                    </span>
+                  </div>
                 )}
               </div>
             </div>
 
-            {/* Logout Button */}
-            <div className="p-2 border-t border-white/5">
-              <motion.button
-                onClick={() => {
-                  logout();
-                  setShowDropdown(false);
-                }}
-                whileHover={{ x: 2 }}
-                whileTap={{ scale: 0.98 }}
-                transition={{ duration: 0.2 }}
-                className="w-full flex items-center space-x-2 px-3 py-2 text-gray-300 hover:text-red-400 hover:bg-white/5 transition-all duration-200 group"
+            {/* ── 3. Trade-link warning (only when missing) ── */}
+            {!tradeReady && (
+              <button
+                onClick={() => go('/profile?tab=settings')}
+                className="w-full mx-2 mb-2 px-3 py-2.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/15 flex items-center gap-2.5 transition-colors text-left"
+                style={{ width: 'calc(100% - 1rem)' }}
               >
-                <div className="w-7 h-7 rounded-lg bg-gray-700/50 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
-                  <LogOut size={14} className="text-gray-400 group-hover:text-red-400 transition-colors" />
+                <AlertTriangle
+                  size={14}
+                  strokeWidth={2.4}
+                  className="text-amber-600 dark:text-amber-400 shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12px] font-bold text-ink leading-tight tracking-tight">
+                    Add your Steam trade URL
+                  </div>
+                  <div className="text-[10.5px] text-ink-muted font-medium mt-0.5">
+                    Required to receive purchased items
+                  </div>
                 </div>
-                <span className="font-medium text-xs">Logout</span>
-              </motion.button>
+              </button>
+            )}
+
+            {/* ── 4. Navigation ───────────────────────────── */}
+            <div className="px-2 pt-1 pb-1.5 border-t border-line">
+              <nav className="space-y-px">
+                <Item Icon={UserIcon}    label="Overview"  onClick={() => go('/profile?tab=overview')} />
+                <Item Icon={Package}     label="Inventory" onClick={() => go('/profile?tab=inventory')} />
+                <Item Icon={ShoppingBag} label="Listings"  onClick={() => go('/profile?tab=listings')} />
+                <Item Icon={Heart}       label="Wishlist"  onClick={() => go('/profile?tab=wishlist')} />
+                <Item Icon={TrendingUp}  label="Trades"    onClick={() => go('/profile?tab=trades')} />
+                <Item Icon={Store}       label="My shop"   onClick={() => go('/profile?tab=shop')} />
+                <Item Icon={Settings}    label="Settings"  onClick={() => go('/profile?tab=settings')} />
+              </nav>
+            </div>
+
+            {/* ── 5. Sign out ─────────────────────────────── */}
+            <div className="px-2 pb-2 pt-1 border-t border-line">
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  logout();
+                  addToast({ type: 'info', title: 'Signed out' });
+                  navigate('/');
+                }}
+                className="group w-full h-10 px-2.5 rounded-2xl flex items-center gap-3 text-ink-muted hover:bg-rose-500/10 hover:text-rose-700 dark:hover:text-rose-300 transition-colors"
+              >
+                <LogOut
+                  size={15}
+                  strokeWidth={2.2}
+                  className="shrink-0 group-hover:text-rose-700 dark:group-hover:text-rose-300 transition-colors"
+                />
+                <span className="text-[13px] font-semibold tracking-tight">Sign out</span>
+              </button>
             </div>
           </motion.div>
-        </>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 };
+
+/**
+ * Quiet menu row — single-color icon + label, hover fills the row. Drops the
+ * hue-tinted icon chip from the previous version because seven colored
+ * chips in a stacked list was visual noise that competed with the action
+ * itself.
+ */
+const Item: React.FC<{
+  Icon: React.ComponentType<any>;
+  label: string;
+  onClick: () => void;
+}> = ({ Icon, label, onClick }) => (
+  <button
+    onClick={onClick}
+    className="w-full h-9 px-2.5 rounded-xl flex items-center gap-3 hover:bg-subtle transition-colors text-left group"
+    role="menuitem"
+  >
+    <Icon
+      size={15}
+      strokeWidth={2}
+      className="text-ink-muted group-hover:text-ink transition-colors shrink-0"
+    />
+    <span className="flex-1 text-[13px] font-semibold text-ink tracking-tight">{label}</span>
+  </button>
+);
 
 export default UserProfile;

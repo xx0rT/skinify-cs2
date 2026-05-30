@@ -39,8 +39,24 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'SF Pro Display', 'Segoe UI', 'sans-serif'],
-        display: ['Inter', '-apple-system', 'SF Pro Display', 'sans-serif'],
+        sans: [
+          'Lexend',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'Segoe UI',
+          'Inter',
+          'system-ui',
+          'sans-serif',
+        ],
+        display: [
+          'Lexend',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'Segoe UI',
+          'Inter',
+          'system-ui',
+          'sans-serif',
+        ],
       },
       borderRadius: {
         'xl2': '1.25rem',

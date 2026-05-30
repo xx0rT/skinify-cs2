@@ -1,8 +1,26 @@
+import { createClient } from 'npm:@supabase/supabase-js@2.39.0';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 };
+
+/**
+ * Cache TTL for fetched inventories. 5 minutes is a good balance between
+ * "fresh enough that newly-traded items disappear quickly" and "long enough
+ * that we don't get IP-banned by Steam during traffic spikes." A user can
+ * pass `?force=true` to bypass the cache and force a refetch.
+ */
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * Verbose per-item logs were leaking into every production fetch and adding
+ * latency. Gate them behind a debug flag; lifecycle / error logs stay always.
+ * Set USER_INVENTORY_DEBUG=true in Edge Function secrets to re-enable.
+ */
+const VERBOSE = Deno.env.get('USER_INVENTORY_DEBUG') === 'true';
+const vlog = (...args: any[]) => { if (VERBOSE) console.log(...args); };
 
 interface SteamInventoryAsset {
   assetid: string;
@@ -188,18 +206,16 @@ function extractStickers(descriptions: any[]): Array<{
   if (!descriptions || descriptions.length === 0) return [];
 
   try {
-    console.log('=== PARSING STEAM STICKER DATA ===');
-    console.log(`Total descriptions: ${descriptions.length}`);
+    vlog('=== PARSING STEAM STICKER DATA ===');
+    vlog(`Total descriptions: ${descriptions.length}`);
 
-    // Find the description with sticker info
     const stickerInfo = descriptions.find(desc => desc && desc.name === 'sticker_info');
 
     if (!stickerInfo || !stickerInfo.value) {
-      console.log('No sticker_info found in descriptions');
       return [];
     }
 
-    console.log('Raw sticker_info HTML:', stickerInfo.value);
+    vlog('Raw sticker_info HTML:', stickerInfo.value);
 
     const stickers: Array<{
       name: string;
@@ -220,7 +236,7 @@ function extractStickers(descriptions: any[]): Array<{
       const imageUrl = match[1];
       const stickerName = match[2].trim();
 
-      console.log(`Found img sticker: "${stickerName}" with image: ${imageUrl}`);
+      vlog(`Found img sticker: "${stickerName}" with image: ${imageUrl}`);
 
       if (stickerName) {
         stickers.push(createStickerObject(stickerName, ++stickerSlot, imageUrl));
@@ -229,14 +245,14 @@ function extractStickers(descriptions: any[]): Array<{
 
     // Method 2: If no img tags found, try parsing <center> tags
     if (stickers.length === 0) {
-      console.log('No img tags found, trying center tag parsing...');
+      vlog('No img tags found, trying center tag parsing...');
 
       const centerRegex = /<center[^>]*>(?:[^<]*<br[^>]*>)?\s*Sticker:\s*([^<]+)<\/center>/gi;
 
       while ((match = centerRegex.exec(stickerInfo.value)) !== null) {
         const stickerName = match[1].trim();
 
-        console.log(`Found center sticker: "${stickerName}"`);
+        vlog(`Found center sticker: "${stickerName}"`);
 
         if (stickerName) {
           stickers.push(createStickerObject(stickerName, ++stickerSlot));
@@ -246,32 +262,26 @@ function extractStickers(descriptions: any[]): Array<{
 
     // Method 3: Parse simple text format "Sticker: Name"
     if (stickers.length === 0) {
-      console.log('No structured stickers found, trying text parsing...');
+      vlog('No structured stickers found, trying text parsing...');
 
-      // Remove all HTML tags and look for "Sticker: Name" pattern
       const cleanText = stickerInfo.value.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-      console.log('Clean text:', cleanText);
+      vlog('Clean text:', cleanText);
 
       const textMatch = cleanText.match(/Sticker:\s*(.+)/);
       if (textMatch) {
         const stickersText = textMatch[1].trim();
-        console.log(`Found sticker text: "${stickersText}"`);
+        vlog(`Found sticker text: "${stickersText}"`);
 
-        // Split by comma if multiple stickers
         const stickerNames = stickersText.split(',').map(name => name.trim()).filter(name => name);
 
         stickerNames.forEach((name, index) => {
-          console.log(`Adding text sticker: "${name}"`);
+          vlog(`Adding text sticker: "${name}"`);
           stickers.push(createStickerObject(name, index + 1));
         });
       }
     }
 
-    console.log(`=== STICKER EXTRACTION COMPLETE ===`);
-    console.log(`Total stickers found: ${stickers.length}`);
-    stickers.forEach((sticker, index) => {
-      console.log(`Sticker ${index + 1}: "${sticker.name}"`);
-    });
+    vlog(`Sticker extraction complete — total found: ${stickers.length}`);
 
     return stickers;
   } catch (error) {
@@ -384,9 +394,9 @@ function extractFloatFromAssetProperties(assetProperties?: Array<{ propertyid: n
  * @returns Processed item object
  */
 function parseCS2Item(asset: any, description: any, assetProperties?: any[]): any {
-  console.log('=== PARSING CS2 ITEM ===');
-  console.log('Asset:', { assetid: asset.assetid, classid: asset.classid, instanceid: asset.instanceid });
-  console.log('Description:', { name: description.name, market_name: description.market_name });
+  vlog('=== PARSING CS2 ITEM ===');
+  vlog('Asset:', { assetid: asset.assetid, classid: asset.classid, instanceid: asset.instanceid });
+  vlog('Description:', { name: description.name, market_name: description.market_name });
 
   // Extract basic item info
   const basicInfo = {
@@ -401,7 +411,7 @@ function parseCS2Item(asset: any, description: any, assetProperties?: any[]): an
     marketable: description.marketable === 1
   };
 
-  console.log('Basic info extracted:', basicInfo);
+  vlog('Basic info extracted:', basicInfo);
 
   // Extract stickers from descriptions (wrap in try-catch to prevent failures)
   let stickers = [];
@@ -426,10 +436,10 @@ function parseCS2Item(asset: any, description: any, assetProperties?: any[]): an
   const finalFloat = assetFloat || descriptionFloat;
 
   if (finalFloat) {
-    console.log(`Float extracted for ${basicInfo.name}: ${finalFloat}`);
+    vlog(`Float extracted for ${basicInfo.name}: ${finalFloat}`);
   }
   if (assetPattern) {
-    console.log(`Pattern extracted for ${basicInfo.name}: ${assetPattern}`);
+    vlog(`Pattern extracted for ${basicInfo.name}: ${assetPattern}`);
   }
 
   // Extract other item properties
@@ -603,12 +613,13 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const steamId = url.searchParams.get('steamId');
     const debugMode = url.searchParams.get('debug') === 'true';
+    const forceRefresh = url.searchParams.get('force') === 'true';
 
     if (!steamId) {
       return new Response(
         JSON.stringify({
           error: 'Steam ID parameter is required',
-          usage: 'GET /user-inventory?steamId=<STEAM_ID>&debug=true (optional)',
+          usage: 'GET /user-inventory?steamId=<STEAM_ID>&force=true&debug=true (optional)',
           timestamp: new Date().toISOString()
         }),
         {
@@ -618,13 +629,62 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('=== CS2 INVENTORY REQUEST ===');
-    console.log('Steam ID received:', steamId);
-    console.log('Debug mode:', debugMode);
-
     // Step 1: Resolve Steam ID to Steam ID64 if needed
     const steamId64 = await resolveSteamId(steamId);
-    console.log('Steam ID64 resolved:', steamId64);
+
+    // Step 1.5: Cache lookup — Steam's inventory endpoint is per-IP rate-limited
+    // (≈20 req/min). Without caching we burn the quota on every page navigation.
+    // Bypass with `?force=true` or `?debug=true`.
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const db = (supabaseUrl && supabaseServiceKey)
+      ? createClient(supabaseUrl, supabaseServiceKey)
+      : null;
+
+    if (db && !forceRefresh && !debugMode) {
+      const freshSince = new Date(Date.now() - CACHE_TTL_MS).toISOString();
+      const { data: cached } = await db
+        .from('user_inventories')
+        .select('*')
+        .eq('steam_id', steamId64)
+        .gte('last_updated', freshSince)
+        .order('last_updated', { ascending: false });
+
+      if (cached && cached.length > 0) {
+        const items: ProcessedItem[] = cached.map((row: any) => ({
+          id: row.asset_id,
+          name: row.item_name || row.market_name || '',
+          market_name: row.market_name || '',
+          type: row.item_type || 'Unknown',
+          rarity: row.rarity || 'Consumer Grade',
+          condition: row.condition || 'Not Painted',
+          price_estimate: Number(row.price_estimate || 0),
+          image: row.image_url || '',
+          tradable: !!row.tradable,
+          marketable: !!row.marketable,
+          float: row.float_value ?? undefined,
+          stickers: row.stickers ?? undefined,
+          assetid: row.asset_id,
+          classid: row.class_id,
+          instanceid: row.instance_id,
+        }));
+        const totalValue = items.reduce((s, it) => s + it.price_estimate, 0);
+        return new Response(
+          JSON.stringify({
+            steam_id: steamId64,
+            original_steam_id: steamId,
+            items,
+            total: items.length,
+            total_value: totalValue,
+            currency: 'CZK',
+            last_updated: cached[0].last_updated,
+            cached: true,
+            cache_ttl_seconds: Math.floor(CACHE_TTL_MS / 1000),
+          }),
+          { headers: { 'Content-Type': 'application/json', ...corsHeaders }, status: 200 },
+        );
+      }
+    }
 
     // Step 2: Construct Steam inventory URL exactly as specified
     const inventoryUrl = `https://steamcommunity.com/inventory/${steamId64}/730/2`;
@@ -816,10 +876,50 @@ Deno.serve(async (req) => {
 
     const totalValue = items.reduce((sum, item) => sum + item.price_estimate, 0);
 
-    console.log('=== INVENTORY PROCESSING COMPLETE ===');
-    console.log(`Steam ID: ${steamId64}`);
-    console.log(`Total CS2 items found: ${items.length}`);
-    console.log(`Total estimated value: ${totalValue.toLocaleString('cs-CZ')} CZK`);
+    // Step 5.5: Cache write-through — replace this user's rows in
+    // user_inventories so subsequent requests within CACHE_TTL_MS skip Steam.
+    // Steam's API rate-limits per IP, so caching is functional, not just an
+    // optimization. We swallow cache errors so a DB hiccup never breaks the
+    // user-facing response.
+    if (db) {
+      try {
+        // Drop the user's old rows so deleted/traded items disappear.
+        await db.from('user_inventories').delete().eq('steam_id', steamId64);
+        if (items.length > 0) {
+          const rows = items.map((it) => ({
+            steam_id: steamId64,
+            asset_id: it.assetid,
+            class_id: it.classid,
+            instance_id: it.instanceid,
+            market_name: it.market_name,
+            item_name: it.name,
+            item_type: it.type,
+            rarity: it.rarity,
+            condition: it.condition,
+            price_estimate: it.price_estimate,
+            image_url: it.image,
+            tradable: it.tradable,
+            marketable: it.marketable,
+            float_value: it.float ?? null,
+            stickers: it.stickers ?? null,
+            last_updated: new Date().toISOString(),
+          }));
+          // Insert in chunks to avoid hitting payload limits for huge inventories.
+          const CHUNK = 200;
+          for (let i = 0; i < rows.length; i += CHUNK) {
+            const { error: insertErr } = await db
+              .from('user_inventories')
+              .insert(rows.slice(i, i + CHUNK));
+            if (insertErr) {
+              console.warn('[user-inventory] cache write chunk failed:', insertErr.message);
+              break;
+            }
+          }
+        }
+      } catch (cacheErr) {
+        console.warn('[user-inventory] cache write failed:', cacheErr);
+      }
+    }
 
     // Step 6: Return processed inventory
     const result = {
@@ -831,6 +931,7 @@ Deno.serve(async (req) => {
       currency: 'CZK',
       last_updated: new Date().toISOString(),
       source_url: inventoryUrl,
+      cached: false,
       raw_steam_response: {
         success: inventoryData.success,
         total_inventory_count: inventoryData.total_inventory_count,

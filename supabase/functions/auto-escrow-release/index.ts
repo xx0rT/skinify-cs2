@@ -103,95 +103,47 @@ async function releasePendingFunds(supabase: any) {
         console.log(`Amount to release: ${userData.totalAmount} CZK`);
         console.log(`Transactions: ${userData.transactions.length}`);
 
-        // Get user's current balances
-        const { data: user, error: userError } = await supabase
-          .from('users')
-          .select('current_balance, pending_balance, total_earned')
-          .eq('id', userData.userId)
-          .single();
+        // Flip the `pending_wallet` flag on each matured sale transaction
+        // to false. The `update_user_balance_from_transactions` trigger
+        // recomputes the user's full balance from all completed sales and
+        // honors this flag (see migration 20251107000000): sales with
+        // pending_wallet=true count toward pending_balance, false toward
+        // current_balance. Updating the metadata is sufficient — no manual
+        // balance arithmetic needed, which avoids double-credit bugs.
+        const txIds = userData.transactions.map((t) => t.id);
+        const releasedAt = new Date().toISOString();
 
-        if (userError || !user) {
-          console.error(`User ${steamId} not found for pending release:`, userError);
-          continue;
-        }
-
-        const currentBalance = Number(user.current_balance || 0);
-        const currentPending = Number(user.pending_balance || 0);
-        const currentEarned = Number(user.total_earned || 0);
-
-        // Transfer from pending to main balance
-        const newBalance = currentBalance + userData.totalAmount;
-        const newPendingBalance = Math.max(0, currentPending - userData.totalAmount);
-        const newTotalEarned = currentEarned + userData.totalAmount;
-
-        console.log('Balance transfer calculation:', {
-          steam_id: steamId,
-          current_balance: currentBalance,
-          current_pending: currentPending,
-          amount_to_release: userData.totalAmount,
-          new_balance: newBalance,
-          new_pending: newPendingBalance
-        });
-
-        // Update user balances
-        const { data: updatedUser, error: balanceUpdateError } = await supabase
-          .from('users')
-          .update({
-            current_balance: newBalance,
-            pending_balance: newPendingBalance,
-            total_earned: newTotalEarned,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', userData.userId)
-          .select()
-          .single();
-
-        if (balanceUpdateError) {
-          console.error(`Failed to update balance for ${steamId}:`, balanceUpdateError);
-          continue;
-        }
-
-        console.log('✅ Balance updated successfully:', {
-          user_id: userData.userId,
-          old_balance: currentBalance,
-          new_balance: newBalance,
-          released_amount: userData.totalAmount
-        });
-
-        // Create release transaction record
-        const releaseTransaction = {
-          user_id: userData.userId,
-          steam_id: steamId,
-          type: 'sale',
-          amount: userData.totalAmount,
-          description: `Pending funds released to main balance after 8-day security period. ${userData.transactions.length} trade(s) completed.`,
-          reference_id: `pending_release_${steamId}_${Date.now()}`,
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-          metadata: {
+        // One update per row so we can patch the metadata jsonb precisely
+        // (postgrest can't merge jsonb via PATCH). The trigger fires once per
+        // row, but each fire recomputes from scratch so the final state is
+        // consistent.
+        for (const tx of userData.transactions) {
+          const patchedMeta = {
+            ...(tx.metadata || {}),
+            pending_wallet: false,
+            released_at: releasedAt,
             release_type: 'auto_pending_release',
             escrow_period_days: 8,
-            transactions_released: userData.transactions.length,
-            released_transaction_ids: userData.transactions.map(t => t.id),
-            wallet_transfer: {
-              from: 'pending',
-              to: 'main',
-              amount: userData.totalAmount
-            }
+          };
+          const { error: updateErr } = await supabase
+            .from('user_transactions')
+            .update({ metadata: patchedMeta, updated_at: releasedAt })
+            .eq('id', tx.id);
+          if (updateErr) {
+            console.error(`Failed to release sale tx ${tx.id}:`, updateErr);
           }
-        };
-
-        const { data: releaseRecord, error: releaseError } = await supabase
-          .from('user_transactions')
-          .insert(releaseTransaction)
-          .select()
-          .single();
-
-        if (releaseError) {
-          console.error('Failed to create release transaction record:', releaseError);
-        } else {
-          console.log('Release transaction recorded:', releaseRecord.id);
         }
+
+        // Sanity-read the user after the trigger fires so we can include the
+        // new current_balance in the notification.
+        const { data: user } = await supabase
+          .from('users')
+          .select('current_balance')
+          .eq('id', userData.userId)
+          .single();
+        const newBalance = Number(user?.current_balance || 0);
+
+        console.log('✅ Released', userData.totalAmount, 'CZK for', steamId, '— new balance:', newBalance);
 
         // Create notification about funds release
         await createNotification(

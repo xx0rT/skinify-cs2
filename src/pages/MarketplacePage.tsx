@@ -1,13 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Search,
   RefreshCw,
-  AlertCircle,
   Package,
   X,
-  Filter,
   Grid2x2,
   List as ListIcon,
   ChevronDown,
@@ -21,10 +19,190 @@ import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
 import { useCartStore } from '../store/cartStore';
 import { useWishlistStore } from '../store/wishlistStore';
-import Header from '../components/Header';
+import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import { SkinCard } from '../components/ui/SkinCard';
 import { weaponCategories } from '../data/weaponCategories';
+import { spring, tap } from '../lib/motion';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Mocked listings used when the live `useMarketplaceItems()` hook returns
+   nothing. Lets the page demo correctly with no real listings yet. Each item
+   uses Steam's CDN icon URL pattern so we get a real CS2 visual without
+   shipping image binaries. Mocked items have `id` prefixed `mock-` so we
+   can hide cart/wishlist semantics — they're for visual demo only.
+   ───────────────────────────────────────────────────────────────────────── */
+const MOCK_ITEMS = [
+  {
+    id: 'mock-1',
+    name: 'AWP | Dragon Lore',
+    market_name: 'AWP | Dragon Lore (Field-Tested)',
+    type: 'Sniper Rifle',
+    rarity: 'Covert',
+    condition: 'Field-Tested',
+    price: 142500,
+    image:
+      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpot7HxfDhjxszJemkV09-1mZWMmuPLJ7XEhGRu7Mwn3evP9NWg2QPj_Bc4N2yhI4eVcQE2YlmC_FntyL_n0Z6_v52cnSdgsiAh4mGdwULdz5l_GhA/360fx360f',
+    float: '0.21',
+    priceChange: 12.4,
+    seller: { steamId: 'mock-seller-1', name: 'BluePhase' },
+  },
+  {
+    id: 'mock-2',
+    name: 'AK-47 | Fire Serpent',
+    market_name: 'AK-47 | Fire Serpent (Minimal Wear)',
+    type: 'Rifle',
+    rarity: 'Covert',
+    condition: 'Minimal Wear',
+    price: 38900,
+    image:
+      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpouj63LQRm-PrgZThR5cmim5GRqOH6IbnUmlRd6cF4n-T--Y3nj1H6_xY-Z2H7coSWcw9rNQ7Vrla6lO_n08K8tJjImXY1u3VxsHbcyhDl1B5SLrs4lvCKWdb0kg/360fx360f',
+    float: '0.09',
+    priceChange: -3.2,
+    seller: { steamId: 'mock-seller-2', name: 'CT_Camper' },
+  },
+  {
+    id: 'mock-3',
+    name: 'Karambit | Doppler',
+    market_name: '★ Karambit | Doppler (Factory New)',
+    type: 'Knife',
+    rarity: 'Covert',
+    condition: 'Factory New',
+    price: 89400,
+    image:
+      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpou7TyJgRf0vL3dDpV4M-im5SOhfL4MITdn2xZ_Pp9j-vT8Y2migzj_kdrYW-iJoaUcVdoNgnY-Vi-w-vphMToupzKwHB9-n51KmGdwUKnP-uOLdM/360fx360f',
+    float: '0.007',
+    priceChange: 5.1,
+    seller: { steamId: 'mock-seller-3', name: 'TyphonGG' },
+    special: 'stattrak' as const,
+  },
+  {
+    id: 'mock-4',
+    name: 'M4A4 | Howl',
+    market_name: 'M4A4 | Howl (Factory New)',
+    type: 'Rifle',
+    rarity: 'Contraband',
+    condition: 'Factory New',
+    price: 215000,
+    image:
+      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpouj63LQRm-PrgZThR5cmim5GRqOH6IbnUmlRd6cF4n-T--Y3nj1H6_xY-Z2H7coSWcw9rNQ7Vrla6lO_n08K8tJjImXY1u3VxsHbcyhDl1B5SLrs4lvCKWdb0kg/360fx360f',
+    float: '0.04',
+    priceChange: 18.7,
+    seller: { steamId: 'mock-seller-1', name: 'BluePhase' },
+  },
+  {
+    id: 'mock-5',
+    name: 'Glock-18 | Fade',
+    market_name: 'Glock-18 | Fade (Factory New)',
+    type: 'Pistol',
+    rarity: 'Restricted',
+    condition: 'Factory New',
+    price: 4290,
+    image:
+      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgposr-kLQpf7v_3IzhX09GwhpKAk-zLP7LWnn8fucMo2u3D8diniwa1qBdoa2H1cYWQc1U7N1HXq1S4xLrshpa9v8nIyXYxv3F2sCqIyhKxnxxIcKUx0sk7zfQI/360fx360f',
+    float: '0.012',
+    priceChange: 2.3,
+    seller: { steamId: 'mock-seller-2', name: 'CT_Camper' },
+  },
+  {
+    id: 'mock-6',
+    name: 'USP-S | Kill Confirmed',
+    market_name: 'USP-S | Kill Confirmed (Minimal Wear)',
+    type: 'Pistol',
+    rarity: 'Covert',
+    condition: 'Minimal Wear',
+    price: 2150,
+    image:
+      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgposr-kLQpf7v_3IzhX09GwhpKAk-zLP7LWnn8fucMo2u3D8diniwa1qBdoa2H1cYWQc1U7N1HXq1S4xLrshpa9v8nIyXYxv3F2sCqIyhKxnxxIcKUx0sk7zfQI/360fx360f',
+    float: '0.09',
+    priceChange: -1.1,
+    seller: { steamId: 'mock-seller-4', name: 'A_Long' },
+  },
+  {
+    id: 'mock-7',
+    name: 'M4A1-S | Hyper Beast',
+    market_name: 'M4A1-S | Hyper Beast (Factory New)',
+    type: 'Rifle',
+    rarity: 'Covert',
+    condition: 'Factory New',
+    price: 1890,
+    image:
+      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpouj63LQRm-PrgZThR5cmim5GRqOH6IbnUmlRd6cF4n-T--Y3nj1H6_xY-Z2H7coSWcw9rNQ7Vrla6lO_n08K8tJjImXY1u3VxsHbcyhDl1B5SLrs4lvCKWdb0kg/360fx360f',
+    float: '0.05',
+    priceChange: 0.4,
+    seller: { steamId: 'mock-seller-5', name: 'Hooch' },
+  },
+  {
+    id: 'mock-8',
+    name: 'Desert Eagle | Blaze',
+    market_name: 'Desert Eagle | Blaze (Factory New)',
+    type: 'Pistol',
+    rarity: 'Restricted',
+    condition: 'Factory New',
+    price: 5780,
+    image:
+      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgposr-kLQpf7v_3IzhX09GwhpKAk-zLP7LWnn8fucMo2u3D8diniwa1qBdoa2H1cYWQc1U7N1HXq1S4xLrshpa9v8nIyXYxv3F2sCqIyhKxnxxIcKUx0sk7zfQI/360fx360f',
+    float: '0.008',
+    priceChange: 7.9,
+    seller: { steamId: 'mock-seller-3', name: 'TyphonGG' },
+  },
+  {
+    id: 'mock-9',
+    name: 'Butterfly Knife | Doppler',
+    market_name: '★ Butterfly Knife | Doppler (Factory New)',
+    type: 'Knife',
+    rarity: 'Covert',
+    condition: 'Factory New',
+    price: 78900,
+    image:
+      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpou7TyJgRf0vL3dDpV4M-im5SOhfL4MITdn2xZ_Pp9j-vT8Y2migzj_kdrYW-iJoaUcVdoNgnY-Vi-w-vphMToupzKwHB9-n51KmGdwUKnP-uOLdM/360fx360f',
+    float: '0.006',
+    priceChange: 9.2,
+    seller: { steamId: 'mock-seller-1', name: 'BluePhase' },
+  },
+  {
+    id: 'mock-10',
+    name: 'P250 | Asiimov',
+    market_name: 'P250 | Asiimov (Field-Tested)',
+    type: 'Pistol',
+    rarity: 'Classified',
+    condition: 'Field-Tested',
+    price: 920,
+    image:
+      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgposr-kLQpf7v_3IzhX09GwhpKAk-zLP7LWnn8fucMo2u3D8diniwa1qBdoa2H1cYWQc1U7N1HXq1S4xLrshpa9v8nIyXYxv3F2sCqIyhKxnxxIcKUx0sk7zfQI/360fx360f',
+    float: '0.21',
+    priceChange: -2.5,
+    seller: { steamId: 'mock-seller-2', name: 'CT_Camper' },
+  },
+  {
+    id: 'mock-11',
+    name: 'AWP | Asiimov',
+    market_name: 'AWP | Asiimov (Field-Tested)',
+    type: 'Sniper Rifle',
+    rarity: 'Covert',
+    condition: 'Field-Tested',
+    price: 2840,
+    image:
+      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpot7HxfDhjxszJemkV09-1mZWMmuPLJ7XEhGRu7Mwn3evP9NWg2QPj_Bc4N2yhI4eVcQE2YlmC_FntyL_n0Z6_v52cnSdgsiAh4mGdwULdz5l_GhA/360fx360f',
+    float: '0.18',
+    priceChange: 4.6,
+    seller: { steamId: 'mock-seller-5', name: 'Hooch' },
+  },
+  {
+    id: 'mock-12',
+    name: 'Sport Gloves | Pandora’s Box',
+    market_name: '★ Sport Gloves | Pandora’s Box (Minimal Wear)',
+    type: 'Gloves',
+    rarity: 'Covert',
+    condition: 'Minimal Wear',
+    price: 64900,
+    image:
+      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpot7HxfDhjxszJemkV09-1mZWMmuPLJ7XEhGRu7Mwn3evP9NWg2QPj_Bc4N2yhI4eVcQE2YlmC_FntyL_n0Z6_v52cnSdgsiAh4mGdwULdz5l_GhA/360fx360f',
+    float: '0.10',
+    priceChange: 11.2,
+    seller: { steamId: 'mock-seller-4', name: 'A_Long' },
+  },
+];
 
 type SortKey = 'newest' | 'price-asc' | 'price-desc' | 'float-asc' | 'float-desc';
 
@@ -36,8 +214,7 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'float-desc', label: 'Float · worst' },
 ];
 
-const TYPES = ['Rifle', 'Pistol', 'SMG', 'Shotgun', 'Sniper', 'Machine Gun', 'Knife', 'Gloves'];
-
+const TYPES = ['Rifle', 'Pistol', 'SMG', 'Shotgun', 'Sniper Rifle', 'Knife', 'Gloves'];
 const RARITIES = [
   { key: 'Covert', color: '#EB4B4B' },
   { key: 'Classified', color: '#D32CE6' },
@@ -46,19 +223,21 @@ const RARITIES = [
   { key: 'Industrial', color: '#5E98D9' },
   { key: 'Consumer', color: '#B0C3D9' },
 ];
+const EXTERIORS = ['Factory New', 'Minimal Wear', 'Field-Tested', 'Well-Worn', 'Battle-Scarred'];
 
-const EXTERIORS = [
-  'Factory New',
-  'Minimal Wear',
-  'Field-Tested',
-  'Well-Worn',
-  'Battle-Scarred',
-];
+const staggerParent = {
+  hidden: {},
+  shown: { transition: { staggerChildren: 0.04, delayChildren: 0.04 } },
+};
+const staggerChild = {
+  hidden: { opacity: 0, y: 12 },
+  shown: { opacity: 1, y: 0, transition: spring },
+};
 
 const MarketplacePage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { items, loading, error, refetch } = useMarketplaceItems();
+  const { items: liveItems, loading, error, refetch } = useMarketplaceItems();
   const { formatPrice } = useCurrencyStore();
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
@@ -96,12 +275,24 @@ const MarketplacePage: React.FC = () => {
     }
   }, [location.state, setSearchQuery]);
 
+  /* Fall back to mocks when there are no live listings so the page demos
+     cleanly. `isMock` is exposed in the empty-state hint so users know
+     the items aren't real. */
+  const items = useMemo(() => {
+    if (loading) return [];
+    return liveItems && liveItems.length > 0 ? liveItems : MOCK_ITEMS;
+  }, [liveItems, loading]);
+  const isMock = !loading && (!liveItems || liveItems.length === 0);
+
   const maxPrice = useMemo(() => {
     if (!items?.length) return 100000;
     return Math.max(...items.map((i: any) => i.price || 0));
   }, [items]);
 
-  const toggleSet = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, val: string) =>
+  const toggleSet = (
+    setter: React.Dispatch<React.SetStateAction<Set<string>>>,
+    val: string,
+  ) =>
     setter((prev) => {
       const next = new Set(prev);
       next.has(val) ? next.delete(val) : next.add(val);
@@ -117,18 +308,15 @@ const MarketplacePage: React.FC = () => {
 
       if (activeTypes.size > 0) {
         const t = (it.type || '').toLowerCase();
-        const matched = Array.from(activeTypes).some((s) => t.includes(s.toLowerCase()));
-        if (!matched) return false;
+        if (!Array.from(activeTypes).some((s) => t.includes(s.toLowerCase()))) return false;
       }
       if (activeRarities.size > 0) {
         const r = (it.rarity || '').toLowerCase();
-        const matched = Array.from(activeRarities).some((s) => r.includes(s.toLowerCase()));
-        if (!matched) return false;
+        if (!Array.from(activeRarities).some((s) => r.includes(s.toLowerCase()))) return false;
       }
       if (activeExteriors.size > 0) {
         const e = (it.condition || '').toLowerCase();
-        const matched = Array.from(activeExteriors).some((s) => e.includes(s.toLowerCase()));
-        if (!matched) return false;
+        if (!Array.from(activeExteriors).some((s) => e.includes(s.toLowerCase()))) return false;
       }
       if (special.stattrak && it.special !== 'stattrak') return false;
       if (special.souvenir && it.special !== 'souvenir') return false;
@@ -144,14 +332,10 @@ const MarketplacePage: React.FC = () => {
         out = [...out].sort((a, b) => b.price - a.price);
         break;
       case 'float-asc':
-        out = [...out].sort(
-          (a, b) => (Number(a.float) || 1) - (Number(b.float) || 1),
-        );
+        out = [...out].sort((a, b) => (Number(a.float) || 1) - (Number(b.float) || 1));
         break;
       case 'float-desc':
-        out = [...out].sort(
-          (a, b) => (Number(b.float) || 0) - (Number(a.float) || 0),
-        );
+        out = [...out].sort((a, b) => (Number(b.float) || 0) - (Number(a.float) || 0));
         break;
       default:
         out = [...out].sort(
@@ -173,6 +357,14 @@ const MarketplacePage: React.FC = () => {
 
   const handleAddCart = useCallback(
     (item: any) => {
+      if (String(item.id).startsWith('mock-')) {
+        addToast({
+          type: 'info',
+          title: 'Demo listing',
+          message: 'This is a placeholder while the marketplace is being populated.',
+        });
+        return;
+      }
       addItem({
         id: item.id,
         name: item.name || item.market_name,
@@ -196,6 +388,10 @@ const MarketplacePage: React.FC = () => {
     (item: any) => {
       if (!user) {
         addToast({ type: 'warning', title: 'Login required', message: 'Sign in to use wishlist.' });
+        return;
+      }
+      if (String(item.id).startsWith('mock-')) {
+        addToast({ type: 'info', title: 'Demo listing' });
         return;
       }
       toggleItem(
@@ -224,68 +420,87 @@ const MarketplacePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen text-white">
-      <Header activeSection="Market" />
+    <div className="min-h-screen bg-bg text-ink">
+      <LandingNav />
 
-      <main className="md:pl-[100px] pl-4 pr-4 pt-24 pb-16 max-w-[1480px] mx-auto">
-        {/* Page header */}
-        <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
+      <main className="max-w-[1480px] mx-auto px-4 sm:px-6 pt-4 pb-16">
+        {/* ===== HEADER ===== */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={spring}
+          className="flex flex-wrap items-end justify-between gap-4 mb-5"
+        >
           <div>
-            <h1 className="text-[34px] font-display font-bold text-white tracking-tight leading-tight">
-              Marketplace
+            <span className="label-eyebrow">Marketplace</span>
+            <h1 className="text-[26px] sm:text-[32px] font-bold text-ink tracking-tight leading-none mt-2">
+              Browse listings
             </h1>
-            <p className="text-[14px] text-zinc-400 mt-1">
+            <p className="text-[13px] sm:text-[14px] text-ink-muted mt-1.5 font-medium">
               {loading
                 ? 'Loading listings…'
                 : `${filtered.length.toLocaleString()} of ${items.length.toLocaleString()} listings`}
+              {isMock && (
+                <span className="ml-2 pill bg-accent-soft text-ink text-[10px] uppercase tracking-wider">
+                  Demo
+                </span>
+              )}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
+            <motion.button
+              whileTap={tap}
               onClick={refetch}
-              className="h-11 w-11 rounded-2xl bg-white/[0.05] hover:bg-white/[0.10] text-zinc-300 hover:text-white grid place-items-center transition-colors"
+              className="icon-chip hover:bg-bg transition-colors"
               title="Refresh"
             >
-              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            </button>
+              <RefreshCw size={16} strokeWidth={2} className={loading ? 'animate-spin text-ink-muted' : 'text-ink-muted'} />
+            </motion.button>
 
-            <div className="flex h-11 rounded-2xl bg-white/[0.05] border border-white/[0.06] p-1">
-              <button
+            <div className="card-flat flex h-11 p-1 gap-0.5">
+              <motion.button
+                whileTap={tap}
                 onClick={() => setView('grid')}
-                className={`h-full px-3 rounded-xl transition-colors ${
-                  view === 'grid' ? 'bg-white/[0.10] text-white' : 'text-zinc-400 hover:text-white'
+                className={`h-full px-3 rounded-full grid place-items-center transition-colors ${
+                  view === 'grid' ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink'
                 }`}
               >
-                <Grid2x2 size={16} />
-              </button>
-              <button
+                <Grid2x2 size={16} strokeWidth={view === 'grid' ? 2.4 : 2} />
+              </motion.button>
+              <motion.button
+                whileTap={tap}
                 onClick={() => setView('list')}
-                className={`h-full px-3 rounded-xl transition-colors ${
-                  view === 'list' ? 'bg-white/[0.10] text-white' : 'text-zinc-400 hover:text-white'
+                className={`h-full px-3 rounded-full grid place-items-center transition-colors ${
+                  view === 'list' ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink'
                 }`}
               >
-                <ListIcon size={16} />
-              </button>
+                <ListIcon size={16} strokeWidth={view === 'list' ? 2.4 : 2} />
+              </motion.button>
             </div>
 
             <div className="relative">
-              <button
+              <motion.button
+                whileTap={tap}
                 onClick={() => setSortMenu((v) => !v)}
-                className="h-11 px-4 rounded-2xl bg-white/[0.05] hover:bg-white/[0.10] border border-white/[0.06] text-[13px] text-white font-medium flex items-center gap-2 transition-colors"
+                className="h-11 px-4 rounded-full bg-subtle hover:bg-subtle/70 text-[13px] text-ink font-semibold flex items-center gap-2 transition-colors"
               >
-                <ArrowUpDown size={14} />
+                <ArrowUpDown size={14} strokeWidth={2.2} />
                 {SORT_OPTIONS.find((o) => o.key === sort)?.label}
-                <ChevronDown size={14} className={sortMenu ? 'rotate-180' : ''} />
-              </button>
+                <ChevronDown
+                  size={14}
+                  strokeWidth={2.2}
+                  className={`transition-transform ${sortMenu ? 'rotate-180' : ''}`}
+                />
+              </motion.button>
               <AnimatePresence>
                 {sortMenu && (
                   <motion.div
-                    initial={{ opacity: 0, y: -4, scale: 0.96 }}
+                    initial={{ opacity: 0, y: -4, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -4, scale: 0.96 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute right-0 mt-2 w-56 glass-strong rounded-2xl p-1.5 z-30"
+                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                    transition={{ duration: 0.16 }}
+                    className="card-elevated absolute right-0 mt-2 w-60 p-1.5 z-30"
                     onMouseLeave={() => setSortMenu(false)}
                   >
                     {SORT_OPTIONS.map((opt) => (
@@ -295,10 +510,10 @@ const MarketplacePage: React.FC = () => {
                           setSort(opt.key);
                           setSortMenu(false);
                         }}
-                        className={`w-full h-10 px-3 rounded-xl text-left text-[13px] font-medium flex items-center justify-between transition-colors ${
+                        className={`w-full h-10 px-3 rounded-2xl text-left text-[13px] font-semibold flex items-center justify-between transition-colors ${
                           sort === opt.key
-                            ? 'bg-accent-500/15 text-accent-300'
-                            : 'text-zinc-300 hover:bg-white/[0.06] hover:text-white'
+                            ? 'bg-accent-soft text-ink'
+                            : 'text-ink-muted hover:bg-subtle hover:text-ink'
                         }`}
                       >
                         {opt.label}
@@ -309,45 +524,50 @@ const MarketplacePage: React.FC = () => {
               </AnimatePresence>
             </div>
 
-            <button
+            <motion.button
+              whileTap={tap}
               onClick={() => setFiltersOpen((v) => !v)}
-              className={`h-11 px-4 rounded-2xl text-[13px] font-medium flex items-center gap-2 transition-colors ${
-                filtersOpen
-                  ? 'bg-white text-ink-900'
-                  : 'bg-white/[0.05] hover:bg-white/[0.10] text-white border border-white/[0.06]'
+              className={`h-11 px-4 rounded-full text-[13px] font-semibold flex items-center gap-2 transition-colors ${
+                filtersOpen ? 'bg-accent text-on-accent' : 'bg-subtle text-ink hover:bg-subtle/70'
               }`}
             >
-              <SlidersHorizontal size={14} />
+              <SlidersHorizontal size={14} strokeWidth={2.4} />
               Filters
               {activeFilterCount > 0 && (
                 <span
                   className={`ml-1 min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold grid place-items-center ${
-                    filtersOpen
-                      ? 'bg-ink-900 text-white'
-                      : 'bg-accent-500 text-white'
+                    filtersOpen ? 'bg-on-accent text-accent' : 'bg-accent text-on-accent'
                   }`}
+                  style={
+                    filtersOpen ? { backgroundColor: 'rgb(var(--on-accent))', color: 'rgb(var(--accent))' } : undefined
+                  }
                 >
                   {activeFilterCount}
                 </span>
               )}
-            </button>
+            </motion.button>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Search bar */}
-        <div className="glass rounded-3xl2 p-2 mb-4 flex items-center gap-2">
+        {/* ===== SEARCH BAR ===== */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...spring, delay: 0.06 }}
+          className="card p-2 mb-4 flex items-center gap-2"
+        >
           <div className="flex-1 flex items-center gap-3 px-4 h-12">
-            <Search size={18} className="text-zinc-400 shrink-0" />
+            <Search size={18} strokeWidth={2} className="text-ink-muted shrink-0" />
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search skins, weapons, collections…"
-              className="flex-1 bg-transparent outline-none text-white placeholder-zinc-500 text-[14px]"
+              className="flex-1 bg-transparent outline-none text-ink placeholder:text-ink-dim text-[14px] font-medium"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="w-7 h-7 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] grid place-items-center text-zinc-400 hover:text-white transition-colors"
+                className="w-7 h-7 rounded-lg bg-subtle hover:bg-bg grid place-items-center text-ink-muted hover:text-ink transition-colors"
               >
                 <X size={13} />
               </button>
@@ -356,23 +576,23 @@ const MarketplacePage: React.FC = () => {
           {activeFilterCount > 0 && (
             <button
               onClick={resetAll}
-              className="h-12 px-4 rounded-2xl bg-white/[0.05] hover:bg-white/[0.10] text-[13px] text-zinc-300 hover:text-white font-medium transition-colors"
+              className="h-12 px-4 rounded-2xl bg-subtle hover:bg-bg text-[13px] text-ink-muted hover:text-ink font-semibold transition-colors"
             >
               Clear all
             </button>
           )}
-        </div>
+        </motion.div>
 
         <div className={`grid gap-4 ${filtersOpen ? 'lg:grid-cols-[280px_1fr]' : 'grid-cols-1'}`}>
-          {/* Filters sidebar */}
+          {/* ===== FILTERS SIDEBAR ===== */}
           <AnimatePresence initial={false}>
             {filtersOpen && (
               <motion.aside
-                initial={{ opacity: 0, x: -8 }}
+                initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -8 }}
-                transition={{ duration: 0.2 }}
-                className="glass rounded-3xl2 p-5 self-start lg:sticky lg:top-24 max-h-[calc(100vh-7rem)] overflow-y-auto scrollbar-thin"
+                exit={{ opacity: 0, x: -10 }}
+                transition={spring}
+                className="card p-5 self-start lg:sticky lg:top-24 max-h-[calc(100vh-7rem)] overflow-y-auto scrollbar-thin"
               >
                 {/* Price */}
                 <FilterSection title="Price range">
@@ -383,60 +603,56 @@ const MarketplacePage: React.FC = () => {
                       onChange={(e) =>
                         setPriceRange([Math.max(0, Number(e.target.value) || 0), priceRange[1]])
                       }
-                      className="w-full h-10 px-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-white text-[13px] outline-none focus:border-accent-500/60 transition-colors"
+                      className="w-full h-10 px-3 rounded-xl bg-subtle text-ink text-[13px] font-medium outline-none focus:bg-bg focus:ring-2 focus:ring-accent/30 transition-all"
                       placeholder="Min"
                     />
-                    <span className="text-zinc-500">—</span>
+                    <span className="text-ink-dim">—</span>
                     <input
                       type="number"
                       value={priceRange[1]}
-                      onChange={(e) =>
-                        setPriceRange([priceRange[0], Number(e.target.value) || 0])
-                      }
-                      className="w-full h-10 px-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-white text-[13px] outline-none focus:border-accent-500/60 transition-colors"
+                      onChange={(e) => setPriceRange([priceRange[0], Number(e.target.value) || 0])}
+                      className="w-full h-10 px-3 rounded-xl bg-subtle text-ink text-[13px] font-medium outline-none focus:bg-bg focus:ring-2 focus:ring-accent/30 transition-all"
                       placeholder="Max"
                     />
                   </div>
-                  <div className="text-[11px] text-zinc-500 mt-2">
+                  <div className="text-[11px] text-ink-dim mt-2 font-medium">
                     {formatPrice(priceRange[0])} – {formatPrice(priceRange[1])}
                   </div>
                 </FilterSection>
 
-                {/* Type */}
                 <FilterSection title="Item type">
                   <div className="flex flex-wrap gap-1.5">
                     {TYPES.map((t) => {
                       const active = activeTypes.has(t);
                       return (
-                        <button
+                        <motion.button
+                          whileTap={tap}
                           key={t}
                           onClick={() => toggleSet(setActiveTypes, t)}
-                          className={`h-8 px-3 rounded-xl text-[12px] font-medium transition-colors ${
+                          className={`h-8 px-3 rounded-full text-[12px] font-semibold transition-colors ${
                             active
-                              ? 'bg-white text-ink-900'
-                              : 'bg-white/[0.04] text-zinc-300 hover:bg-white/[0.08] hover:text-white'
+                              ? 'bg-accent text-on-accent'
+                              : 'bg-subtle text-ink-muted hover:bg-bg hover:text-ink'
                           }`}
                         >
                           {t}
-                        </button>
+                        </motion.button>
                       );
                     })}
                   </div>
                 </FilterSection>
 
-                {/* Rarity */}
                 <FilterSection title="Rarity">
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     {RARITIES.map((r) => {
                       const active = activeRarities.has(r.key);
                       return (
-                        <button
+                        <motion.button
+                          whileTap={tap}
                           key={r.key}
                           onClick={() => toggleSet(setActiveRarities, r.key)}
-                          className={`w-full h-9 px-3 rounded-xl flex items-center gap-2.5 text-[12.5px] font-medium transition-colors ${
-                            active
-                              ? 'bg-white/[0.08] text-white'
-                              : 'text-zinc-400 hover:bg-white/[0.04] hover:text-white'
+                          className={`w-full h-9 px-3 rounded-2xl flex items-center gap-2.5 text-[12.5px] font-semibold transition-colors ${
+                            active ? 'bg-accent-soft text-ink' : 'text-ink-muted hover:bg-subtle hover:text-ink'
                           }`}
                         >
                           <span
@@ -444,46 +660,43 @@ const MarketplacePage: React.FC = () => {
                             style={{ background: r.color }}
                           />
                           <span className="flex-1 text-left">{r.key}</span>
-                          {active && <span className="text-accent-400">✓</span>}
-                        </button>
+                          {active && <span className="text-accent">✓</span>}
+                        </motion.button>
                       );
                     })}
                   </div>
                 </FilterSection>
 
-                {/* Exterior */}
                 <FilterSection title="Exterior">
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     {EXTERIORS.map((e) => {
                       const active = activeExteriors.has(e);
                       return (
-                        <button
+                        <motion.button
+                          whileTap={tap}
                           key={e}
                           onClick={() => toggleSet(setActiveExteriors, e)}
-                          className={`w-full h-9 px-3 rounded-xl text-left text-[12.5px] font-medium transition-colors ${
-                            active
-                              ? 'bg-white/[0.08] text-white'
-                              : 'text-zinc-400 hover:bg-white/[0.04] hover:text-white'
+                          className={`w-full h-9 px-3 rounded-2xl text-left text-[12.5px] font-semibold transition-colors ${
+                            active ? 'bg-accent-soft text-ink' : 'text-ink-muted hover:bg-subtle hover:text-ink'
                           }`}
                         >
                           {e}
-                        </button>
+                        </motion.button>
                       );
                     })}
                   </div>
                 </FilterSection>
 
-                {/* Special */}
                 <FilterSection title="Special">
-                  <label className="flex items-center justify-between h-9 px-1 cursor-pointer">
-                    <span className="text-[12.5px] text-zinc-300">StatTrak™</span>
+                  <label className="flex items-center justify-between h-10 px-1 cursor-pointer">
+                    <span className="text-[12.5px] text-ink font-semibold">StatTrak™</span>
                     <Toggle
                       checked={special.stattrak}
                       onChange={(v) => setSpecial((s) => ({ ...s, stattrak: v }))}
                     />
                   </label>
-                  <label className="flex items-center justify-between h-9 px-1 cursor-pointer">
-                    <span className="text-[12.5px] text-zinc-300">Souvenir</span>
+                  <label className="flex items-center justify-between h-10 px-1 cursor-pointer">
+                    <span className="text-[12.5px] text-ink font-semibold">Souvenir</span>
                     <Toggle
                       checked={special.souvenir}
                       onChange={(v) => setSpecial((s) => ({ ...s, souvenir: v }))}
@@ -494,16 +707,16 @@ const MarketplacePage: React.FC = () => {
             )}
           </AnimatePresence>
 
-          {/* Results */}
+          {/* ===== RESULTS ===== */}
           <div className="min-w-0">
-            {error ? (
-              <div className="glass rounded-3xl2 p-12 text-center">
-                <AlertCircle className="mx-auto text-rose-400 mb-3" size={28} />
-                <p className="text-white text-[15px] font-medium">Could not load listings</p>
-                <p className="text-zinc-500 text-[13px] mt-1">{error}</p>
+            {error && !isMock ? (
+              <div className="card p-12 text-center">
+                <Package className="mx-auto text-ink-muted mb-3" size={28} />
+                <p className="text-ink text-[15px] font-bold">Could not load listings</p>
+                <p className="text-ink-muted text-[13px] mt-1 font-medium">{error}</p>
                 <button
                   onClick={refetch}
-                  className="mt-5 h-11 px-5 rounded-2xl bg-accent-500 hover:bg-accent-400 text-white font-semibold transition-colors"
+                  className="mt-5 h-11 px-5 rounded-full bg-accent text-on-accent font-bold transition-opacity hover:opacity-90"
                 >
                   Try again
                 </button>
@@ -521,57 +734,76 @@ const MarketplacePage: React.FC = () => {
                     key={i}
                     className={
                       view === 'grid'
-                        ? 'rounded-3xl aspect-[3/4] skeleton'
-                        : 'rounded-2xl h-24 skeleton'
+                        ? 'rounded-3xl skel'
+                        : 'rounded-2xl skel h-24'
                     }
+                    style={view === 'grid' ? { aspectRatio: '5 / 6.4' } : undefined}
                   />
                 ))}
               </div>
             ) : filtered.length === 0 ? (
-              <div className="glass rounded-3xl2 p-16 text-center">
-                <Package className="mx-auto text-zinc-500 mb-4" size={32} />
-                <p className="text-white text-[16px] font-semibold">No listings match your filters</p>
-                <p className="text-zinc-500 text-[13px] mt-1">
+              <div className="card p-16 text-center">
+                <Package className="mx-auto text-ink-muted mb-4" size={32} />
+                <p className="text-ink text-[16px] font-bold">No listings match your filters</p>
+                <p className="text-ink-muted text-[13px] mt-1 font-medium">
                   Try widening the price range or clearing some filters.
                 </p>
                 {activeFilterCount > 0 && (
                   <button
                     onClick={resetAll}
-                    className="mt-5 h-11 px-5 rounded-2xl bg-white/[0.06] hover:bg-white/[0.12] text-white font-medium transition-colors"
+                    className="mt-5 h-11 px-5 rounded-full bg-subtle hover:bg-bg text-ink font-semibold transition-colors"
                   >
                     Clear all filters
                   </button>
                 )}
               </div>
             ) : view === 'grid' ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <motion.div
+                variants={staggerParent}
+                initial="hidden"
+                animate="shown"
+                key={`grid-${sort}-${activeTypes.size}-${activeRarities.size}`}
+                className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+              >
                 {filtered.map((item: any) => (
-                  <SkinCard
+                  <motion.div
                     key={item.id}
-                    item={item}
-                    onView={() => navigate(`/item/${item.id}`)}
-                    onAddCart={() => handleAddCart(item)}
-                    onToggleWish={() => handleWish(item)}
-                    wished={isInWishlist(item.id)}
-                    formatPrice={formatPrice}
-                  />
+                    variants={staggerChild}
+                    whileHover={{ y: -4 }}
+                    transition={spring}
+                  >
+                    <SkinCard
+                      item={item}
+                      onView={() => !String(item.id).startsWith('mock-') && navigate(`/item/${item.id}`)}
+                      onAddCart={() => handleAddCart(item)}
+                      onToggleWish={() => handleWish(item)}
+                      wished={isInWishlist(item.id)}
+                      formatPrice={formatPrice}
+                    />
+                  </motion.div>
                 ))}
-              </div>
+              </motion.div>
             ) : (
-              <div className="space-y-2">
+              <motion.div
+                variants={staggerParent}
+                initial="hidden"
+                animate="shown"
+                className="space-y-2"
+              >
                 {filtered.map((item: any) => (
-                  <SkinCard
-                    key={item.id}
-                    variant="list"
-                    item={item}
-                    onView={() => navigate(`/item/${item.id}`)}
-                    onAddCart={() => handleAddCart(item)}
-                    onToggleWish={() => handleWish(item)}
-                    wished={isInWishlist(item.id)}
-                    formatPrice={formatPrice}
-                  />
+                  <motion.div key={item.id} variants={staggerChild}>
+                    <SkinCard
+                      variant="list"
+                      item={item}
+                      onView={() => !String(item.id).startsWith('mock-') && navigate(`/item/${item.id}`)}
+                      onAddCart={() => handleAddCart(item)}
+                      onToggleWish={() => handleWish(item)}
+                      wished={isInWishlist(item.id)}
+                      formatPrice={formatPrice}
+                    />
+                  </motion.div>
                 ))}
-              </div>
+              </motion.div>
             )}
           </div>
         </div>
@@ -587,9 +819,7 @@ const FilterSection: React.FC<{ title: string; children: React.ReactNode }> = ({
   children,
 }) => (
   <div className="mb-5 last:mb-0">
-    <div className="text-[11px] uppercase tracking-wider text-zinc-500 font-semibold mb-3">
-      {title}
-    </div>
+    <div className="label-eyebrow mb-3">{title}</div>
     {children}
   </div>
 );
@@ -598,19 +828,20 @@ const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void }> = (
   checked,
   onChange,
 }) => (
-  <button
+  <motion.button
+    whileTap={tap}
     type="button"
     onClick={() => onChange(!checked)}
     className={`relative h-6 w-10 rounded-full transition-colors ${
-      checked ? 'bg-accent-500' : 'bg-white/[0.08]'
+      checked ? 'bg-accent' : 'bg-subtle'
     }`}
   >
-    <span
-      className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-        checked ? 'translate-x-4' : ''
-      }`}
+    <motion.span
+      animate={{ x: checked ? 16 : 0 }}
+      transition={spring}
+      className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-surface shadow-sm"
     />
-  </button>
+  </motion.button>
 );
 
 export default MarketplacePage;

@@ -4,30 +4,28 @@ import { Gamepad2 } from 'lucide-react';
 
 const SteamLogin: React.FC = () => {
   const handleSteamLogin = () => {
-    // FIXED: Always use the correct callback URL that matches your Steam API key
-    const CALLBACK_URL = 'https://skinify.gg/auth/callback';
-    
-    // Construct Steam OpenID URL
+    // Use the current origin so this works in dev (localhost), preview, and
+    // production without per-env hardcoding. Override with VITE_STEAM_RETURN_URL
+    // if you need to force a different callback (e.g. when running behind a
+    // reverse proxy or for staging).
+    const returnTo =
+      (import.meta as any).env?.VITE_STEAM_RETURN_URL ||
+      `${window.location.origin}/auth/callback`;
+    const realm =
+      (import.meta as any).env?.VITE_STEAM_REALM || window.location.origin;
+
     const steamOpenIDUrl = new URL('https://steamcommunity.com/openid/login');
-    
     const params = {
       'openid.ns': 'http://specs.openid.net/auth/2.0',
       'openid.mode': 'checkid_setup',
-      'openid.return_to': CALLBACK_URL,
-      'openid.realm': 'https://skinify.gg',
+      'openid.return_to': returnTo,
+      'openid.realm': realm,
       'openid.identity': 'http://specs.openid.net/auth/2.0/identifier_select',
-      'openid.claimed_id': 'http://specs.openid.net/auth/2.0/identifier_select'
+      'openid.claimed_id': 'http://specs.openid.net/auth/2.0/identifier_select',
     };
-
-    // Add parameters to URL
     Object.entries(params).forEach(([key, value]) => {
       steamOpenIDUrl.searchParams.append(key, value);
     });
-
-    console.log('Steam login URL:', steamOpenIDUrl.toString());
-    console.log('Callback URL (return_to):', CALLBACK_URL);
-    
-    // Redirect to Steam
     window.location.href = steamOpenIDUrl.toString();
   };
 

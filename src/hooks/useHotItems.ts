@@ -86,16 +86,20 @@ export const useHotItems = (limit: number = 20, category?: string): UseHotItemsR
   useEffect(() => {
     fetchHotItems();
 
-    // Subscribe to hot items changes
-    const subscription = supabase
-      .channel('hot_items_changes')
+    // Subscribe to hot items changes.
+    //
+    // Bug fix: a fixed channel name like 'hot_items_changes' got reused on
+    // React StrictMode's double-mount. `supabase.channel(name)` returns the
+    // SAME channel for the same name; calling `.on()` after `.subscribe()`
+    // throws. We now (a) use a per-mount unique name so each mount gets a
+    // fresh channel, and (b) call `removeChannel` (not just `unsubscribe`)
+    // in cleanup so the client actually forgets it.
+    const channelName = `hot_items_changes_${Math.random().toString(36).slice(2, 10)}`;
+    const channel = supabase
+      .channel(channelName)
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'hot_items'
-        },
+        { event: '*', schema: 'public', table: 'hot_items' },
         () => {
           fetchHotItems();
         }
@@ -103,7 +107,7 @@ export const useHotItems = (limit: number = 20, category?: string): UseHotItemsR
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      supabase.removeChannel(channel);
     };
   }, [limit, category]);
 

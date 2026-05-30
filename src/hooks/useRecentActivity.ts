@@ -124,8 +124,12 @@ export const useRecentActivity = (limit: number = 30) => {
 
     fetchRecentActivity();
 
-    const subscription = supabase
-      .channel('orders_changes')
+    // Per-mount unique channel name + removeChannel cleanup — see useHotItems
+    // for the rationale. Fixes "cannot add postgres_changes callbacks after
+    // subscribe()" in React StrictMode double-mounts.
+    const channelName = `orders_changes_${Math.random().toString(36).slice(2, 10)}`;
+    const channel = supabase
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -141,7 +145,7 @@ export const useRecentActivity = (limit: number = 30) => {
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      supabase.removeChannel(channel);
     };
   }, [limit]);
 

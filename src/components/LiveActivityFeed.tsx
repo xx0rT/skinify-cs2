@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, ShoppingCart } from 'lucide-react';
+import { Activity, ShoppingBag } from 'lucide-react';
 import { useRecentActivity, RecentActivity } from '../hooks/useRecentActivity';
 import { useCurrencyStore } from '../store/currencyStore';
 import { CachedImage } from './ui/CachedImage';
@@ -28,23 +28,14 @@ const relativeTime = (iso: string): string => {
 
 interface Props {
   className?: string;
-  /** How many rows to keep visible. Default 5. */
   rows?: number;
-  /** Push a new row every N ms. Default 3200. */
   intervalMs?: number;
 }
 
 /**
- * Live market activity feed.
- *
- * Behavior: holds a fixed-length window of `rows` items. Every `intervalMs`,
- * we pull the next activity from the pool, splice it onto the *top*, and let
- * Framer Motion's layout animation push the rest down. The bottom row drops
- * off via exit animation. Result: one row at a time, smooth top-down push.
- *
- * The underlying `useRecentActivity` hook subscribes to a Supabase realtime
- * channel on completed orders — when new orders land, the pool refreshes and
- * the visible feed naturally picks them up.
+ * Live activity feed — push-from-top, oldest slides off the bottom.
+ * Theme-adaptive: uses .card + .icon-chip + ink hierarchy. The "new row"
+ * accent wash uses the active --accent (matches whichever palette is set).
  */
 export const LiveActivityFeed: React.FC<Props> = ({
   className = '',
@@ -58,16 +49,12 @@ export const LiveActivityFeed: React.FC<Props> = ({
   const cursorRef = useRef(0);
   const lastSigRef = useRef('');
 
-  // Seed / re-seed visible window when pool size or signature changes
   useEffect(() => {
     if (!pool?.length) {
       setVisible([]);
       return;
     }
-    const sig = pool
-      .slice(0, rows)
-      .map((a) => a.id)
-      .join('|');
+    const sig = pool.slice(0, rows).map((a) => a.id).join('|');
     if (sig !== lastSigRef.current) {
       lastSigRef.current = sig;
       setVisible(pool.slice(0, rows));
@@ -75,28 +62,20 @@ export const LiveActivityFeed: React.FC<Props> = ({
     }
   }, [pool, rows]);
 
-  // Push one new row every interval — wrap-cycle through the pool, but tag
-  // each entry with a per-tick suffix so AnimatePresence treats wrap-arounds
-  // as distinct.
   useEffect(() => {
     if (!pool?.length || pool.length <= rows) return;
     const id = setInterval(() => {
       const next = pool[cursorRef.current % pool.length];
       cursorRef.current = (cursorRef.current + 1) % pool.length;
       setVisible((cur) => {
-        const tagged: RecentActivity = {
-          ...next,
-          // unique key per push so the same db row reappearing later still animates
-          id: `${next.id}#${Date.now()}`,
-        };
-        const out = [tagged, ...cur];
-        return out.slice(0, rows);
+        const tagged: RecentActivity = { ...next, id: `${next.id}#${Date.now()}` };
+        return [tagged, ...cur].slice(0, rows);
       });
     }, intervalMs);
     return () => clearInterval(id);
   }, [pool, rows, intervalMs]);
 
-  // 30s tick so relative timestamps stay fresh on visible rows
+  // re-render every 30s so relative timestamps stay fresh
   const [, force] = useState(0);
   useEffect(() => {
     const id = setInterval(() => force((v) => v + 1), 30_000);
@@ -106,38 +85,48 @@ export const LiveActivityFeed: React.FC<Props> = ({
   const renderedRows = useMemo(() => visible, [visible]);
 
   return (
-    <section className={`glass rounded-3xl2 p-5 md:p-6 overflow-hidden ${className}`}>
+    <section className={`card p-5 md:p-6 ${className}`}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
-          <div className="relative w-9 h-9 rounded-2xl bg-white/[0.05] grid place-items-center">
-            <Activity size={15} className="text-accent-400" strokeWidth={2.5} />
-            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)] animate-pulse" />
+          <div className="icon-chip relative" style={{ background: 'rgb(var(--accent-soft))' }}>
+            <Activity size={16} strokeWidth={2.4} className="text-accent" />
+            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           </div>
           <div>
-            <div className="text-[14.5px] font-semibold text-white tracking-tight">
+            <div className="text-[14.5px] font-bold text-ink tracking-tight">
               Live market activity
             </div>
-            <div className="text-[11.5px] text-zinc-500">
+            <div className="text-[12px] text-ink-muted font-medium">
               Recent purchases from across the marketplace
             </div>
           </div>
         </div>
-        <span className="hidden sm:inline-flex h-7 px-2.5 rounded-xl bg-emerald-500/15 text-emerald-400 text-[11px] font-semibold tracking-wide items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="pill bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+          <span className="chip-dot bg-emerald-500 animate-pulse" />
           LIVE
         </span>
       </div>
 
-      <div className="relative">
+      {/*
+        Fixed-height container — locks the parent to (rows × 56px row + 6px gap × (rows-1))
+        so when the oldest row exits, the surrounding page DOES NOT REFLOW.
+        Previous bug: `exit={{ height: 0 }}` collapsed the row, the <ul> shrank,
+        and any content below jumped up while the user was reading. Now the
+        container reserves the space and rows can leave the bottom freely.
+      */}
+      <div
+        className="relative"
+        style={{ minHeight: rows * 56 + (rows - 1) * 6 }}
+      >
         {loading || visible.length === 0 ? (
           <div className="space-y-1.5">
             {Array.from({ length: rows }).map((_, i) => (
-              <div key={i} className="h-14 rounded-2xl skeleton" />
+              <div key={i} className="skel h-14" />
             ))}
           </div>
         ) : (
           <ul className="relative space-y-1.5">
-            <AnimatePresence initial={false}>
+            <AnimatePresence initial={false} mode="popLayout">
               {renderedRows.map((a, idx) => {
                 const rarity = inferRarity(a.item_name);
                 const color = rarityColor(rarity);
@@ -148,42 +137,39 @@ export const LiveActivityFeed: React.FC<Props> = ({
                     layout="position"
                     initial={{ opacity: 0, y: -28, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 12, scale: 0.96, height: 0, marginTop: 0 }}
+                    exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.18 } }}
                     transition={{
                       type: 'spring',
                       stiffness: 320,
-                      damping: 32,
+                      damping: 34,
                       mass: 0.7,
                       opacity: { duration: 0.22 },
                     }}
-                    className={`relative flex items-center gap-3 h-14 px-3 rounded-2xl overflow-hidden border ${
-                      isNew
-                        ? 'bg-accent-500/[0.08] border-accent-500/30'
-                        : 'bg-white/[0.03] border-white/[0.05]'
+                    className={`relative flex items-center gap-3 h-14 px-3 rounded-2xl overflow-hidden ${
+                      isNew ? 'bg-accent-soft' : 'bg-subtle/60'
                     }`}
                   >
                     {/* rarity strip */}
                     <div
                       className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full"
                       style={{ background: color }}
+                      aria-hidden
                     />
 
-                    {/* NEW pulse highlight — fades out after ~1.4s */}
                     {isNew && (
                       <motion.div
-                        initial={{ opacity: 0.45 }}
+                        initial={{ opacity: 0.5 }}
                         animate={{ opacity: 0 }}
                         transition={{ duration: 1.4, ease: 'easeOut' }}
                         className="absolute inset-0 pointer-events-none"
                         style={{
                           background:
-                            'linear-gradient(90deg, rgba(139,73,242,0.18), transparent 60%)',
+                            'linear-gradient(90deg, rgb(var(--accent) / 0.16), transparent 60%)',
                         }}
                       />
                     )}
 
-                    {/* thumb */}
-                    <div className="w-10 h-10 shrink-0 rounded-xl bg-white/[0.04] grid place-items-center overflow-hidden relative">
+                    <div className="icon-chip-sm bg-surface relative overflow-hidden">
                       {a.item_image ? (
                         <CachedImage
                           src={a.item_image}
@@ -191,30 +177,28 @@ export const LiveActivityFeed: React.FC<Props> = ({
                           className="w-[88%] h-[88%] object-contain"
                         />
                       ) : (
-                        <ShoppingCart size={14} className="text-zinc-500" />
+                        <ShoppingBag size={13} className="text-ink-dim" />
                       )}
                     </div>
 
-                    {/* text */}
                     <div className="flex-1 min-w-0 relative">
-                      <div className="text-[12.5px] text-zinc-300 truncate">
-                        <span className="text-white font-semibold">{a.buyer_name}</span>{' '}
-                        <span className="text-zinc-500">bought</span>{' '}
-                        <span className="text-white font-medium">{a.item_name}</span>
+                      <div className="text-[12.5px] text-ink-muted truncate font-medium">
+                        <span className="text-ink font-bold">{a.buyer_name}</span>{' '}
+                        bought{' '}
+                        <span className="text-ink font-semibold">{a.item_name}</span>
                       </div>
-                      <div className="text-[11px] text-zinc-500 mt-0.5 flex items-center gap-1.5">
+                      <div className="text-[11px] text-ink-dim mt-0.5 flex items-center gap-1.5 font-medium">
                         {relativeTime(a.created_at)}
                         {isNew && (
-                          <span className="text-accent-400 font-semibold tracking-wide uppercase text-[9.5px]">
+                          <span className="text-accent font-bold tracking-wider uppercase text-[9.5px]">
                             · new
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* price */}
                     <div className="text-right shrink-0 relative">
-                      <div className="text-[14px] font-display font-bold text-white tracking-tight tabular-nums">
+                      <div className="text-[14px] font-bold text-ink tracking-tight tabular-nums">
                         {formatPrice(a.price)}
                       </div>
                     </div>
@@ -224,9 +208,6 @@ export const LiveActivityFeed: React.FC<Props> = ({
             </AnimatePresence>
           </ul>
         )}
-
-        {/* bottom fade to suggest "more below" */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-ink-900/40 to-transparent rounded-b-2xl" />
       </div>
     </section>
   );

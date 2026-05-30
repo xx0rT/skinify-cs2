@@ -114,15 +114,9 @@ export const useWishlistStore = create<WishlistState>()((set, get) => ({
           return true;
         }
 
-        // Show specific error alerts
-        if (error.code === '42501') {
-          alert('🚫 PERMISSION DENIED!\n\nThe database RLS policy is blocking the insert.\n\n👉 You need to run SIMPLE_FIX.sql in Supabase SQL Editor!\n\nGo to: https://supabase.com/dashboard/project/jtxqvctllitlhijfcsxg/sql');
-        } else if (error.code === '42P01') {
-          alert('🚫 TABLE DOES NOT EXIST!\n\nThe wishlist_items table does not exist.\n\n👉 You MUST run SIMPLE_FIX.sql in Supabase SQL Editor NOW!\n\nGo to: https://supabase.com/dashboard/project/jtxqvctllitlhijfcsxg/sql');
-        } else {
-          alert(`❌ WISHLIST ERROR:\n\nCode: ${error.code}\nMessage: ${error.message}\n\n👉 Run SIMPLE_FIX.sql in Supabase SQL Editor!\n\nGo to: https://supabase.com/dashboard/project/jtxqvctllitlhijfcsxg/sql`);
-        }
-
+        // Log error details; the UI surfaces user-facing failure via the
+        // toast store from the calling component, not via alert().
+        console.error('[wishlist] insert failed', { code: error.code, message: error.message });
         return false;
       }
 

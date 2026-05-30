@@ -50,10 +50,14 @@ CREATE INDEX IF NOT EXISTS idx_orders_escrow_release_date
 ON orders (escrow_release_date) 
 WHERE escrow_release_date IS NOT NULL;
 
--- Add index for orders ready for release (past escrow date)
-CREATE INDEX IF NOT EXISTS idx_orders_ready_for_release 
-ON orders (escrow_release_date, status) 
-WHERE status = 'escrow' AND escrow_release_date <= NOW();
+-- Add index for orders ready for release (past escrow date).
+-- NOTE: NOW() is not IMMUTABLE so it cannot live in a partial-index predicate.
+-- We index all escrow orders by (escrow_release_date, status); queries that
+-- filter `WHERE status='escrow' AND escrow_release_date <= NOW()` will still
+-- use this index efficiently at query time.
+CREATE INDEX IF NOT EXISTS idx_orders_ready_for_release
+ON orders (escrow_release_date, status)
+WHERE status = 'escrow';
 
 -- Add comment explaining the escrow system
 COMMENT ON COLUMN orders.escrow_release_date IS 'Date when escrow period ends and items can be sent to buyer (8 days after purchase)';

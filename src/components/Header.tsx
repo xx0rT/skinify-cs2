@@ -176,8 +176,12 @@ const Header: React.FC<HeaderProps> = ({
 
   return (
     <>
-      {/* ===== LEFT RAIL (fixed-width, icon-only with tooltips) ===== */}
-      <aside className="fixed left-4 top-4 bottom-4 z-40 hidden md:flex flex-col w-[68px] glass rounded-3xl">
+      {/* ===== LEFT RAIL (fixed-width, icon-only with tooltips) =====
+          Visually joined to the top navbar — top-right corner squared so it
+          meets the navbar's bottom-left corner cleanly, forming one L-shape
+          of glass. Outer corners (top-left, bottom-left, bottom-right) stay
+          rounded; inner-joint corner is square. */}
+      <aside className="fixed left-4 top-4 bottom-4 z-40 hidden md:flex flex-col w-[68px] glass rounded-3xl rounded-tr-none">
         {/* Logo */}
         <button
           onClick={() => navigate('/')}
@@ -295,9 +299,12 @@ const Header: React.FC<HeaderProps> = ({
       {/* ===== TOP FLOATING NAV =====
           3-column grid: [left links + mobile logo] [centered search] [actions]
           The center cell is `1fr` so search stays visually centered regardless
-          of how wide the side cells get; we cap the search width inside. */}
-      <header className="fixed top-4 right-4 z-30 md:left-[92px] left-4">
-        <div className="glass rounded-3xl h-16 px-3 grid items-center gap-2 grid-cols-[auto_1fr_auto]">
+          of how wide the side cells get; we cap the search width inside.
+          On md+ the navbar starts flush against the left rail (left:72px = 4
+          padding + 68 rail width) and has its bottom-left corner squared so
+          the two glass surfaces meet as one continuous L-shape. */}
+      <header className="fixed top-4 right-4 z-30 md:left-[72px] left-4">
+        <div className="glass rounded-3xl md:rounded-bl-none md:border-l-0 h-16 px-3 grid items-center gap-2 grid-cols-[auto_1fr_auto]">
           {/* LEFT: mobile logo + page nav links */}
           <div className="flex items-center gap-1">
             <button

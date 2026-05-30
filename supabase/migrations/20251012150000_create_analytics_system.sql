@@ -65,9 +65,9 @@ CREATE POLICY "Admins can view all activity"
   TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM admin_users
-      WHERE admin_users.user_id = auth.uid()
-      AND admin_users.is_active = true
+      SELECT 1 FROM admin_roles
+      WHERE admin_roles.user_id = auth.uid()
+      AND admin_roles.is_active = true
     )
     OR
     auth.jwt() ->> 'role' = 'admin'
@@ -83,9 +83,9 @@ CREATE POLICY "Admins can view daily stats"
   TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM admin_users
-      WHERE admin_users.user_id = auth.uid()
-      AND admin_users.is_active = true
+      SELECT 1 FROM admin_roles
+      WHERE admin_roles.user_id = auth.uid()
+      AND admin_roles.is_active = true
     )
     OR
     auth.jwt() ->> 'role' = 'admin'

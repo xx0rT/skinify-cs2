@@ -28,9 +28,11 @@ CREATE TABLE IF NOT EXISTS admin_roles (
   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
   role text NOT NULL CHECK (role IN ('admin', 'moderator', 'support', 'super_admin')),
   permissions jsonb DEFAULT '[]'::jsonb,
+  is_active boolean DEFAULT true,
   granted_by uuid REFERENCES auth.users(id),
   granted_at timestamptz DEFAULT now(),
   created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
   UNIQUE(user_id, role)
 );
 

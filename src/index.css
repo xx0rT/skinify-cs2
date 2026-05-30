@@ -2,30 +2,156 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ────────────────────────────────────────────────────────────────────────────
+   THEME TOKENS
+   All colors are CSS variables holding 3 space-separated RGB channels so they
+   work with Tailwind alpha-aware rgb(var(--token) / <alpha-value>) too.
+   Light is the default; html[data-theme="dark"] flips them.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+:root,
+html[data-theme='light'] {
+  color-scheme: light;
+
+  /* Surfaces — warm-neutral with a hair of violet bias so the brand reads
+     through. Bg is a touch warmer than surface so cards lift visually. */
+  --bg: 246 244 250;        /* warm off-white with a touch of lavender */
+  --surface: 255 255 255;   /* cards sit cleanly on top of bg */
+  --elevated: 255 255 255;  /* sheets, modals */
+  --subtle: 240 237 245;    /* inset rows, icon chip background */
+  --line: 226 220 234;      /* borders / hairlines — subtle violet tint */
+
+  /* Ink hierarchy — slightly more contrasted than default zinc */
+  --ink: 22 20 32;
+  --ink-muted: 90 88 110;
+  --ink-dim: 130 128 148;
+  --ink-faint: 178 175 195;
+
+  /* Accent (Violet — default palette, matches the brand logo) */
+  --accent: 139 73 242;
+  --accent-soft: 237 226 255;
+  --on-accent: 255 255 255;
+
+  /* Category tints (soft pastels for backgrounds) */
+  --tint-lemon: 246 240 158;
+  --tint-peach: 255 214 176;
+  --tint-sky:   191 224 255;
+  --tint-mint:  198 240 214;
+  --tint-lilac: 218 210 255;
+  --tint-rose:  255 207 224;
+  --tint-sand:  241 232 210;
+  --tint-stone: 231 227 220;
+
+  /* Category hues (saturated, for icon strokes / dots / progress) */
+  --hue-lemon: 198 168 30;
+  --hue-peach: 233 130 60;
+  --hue-sky:   83 144 220;
+  --hue-mint:  60 168 110;
+  --hue-lilac: 130 110 220;
+  --hue-rose:  220 100 150;
+  --hue-sand:  170 140 80;
+  --hue-stone: 110 100 90;
+
+  /* Auto ink color on a tinted card (always reads dark in light mode) */
+  --tint-ink: 30 28 26;
+  --tint-ink-muted: 90 84 78;
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: 12 12 14;
+  --surface: 22 22 25;
+  --elevated: 30 30 34;
+  --subtle: 32 32 36;
+  --line: 44 44 50;
+
+  --ink: 240 240 244;
+  --ink-muted: 165 165 175;
+  --ink-dim: 120 120 128;
+  --ink-faint: 80 80 86;
+
+  --accent: 181 135 255;
+  --accent-soft: 52 38 92;
+  --on-accent: 20 14 32;
+
+  /* Tints in dark are "deep muted blocks", NOT glowing pastels */
+  --tint-lemon: 60 54 30;
+  --tint-peach: 70 46 30;
+  --tint-sky:   30 50 80;
+  --tint-mint:  30 60 50;
+  --tint-lilac: 50 44 80;
+  --tint-rose:  70 38 56;
+  --tint-sand:  60 54 40;
+  --tint-stone: 50 48 44;
+
+  /* Hues in dark are slightly desaturated, never neon */
+  --hue-lemon: 218 188 90;
+  --hue-peach: 240 165 110;
+  --hue-sky:   140 184 230;
+  --hue-mint:  130 200 160;
+  --hue-lilac: 175 160 230;
+  --hue-rose:  225 165 195;
+  --hue-sand:  200 175 130;
+  --hue-stone: 175 168 158;
+
+  /* On a tinted card the ink stays warm-white because the tint is dark */
+  --tint-ink: 240 240 244;
+  --tint-ink-muted: 175 175 185;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   GLOBAL RESET / NATIVE POLISH
+   ──────────────────────────────────────────────────────────────────────────── */
+
 html {
-  scroll-padding-top: 80px; /* Account for fixed header */
+  /* No glassy text-select / long-press iOS popup on background regions */
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  scroll-padding-top: 80px;
   text-rendering: optimizeLegibility;
+}
+
+/* Re-enable selection where you actually need it */
+input,
+textarea,
+[contenteditable],
+.select-text,
+.select-text * {
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+  user-select: text;
 }
 
 body {
   margin: 0;
   padding: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+  font-family:
+    'Lexend',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    'Inter',
+    system-ui,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: 'cv11', 'ss01', 'ss03';
-  letter-spacing: -0.011em;
-  background: #0A0B0F;
+  letter-spacing: -0.005em;
+  background: rgb(var(--bg));
+  color: rgb(var(--ink));
   min-height: 100vh;
-  color: #ffffff;
+  /* iOS safe areas */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
   overflow-x: hidden;
-  max-width: 100vw;
 }
 
-/* Ambient glow is painted on a fixed pseudo-element instead of being a
-   background-attachment: fixed on body — that property is a known scroll-perf
-   killer (forces a full repaint per frame) on Safari and macOS. With a fixed
-   ::before the layer is a separate compositor layer that the GPU just blits. */
+/* Ambient brand glow behind the page — same approach in both themes, but
+   the alpha + position differ so light mode reads as a faint lavender wash
+   instead of a glowing void. Painted on a fixed pseudo-element so it stays
+   on its own compositor layer and never causes scroll repaint. */
 body::before {
   content: '';
   position: fixed;
@@ -33,9 +159,14 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background-image:
-    radial-gradient(1200px 600px at 80% -10%, rgba(139, 73, 242, 0.14), transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, rgba(217, 70, 239, 0.07), transparent 60%);
+    radial-gradient(1100px 600px at 90% -10%, rgb(var(--accent) / 0.08), transparent 60%),
+    radial-gradient(900px 500px at -10% 100%, rgb(var(--accent) / 0.05), transparent 60%);
   will-change: transform;
+}
+html[data-theme='dark'] body::before {
+  background-image:
+    radial-gradient(1100px 600px at 90% -10%, rgb(var(--accent) / 0.16), transparent 60%),
+    radial-gradient(900px 500px at -10% 100%, rgb(var(--accent) / 0.08), transparent 60%);
 }
 
 #root {
@@ -43,310 +174,19 @@ body::before {
   min-height: 100vh;
 }
 
-/* Skeleton — layered shimmer placeholder. Base is a soft glass tint with a
-   subtle radial highlight; an angled sheen sweeps across every ~1.8s. Use on
-   the same element you'd otherwise put a placeholder on. Honors
-   prefers-reduced-motion via the reduced-motion block lower in this file. */
-.skeleton {
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(120% 80% at 50% 0%, rgba(139, 73, 242, 0.06), transparent 60%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.02));
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.04),
-    0 1px 2px rgba(0, 0, 0, 0.2);
-  isolation: isolate;
-}
-.skeleton::before {
-  /* breathing base wash — slow, very subtle */
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.025),
-    rgba(255, 255, 255, 0.05)
-  );
-  opacity: 0.6;
-  animation: skeleton-breathe 2.6s ease-in-out infinite;
-}
-.skeleton::after {
-  /* angled sheen sweep */
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    105deg,
-    transparent 0%,
-    transparent 35%,
-    rgba(255, 255, 255, 0.05) 47%,
-    rgba(255, 255, 255, 0.12) 50%,
-    rgba(255, 255, 255, 0.05) 53%,
-    transparent 65%,
-    transparent 100%
-  );
-  transform: translateX(-100%);
-  animation: skeleton-shimmer 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-  pointer-events: none;
-}
-@keyframes skeleton-shimmer {
-  0%   { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-@keyframes skeleton-breathe {
-  0%, 100% { opacity: 0.5; }
-  50%      { opacity: 0.85; }
+/* Native form controls should respect dark mode */
+input,
+textarea,
+select {
+  color-scheme: inherit;
 }
 
-/* Inline text skeleton — for short text rows. Set width via Tailwind. */
-.skeleton-line {
-  display: inline-block;
-  vertical-align: middle;
-  height: 0.9em;
-  border-radius: 6px;
-  background: linear-gradient(
-    100deg,
-    rgba(255, 255, 255, 0.05) 30%,
-    rgba(255, 255, 255, 0.12) 50%,
-    rgba(255, 255, 255, 0.05) 70%
-  );
-  background-size: 200% 100%;
-  animation: skeleton-line-shimmer 1.6s linear infinite;
-}
-@keyframes skeleton-line-shimmer {
-  0%   { background-position: 100% 0; }
-  100% { background-position: -100% 0; }
-}
-
-/* Pause skeleton animations when the tab is hidden — saves CPU on background
-   tabs. Also pauses when prefers-reduced-motion is set (handled below). */
-@media (prefers-reduced-motion: no-preference) {
-  .skeleton {
-    /* hint to the compositor; helps Safari avoid full repaints on scroll */
-    transform: translateZ(0);
-  }
-}
-:where(html[hidden], body[hidden]) .skeleton::after,
-:where(html[hidden], body[hidden]) .skeleton::before {
-  animation-play-state: paused;
-}
-
-/* Containment helper — opt in per-element with class="contain-card" on
-   grid items / list rows where you know shadows are inside the box.
-   We deliberately *don't* put this on .glass globally, because the floating
-   nav and rail rely on outside shadows that paint containment would clip. */
-.contain-card {
-  contain: layout paint style;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 320px;
-}
-
-/* Tooltip — add `data-tooltip="Label"` and `class="tip-r"` (right) or
-   `tip-b` (bottom) to any element. Pure CSS, no JS, no extra paint on the
-   parent. Delayed-show so a quick hover doesn't flash. */
-[data-tooltip] {
-  position: relative;
-}
-[data-tooltip]::before,
-[data-tooltip]::after {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease 0s, transform 0.15s ease 0s;
-  z-index: 60;
-}
-[data-tooltip]::before {
-  content: attr(data-tooltip);
-  background: rgba(20, 22, 30, 0.95);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  padding: 6px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.6);
-  white-space: nowrap;
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-}
-[data-tooltip]::after {
-  /* tiny arrow */
-  content: '';
-  width: 6px;
-  height: 6px;
-  background: rgba(20, 22, 30, 0.95);
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-/* Right-side tooltip (used by left rail icons) */
-.tip-r::before {
-  left: calc(100% + 14px);
-  top: 50%;
-  transform: translate(-4px, -50%);
-}
-.tip-r::after {
-  left: calc(100% + 10px);
-  top: 50%;
-  transform: translate(-4px, -50%) rotate(45deg);
-}
-.tip-r:hover::before,
-.tip-r:hover::after,
-.tip-r:focus-visible::before,
-.tip-r:focus-visible::after {
-  opacity: 1;
-  transform: translate(0, -50%);
-  transition-delay: 0.35s;
-}
-.tip-r:hover::after,
-.tip-r:focus-visible::after {
-  transform: translate(0, -50%) rotate(45deg);
-}
-
-/* Bottom tooltip (used by top-nav icon buttons) */
-.tip-b::before {
-  top: calc(100% + 12px);
-  left: 50%;
-  transform: translate(-50%, -4px);
-}
-.tip-b::after {
-  top: calc(100% + 8px);
-  left: 50%;
-  transform: translate(-50%, -4px) rotate(45deg);
-}
-.tip-b:hover::before,
-.tip-b:hover::after,
-.tip-b:focus-visible::before,
-.tip-b:focus-visible::after {
-  opacity: 1;
-  transition-delay: 0.35s;
-}
-.tip-b:hover::before,
-.tip-b:focus-visible::before {
-  transform: translate(-50%, 0);
-}
-.tip-b:hover::after,
-.tip-b:focus-visible::after {
-  transform: translate(-50%, 0) rotate(45deg);
-}
-
-/* On-load fade-up — used to bring sections in as data settles. */
-@keyframes rise-in {
-  0%   { opacity: 0; transform: translateY(8px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-.rise-in {
-  animation: rise-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-/* Stagger helper: add `.rise-in [data-rise]` and these children animate in */
-.rise-in-stagger > * {
-  opacity: 0;
-  animation: rise-in 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-.rise-in-stagger > *:nth-child(1)  { animation-delay: 0.00s; }
-.rise-in-stagger > *:nth-child(2)  { animation-delay: 0.06s; }
-.rise-in-stagger > *:nth-child(3)  { animation-delay: 0.12s; }
-.rise-in-stagger > *:nth-child(4)  { animation-delay: 0.18s; }
-.rise-in-stagger > *:nth-child(5)  { animation-delay: 0.24s; }
-.rise-in-stagger > *:nth-child(6)  { animation-delay: 0.30s; }
-.rise-in-stagger > *:nth-child(7)  { animation-delay: 0.36s; }
-.rise-in-stagger > *:nth-child(8)  { animation-delay: 0.42s; }
-
-/* Glass surface primitives — Wolt/iOS */
-.glass {
-  background: rgba(255, 255, 255, 0.04);
-  -webkit-backdrop-filter: saturate(160%) blur(20px);
-  backdrop-filter: saturate(160%) blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05), 0 24px 48px -24px rgba(0, 0, 0, 0.6);
-}
-.glass-strong {
-  background: rgba(20, 22, 30, 0.72);
-  -webkit-backdrop-filter: saturate(180%) blur(28px);
-  backdrop-filter: saturate(180%) blur(28px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06), 0 30px 60px -20px rgba(0, 0, 0, 0.7);
-}
-.hairline {
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-.lift-on-hover {
-  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s ease, border-color 0.25s ease;
-}
-.lift-on-hover:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.7);
-  border-color: rgba(255, 255, 255, 0.12);
-}
-
-/* Accessibility Utilities */
-
-/* Screen reader only content */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
-}
-
-/* Skip to main content link */
-.skip-to-main {
-  position: absolute;
-  left: -9999px;
-  z-index: 999;
-  padding: 1rem 1.5rem;
-  background-color: #7c3aed;
-  color: white;
-  text-decoration: none;
-  border-radius: 0.5rem;
-}
-
-.skip-to-main:focus {
-  left: 1rem;
-  top: 1rem;
-}
-
-/* Focus indicators - WCAG 2.1 AA compliant */
+/* WCAG focus ring — uses the active accent so it adapts to palette + theme */
 *:focus-visible {
-  outline: 2px solid #8B49F2;
+  outline: 2px solid rgb(var(--accent));
   outline-offset: 2px;
 }
 
-button:focus-visible,
-a:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid #8B49F2;
-  outline-offset: 2px;
-}
-
-/* Keyboard navigation focus ring for interactive elements */
-.focus-ring:focus {
-  box-shadow: 0 0 0 3px rgba(139, 73, 242, 0.45);
-  outline: none;
-}
-
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-  * {
-    border-width: 2px !important;
-  }
-
-  button, a {
-    text-decoration: underline;
-  }
-}
-
-/* Reduced motion for users who prefer it */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -358,223 +198,211 @@ textarea:focus-visible {
   }
 }
 
-/* Ensure consistent purple theme across all elements */
-#root {
-  background: inherit;
-  min-height: 100vh;
-}
+/* ────────────────────────────────────────────────────────────────────────────
+   COMPONENT PRIMITIVES
+   ──────────────────────────────────────────────────────────────────────────── */
 
-/* Fix mobile viewport and status bar styling */
-@media (max-width: 768px) {
-  html {
-    -webkit-text-size-adjust: 100%;
-    -webkit-tap-highlight-color: rgba(139, 92, 246, 0.2);
-    font-size: 14px; /* Base font size for mobile */
+@layer components {
+  /* CARDS ──────────────────────────────────────────────── */
+  .card {
+    background: rgb(var(--surface));
+    border-radius: 24px; /* rounded-3xl */
+    /* Hairline + faint shadow combo. Inset for the border so the card edge
+       stays crisp at any radius; outer for lift. Both gentle so cards stack
+       cleanly without competing. */
+    box-shadow:
+      inset 0 0 0 1px rgb(var(--line)),
+      0 1px 2px rgba(20, 16, 40, 0.04),
+      0 8px 24px -16px rgba(20, 16, 40, 0.06);
   }
-  
-  body {
-    background: #111827; /* Static gray-900 background for mobile */
-    -webkit-overflow-scrolling: touch;
-    min-height: 100vh;
+  html[data-theme='dark'] .card {
+    box-shadow:
+      inset 0 0 0 1px rgb(var(--line)),
+      0 1px 2px rgba(0, 0, 0, 0.3),
+      0 12px 32px -16px rgba(0, 0, 0, 0.5);
   }
-  
-  /* Remove problematic scaling that causes blank screens */
-  #root {
-    min-height: 100vh;
-    width: 100%;
+  .card-flat {
+    background: rgb(var(--subtle));
+    border-radius: 24px;
   }
+  .card-elevated {
+    background: rgb(var(--elevated));
+    border-radius: 24px;
+    box-shadow:
+      inset 0 0 0 1px rgb(var(--line) / 0.6),
+      0 12px 32px -12px rgba(0, 0, 0, 0.15);
+  }
+
+  /* PILLS / CHIPS ──────────────────────────────────────── */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    background: rgb(var(--subtle));
+    color: rgb(var(--ink-muted));
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    line-height: 1;
+  }
+  .pill-accent {
+    background: rgb(var(--accent));
+    color: rgb(var(--on-accent));
+  }
+  .pill-outline {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px rgb(var(--line));
+    color: rgb(var(--ink));
+  }
+
+  /* LABELS ──────────────────────────────────────────────── */
+  .label-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(var(--ink-muted));
+  }
+  .label-meta {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(var(--ink-dim));
+  }
+
+  /* ICON CHIPS — 40x40 by default, child icon picks up matching --hue */
+  .icon-chip {
+    width: 40px;
+    height: 40px;
+    border-radius: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgb(var(--subtle));
+    color: rgb(var(--ink));
+    flex-shrink: 0;
+  }
+  .icon-chip-lg { width: 48px; height: 48px; border-radius: 18px; }
+  .icon-chip-sm { width: 32px; height: 32px; border-radius: 12px; }
+
+  /* TINTED CARDS — pair with hue classes below for category coloring */
+  .tint-card { color: rgb(var(--tint-ink)); }
+  .tint-ink { color: rgb(var(--tint-ink)); }
+  .tint-ink-muted { color: rgb(var(--tint-ink-muted)); }
+  .tint-chip {
+    background: rgb(255 255 255 / 0.35);
+    color: rgb(var(--tint-ink));
+  }
+  html[data-theme='dark'] .tint-chip {
+    background: rgb(255 255 255 / 0.08);
+  }
+
+  /* Hue background classes — use with .tint-card on a parent */
+  .chip-lemon { background: rgb(var(--tint-lemon)); }
+  .chip-peach { background: rgb(var(--tint-peach)); }
+  .chip-sky   { background: rgb(var(--tint-sky)); }
+  .chip-mint  { background: rgb(var(--tint-mint)); }
+  .chip-lilac { background: rgb(var(--tint-lilac)); }
+  .chip-rose  { background: rgb(var(--tint-rose)); }
+  .chip-sand  { background: rgb(var(--tint-sand)); }
+  .chip-stone { background: rgb(var(--tint-stone)); }
+
+  /* Saturated dot used in lists / legends */
+  .chip-dot { width: 8px; height: 8px; border-radius: 9999px; flex-shrink: 0; }
 }
 
-/* Hide scrollbar utility */
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+/* ────────────────────────────────────────────────────────────────────────────
+   UTILITIES
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* Theme-aware text shortcuts (Tailwind doesn't know our tokens) */
+/* Containment helper for grid cards — cuts layout work in long lists */
+.contain-card {
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 360px;
 }
 
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
+.text-ink        { color: rgb(var(--ink)); }
+.text-ink-muted  { color: rgb(var(--ink-muted)); }
+.text-ink-dim    { color: rgb(var(--ink-dim)); }
+.text-ink-faint  { color: rgb(var(--ink-faint)); }
+.text-accent     { color: rgb(var(--accent)); }
+.text-on-accent  { color: rgb(var(--on-accent)); }
 
-/* Custom scrollbar */
-.scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+.bg-bg        { background-color: rgb(var(--bg)); }
+.bg-surface   { background-color: rgb(var(--surface)); }
+.bg-elevated  { background-color: rgb(var(--elevated)); }
+.bg-subtle    { background-color: rgb(var(--subtle)); }
+.bg-accent    { background-color: rgb(var(--accent)); }
+.bg-accent-soft { background-color: rgb(var(--accent-soft)); }
 
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
+.border-line  { border-color: rgb(var(--line)); }
+.ring-line    { --tw-ring-color: rgb(var(--line)); }
 
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.3);
-  border-radius: 3px;
-  border: none;
+/* Skeleton — quiet pulsing shimmer that fits the new soft palette */
+.skel {
+  position: relative;
+  overflow: hidden;
+  background: rgb(var(--subtle));
+  border-radius: 24px;
 }
-
-.scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.5);
+.skel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgb(var(--surface) / 0.55) 50%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: skel-shimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
-
-.scrollbar-thin::-webkit-scrollbar-corner {
-  background: transparent;
+@keyframes skel-shimmer {
+  100% { transform: translateX(100%); }
 }
+html[hidden] .skel::after { animation-play-state: paused; }
 
-/* Firefox scrollbar styling */
-.scrollbar-thin {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+/* On-load fade-up — used for hero + first sections */
+@keyframes rise-in {
+  0%   { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
-
-/* Custom scrollbar for chat */
-.scrollbar-chat::-webkit-scrollbar {
-  width: 4px;
+.rise-in {
+  animation: rise-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-
-.scrollbar-chat::-webkit-scrollbar-track {
-  background: transparent;
+.rise-in-stagger > * {
+  opacity: 0;
+  animation: rise-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
+.rise-in-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.rise-in-stagger > *:nth-child(2) { animation-delay: 60ms; }
+.rise-in-stagger > *:nth-child(3) { animation-delay: 120ms; }
+.rise-in-stagger > *:nth-child(4) { animation-delay: 180ms; }
+.rise-in-stagger > *:nth-child(5) { animation-delay: 240ms; }
+.rise-in-stagger > *:nth-child(6) { animation-delay: 300ms; }
+.rise-in-stagger > *:nth-child(7) { animation-delay: 360ms; }
+.rise-in-stagger > *:nth-child(8) { animation-delay: 420ms; }
 
-.scrollbar-chat::-webkit-scrollbar-thumb {
-  background: rgba(168, 85, 247, 0.3);
-  border-radius: 2px;
-}
-
-.scrollbar-chat::-webkit-scrollbar-thumb:hover {
-  background: rgba(168, 85, 247, 0.5);
-}
-
-/* Custom scrollbar for sidebar */
-.scrollbar-sidebar::-webkit-scrollbar {
-  width: 3px;
-}
-
-.scrollbar-sidebar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.scrollbar-sidebar::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.2);
-  border-radius: 2px;
-}
-
-.scrollbar-sidebar::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.4);
-}
-
-.scrollbar-thumb-purple-600::-webkit-scrollbar-thumb {
-  background-color: rgb(147, 51, 234);
-}
-
-.scrollbar-track-transparent::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-/* Custom range slider styles */
-.slider-thumb::-webkit-slider-thumb {
-  appearance: none;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #3b82f6;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.5);
-  transition: all 0.2s ease;
-}
-
-.slider-thumb::-webkit-slider-thumb:hover {
-  background: #2563eb;
-  transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.7);
-}
-
-.slider-thumb::-moz-range-thumb {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #3b82f6;
-  cursor: pointer;
-  border: none;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.5);
-  transition: all 0.2s ease;
-}
-
-.slider-thumb::-moz-range-thumb:hover {
-  background: #2563eb;
-  transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.7);
-}
-
-/* Purple slider for modal */
-.slider-thumb-purple::-webkit-slider-thumb {
-  appearance: none;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
-  cursor: pointer;
-  box-shadow: 0 0 20px rgba(168, 85, 247, 0.6), 0 2px 8px rgba(168, 85, 247, 0.4);
-  transition: all 0.2s ease;
-}
-
-.slider-thumb-purple::-webkit-slider-thumb:hover {
-  transform: scale(1.15);
-  box-shadow: 0 0 30px rgba(168, 85, 247, 0.8), 0 4px 12px rgba(168, 85, 247, 0.6);
-}
-
-.slider-thumb-purple::-moz-range-thumb {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
-  cursor: pointer;
-  border: none;
-  box-shadow: 0 0 20px rgba(168, 85, 247, 0.6), 0 2px 8px rgba(168, 85, 247, 0.4);
-  transition: all 0.2s ease;
-}
-
-.slider-thumb-purple::-moz-range-thumb:hover {
-  transform: scale(1.15);
-  box-shadow: 0 0 30px rgba(168, 85, 247, 0.8), 0 4px 12px rgba(168, 85, 247, 0.6);
-}
-
-/* Minimalistic scrollbars for all elements */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.2) transparent;
-}
-
-*::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
+/* Scrollbars (minimal, theme-aware) */
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.2);
-  border-radius: 2px;
-  border: none;
+  background: rgb(var(--ink-faint) / 0.5);
+  border-radius: 3px;
 }
+*::-webkit-scrollbar-thumb:hover { background: rgb(var(--ink-dim)); }
 
-*::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.4);
-}
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
 
-*::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-/* Custom gradient animation for marketplace */
-@keyframes gradient-shift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
+/* a11y: visually-hidden helper */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0;
 }

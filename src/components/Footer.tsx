@@ -12,7 +12,6 @@ import {
   MessageCircle,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useTranslationStore } from '../store/translationStore';
 
 const paymentMethods = [
   'Visa', 'MasterCard', 'Paypal', 'Apple', 'GoogleWallet',
@@ -23,11 +22,11 @@ const paymentMethods = [
 ];
 
 const trustBadges = [
-  { icon: Shield, label: 'Steam-verified' },
-  { icon: CheckCircle2, label: 'CS2 partner' },
-  { icon: Lock, label: 'Escrow protected' },
-  { icon: Star, label: 'Trusted marketplace' },
-  { icon: Headphones, label: '24/7 support' },
+  { Icon: Shield, label: 'Steam-verified', hue: 'sky' },
+  { Icon: CheckCircle2, label: 'CS2 partner', hue: 'mint' },
+  { Icon: Lock, label: 'Escrow protected', hue: 'lilac' },
+  { Icon: Star, label: 'Trusted marketplace', hue: 'lemon' },
+  { Icon: Headphones, label: '24/7 support', hue: 'peach' },
 ];
 
 const faqItems = [
@@ -99,93 +98,99 @@ const footerColumns = [
 ];
 
 const Footer: React.FC = () => {
-  const { t } = useTranslationStore();
   const currentYear = new Date().getFullYear();
   const [openFAQ, setOpenFAQ] = useState<number | null>(0);
 
   return (
-    <footer className="md:pl-[100px] pl-4 pr-4 pb-6 max-w-[1480px] mx-auto">
-      {/* ===== FAQ ===== */}
-      <section className="glass rounded-3xl2 p-6 md:p-8 mb-4">
-        <div className="flex items-end justify-between mb-6 flex-wrap gap-3">
+    <footer className="max-w-[1480px] mx-auto px-4 sm:px-6 pb-8 space-y-3">
+      {/* ===== FAQ =====
+          Single-column list style — Linear/Stripe/Apple-support feel. Items
+          are flat with a hairline separator; only the expanded answer reveals
+          on click. No per-item backgrounds or emoji icons; the eye scans
+          questions vertically without color noise. */}
+      <section className="card p-6 md:p-10">
+        <div className="flex items-end justify-between mb-7 flex-wrap gap-3">
           <div>
-            <h2 className="text-[22px] font-display font-bold text-white tracking-tight">
+            <span className="label-eyebrow">Help</span>
+            <h2 className="text-[22px] sm:text-[26px] font-bold tracking-tight text-ink mt-1.5 leading-none">
               Frequently asked
             </h2>
-            <p className="text-[13px] text-zinc-500 mt-0.5">
-              Six things people ask before their first trade.
-            </p>
           </div>
           <Link
             to="/faq"
-            className="h-10 px-4 rounded-2xl bg-white/[0.05] hover:bg-white/[0.10] text-[13px] text-white font-medium transition-colors"
+            className="h-10 px-4 rounded-full bg-subtle text-ink text-[13px] font-semibold hover:bg-subtle/70 transition-colors flex items-center"
           >
             See all
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <ul className="divide-y divide-line">
           {faqItems.map((item, i) => {
             const open = openFAQ === i;
             return (
-              <button
-                key={i}
-                onClick={() => setOpenFAQ(open ? null : i)}
-                className={`text-left rounded-2xl p-4 border transition-colors ${
-                  open
-                    ? 'bg-white/[0.06] border-white/[0.12]'
-                    : 'bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.05]'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[14px] font-semibold text-white leading-tight">{item.q}</span>
-                  <ChevronDown
-                    size={16}
-                    className={`shrink-0 text-zinc-400 transition-transform duration-200 ${
-                      open ? 'rotate-180 text-white' : ''
+              <li key={i}>
+                <button
+                  type="button"
+                  onClick={() => setOpenFAQ(open ? null : i)}
+                  aria-expanded={open}
+                  className="w-full text-left py-5 flex items-start gap-4 group"
+                >
+                  <span className="flex-1 text-[15px] sm:text-[16px] font-bold text-ink leading-snug tracking-tight">
+                    {item.q}
+                  </span>
+                  <span
+                    className={`shrink-0 mt-0.5 w-7 h-7 rounded-full grid place-items-center transition-all duration-200 ${
+                      open
+                        ? 'bg-accent text-on-accent rotate-180'
+                        : 'bg-subtle text-ink-muted group-hover:bg-accent-soft group-hover:text-ink'
                     }`}
-                  />
-                </div>
+                  >
+                    <ChevronDown size={14} strokeWidth={2.4} />
+                  </span>
+                </button>
                 <AnimatePresence initial={false}>
                   {open && (
-                    <motion.p
-                      initial={{ height: 0, opacity: 0, marginTop: 0 }}
-                      animate={{ height: 'auto', opacity: 1, marginTop: 10 }}
-                      exit={{ height: 0, opacity: 0, marginTop: 0 }}
-                      transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-                      className="overflow-hidden text-[13px] text-zinc-400 leading-relaxed"
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.26, ease: [0.2, 0.8, 0.2, 1] }}
+                      className="overflow-hidden"
                     >
-                      {item.a}
-                    </motion.p>
+                      <p className="text-[13.5px] sm:text-[14px] text-ink-muted leading-relaxed font-medium pb-5 pr-12 max-w-3xl">
+                        {item.a}
+                      </p>
+                    </motion.div>
                   )}
                 </AnimatePresence>
-              </button>
+              </li>
             );
           })}
-        </div>
+        </ul>
       </section>
 
       {/* ===== TRUST + PAYMENTS ===== */}
-      <section className="glass rounded-3xl2 p-6 md:p-8 mb-4">
-        <div className="flex flex-wrap items-center gap-2.5 mb-6">
-          {trustBadges.map(({ icon: Icon, label }) => (
+      <section className="card p-6 md:p-8">
+        <div className="flex flex-wrap items-center gap-2 mb-6">
+          {trustBadges.map(({ Icon, label, hue }) => (
             <span
               key={label}
-              className="h-9 px-3.5 rounded-2xl bg-white/[0.04] border border-white/[0.06] text-[12.5px] text-zinc-300 font-medium inline-flex items-center gap-2"
+              className="h-9 px-3 rounded-full bg-subtle text-ink text-[12.5px] font-semibold inline-flex items-center gap-2"
             >
-              <Icon size={14} className="text-accent-400" strokeWidth={2.25} />
+              <Icon
+                size={14}
+                strokeWidth={2.2}
+                style={{ color: `rgb(var(--hue-${hue}))` }}
+              />
               {label}
             </span>
           ))}
         </div>
 
-        <div className="text-[12px] uppercase tracking-wider text-zinc-500 font-semibold mb-3">
-          Accepted payments
-        </div>
-        <div className="relative overflow-hidden h-14 rounded-2xl bg-white/[0.02]">
-          {/* edge fades */}
-          <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-ink-900/95 to-transparent z-10" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-ink-900/95 to-transparent z-10" />
+        <div className="label-eyebrow mb-3">Accepted payments</div>
+        <div className="relative overflow-hidden h-12 rounded-2xl bg-subtle/40">
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-bg to-transparent z-10" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-bg to-transparent z-10" />
           <motion.div
             animate={{ x: ['0%', '-50%'] }}
             transition={{ duration: 60, repeat: Infinity, ease: 'linear' }}
@@ -197,7 +202,7 @@ const Footer: React.FC = () => {
                 key={`${m}-${i}`}
                 src={`/${m}.svg`}
                 alt={m}
-                className="h-7 w-auto opacity-60 hover:opacity-100 transition-opacity grayscale hover:grayscale-0"
+                className="h-6 w-auto opacity-50 hover:opacity-100 transition-opacity grayscale hover:grayscale-0"
                 loading="lazy"
               />
             ))}
@@ -206,23 +211,20 @@ const Footer: React.FC = () => {
       </section>
 
       {/* ===== LINK COLUMNS + BRAND ===== */}
-      <section className="glass rounded-3xl2 p-6 md:p-8">
+      <section className="card p-6 md:p-8">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
-          {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-accent-500 to-accent-700 grid place-items-center shadow-accent-glow">
+              <div className="icon-chip bg-accent text-on-accent">
                 <img
                   src="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png"
                   alt=""
                   className="w-6 h-6"
                 />
               </div>
-              <span className="text-white font-display font-semibold text-[16px] tracking-tight">
-                Skinify
-              </span>
+              <span className="text-[16px] font-bold text-ink tracking-tight">Skinify</span>
             </div>
-            <p className="text-[13px] text-zinc-500 leading-relaxed max-w-[240px]">
+            <p className="text-[13px] text-ink-muted leading-relaxed font-medium max-w-[240px]">
               A premium peer-to-peer marketplace for CS2 skins. Built for collectors and traders.
             </p>
             <div className="flex items-center gap-2 mt-5">
@@ -235,26 +237,23 @@ const Footer: React.FC = () => {
                   key={label}
                   href={href}
                   aria-label={label}
-                  className="w-10 h-10 rounded-2xl bg-white/[0.04] hover:bg-white/[0.10] border border-white/[0.06] grid place-items-center text-zinc-400 hover:text-white transition-colors"
+                  className="icon-chip hover:bg-bg transition-colors"
                 >
-                  <Icon size={16} />
+                  <Icon size={16} className="text-ink-muted" />
                 </a>
               ))}
             </div>
           </div>
 
-          {/* Link columns */}
           {footerColumns.map((col) => (
             <div key={col.title}>
-              <div className="text-[11px] uppercase tracking-wider text-zinc-500 font-semibold mb-4">
-                {col.title}
-              </div>
+              <div className="label-eyebrow mb-4">{col.title}</div>
               <ul className="space-y-2.5">
                 {col.links.map((l) => (
                   <li key={l.label}>
                     <Link
                       to={l.to}
-                      className="text-[13.5px] text-zinc-300 hover:text-white transition-colors"
+                      className="text-[13.5px] text-ink-muted hover:text-ink font-medium transition-colors"
                     >
                       {l.label}
                     </Link>
@@ -265,19 +264,12 @@ const Footer: React.FC = () => {
           ))}
         </div>
 
-        {/* Bottom row */}
-        <div className="mt-8 pt-5 border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-3 text-[12.5px] text-zinc-500">
+        <div className="mt-8 pt-5 border-t border-line flex flex-wrap items-center justify-between gap-3 text-[12.5px] text-ink-muted font-medium">
           <div>© {currentYear} Skinify. Not affiliated with Valve Corp. or Steam.</div>
           <div className="flex items-center gap-4">
-            <Link to="/terms" className="hover:text-white transition-colors">
-              Terms
-            </Link>
-            <Link to="/privacy" className="hover:text-white transition-colors">
-              Privacy
-            </Link>
-            <Link to="/refund-policy" className="hover:text-white transition-colors">
-              Refunds
-            </Link>
+            <Link to="/terms" className="hover:text-ink transition-colors">Terms</Link>
+            <Link to="/privacy" className="hover:text-ink transition-colors">Privacy</Link>
+            <Link to="/refund-policy" className="hover:text-ink transition-colors">Refunds</Link>
           </div>
         </div>
       </section>

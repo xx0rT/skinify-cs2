@@ -11,6 +11,12 @@
     - Creates audit trail in admin_logs
 */
 
+-- Repair: ensure admin_roles has the columns this migration assumes.
+-- Earlier migrations may have created admin_roles without is_active / updated_at;
+-- these ALTERs are idempotent and safe on fresh applies too.
+ALTER TABLE admin_roles ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true;
+ALTER TABLE admin_roles ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
+
 -- Function to add admin role (can only be called by service role or super admin)
 CREATE OR REPLACE FUNCTION add_admin_role(
   p_user_id uuid,

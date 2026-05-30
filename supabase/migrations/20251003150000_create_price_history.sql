@@ -22,7 +22,8 @@
 -- Create price history table
 CREATE TABLE IF NOT EXISTS marketplace_price_history (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  listing_id uuid REFERENCES marketplace_listings(id) ON DELETE CASCADE,
+  -- marketplace_listings.id is bigint (BIGSERIAL) from the original table.
+  listing_id bigint REFERENCES marketplace_listings(id) ON DELETE CASCADE,
   price numeric NOT NULL,
   recorded_at timestamptz DEFAULT now(),
   created_at timestamptz DEFAULT now()

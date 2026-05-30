@@ -5,7 +5,9 @@ export interface Toast {
   id: string;
   type: 'success' | 'error' | 'info' | 'warning';
   title: string;
-  message: string;
+  // Optional: most call sites pass only `title`; the renderer hides the
+  // message line when undefined.
+  message?: string;
   duration?: number;
   icon?: React.ReactNode;
 }

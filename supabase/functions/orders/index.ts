@@ -224,13 +224,17 @@ async function processSellerPayment(
           continue; // Skip this seller but continue with others
         }
 
-        // Create sale transaction for this seller
+        // Create sale transaction for this seller.
+        // `pending_wallet: true` makes the balance trigger route this into the
+        // seller's PENDING balance (not current). The auto-escrow-release cron
+        // moves it to current balance once 8 days have passed (1-day safety
+        // margin past CS2's 7-day trade-back window).
         const saleTransaction = {
           user_id: seller.id,
           steam_id: sellerSteamId,
           type: 'sale',
           amount: amount,
-          description: `Trade completed - Order ${order.transaction_id}. Your portion: ${items.length} item(s).`,
+          description: `Trade completed - Order ${order.transaction_id}. Your portion: ${items.length} item(s). Funds held 8 days.`,
           reference_id: `sale_${order.transaction_id}_${sellerSteamId}_${Date.now()}`,
           status: 'completed',
           completed_at: new Date().toISOString(),
@@ -240,7 +244,9 @@ async function processSellerPayment(
             buyer_name: buyerName,
             items: items,
             multi_seller_order: true,
-            payment_source: 'buyer_confirmation'
+            payment_source: 'buyer_confirmation',
+            pending_wallet: true,
+            hold_until: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString()
           }
         };
 
@@ -262,8 +268,8 @@ async function processSellerPayment(
           supabase,
           sellerSteamId,
           'success',
-          '💰 Payment Received!',
-          `You received ${amount.toLocaleString('cs-CZ')} Kč for ${items.length} item(s) from order ${order.transaction_id}. Buyer confirmed receipt!`,
+          'Funds in pending balance',
+          `${amount.toLocaleString('cs-CZ')} Kč for ${items.length} item(s) from order ${order.transaction_id} is now in your pending balance. Released to main balance in 8 days (after CS2's 7-day trade-back window).`,
           `/profile?tab=orders&transaction=${order.transaction_id}`,
           {
             order_id: order.transaction_id,
@@ -294,13 +300,17 @@ async function processSellerPayment(
 
       console.log('=== CREATING SELLER PAYMENT TRANSACTION ===');
 
-      // Create sale transaction for seller
+      // Create sale transaction for seller.
+      // `pending_wallet: true` routes the funds into pending_balance via the
+      // user-balance trigger; auto-escrow-release will move it to current
+      // balance after 8 days (1-day safety margin past CS2's 7-day trade-back
+      // window).
       const saleTransaction = {
         user_id: seller.id,
         steam_id: order.seller_steam_id,
         type: 'sale',
         amount: order.total_amount,
-        description: `Trade completed - Order ${order.transaction_id}. Buyer confirmed receipt.`,
+        description: `Trade completed - Order ${order.transaction_id}. Buyer confirmed receipt. Funds held 8 days.`,
         reference_id: `sale_${order.transaction_id}_${Date.now()}`,
         status: 'completed',
         completed_at: new Date().toISOString(),
@@ -309,7 +319,9 @@ async function processSellerPayment(
           buyer_steam_id: buyerSteamId,
           buyer_name: buyerName,
           items: order.items,
-          payment_source: 'buyer_confirmation'
+          payment_source: 'buyer_confirmation',
+          pending_wallet: true,
+          hold_until: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString()
         }
       };
 
@@ -331,8 +343,8 @@ async function processSellerPayment(
         supabase,
         order.seller_steam_id,
         'success',
-        '💰 Payment Received!',
-        `You received ${order.total_amount.toLocaleString('cs-CZ')} Kč for order ${order.transaction_id}. Buyer confirmed receipt!`,
+        'Funds in pending balance',
+        `${order.total_amount.toLocaleString('cs-CZ')} Kč for order ${order.transaction_id} is now in your pending balance. Released to main balance in 8 days (after CS2's 7-day trade-back window).`,
         `/profile?tab=orders&transaction=${order.transaction_id}`,
         {
           order_id: order.transaction_id,

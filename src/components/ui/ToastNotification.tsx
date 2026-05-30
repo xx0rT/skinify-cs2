@@ -77,9 +77,14 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({ toast, onRemove }
       onMouseLeave={() => setPaused(false)}
       role="status"
       aria-live="polite"
-      className="relative w-[320px] max-w-[calc(100vw-2rem)] glass-strong rounded-2xl overflow-hidden"
+      className="relative w-[320px] max-w-[calc(100vw-2rem)] rounded-2xl overflow-hidden bg-surface"
       style={{
-        boxShadow: '0 24px 48px -16px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06)',
+        // Theme-safe surface: solid surface bg + hairline ring (visible in both
+        // light and dark) + soft lift shadow. Previous version relied on a
+        // dropped `glass-strong` class so the toast had no background on the
+        // light theme and effectively disappeared.
+        boxShadow:
+          'inset 0 0 0 1px rgb(var(--line)), 0 16px 40px -16px rgba(20,16,40,0.18), 0 4px 12px -6px rgba(20,16,40,0.08)',
       }}
     >
       {/* type-coded left accent strip */}
@@ -99,11 +104,11 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({ toast, onRemove }
 
         {/* body */}
         <div className="flex-1 min-w-0 pt-0.5">
-          <div className="text-[13.5px] font-semibold text-white tracking-tight leading-tight">
+          <div className="text-[13.5px] font-bold text-ink tracking-tight leading-tight">
             {toast.title}
           </div>
           {toast.message && (
-            <div className="text-[12.5px] text-zinc-400 leading-snug mt-0.5 break-words">
+            <div className="text-[12.5px] text-ink-muted leading-snug mt-0.5 break-words font-medium">
               {toast.message}
             </div>
           )}
@@ -113,7 +118,7 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({ toast, onRemove }
         <button
           onClick={() => onRemove(toast.id)}
           aria-label="Dismiss"
-          className="shrink-0 w-7 h-7 rounded-xl text-zinc-500 hover:text-white hover:bg-white/[0.08] grid place-items-center transition-colors"
+          className="shrink-0 w-7 h-7 rounded-xl text-ink-muted hover:text-ink hover:bg-subtle grid place-items-center transition-colors"
         >
           <X size={13} />
         </button>

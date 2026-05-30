@@ -1,18 +1,20 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ChevronLeft,
   Heart,
-  ShoppingCart,
+  ShoppingBag,
   Share2,
-  Shield,
+  ShieldCheck,
   Eye,
   Copy,
   CheckCircle2,
   TrendingUp,
   Clock,
   ExternalLink,
+  Check,
+  Zap,
 } from 'lucide-react';
 import { useMarketplaceItems } from '../hooks/useMarketplaceItems';
 import { useAuthStore } from '../store/authStore';
@@ -21,12 +23,27 @@ import { useCartStore } from '../store/cartStore';
 import { useWishlistStore } from '../store/wishlistStore';
 import { useCurrencyStore } from '../store/currencyStore';
 import { useBalanceStore } from '../store/balanceStore';
-import Header from '../components/Header';
+import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import { CachedImage } from '../components/ui/CachedImage';
 import ConfirmationModal from '../components/ui/ConfirmationModal';
-import PriceChart from '../components/marketplace/PriceChart';
-import { SkinCard, rarityColor } from '../components/ui/SkinCard';
+import { SkinCard, SkinCardSkeleton, rarityColor } from '../components/ui/SkinCard';
+import { spring, tap } from '../lib/motion';
+import { openDepositModal } from '../components/DepositModal';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   ItemDetailPage
+   - Left/main: hero image with rarity glow, name + meta, tabs (Details,
+     Price history, Stickers, Trust & escrow)
+   - Right: sticky buy panel (price, quantity, CTA, balance hint)
+   - Bottom: similar items grid
+   ───────────────────────────────────────────────────────────────────────── */
+
+const staggerParent = { hidden: {}, shown: { transition: { staggerChildren: 0.05 } } };
+const staggerChild = {
+  hidden: { opacity: 0, y: 10 },
+  shown:  { opacity: 1, y: 0, transition: spring },
+};
 
 const ItemDetailPage: React.FC = () => {
   const { itemId } = useParams<{ itemId: string }>();
@@ -39,8 +56,10 @@ const ItemDetailPage: React.FC = () => {
   const { formatPrice } = useCurrencyStore();
   const { balance, fetchBalance } = useBalanceStore();
 
+  const [tab, setTab] = useState<'details' | 'stickers' | 'trust'>('details');
   const [confirmBuyOpen, setConfirmBuyOpen] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (user?.steamId) {
@@ -49,36 +68,81 @@ const ItemDetailPage: React.FC = () => {
     }
   }, [user?.steamId]);
 
-  const item = useMemo(() => items.find((i: any) => i.id === itemId), [items, itemId]);
+  const item = useMemo(
+    () => (items || []).find((i: any) => String(i.id) === String(itemId)),
+    [items, itemId],
+  );
 
   const related = useMemo(() => {
     if (!item || !items?.length) return [];
-    const itemTypeLower = (item.type || '').toLowerCase();
+    const t = (item.type || '').toLowerCase();
+    const r = (item.rarity || '').toLowerCase();
     return items
       .filter(
         (i: any) =>
           i.id !== item.id &&
-          ((i.type || '').toLowerCase() === itemTypeLower ||
-            (i.rarity || '').toLowerCase() === (item.rarity || '').toLowerCase()),
+          ((i.type || '').toLowerCase() === t || (i.rarity || '').toLowerCase() === r),
       )
       .slice(0, 8);
   }, [item, items]);
 
+  const handleAddCart = useCallback(
+    (it: any) => {
+      addItem({
+        id: it.id,
+        name: it.name || it.market_name,
+        price: it.price,
+        image: it.image,
+        condition: it.condition,
+        rarity: it.rarity,
+        type: it.type,
+        seller: it.seller,
+      } as any);
+      addToast({ type: 'success', title: 'Added to cart', message: it.name || it.market_name });
+    },
+    [addItem, addToast],
+  );
+
+  const handleWish = useCallback(
+    (it: any) => {
+      if (!user) {
+        addToast({ type: 'warning', title: 'Login required', message: 'Sign in to use wishlist.' });
+        return;
+      }
+      toggleItem(
+        {
+          id: it.id,
+          name: it.name || it.market_name,
+          price: it.price,
+          image: it.image,
+          condition: it.condition,
+          rarity: it.rarity,
+          type: it.type,
+          seller: it.seller,
+        } as any,
+        user.steamId,
+      );
+    },
+    [user, toggleItem, addToast],
+  );
+
+  /* ───── Not-found / loading ───── */
   if (!loading && !item) {
     return (
-      <div className="min-h-screen text-white">
-        <Header activeSection="Market" />
-        <main className="md:pl-[100px] pl-4 pr-4 pt-24 max-w-[1480px] mx-auto">
-          <div className="glass rounded-3xl2 p-16 text-center">
-            <p className="text-white text-[16px] font-semibold">Listing not found</p>
-            <p className="text-zinc-500 text-[13px] mt-1">
+      <div className="min-h-screen bg-bg text-ink">
+        <LandingNav />
+        <main className="max-w-[1480px] mx-auto px-4 sm:px-6 pt-4 pb-16">
+          <div className="card p-16 text-center mt-12 max-w-xl mx-auto">
+            <p className="text-[16px] font-bold text-ink">Listing not found</p>
+            <p className="text-[13px] text-ink-muted font-medium mt-1.5">
               This item may have sold or been removed.
             </p>
             <button
               onClick={() => navigate('/marketplace')}
-              className="mt-6 h-11 px-5 rounded-2xl bg-accent-500 hover:bg-accent-400 text-white font-semibold transition-colors"
+              className="mt-5 h-11 px-5 rounded-full bg-accent text-on-accent font-bold text-[13.5px]"
+              style={{ boxShadow: '0 8px 20px -10px rgb(var(--accent) / 0.6)' }}
             >
-              Back to marketplace
+              Browse marketplace
             </button>
           </div>
         </main>
@@ -89,14 +153,14 @@ const ItemDetailPage: React.FC = () => {
 
   if (loading || !item) {
     return (
-      <div className="min-h-screen text-white">
-        <Header activeSection="Market" />
-        <main className="md:pl-[100px] pl-4 pr-4 pt-24 max-w-[1480px] mx-auto">
-          <div className="grid lg:grid-cols-[1fr_400px] gap-4">
-            <div className="rounded-3xl2 aspect-square skeleton" />
-            <div className="space-y-4">
-              <div className="rounded-3xl2 h-32 skeleton" />
-              <div className="rounded-3xl2 h-48 skeleton" />
+      <div className="min-h-screen bg-bg text-ink">
+        <LandingNav />
+        <main className="max-w-[1480px] mx-auto px-4 sm:px-6 pt-4 pb-16">
+          <div className="grid lg:grid-cols-[1fr_400px] gap-4 mt-4">
+            <div className="skel aspect-square rounded-3xl" />
+            <div className="space-y-3">
+              <div className="skel rounded-3xl h-40" />
+              <div className="skel rounded-3xl h-32" />
             </div>
           </div>
         </main>
@@ -106,53 +170,19 @@ const ItemDetailPage: React.FC = () => {
 
   const color = rarityColor(item.rarity);
   const wished = isInWishlist(item.id);
-  const inCart = cartItems.some((c: any) => c.id === item.id);
-  const canAfford = (balance || 0) >= item.price;
+  const inCart = cartItems.some((c: any) => String(c.id) === String(item.id));
+  const canAfford = Number(balance || 0) >= item.price;
 
-  const handleAdd = () => {
-    addItem({
-      id: item.id,
-      name: item.name || item.market_name,
-      price: item.price,
-      image: item.image,
-      condition: item.condition,
-      rarity: item.rarity,
-      type: item.type,
-      seller: item.seller,
-    } as any);
-    addToast({ type: 'success', title: 'Added to cart', message: item.name });
-  };
-
-  const handleWish = () => {
-    if (!user) {
-      addToast({ type: 'warning', title: 'Login required', message: 'Sign in to use wishlist.' });
-      return;
-    }
-    toggleItem(
-      {
-        id: item.id,
-        name: item.name || item.market_name,
-        price: item.price,
-        image: item.image,
-        condition: item.condition,
-        rarity: item.rarity,
-        type: item.type,
-        seller: item.seller,
-      } as any,
-      user.steamId,
-    );
-  };
-
-  const handleBuyNow = async () => {
+  const handleBuy = () => {
     if (!user) {
       addToast({ type: 'warning', title: 'Login required', message: 'Sign in with Steam to buy.' });
       return;
     }
     if (!canAfford) {
       addToast({
-        type: 'error',
+        type: 'warning',
         title: 'Insufficient balance',
-        message: `You need ${formatPrice(item.price - (balance || 0))} more.`,
+        message: `Add ${formatPrice(item.price - Number(balance || 0))} to your balance to buy this item.`,
       });
       return;
     }
@@ -180,348 +210,409 @@ const ItemDetailPage: React.FC = () => {
     }
   };
 
-  const copyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    addToast({ type: 'success', title: 'Link copied' });
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      addToast({ type: 'success', title: 'Link copied' });
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      addToast({ type: 'error', title: 'Copy failed' });
+    }
   };
 
-  return (
-    <div className="min-h-screen text-white">
-      <Header activeSection="Market" />
+  const stickers: string[] = Array.isArray(item.stickers) ? item.stickers : [];
+  const name = item.name || item.market_name || '';
 
-      <main className="md:pl-[100px] pl-4 pr-4 pt-24 pb-16 max-w-[1480px] mx-auto">
-        {/* Breadcrumb */}
-        <button
+  return (
+    <div className="min-h-screen bg-bg text-ink">
+      <LandingNav />
+
+      <main className="max-w-[1480px] mx-auto px-4 sm:px-6 pt-4 pb-16">
+        {/* Breadcrumb / back */}
+        <motion.button
+          initial={{ opacity: 0, x: -6 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={spring}
           onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-zinc-300 hover:text-white text-[13px] font-medium transition-colors mb-5"
+          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink text-[13px] font-semibold transition-colors mb-4"
         >
-          <ChevronLeft size={15} />
+          <ChevronLeft size={14} strokeWidth={2.4} />
           Back
-        </button>
+        </motion.button>
 
         <div className="grid lg:grid-cols-[1fr_420px] gap-4">
-          {/* LEFT: showcase + details */}
+          {/* ════════════ LEFT ════════════ */}
           <div className="space-y-4 min-w-0">
-            {/* Showcase */}
-            <div className="relative glass rounded-3xl2 p-8 md:p-12 overflow-hidden">
-              <div
-                className="absolute -top-32 -right-32 w-[420px] h-[420px] rounded-full blur-3xl opacity-50"
-                style={{ background: `radial-gradient(closest-side, ${color}55, transparent)` }}
+            {/* Hero */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={spring}
+              className="card p-6 md:p-10 relative overflow-hidden"
+            >
+              {/* Rarity-tinted glow */}
+              <motion.div
+                aria-hidden
+                className="absolute -top-32 -right-24 w-[480px] h-[480px] rounded-full pointer-events-none"
+                style={{
+                  background: `radial-gradient(closest-side, ${color}66, transparent 65%)`,
+                  opacity: 0.6,
+                }}
+                animate={{ scale: [1, 1.04, 1] }}
+                transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
               />
-              <div className="relative grid place-items-center aspect-[4/3]">
+              <motion.div
+                aria-hidden
+                className="absolute -bottom-32 -left-24 w-[360px] h-[360px] rounded-full pointer-events-none"
+                style={{
+                  background: 'radial-gradient(closest-side, rgb(var(--accent) / 0.12), transparent 65%)',
+                }}
+                animate={{ scale: [1, 1.06, 1] }}
+                transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
+              />
+
+              <div className="relative aspect-[5/3] grid place-items-center">
                 <CachedImage
                   src={item.image}
-                  alt={item.name}
-                  className="w-full max-w-[520px] h-full object-contain drop-shadow-2xl"
+                  alt={name}
+                  className="max-h-full max-w-full object-contain drop-shadow-[0_30px_60px_rgba(20,16,40,0.3)]"
                 />
               </div>
 
-              {/* badges */}
-              <div className="relative flex flex-wrap items-center gap-2 mt-6">
-                <span
-                  className="h-8 px-3 rounded-2xl text-[11.5px] uppercase tracking-wider font-bold"
-                  style={{ background: `${color}20`, color }}
-                >
-                  {item.rarity}
-                </span>
-                {item.condition && (
-                  <span className="h-8 px-3 rounded-2xl bg-white/[0.05] border border-white/[0.06] text-[12px] text-zinc-300 font-medium flex items-center">
-                    {item.condition}
-                  </span>
-                )}
-                {item.special === 'stattrak' && (
-                  <span className="h-8 px-3 rounded-2xl bg-orange-500/15 text-orange-300 border border-orange-500/30 text-[12px] font-bold flex items-center">
-                    StatTrak™
-                  </span>
-                )}
-                {item.special === 'souvenir' && (
-                  <span className="h-8 px-3 rounded-2xl bg-yellow-500/15 text-yellow-300 border border-yellow-500/30 text-[12px] font-bold flex items-center">
-                    Souvenir
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Details grid */}
-            <section className="glass rounded-3xl2 p-6">
-              <h2 className="text-[16px] font-display font-semibold text-white tracking-tight mb-4">
-                Item details
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {[
-                  ['Float', item.float != null ? Number(item.float).toFixed(6) : '—'],
-                  ['Type', item.type || '—'],
-                  ['Pattern', (item as any).patternTemplate || '—'],
-                  ['Tradable', item.tradable ? 'Yes' : 'No'],
-                  ['Marketable', item.marketable ? 'Yes' : 'No'],
-                  [
-                    'Listed',
-                    item.listed_at
-                      ? new Date(item.listed_at).toLocaleDateString()
-                      : '—',
-                  ],
-                ].map(([k, v]) => (
-                  <div
-                    key={k as string}
-                    className="rounded-2xl bg-white/[0.04] border border-white/[0.06] p-3"
-                  >
-                    <div className="text-[11px] uppercase tracking-wide text-zinc-500 font-medium">
-                      {k}
-                    </div>
-                    <div className="text-[14px] text-white font-medium mt-1 truncate">{v as string}</div>
-                  </div>
-                ))}
-              </div>
-
-              {item.stickers && item.stickers.length > 0 && (
-                <div className="mt-5">
-                  <div className="text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-2">
-                    Stickers
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {item.stickers.map((s: string, i: number) => (
-                      <span
-                        key={i}
-                        className="h-9 px-3 rounded-2xl bg-white/[0.04] border border-white/[0.06] text-[12px] text-zinc-300 flex items-center"
-                      >
-                        {s}
+              <div className="relative mt-6 flex flex-wrap items-end justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span
+                      className="w-2 h-2 rounded-full"
+                      style={{ background: color }}
+                    />
+                    <span
+                      className="label-meta"
+                      style={{ color }}
+                    >
+                      {item.rarity || 'Standard'}
+                    </span>
+                    {item.condition && (
+                      <span className="label-meta text-ink-muted">· {item.condition}</span>
+                    )}
+                    {item.special === 'stattrak' && (
+                      <span className="pill bg-orange-500/15 text-orange-700 dark:text-orange-300 text-[10px] uppercase tracking-wider">
+                        StatTrak™
                       </span>
-                    ))}
+                    )}
+                  </div>
+                  <h1 className="text-[26px] sm:text-[32px] font-bold tracking-tight text-ink leading-none">
+                    {name}
+                  </h1>
+                  <div className="mt-2.5 flex items-center gap-3 text-[12px] text-ink-muted font-medium">
+                    {item.float != null && (
+                      <span className="font-mono">Float {Number(item.float).toFixed(4)}</span>
+                    )}
+                    {item.views != null && (
+                      <span className="flex items-center gap-1">
+                        <Eye size={11} /> {Number(item.views).toLocaleString()} views
+                      </span>
+                    )}
                   </div>
                 </div>
-              )}
 
-              {item.description && (
-                <div className="mt-5">
-                  <div className="text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-2">
-                    Description
-                  </div>
-                  <p className="text-[13.5px] text-zinc-300 leading-relaxed">{item.description}</p>
+                <div className="flex items-center gap-2">
+                  <motion.button
+                    whileTap={tap}
+                    onClick={() => handleWish(item)}
+                    aria-label="Wishlist"
+                    className="icon-chip hover:bg-bg transition-colors"
+                  >
+                    <Heart
+                      size={18}
+                      strokeWidth={wished ? 2.4 : 2}
+                      className={wished ? 'fill-accent text-accent' : 'text-ink-muted'}
+                    />
+                  </motion.button>
+                  <motion.button
+                    whileTap={tap}
+                    onClick={copyLink}
+                    aria-label="Share"
+                    className="icon-chip hover:bg-bg transition-colors"
+                  >
+                    {copied ? (
+                      <Check size={16} strokeWidth={2.4} className="text-emerald-600 dark:text-emerald-400" />
+                    ) : (
+                      <Share2 size={16} strokeWidth={2} className="text-ink-muted" />
+                    )}
+                  </motion.button>
                 </div>
-              )}
-            </section>
-
-            {/* Price chart */}
-            <section className="glass rounded-3xl2 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-[16px] font-display font-semibold text-white tracking-tight">
-                    Price history
-                  </h2>
-                  <p className="text-[12px] text-zinc-500 mt-0.5">
-                    Steam Community Market reference pricing
-                  </p>
-                </div>
-                <span className="h-8 px-3 rounded-2xl bg-white/[0.05] border border-white/[0.06] text-[11.5px] text-zinc-300 font-medium flex items-center gap-1.5">
-                  <TrendingUp size={12} className="text-emerald-400" />
-                  Last 30 days
-                </span>
               </div>
-              <PriceChart itemName={item.name || item.market_name} rarityColor={color} />
-            </section>
+            </motion.div>
+
+            {/* Tab bar */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...spring, delay: 0.06 }}
+              className="card p-1.5 inline-flex gap-1"
+            >
+              {(
+                [
+                  { id: 'details',  label: 'Details' },
+                  { id: 'stickers', label: `Stickers${stickers.length ? ` · ${stickers.length}` : ''}` },
+                  { id: 'trust',    label: 'Trust & escrow' },
+                ] as const
+              ).map((t) => {
+                const active = tab === t.id;
+                return (
+                  <motion.button
+                    whileTap={tap}
+                    key={t.id}
+                    onClick={() => setTab(t.id)}
+                    className={`relative h-10 px-4 rounded-full text-[13px] font-semibold transition-colors ${
+                      active ? 'text-on-accent' : 'text-ink-muted hover:text-ink'
+                    }`}
+                  >
+                    {active && (
+                      <motion.span
+                        layoutId="item-detail-tab"
+                        className="absolute inset-0 rounded-full bg-accent"
+                        transition={spring}
+                      />
+                    )}
+                    <span className="relative">{t.label}</span>
+                  </motion.button>
+                );
+              })}
+            </motion.div>
+
+            {/* Tab content */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={tab}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ ...spring, mass: 0.6 }}
+                className="space-y-4"
+              >
+                {tab === 'details' && (
+                  <DetailsPanel item={item} />
+                )}
+
+                {tab === 'stickers' && (
+                  <section className="card p-5 md:p-6">
+                    {stickers.length === 0 ? (
+                      <div className="py-10 text-center">
+                        <p className="text-[14px] text-ink-muted font-medium">No stickers applied.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {stickers.map((s, i) => (
+                          <div key={i} className="card-flat p-3 text-center">
+                            <div className="text-[12px] font-bold text-ink truncate tracking-tight">
+                              {s}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {tab === 'trust' && <TrustPanel />}
+              </motion.div>
+            </AnimatePresence>
 
             {/* Related */}
             {related.length > 0 && (
-              <section>
-                <div className="flex items-end justify-between mb-3">
-                  <h2 className="text-[18px] font-display font-bold text-white tracking-tight">
-                    Similar items
-                  </h2>
+              <motion.section
+                initial={{ opacity: 0, y: 12 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '0px 0px -80px 0px' }}
+                transition={spring}
+              >
+                <div className="flex items-end justify-between mb-3 px-1">
+                  <div>
+                    <span className="label-eyebrow">More to browse</span>
+                    <h2 className="text-[17px] font-bold tracking-tight text-ink mt-1.5 leading-none">
+                      Similar items
+                    </h2>
+                  </div>
                   <button
                     onClick={() => navigate('/marketplace')}
-                    className="text-[13px] text-zinc-400 hover:text-white transition-colors"
+                    className="text-[13px] text-ink-muted hover:text-ink font-semibold flex items-center gap-1 transition-colors"
                   >
                     View all
                   </button>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                <motion.div
+                  variants={staggerParent}
+                  initial="hidden"
+                  whileInView="shown"
+                  viewport={{ once: true }}
+                  className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"
+                >
                   {related.slice(0, 4).map((r: any) => (
-                    <SkinCard
-                      key={r.id}
-                      item={r}
-                      onView={() => navigate(`/item/${r.id}`)}
-                      onAddCart={() => {
-                        addItem({
-                          id: r.id,
-                          name: r.name || r.market_name,
-                          price: r.price,
-                          image: r.image,
-                          condition: r.condition,
-                          rarity: r.rarity,
-                          type: r.type,
-                          seller: r.seller,
-                        } as any);
-                        addToast({ type: 'success', title: 'Added to cart' });
-                      }}
-                      onToggleWish={() => {
-                        if (!user) {
-                          addToast({
-                            type: 'warning',
-                            title: 'Login required',
-                          });
-                          return;
-                        }
-                        toggleItem(
-                          {
-                            id: r.id,
-                            name: r.name || r.market_name,
-                            price: r.price,
-                            image: r.image,
-                            condition: r.condition,
-                            rarity: r.rarity,
-                            type: r.type,
-                            seller: r.seller,
-                          } as any,
-                          user.steamId,
-                        );
-                      }}
-                      wished={isInWishlist(r.id)}
-                      formatPrice={formatPrice}
-                    />
+                    <motion.div key={r.id} variants={staggerChild} whileHover={{ y: -4 }} transition={spring}>
+                      <SkinCard
+                        item={r}
+                        onView={() => navigate(`/item/${r.id}`)}
+                        onAddCart={() => handleAddCart(r)}
+                        onToggleWish={() => handleWish(r)}
+                        wished={isInWishlist(r.id)}
+                        formatPrice={formatPrice}
+                      />
+                    </motion.div>
                   ))}
-                </div>
-              </section>
+                </motion.div>
+              </motion.section>
             )}
           </div>
 
-          {/* RIGHT: purchase rail */}
-          <aside className="lg:sticky lg:top-24 self-start space-y-4">
-            {/* Title + price */}
-            <section className="glass rounded-3xl2 p-6">
-              <h1 className="text-[24px] font-display font-bold text-white tracking-tight leading-tight">
-                {item.name || item.market_name}
-              </h1>
-              <p className="text-[13px] text-zinc-400 mt-1">
-                {item.condition}
-                {item.float != null && (
-                  <span className="text-zinc-600"> · Float {Number(item.float).toFixed(4)}</span>
+          {/* ════════════ RIGHT (buy rail) ════════════ */}
+          <motion.aside
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring, delay: 0.08 }}
+            className="lg:sticky lg:top-24 self-start space-y-4"
+          >
+            <section className="card p-6 relative overflow-hidden">
+              <motion.div
+                aria-hidden
+                className="absolute -top-20 -right-16 w-[260px] h-[260px] rounded-full pointer-events-none"
+                style={{
+                  background: 'radial-gradient(closest-side, rgb(var(--accent) / 0.16), transparent 65%)',
+                }}
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+              />
+              <div className="relative">
+                <span className="label-eyebrow">Listed price</span>
+                <div className="text-[34px] sm:text-[40px] font-bold tracking-tight tabular-nums text-ink leading-none mt-2">
+                  {formatPrice(item.price)}
+                </div>
+                {item.priceChange != null && Number(item.priceChange) !== 0 && (
+                  <div
+                    className={`text-[12px] font-bold mt-1.5 ${
+                      Number(item.priceChange) > 0
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-rose-600 dark:text-rose-400'
+                    }`}
+                  >
+                    {Number(item.priceChange) > 0 ? '+' : ''}
+                    {Number(item.priceChange).toFixed(1)}% vs 30d avg
+                  </div>
                 )}
-              </p>
 
-              <div className="mt-5 flex items-end justify-between gap-3">
-                <div>
-                  <div className="text-[12px] uppercase tracking-wide text-zinc-500 font-semibold">
-                    Listed price
-                  </div>
-                  <div className="text-[34px] font-display font-bold text-white tracking-tight leading-none mt-1">
-                    {formatPrice(item.price)}
-                  </div>
-                  {item.priceChange !== undefined && item.priceChange !== 0 && (
-                    <div
-                      className={`text-[12px] font-medium mt-1 ${
-                        item.priceChange > 0 ? 'text-emerald-400' : 'text-rose-400'
+                <div className="mt-6 grid gap-2">
+                  <motion.button
+                    whileTap={tap}
+                    whileHover={{ scale: 1.02 }}
+                    onClick={handleBuy}
+                    disabled={purchasing}
+                    className="h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center justify-center gap-2 disabled:opacity-60"
+                    style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.65)' }}
+                  >
+                    <Zap size={14} strokeWidth={2.4} />
+                    Buy now · {formatPrice(item.price)}
+                  </motion.button>
+                  <div className="flex gap-2">
+                    <motion.button
+                      whileTap={tap}
+                      onClick={() => handleAddCart(item)}
+                      className={`flex-1 h-11 rounded-full font-semibold text-[13px] flex items-center justify-center gap-2 transition-colors ${
+                        inCart
+                          ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                          : 'bg-subtle text-ink hover:bg-bg'
                       }`}
                     >
-                      {item.priceChange > 0 ? '+' : ''}
-                      {item.priceChange.toFixed(1)}% vs 30d avg
-                    </div>
-                  )}
+                      {inCart ? <CheckCircle2 size={14} strokeWidth={2.4} /> : <ShoppingBag size={14} strokeWidth={2.2} />}
+                      {inCart ? 'In cart' : 'Add to cart'}
+                    </motion.button>
+                    <motion.button
+                      whileTap={tap}
+                      onClick={() => handleWish(item)}
+                      aria-label="Wishlist"
+                      className="w-11 h-11 rounded-full bg-subtle hover:bg-bg grid place-items-center transition-colors"
+                    >
+                      <Heart
+                        size={15}
+                        strokeWidth={wished ? 2.4 : 2}
+                        className={wished ? 'fill-accent text-accent' : 'text-ink-muted'}
+                      />
+                    </motion.button>
+                  </div>
                 </div>
-                {item.views !== undefined && (
-                  <div className="text-right text-zinc-500">
-                    <Eye size={14} className="inline-block mr-1 -mt-px" />
-                    <span className="text-[12px] font-medium">
-                      {item.views.toLocaleString()} views
+
+                {user && (
+                  <div className="mt-4 flex items-center justify-between text-[12px]">
+                    <span className="text-ink-muted font-medium">Your balance</span>
+                    <span
+                      className={`font-bold tabular-nums ${
+                        canAfford ? 'text-ink' : 'text-rose-600 dark:text-rose-400'
+                      }`}
+                    >
+                      {formatPrice(Number(balance || 0))}
+                      {!canAfford && (
+                        <button
+                          onClick={openDepositModal}
+                          className="ml-2 text-accent hover:opacity-80 transition-opacity font-bold"
+                        >
+                          Top up
+                        </button>
+                      )}
                     </span>
                   </div>
                 )}
               </div>
-
-              <div className="mt-5 grid grid-cols-[1fr_44px_44px] gap-2">
-                <button
-                  onClick={handleBuyNow}
-                  className="h-12 rounded-2xl bg-accent-500 hover:bg-accent-400 text-white font-semibold shadow-accent-glow transition-colors disabled:opacity-50"
-                  disabled={purchasing}
-                >
-                  Buy now
-                </button>
-                <button
-                  onClick={handleAdd}
-                  className={`h-12 rounded-2xl grid place-items-center transition-colors ${
-                    inCart
-                      ? 'bg-emerald-500/20 text-emerald-300'
-                      : 'bg-white/[0.06] hover:bg-white/[0.12] text-white'
-                  }`}
-                  title="Add to cart"
-                >
-                  {inCart ? <CheckCircle2 size={16} /> : <ShoppingCart size={16} />}
-                </button>
-                <button
-                  onClick={handleWish}
-                  className="h-12 rounded-2xl bg-white/[0.06] hover:bg-white/[0.12] text-white grid place-items-center transition-colors"
-                  title="Wishlist"
-                >
-                  <Heart size={16} className={wished ? 'fill-accent-500 text-accent-500' : ''} />
-                </button>
-              </div>
-
-              {user && (
-                <div className="mt-4 flex items-center justify-between text-[12px]">
-                  <span className="text-zinc-500">Your balance</span>
-                  <span className={canAfford ? 'text-zinc-300 font-medium' : 'text-rose-400 font-medium'}>
-                    {formatPrice(balance || 0)}
-                    {!canAfford && (
-                      <span className="text-zinc-500 ml-1.5">
-                        (need {formatPrice(item.price - (balance || 0))} more)
-                      </span>
-                    )}
-                  </span>
-                </div>
-              )}
             </section>
 
             {/* Seller */}
             {item.seller?.name && (
-              <section className="glass rounded-3xl2 p-5">
-                <div className="text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-3">
-                  Seller
-                </div>
+              <section className="card p-5">
+                <span className="label-eyebrow">Seller</span>
                 <button
                   onClick={() => navigate(`/user/${item.seller.steamId}`)}
-                  className="w-full flex items-center gap-3 p-2 -m-2 rounded-2xl hover:bg-white/[0.04] transition-colors"
+                  className="w-full flex items-center gap-3 p-2 -mx-2 mt-2 rounded-2xl hover:bg-subtle transition-colors"
                 >
-                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-accent-500 to-accent-700 grid place-items-center text-white font-semibold shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-accent text-on-accent grid place-items-center font-bold shrink-0">
                     {item.seller.name.charAt(0).toUpperCase()}
                   </div>
-                  <div className="text-left min-w-0">
-                    <div className="text-[14px] text-white font-semibold truncate">
+                  <div className="text-left min-w-0 flex-1">
+                    <div className="text-[14px] font-bold text-ink truncate tracking-tight">
                       {item.seller.name}
                     </div>
-                    <div className="text-[12px] text-zinc-500">View profile</div>
+                    <div className="text-[11.5px] text-ink-muted font-medium">View profile</div>
                   </div>
-                  <ExternalLink size={14} className="ml-auto text-zinc-500 shrink-0" />
+                  <ExternalLink size={14} className="text-ink-muted shrink-0" />
                 </button>
               </section>
             )}
 
-            {/* Trust signals */}
-            <section className="glass rounded-3xl2 p-5">
-              <div className="text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-3">
-                Trade protection
-              </div>
+            {/* Mini trust block */}
+            <section className="card p-5">
               <ul className="space-y-3 text-[13px]">
                 {[
-                  { icon: Shield, label: 'Escrow until you confirm receipt' },
-                  { icon: Clock, label: 'Trades typically complete in <60s' },
-                  { icon: CheckCircle2, label: 'Refunded if seller fails to deliver' },
-                ].map(({ icon: Icon, label }) => (
+                  { Icon: ShieldCheck, hue: 'mint',  label: 'Escrow until you confirm receipt' },
+                  { Icon: Clock,       hue: 'sky',   label: 'Average trade under 60 seconds' },
+                  { Icon: TrendingUp,  hue: 'lemon', label: '8-day hold matches CS2 trade-back' },
+                ].map(({ Icon, hue, label }) => (
                   <li key={label} className="flex items-center gap-3">
-                    <Icon size={14} className="text-accent-400 shrink-0" />
-                    <span className="text-zinc-300">{label}</span>
+                    <div className={`icon-chip-sm chip-${hue}`}>
+                      <Icon size={13} strokeWidth={2.2} style={{ color: `rgb(var(--hue-${hue}))` }} />
+                    </div>
+                    <span className="text-ink-muted font-medium leading-tight">{label}</span>
                   </li>
                 ))}
               </ul>
             </section>
 
-            {/* Share */}
             <button
               onClick={copyLink}
-              className="w-full h-11 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-[13px] text-zinc-300 hover:text-white font-medium flex items-center justify-center gap-2 transition-colors"
+              className="w-full h-11 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink font-semibold text-[13px] flex items-center justify-center gap-2 transition-colors"
             >
-              <Copy size={14} />
+              <Copy size={13} strokeWidth={2.2} />
               Copy listing link
             </button>
-          </aside>
+          </motion.aside>
         </div>
       </main>
 
@@ -532,7 +623,7 @@ const ItemDetailPage: React.FC = () => {
         onClose={() => setConfirmBuyOpen(false)}
         onConfirm={confirmPurchase}
         title="Confirm purchase"
-        message={`Buy ${item.name || item.market_name} for ${formatPrice(item.price)}?`}
+        message={`Buy ${name} for ${formatPrice(item.price)}?`}
         confirmText="Buy now"
         cancelText="Cancel"
         variant="info"
@@ -541,5 +632,79 @@ const ItemDetailPage: React.FC = () => {
     </div>
   );
 };
+
+/* ───── Sub-panels ───── */
+
+const DetailsPanel: React.FC<{ item: any }> = ({ item }) => (
+  <section className="card p-5 md:p-6">
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+      {[
+        ['Float',     item.float != null ? Number(item.float).toFixed(6) : '—'],
+        ['Type',      item.type || '—'],
+        ['Pattern',   item.patternTemplate || '—'],
+        ['Tradable',  item.tradable ? 'Yes' : 'No'],
+        ['Marketable',item.marketable ? 'Yes' : 'No'],
+        ['Listed',    item.listed_at ? new Date(item.listed_at).toLocaleDateString() : '—'],
+      ].map(([k, v]) => (
+        <div key={k as string} className="card-flat p-3">
+          <div className="label-meta">{k}</div>
+          <div className="text-[14px] font-bold text-ink mt-1 truncate tracking-tight">
+            {v as string}
+          </div>
+        </div>
+      ))}
+    </div>
+    {item.description && (
+      <div className="mt-5">
+        <div className="label-eyebrow mb-2">Description</div>
+        <p className="text-[13.5px] text-ink-muted leading-relaxed font-medium">
+          {item.description}
+        </p>
+      </div>
+    )}
+  </section>
+);
+
+const TrustPanel: React.FC = () => (
+  <section className="card p-5 md:p-6">
+    <span className="label-eyebrow">How escrow protects you</span>
+    <ol className="mt-4 space-y-4">
+      {[
+        {
+          n: 1,
+          title: 'You pay → funds are held in escrow',
+          body: 'The seller cannot withdraw your money yet. If anything goes wrong, you get a full refund.',
+        },
+        {
+          n: 2,
+          title: 'Seller sends you the item on Steam',
+          body: 'You receive a Steam trade offer. Accept it in your Steam client to take ownership.',
+        },
+        {
+          n: 3,
+          title: 'Confirm receipt → 8-day hold starts',
+          body: 'CS2 reserves a 7-day window where new owners can be reverted. Funds release on day 8 to cover this fully.',
+        },
+        {
+          n: 4,
+          title: 'Funds release to the seller',
+          body: 'Auto-released on day 8, or earlier if both parties consent. Disputes opened inside the window pause this.',
+        },
+      ].map((s) => (
+        <li key={s.n} className="flex items-start gap-4">
+          <div className="w-9 h-9 rounded-full bg-accent-soft grid place-items-center shrink-0">
+            <span className="text-[13px] font-bold text-accent tabular-nums">{s.n}</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[14px] font-bold text-ink tracking-tight">{s.title}</div>
+            <p className="text-[12.5px] text-ink-muted font-medium mt-1 leading-relaxed">
+              {s.body}
+            </p>
+          </div>
+        </li>
+      ))}
+    </ol>
+  </section>
+);
 
 export default ItemDetailPage;

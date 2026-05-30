@@ -75,7 +75,13 @@ async function verifyAssetOwnership(steamId: string, assetId: string): Promise<{
       }
     };
     
-    /* PRODUCTION CODE - Uncomment for real Steam API integration:
+  } catch (error) {
+    console.error('Asset ownership verification failed:', error);
+    throw error;
+  }
+}
+
+/* PRODUCTION CODE - Uncomment to swap in real Steam API integration:
     const inventoryUrl = `https://steamcommunity.com/inventory/${steamId}/730/2`;
     
     const response = await fetch(inventoryUrl, {
@@ -131,8 +137,6 @@ async function verifyAssetOwnership(steamId: string, assetId: string): Promise<{
 /**
  * Log verification attempt to database
  */
-  }
-}
 async function logVerificationAttempt(
   supabase: any,
   verificationData: {

@@ -9,6 +9,9 @@ import { memoryOptimizer } from './utils/memoryOptimizer';
 import ToastContainer from './components/ui/ToastContainer';
 import ScrollToTop from './components/ScrollToTop';
 import AgeVerificationModal from './components/AgeVerificationModal';
+import SearchPalette from './components/SearchPalette';
+import DepositModal from './components/DepositModal';
+import { ThemeProvider } from './theme/ThemeProvider';
 
 // Critical pages - loaded immediately
 import LandingPage from './pages/LandingPage';
@@ -123,7 +126,7 @@ export default function App() {
   );
 
   return (
-    <>
+    <ThemeProvider>
       <BrowserRouter>
         <LanguageDetector />
         <ScrollToTop />
@@ -226,6 +229,14 @@ export default function App() {
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>
+
+        {/* Global Search Palette - opens via ⌘K or openSearchPalette().
+            Must live inside <BrowserRouter> because it uses useNavigate(). */}
+        <SearchPalette />
+
+        {/* Global Deposit Modal - opens via openDepositModal().
+            Inside Router for consistency / future routing-aware behavior. */}
+        <DepositModal />
       </BrowserRouter>
 
       {/* Toast Container - Always Present */}
@@ -233,6 +244,6 @@ export default function App() {
 
       {/* Age Verification Modal */}
       <AgeVerificationModal />
-    </>
+    </ThemeProvider>
   );
 }

@@ -57,27 +57,31 @@ BEGIN
     RAISE NOTICE 'User already exists with ID: %', v_user_id;
   END IF;
 
-  -- Now create the admin role if it doesn't exist
-  -- First, delete any existing admin roles for this user to avoid conflicts
-  DELETE FROM admin_roles WHERE user_id = v_user_id;
-
-  -- Insert the super_admin role
-  INSERT INTO admin_roles (
-    user_id,
-    role,
-    permissions,
-    granted_by,
-    granted_at
-  )
-  VALUES (
-    v_user_id,
-    'super_admin',
-    '["all"]'::jsonb,
-    v_user_id, -- self-granted for initial setup
-    now()
-  );
-
-  RAISE NOTICE 'Successfully granted super_admin role to user: %', v_user_id;
+  -- admin_roles.user_id has FK to auth.users(id). On a fresh deploy that row
+  -- doesn't exist yet (the Steam user hasn't signed in / been mirrored into
+  -- auth.users). Skip the role insert if so; the admin can be granted via
+  -- the dashboard or by re-running this migration after first login.
+  IF EXISTS (SELECT 1 FROM auth.users WHERE id = v_user_id) THEN
+    -- Now create the admin role if it doesn't exist
+    DELETE FROM admin_roles WHERE user_id = v_user_id;
+    INSERT INTO admin_roles (
+      user_id,
+      role,
+      permissions,
+      granted_by,
+      granted_at
+    )
+    VALUES (
+      v_user_id,
+      'super_admin',
+      '["all"]'::jsonb,
+      v_user_id,
+      now()
+    );
+    RAISE NOTICE 'Successfully granted super_admin role to user: %', v_user_id;
+  ELSE
+    RAISE NOTICE 'Skipping admin role insert: auth.users row for % does not exist yet (will be set up after first Steam login)', v_user_id;
+  END IF;
 
 END $$;
 
