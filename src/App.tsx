@@ -1,6 +1,5 @@
 import React, { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { useMobileDetection } from './hooks/useMobileDetection';
 import { useSaleNotifications } from './hooks/useSaleNotifications';
 import { useCurrencyStore } from './store/currencyStore';
 import { useTranslationStore } from './store/translationStore';
@@ -15,19 +14,13 @@ import { ThemeProvider } from './theme/ThemeProvider';
 
 // Critical pages - loaded immediately
 import LandingPage from './pages/LandingPage';
-import MobileLandingPage from './pages/MobileLandingPage';
 import AuthCallback from './pages/AuthCallback';
 import LanguageDetector from './components/LanguageDetector';
 
-// Lazy load less critical pages
-const MobileProfilePage = lazy(() => import('./pages/MobileProfilePage'));
-const MobileItemDetailPage = lazy(() => import('./pages/MobileItemDetailPage'));
-const MobileOrderDetailPage = lazy(() => import('./pages/MobileOrderDetailPage'));
-const MobileCartPage = lazy(() => import('./components/MobileCartPage'));
-const MobileRewardsPage = lazy(() => import('./components/MobileRewardsPage'));
-const MobileWeaponCategoryPage = lazy(() => import('./pages/MobileWeaponCategoryPage'));
-const MobileUserShopPage = lazy(() => import('./pages/MobileUserShopPage'));
-const MobileMarketplacePage = lazy(() => import('./pages/MobileMarketplacePage'));
+// Lazy load less critical pages.
+// Note: we used to have separate Mobile* pages and route between them via
+// useMobileDetection(). Removed in favor of single responsive pages — every
+// page below is now expected to lay out cleanly from ~360px up to 1480px+.
 const SupportPage = lazy(() => import('./pages/SupportPage'));
 const SupportTicketsPage = lazy(() => import('./pages/SupportTicketsPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
@@ -62,7 +55,6 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const LANG_PATTERN = "en|es|cs|de|ru|fr|it|pt|pl|tr|ar|zh|ja|ko|nl|sv|no|da|fi|hu|ro|uk|el|th|vi|id|hi";
 
 export default function App() {
-  const { isMobile, isTablet, screenWidth } = useMobileDetection();
   const { setAutoDetectedCurrency, isAutoDetected } = useCurrencyStore();
 
   useSaleNotifications();
@@ -109,8 +101,6 @@ export default function App() {
     };
   }, []);
 
-  const forceMobile = screenWidth <= 768;
-
   // Lightweight skeleton fallback for route-level Suspense — keeps the layout
   // calm while a lazy chunk arrives. No spinner, no full-screen loader.
   const LoadingFallback = () => (
@@ -133,23 +123,23 @@ export default function App() {
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             {/* Main routes - always use mobile version for small screens */}
-            <Route path="/" element={forceMobile ? <MobileLandingPage /> : <LandingPage />} />
-            <Route path={`/:lang(${LANG_PATTERN})`} element={forceMobile ? <MobileLandingPage /> : <LandingPage />} />
+            <Route path="/" element=<LandingPage /> />
+            <Route path={`/:lang(${LANG_PATTERN})`} element=<LandingPage /> />
 
-            <Route path="/profile" element={forceMobile ? <MobileProfilePage /> : <ProfilePage />} />
-            <Route path={`/:lang(${LANG_PATTERN})/profile`} element={forceMobile ? <MobileProfilePage /> : <ProfilePage />} />
+            <Route path="/profile" element=<ProfilePage /> />
+            <Route path={`/:lang(${LANG_PATTERN})/profile`} element=<ProfilePage /> />
 
-            <Route path="/cart" element={forceMobile ? <MobileCartPage /> : <CartPage />} />
-            <Route path={`/:lang(${LANG_PATTERN})/cart`} element={forceMobile ? <MobileCartPage /> : <CartPage />} />
+            <Route path="/cart" element=<CartPage /> />
+            <Route path={`/:lang(${LANG_PATTERN})/cart`} element=<CartPage /> />
 
-            <Route path="/rewards" element={forceMobile ? <MobileRewardsPage /> : <RewardsPage />} />
-            <Route path={`/:lang(${LANG_PATTERN})/rewards`} element={forceMobile ? <MobileRewardsPage /> : <RewardsPage />} />
+            <Route path="/rewards" element=<RewardsPage /> />
+            <Route path={`/:lang(${LANG_PATTERN})/rewards`} element=<RewardsPage /> />
 
-            <Route path="/item/:itemId" element={forceMobile ? <MobileItemDetailPage /> : <ItemDetailPage />} />
-            <Route path={`/:lang(${LANG_PATTERN})/item/:itemId`} element={forceMobile ? <MobileItemDetailPage /> : <ItemDetailPage />} />
+            <Route path="/item/:itemId" element=<ItemDetailPage /> />
+            <Route path={`/:lang(${LANG_PATTERN})/item/:itemId`} element=<ItemDetailPage /> />
 
-            <Route path="/order/:orderId" element={forceMobile ? <MobileOrderDetailPage /> : <ItemDetailPage />} />
-            <Route path={`/:lang(${LANG_PATTERN})/order/:orderId`} element={forceMobile ? <MobileOrderDetailPage /> : <ItemDetailPage />} />
+            <Route path="/order/:orderId" element=<ItemDetailPage /> />
+            <Route path={`/:lang(${LANG_PATTERN})/order/:orderId`} element=<ItemDetailPage /> />
 
             {/* Other routes */}
             <Route path="/support" element={<SupportPage />} />
@@ -160,8 +150,8 @@ export default function App() {
 
             <Route path="/auth/callback" element={<AuthCallback />} />
 
-            <Route path="/marketplace" element={forceMobile ? <MobileMarketplacePage /> : <MarketplacePage />} />
-            <Route path={`/:lang(${LANG_PATTERN})/marketplace`} element={forceMobile ? <MobileMarketplacePage /> : <MarketplacePage />} />
+            <Route path="/marketplace" element=<MarketplacePage /> />
+            <Route path={`/:lang(${LANG_PATTERN})/marketplace`} element=<MarketplacePage /> />
 
             <Route path="/contact" element={<ContactPage />} />
             <Route path={`/:lang(${LANG_PATTERN})/contact`} element={<ContactPage />} />
@@ -187,11 +177,11 @@ export default function App() {
             <Route path="/admin" element={<AdminPanelNew />} />
             <Route path="/admin-old" element={<AdminPage />} />
 
-            <Route path="/weapons/:category" element={forceMobile ? <MobileWeaponCategoryPage /> : <WeaponCategoryPage />} />
-            <Route path={`/:lang(${LANG_PATTERN})/weapons/:category`} element={forceMobile ? <MobileWeaponCategoryPage /> : <WeaponCategoryPage />} />
+            <Route path="/weapons/:category" element=<WeaponCategoryPage /> />
+            <Route path={`/:lang(${LANG_PATTERN})/weapons/:category`} element=<WeaponCategoryPage /> />
 
-            <Route path="/weapons/:category/:weapon" element={forceMobile ? <MobileWeaponCategoryPage /> : <WeaponCategoryPage />} />
-            <Route path={`/:lang(${LANG_PATTERN})/weapons/:category/:weapon`} element={forceMobile ? <MobileWeaponCategoryPage /> : <WeaponCategoryPage />} />
+            <Route path="/weapons/:category/:weapon" element=<WeaponCategoryPage /> />
+            <Route path={`/:lang(${LANG_PATTERN})/weapons/:category/:weapon`} element=<WeaponCategoryPage /> />
 
             <Route path="/user/:steamId" element={<UserProfilePage />} />
             <Route path={`/:lang(${LANG_PATTERN})/user/:steamId`} element={<UserProfilePage />} />
@@ -223,8 +213,8 @@ export default function App() {
             <Route path="/blog/:slug" element={<BlogDetailPage />} />
             <Route path={`/:lang(${LANG_PATTERN})/blog/:slug`} element={<BlogDetailPage />} />
 
-            <Route path="/shop/:shopUrl" element={forceMobile ? <MobileUserShopPage /> : <UserShopPage />} />
-            <Route path={`/:lang(${LANG_PATTERN})/shop/:shopUrl`} element={forceMobile ? <MobileUserShopPage /> : <UserShopPage />} />
+            <Route path="/shop/:shopUrl" element=<UserShopPage /> />
+            <Route path={`/:lang(${LANG_PATTERN})/shop/:shopUrl`} element=<UserShopPage /> />
 
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
