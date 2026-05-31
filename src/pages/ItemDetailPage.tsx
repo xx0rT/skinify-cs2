@@ -67,13 +67,15 @@ const ItemDetailPage: React.FC = () => {
   const [copied, setCopied] = useState(false);
 
   /* The mobile floating buy chip should only appear when the in-page
-     buy panel is NOT visible. The actual IntersectionObserver effect
-     lives below the `item` useMemo because Vite's prod minifier reorders
-     `const` declarations and using `item` here as a dep would land in
-     the temporal dead zone — visible on mobile as a blank page with
-     "Cannot access 'he' before initialization". */
-  const buyPanelRef = useRef<HTMLDivElement | null>(null);
-  const [buyPanelVisible, setBuyPanelVisible] = useState(true);
+     buy panel is NOT visible. We render the panel twice (once inline on
+     mobile above the tabs, once in the desktop right rail) and observe
+     BOTH refs — `display: none` makes IO report not-intersecting so the
+     "visible" flag is the OR of the two observers. */
+  const mobilePanelRef = useRef<HTMLDivElement | null>(null);
+  const desktopPanelRef = useRef<HTMLDivElement | null>(null);
+  const [mobilePanelVisible, setMobilePanelVisible] = useState(true);
+  const [desktopPanelVisible, setDesktopPanelVisible] = useState(true);
+  const buyPanelVisible = mobilePanelVisible || desktopPanelVisible;
 
   useEffect(() => {
     if (user?.steamId) {
@@ -90,17 +92,30 @@ const ItemDetailPage: React.FC = () => {
     return findMockItem(itemId);
   }, [items, itemId]);
 
-  /* Observer wired AFTER `item` is declared. `item?.id` in deps ensures
-     the observer re-binds when the page swaps to a different listing. */
+  /* Observers wired AFTER `item` is declared. Each watches the buy
+     panel rendered at its breakpoint; a hidden one always reports
+     isIntersecting=false so the OR-merge in `buyPanelVisible` reflects
+     the active layout. */
   useEffect(() => {
-    const target = buyPanelRef.current;
-    if (!target || typeof IntersectionObserver === 'undefined') return;
-    const obs = new IntersectionObserver(
-      ([entry]) => setBuyPanelVisible(entry.isIntersecting),
-      { rootMargin: '-80px 0px -80px 0px', threshold: 0.05 },
-    );
-    obs.observe(target);
-    return () => obs.disconnect();
+    if (typeof IntersectionObserver === 'undefined') return;
+    const bind = (
+      node: HTMLDivElement | null,
+      setVisible: (v: boolean) => void,
+    ) => {
+      if (!node) return () => {};
+      const obs = new IntersectionObserver(
+        ([entry]) => setVisible(entry.isIntersecting),
+        { rootMargin: '-80px 0px -80px 0px', threshold: 0.05 },
+      );
+      obs.observe(node);
+      return () => obs.disconnect();
+    };
+    const a = bind(mobilePanelRef.current, setMobilePanelVisible);
+    const b = bind(desktopPanelRef.current, setDesktopPanelVisible);
+    return () => {
+      a();
+      b();
+    };
   }, [item?.id]);
 
   /* When the live list is empty, fall back to the mock dataset for the
@@ -282,8 +297,14 @@ const ItemDetailPage: React.FC = () => {
       {/* pb-44 on mobile leaves room for the buy bar (~70px) + tab bar
           (~80px) stacked at the bottom; pb-16 on md+ where neither shows. */}
       <main className="max-w-[1480px] mx-auto px-4 sm:px-6 pt-4 pb-44 md:pb-16">
-        {/* Breadcrumb row — sole navigation back to category / market */}
-        <Breadcrumb item={item} navigate={navigate} className="mb-4" />
+        {/* Breadcrumb row — sole navigation back to category / market.
+            On mobile (<lg) it sticks under the top of the viewport with a
+            glass background so the user always knows where they are in
+            the funnel as they scroll. Desktop has the LandingNav for that
+            so the breadcrumb just sits inline. */}
+        <div className="lg:static sticky top-0 z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 py-2 lg:py-0 bg-bg/85 backdrop-blur-md lg:bg-transparent lg:backdrop-blur-0 mb-3 lg:mb-4">
+          <Breadcrumb item={item} navigate={navigate} />
+        </div>
 
         <div className="grid lg:grid-cols-[1fr_420px] gap-4">
           {/* ════════════ LEFT ════════════ */}
@@ -382,6 +403,97 @@ const ItemDetailPage: React.FC = () => {
                 </div>
               </div>
             </motion.div>
+
+            {/* Mobile-only buy card — surfaces price + Buy / Cart / Wishlist
+                directly under the hero so it's the first thing after the
+                image. Desktop renders the equivalent in the right rail. */}
+            <motion.section
+              ref={mobilePanelRef}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...spring, delay: 0.03 }}
+              className="lg:hidden card p-5"
+            >
+              <span className="label-eyebrow">Listed price</span>
+              <div className="text-[30px] sm:text-[34px] font-bold tracking-tight tabular-nums text-ink leading-none mt-2">
+                {formatPrice(item.price)}
+              </div>
+              {item.priceChange != null && Number(item.priceChange) !== 0 && (
+                <div
+                  className={`text-[12px] font-bold mt-1.5 ${
+                    Number(item.priceChange) > 0
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-rose-600 dark:text-rose-400'
+                  }`}
+                >
+                  {Number(item.priceChange) > 0 ? '+' : ''}
+                  {Number(item.priceChange).toFixed(1)}% vs 30d avg
+                </div>
+              )}
+
+              <div className="mt-5 grid gap-2">
+                <motion.button
+                  whileTap={tap}
+                  onClick={handleBuy}
+                  disabled={purchasing}
+                  className="h-12 rounded-full bg-accent hover:opacity-95 text-on-accent font-bold text-[14px] flex items-center justify-center gap-2 disabled:opacity-60 transition-opacity"
+                >
+                  <Zap size={14} strokeWidth={2.4} />
+                  Buy now · {formatPrice(item.price)}
+                </motion.button>
+                <div className="flex gap-2">
+                  <motion.button
+                    whileTap={tap}
+                    onClick={() => handleAddCart(item)}
+                    className={`flex-1 h-11 rounded-full font-semibold text-[13px] flex items-center justify-center gap-2 transition-colors ${
+                      inCart
+                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                        : 'bg-subtle text-ink hover:bg-bg'
+                    }`}
+                  >
+                    {inCart ? (
+                      <CheckCircle2 size={14} strokeWidth={2.4} />
+                    ) : (
+                      <ShoppingBag size={14} strokeWidth={2.2} />
+                    )}
+                    {inCart ? 'In cart' : 'Add to cart'}
+                  </motion.button>
+                  <motion.button
+                    whileTap={tap}
+                    onClick={() => handleWish(item)}
+                    aria-label="Wishlist"
+                    className="w-11 h-11 rounded-full bg-subtle hover:bg-bg grid place-items-center transition-colors"
+                  >
+                    <Heart
+                      size={15}
+                      strokeWidth={wished ? 2.4 : 2}
+                      className={wished ? 'fill-accent text-accent' : 'text-ink-muted'}
+                    />
+                  </motion.button>
+                </div>
+              </div>
+
+              {user && (
+                <div className="mt-4 flex items-center justify-between text-[12px]">
+                  <span className="text-ink-muted font-medium">Your balance</span>
+                  <span
+                    className={`font-bold tabular-nums ${
+                      canAfford ? 'text-ink' : 'text-rose-600 dark:text-rose-400'
+                    }`}
+                  >
+                    {formatPrice(Number(balance || 0))}
+                    {!canAfford && (
+                      <button
+                        onClick={openDepositModal}
+                        className="ml-2 text-accent hover:opacity-80 transition-opacity font-bold"
+                      >
+                        Top up
+                      </button>
+                    )}
+                  </span>
+                </div>
+              )}
+            </motion.section>
 
             {/* Description + Summary side-by-side */}
             <motion.div
@@ -509,14 +621,17 @@ const ItemDetailPage: React.FC = () => {
             )}
           </div>
 
-          {/* ════════════ RIGHT (buy rail) ════════════ */}
+          {/* ════════════ RIGHT (buy rail) — desktop only ════════════
+              On mobile the price card + seller render inline in the LEFT
+              column (above tabs) so the user sees the buy CTA without
+              scrolling past the whole description. */}
           <motion.aside
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...spring, delay: 0.08 }}
-            className="lg:sticky lg:top-24 self-start space-y-4"
+            className="hidden lg:flex lg:flex-col lg:sticky lg:top-24 self-start space-y-4"
           >
-            <section ref={buyPanelRef} className="card p-6 relative overflow-hidden">
+            <section ref={desktopPanelRef} className="card p-6 relative overflow-hidden">
               <div className="relative">
                 <span className="label-eyebrow">Listed price</span>
                 <div className="text-[34px] sm:text-[40px] font-bold tracking-tight tabular-nums text-ink leading-none mt-2">
@@ -626,16 +741,34 @@ const ItemDetailPage: React.FC = () => {
         {!buyPanelVisible && (
           <motion.div
             key="floating-buy"
-            initial={{ opacity: 0, y: 80, scale: 0.94 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 60, scale: 0.94 }}
-            transition={{ type: 'spring', stiffness: 360, damping: 32, mass: 0.7 }}
+            initial={{ opacity: 0, y: 70, scale: 0.9, filter: 'blur(8px)' }}
+            animate={{
+              opacity: 1,
+              y: 0,
+              scale: 1,
+              filter: 'blur(0px)',
+              transition: {
+                type: 'spring',
+                stiffness: 380,
+                damping: 28,
+                mass: 0.65,
+                filter: { duration: 0.22, ease: [0.4, 0, 0.2, 1] },
+              },
+            }}
+            exit={{
+              opacity: 0,
+              y: 50,
+              scale: 0.9,
+              filter: 'blur(6px)',
+              transition: { duration: 0.22, ease: [0.4, 0, 0.6, 1] },
+            }}
             className="lg:hidden fixed left-3 right-3 z-30 pointer-events-none"
             style={{ bottom: 'calc(env(safe-area-inset-bottom) + 90px)' }}
           >
-            <div
+            <motion.div
+              layout
               className="pointer-events-auto card-elevated rounded-full pl-4 pr-1.5 py-1.5 flex items-center gap-3"
-              style={{ boxShadow: '0 18px 40px -16px rgba(20,16,40,0.45)' }}
+              style={{ boxShadow: '0 22px 46px -18px rgba(20,16,40,0.55)' }}
             >
               <div className="flex-1 min-w-0">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-ink-dim leading-none">
@@ -670,7 +803,7 @@ const ItemDetailPage: React.FC = () => {
                 <Zap size={13} strokeWidth={2.4} />
                 Buy now
               </motion.button>
-            </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
