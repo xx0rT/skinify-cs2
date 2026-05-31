@@ -5,23 +5,26 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Code2,
+  Edit3,
   ExternalLink,
   Eye,
+  Globe,
   Grid2x2,
+  Instagram,
   List as ListIcon,
+  Mail,
   MessageCircle,
   Palette,
+  Pause,
+  Play,
   Save,
   Sparkles,
   Store,
-  X,
-  Edit3,
-  Code2,
-  Globe,
+  Trash2,
   Twitter,
-  Instagram,
+  X,
   Youtube,
-  Mail,
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuthStore } from '../store/authStore';
@@ -62,6 +65,7 @@ interface Shop {
   total_views: number;
   total_sales: number;
   custom_css?: string | null;
+  is_active?: boolean;
 }
 
 interface ShopItem {
@@ -177,6 +181,8 @@ const UserShopPage: React.FC = () => {
   const [draft, setDraft] = useState<Shop | null>(null);
   const [saving, setSaving] = useState(false);
   const [showCSS, setShowCSS] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   useDocumentMeta({
     title: shop ? `${shop.shop_name} · Shop` : 'Shop',
@@ -292,6 +298,44 @@ const UserShopPage: React.FC = () => {
     addToast({ type: 'success', title: 'Shop saved', message: 'Changes are live.' });
   };
 
+  /* Toggle the shop between active (public) and paused (hidden from
+     anonymous visitors; owner can still see it). */
+  const togglePause = async () => {
+    if (!shop) return;
+    const next = !(shop.is_active ?? true);
+    const { error } = await supabase
+      .from('user_shops')
+      .update({ is_active: next })
+      .eq('id', shop.id);
+    if (error) {
+      addToast({ type: 'error', title: 'Update failed', message: error.message });
+      return;
+    }
+    setShop({ ...shop, is_active: next });
+    if (draft) setDraft({ ...draft, is_active: next });
+    addToast({
+      type: next ? 'success' : 'info',
+      title: next ? 'Shop resumed' : 'Shop paused',
+      message: next
+        ? 'Your shop is public again.'
+        : 'Only you can see your shop until you resume it.',
+    });
+  };
+
+  /* Permanent delete — wipes the row + cascades to shop_items / views /
+     themes via the FK ON DELETE CASCADE. Guarded behind a typed
+     confirmation in the UI. */
+  const handleDelete = async () => {
+    if (!shop) return;
+    const { error } = await supabase.from('user_shops').delete().eq('id', shop.id);
+    if (error) {
+      addToast({ type: 'error', title: 'Delete failed', message: error.message });
+      return;
+    }
+    addToast({ type: 'success', title: 'Shop deleted' });
+    navigate('/profile?tab=shop');
+  };
+
   /* The values used to render the shop — draft while editing for live
      preview, otherwise the persisted shop. */
   const view = (editMode && draft) || shop;
@@ -321,6 +365,32 @@ const UserShopPage: React.FC = () => {
     );
   }
   if (!view) return null;
+
+  /* Paused shops show a friendly "currently unavailable" screen to
+     anonymous visitors. The owner sees the full editor + preview. */
+  if (view.is_active === false && !isOwner) {
+    return (
+      <div className="min-h-screen bg-bg text-ink grid place-items-center px-6">
+        <div className="text-center max-w-sm">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/15 grid place-items-center mx-auto mb-4">
+            <Pause size={22} strokeWidth={2.2} className="text-amber-600 dark:text-amber-400" />
+          </div>
+          <h1 className="text-[20px] font-bold tracking-tight">
+            This shop is paused
+          </h1>
+          <p className="text-[13.5px] text-ink-muted font-medium mt-2 leading-relaxed">
+            The owner has temporarily hidden the storefront. Check back soon.
+          </p>
+          <button
+            onClick={() => navigate('/marketplace')}
+            className="mt-5 h-11 px-5 rounded-full bg-accent text-on-accent font-bold text-[13.5px]"
+          >
+            Back to marketplace
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   /* ─── Styling derived from shop ───────────────────────────────────── */
   const onPrimaryDark = isDark(view.primary_color);
@@ -355,7 +425,13 @@ const UserShopPage: React.FC = () => {
           keep all selectors prefixed with .shop-root by convention in the
           editor placeholder. */}
       {view.custom_css && (
-        <style dangerouslySetInnerHTML={{ __html: view.custom_css }} />
+        <style
+          /* Strip any literal `</style>` so a malformed user rule can't
+             escape the tag and break HTML parsing. */
+          dangerouslySetInnerHTML={{
+            __html: view.custom_css.replace(/<\/style>/gi, ''),
+          }}
+        />
       )}
 
       {/* Owner toolbar — fixed at the bottom, only when the signed-in user
@@ -583,6 +659,43 @@ const UserShopPage: React.FC = () => {
                   <code className="text-white/70">--shop-secondary</code>,{' '}
                   <code className="text-white/70">--shop-accent</code>.
                 </p>
+              </Group>
+
+              {/* Danger zone */}
+              <Group title="Shop status">
+                <button
+                  onClick={togglePause}
+                  className="w-full h-11 rounded-2xl bg-white/8 hover:bg-white/14 text-[12.5px] font-semibold inline-flex items-center justify-between px-4"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    {(draft.is_active ?? true) ? (
+                      <Pause size={13} strokeWidth={2.4} />
+                    ) : (
+                      <Play size={13} strokeWidth={2.4} />
+                    )}
+                    {(draft.is_active ?? true) ? 'Pause shop' : 'Resume shop'}
+                  </span>
+                  <span
+                    className={`text-[10.5px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${
+                      (draft.is_active ?? true)
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : 'bg-amber-500/20 text-amber-300'
+                    }`}
+                  >
+                    {(draft.is_active ?? true) ? 'Live' : 'Paused'}
+                  </span>
+                </button>
+                <p className="text-[10.5px] text-white/45 leading-relaxed">
+                  Paused shops are hidden from visitors but you can still preview them while signed in.
+                </p>
+
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="w-full h-11 rounded-2xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-[12.5px] font-semibold inline-flex items-center justify-center gap-2 mt-2"
+                >
+                  <Trash2 size={13} strokeWidth={2.4} />
+                  Delete shop permanently
+                </button>
               </Group>
             </div>
 
@@ -849,25 +962,77 @@ const UserShopPage: React.FC = () => {
         <ShopItemModal itemId={selectedItemId} onClose={() => setSelectedItemId(null)} />
       )}
 
-      {/* Editor input styling — scoped via class names used inside the
-          editor drawer only. Lives here so we don't pollute the global
-          stylesheet. */}
-      <style>{`
-        .editor-input {
-          width: 100%;
-          background: rgba(255,255,255,0.06);
-          border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 12px;
-          padding: 10px 12px;
-          color: #fff;
-          font-size: 13px;
-          outline: none;
-          transition: border-color 0.15s ease;
-        }
-        .editor-input:focus {
-          border-color: rgba(255,255,255,0.4);
-        }
-      `}</style>
+      {/* Delete confirmation — typed safeguard. We require the user to
+          type their shop URL to confirm because the action is destructive
+          and cascades to every shop item / view / theme. */}
+      <AnimatePresence>
+        {showDeleteConfirm && shop && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] grid place-items-center bg-black/60 backdrop-blur-md p-4"
+            onClick={() => {
+              setShowDeleteConfirm(false);
+              setDeleteConfirmText('');
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.94, opacity: 0, y: 12 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.94, opacity: 0, y: 8 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-3xl p-6 bg-[rgb(20,20,24)] text-white"
+              style={{ boxShadow: '0 28px 60px -20px rgba(0,0,0,0.6)' }}
+            >
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/15 grid place-items-center mb-4">
+                <Trash2 size={20} strokeWidth={2.4} className="text-rose-400" />
+              </div>
+              <h3 className="text-[20px] font-bold tracking-tight leading-tight">
+                Delete this shop?
+              </h3>
+              <p className="text-[13px] text-white/65 font-medium mt-2 leading-relaxed">
+                This permanently removes your storefront, every featured item,
+                view history, and saved theme. Listings stay in the marketplace —
+                only the shop wrapper goes.
+              </p>
+              <div className="mt-5">
+                <div className="text-[11px] text-white/55 font-semibold mb-1.5">
+                  Type <span className="text-white font-mono">{shop.shop_url}</span> to confirm
+                </div>
+                <input
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  className="editor-input font-mono"
+                  placeholder={shop.shop_url}
+                  autoFocus
+                />
+              </div>
+              <div className="mt-5 flex gap-2">
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    setDeleteConfirmText('');
+                  }}
+                  className="h-11 px-4 rounded-full bg-white/8 hover:bg-white/14 text-[13px] font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleteConfirmText !== shop.shop_url}
+                  className="flex-1 h-11 rounded-full bg-rose-500 hover:bg-rose-400 disabled:bg-white/8 disabled:text-white/40 disabled:cursor-not-allowed text-white font-bold text-[13.5px] inline-flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Trash2 size={14} strokeWidth={2.4} />
+                  Delete shop
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 };

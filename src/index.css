@@ -413,6 +413,23 @@ select {
 }
 html[hidden] .skel::after { animation-play-state: paused; }
 
+/* Shop editor drawer inputs — used by UserShopPage edit drawer only.
+   Lives here instead of an inline <style> tag because injecting a
+   <style> element via JSX template literals tripped the prod minifier
+   ("Unexpected end of script"). */
+.editor-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.editor-input:focus { border-color: rgba(255, 255, 255, 0.4); }
+
 /* On-load fade-up — used for hero + first sections */
 @keyframes rise-in {
   0%   { opacity: 0; transform: translateY(8px); }
