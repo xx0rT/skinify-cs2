@@ -68,23 +68,33 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({ toast, onRemove }
 
   return (
     <motion.div
-      layout
-      initial={{ opacity: 0, x: 48, scale: 0.96 }}
+      layout="position"
+      // Entrance: slide from right, slight overshoot via spring. Exit:
+      // quick fade + small slide off right + a tiny scale-down so stacked
+      // toasts feel like physical cards being flicked away. `layout="position"`
+      // makes the stack reflow smoothly when one toast above us dismisses.
+      initial={{ opacity: 0, x: 360, scale: 0.92 }}
       animate={{ opacity: 1, x: 0, scale: 1 }}
-      exit={{ opacity: 0, x: 48, scale: 0.96, transition: { duration: 0.18 } }}
-      transition={{ type: 'spring', stiffness: 380, damping: 32, mass: 0.7 }}
+      exit={{
+        opacity: 0,
+        x: 80,
+        scale: 0.92,
+        filter: 'blur(2px)',
+        transition: { duration: 0.22, ease: [0.4, 0, 0.6, 1] },
+      }}
+      transition={{ type: 'spring', stiffness: 320, damping: 28, mass: 0.8 }}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
+      onClick={() => onRemove(toast.id)}
       role="status"
       aria-live="polite"
-      className="relative w-[320px] max-w-[calc(100vw-2rem)] rounded-2xl overflow-hidden bg-surface"
+      className="relative w-[320px] max-w-[calc(100vw-2rem)] rounded-2xl overflow-hidden bg-surface cursor-pointer select-none"
       style={{
         // Theme-safe surface: solid surface bg + hairline ring (visible in both
-        // light and dark) + soft lift shadow. Previous version relied on a
-        // dropped `glass-strong` class so the toast had no background on the
-        // light theme and effectively disappeared.
+        // light and dark) + soft lift shadow. Toast is fully clickable to
+        // dismiss; close button stops propagation if you want to be explicit.
         boxShadow:
-          'inset 0 0 0 1px rgb(var(--line)), 0 16px 40px -16px rgba(20,16,40,0.18), 0 4px 12px -6px rgba(20,16,40,0.08)',
+          'inset 0 0 0 1px rgb(var(--line)), 0 20px 48px -16px rgba(20,16,40,0.22), 0 4px 12px -6px rgba(20,16,40,0.10)',
       }}
     >
       {/* type-coded left accent strip */}
@@ -114,9 +124,13 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({ toast, onRemove }
           )}
         </div>
 
-        {/* close */}
+        {/* close — stops propagation so the click doesn't double-fire
+            with the toast's own click-to-dismiss */}
         <button
-          onClick={() => onRemove(toast.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove(toast.id);
+          }}
           aria-label="Dismiss"
           className="shrink-0 w-7 h-7 rounded-xl text-ink-muted hover:text-ink hover:bg-subtle grid place-items-center transition-colors"
         >

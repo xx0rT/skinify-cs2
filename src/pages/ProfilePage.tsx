@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
   Activity,
   ArrowDownToLine,
@@ -13,7 +13,6 @@ import {
   Image as ImageIcon,
   LayoutGrid,
   Package,
-  RefreshCw,
   Settings,
   ShoppingBag,
   Store,
@@ -22,7 +21,6 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { useToastStore } from '../store/toastStore';
 import { useBalanceStore } from '../store/balanceStore';
 import { useOrderStore } from '../store/orderStore';
 import { useCurrencyStore } from '../store/currencyStore';
@@ -32,15 +30,19 @@ import SteamLogin from '../components/auth/SteamLogin';
 import { spring, tap } from '../lib/motion';
 import { openDepositModal } from '../components/DepositModal';
 
-/* Existing sub-components — kept; they slot into their tabs. They use raw
-   Tailwind so they pick up the theme colors via the CSS-variable utilities. */
-const InventoryManager = lazy(() => import('../components/profile/InventoryManager'));
-const MarketplaceListingsManager = lazy(() => import('../components/profile/MarketplaceListingsManager'));
-const WishlistManager = lazy(() => import('../components/profile/WishlistManager'));
-const ShopManager = lazy(() => import('../components/profile/ShopManager'));
-const UserReviews = lazy(() => import('../components/profile/UserReviews'));
-const TradingPerformanceChart = lazy(() => import('../components/profile/TradingPerformanceChart'));
+/* Existing sub-components — only the ones still in use by Overview/Inventory/
+   Listings. The redesigned tabs live in ./tabs/*. */
 const SettingsTab = lazy(() => import('../components/profile/SettingsTab'));
+
+/* Redesigned tab components */
+const TradingPerformanceTab = lazy(() => import('../components/profile/tabs/TradingPerformanceTab'));
+const InventoryTab = lazy(() => import('../components/profile/tabs/InventoryTab'));
+const ListingsTab = lazy(() => import('../components/profile/tabs/ListingsTab'));
+const WishlistTab = lazy(() => import('../components/profile/tabs/WishlistTab'));
+const TradesTab = lazy(() => import('../components/profile/tabs/TradesTab'));
+const BalanceTab = lazy(() => import('../components/profile/tabs/BalanceTab'));
+const MyShopTab = lazy(() => import('../components/profile/tabs/MyShopTab'));
+const ReviewsTab = lazy(() => import('../components/profile/tabs/ReviewsTab'));
 
 /* ─────────────────────────────────────────────────────────────────────────
    ProfilePage — new shell
@@ -54,6 +56,7 @@ const SettingsTab = lazy(() => import('../components/profile/SettingsTab'));
 
 type TabId =
   | 'overview'
+  | 'performance'
   | 'inventory'
   | 'listings'
   | 'wishlist'
@@ -72,16 +75,17 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { id: 'overview',      label: 'Overview',      icon: LayoutGrid, hue: 'lilac' },
-  { id: 'inventory',     label: 'Inventory',     icon: Package,    hue: 'sky' },
-  { id: 'listings',      label: 'Listings',      icon: ShoppingBag,hue: 'peach' },
-  { id: 'wishlist',      label: 'Wishlist',      icon: Heart,      hue: 'rose' },
-  { id: 'trades',        label: 'Trades',        icon: TrendingUp, hue: 'mint' },
-  { id: 'balance',       label: 'Balance',       icon: Wallet,     hue: 'lemon' },
-  { id: 'shop',          label: 'My shop',       icon: Store,      hue: 'sand' },
-  { id: 'reviews',       label: 'Reviews',       icon: Users,      hue: 'stone' },
-  { id: 'notifications', label: 'Notifications', icon: Bell,       hue: 'sky' },
-  { id: 'settings',      label: 'Settings',      icon: Settings,   hue: 'stone' },
+  { id: 'overview',      label: 'Overview',      icon: LayoutGrid },
+  { id: 'performance',   label: 'Performance',   icon: Activity },
+  { id: 'inventory',     label: 'Inventory',     icon: Package },
+  { id: 'listings',      label: 'Listings',      icon: ShoppingBag },
+  { id: 'wishlist',      label: 'Wishlist',      icon: Heart },
+  { id: 'trades',        label: 'Trades',        icon: TrendingUp },
+  { id: 'balance',       label: 'Balance',       icon: Wallet },
+  { id: 'shop',          label: 'My shop',       icon: Store },
+  { id: 'reviews',       label: 'Reviews',       icon: Users },
+  { id: 'notifications', label: 'Notifications', icon: Bell },
+  { id: 'settings',      label: 'Settings',      icon: Settings },
 ];
 
 const staggerParent = { hidden: {}, shown: { transition: { staggerChildren: 0.05 } } };
@@ -91,11 +95,9 @@ const staggerChild = {
 };
 
 const ProfilePage: React.FC = () => {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuthStore();
-  const { addToast } = useToastStore();
-  const { balance, pendingBalance, totalDeposited, totalSpent, transactions, fetchBalance, fetchTransactions } =
+  const { balance, pendingBalance, totalDeposited, totalSpent, fetchBalance, fetchTransactions } =
     useBalanceStore();
   const { orders, fetchOrders } = useOrderStore();
   const { formatPrice } = useCurrencyStore();
@@ -137,7 +139,7 @@ const ProfilePage: React.FC = () => {
             </div>
           </motion.div>
         </main>
-        <Footer />
+        <Footer slim />
       </div>
     );
   }
@@ -152,7 +154,7 @@ const ProfilePage: React.FC = () => {
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={spring}
-          className="card p-6 md:p-7 mb-4 relative overflow-hidden"
+          className="card p-5 sm:p-6 md:p-7 mb-4 relative overflow-hidden"
         >
           <motion.div
             aria-hidden
@@ -164,8 +166,8 @@ const ProfilePage: React.FC = () => {
             animate={{ scale: [1, 1.06, 1], opacity: [0.7, 1, 0.7] }}
             transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
           />
-          <div className="relative flex flex-col sm:flex-row sm:items-center gap-5">
-            <div className="w-20 h-20 rounded-3xl bg-subtle grid place-items-center overflow-hidden shrink-0">
+          <div className="relative flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-5">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-subtle grid place-items-center overflow-hidden shrink-0">
               {user.avatar ? (
                 <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
               ) : (
@@ -209,16 +211,23 @@ const ProfilePage: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* ── Layout: sidebar nav + content ───────────────────── */}
+        {/* ── Layout: sidebar nav (lg+) / horizontal pill scroller (<lg) + content ── */}
         <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
-          {/* Sidebar */}
+          {/*
+            Tab nav.
+            On lg+ : vertical list in a sticky card sidebar (classic dashboard).
+            On <lg : horizontal scrolling pill bar — same buttons, laid out
+                     left-to-right with `flex` and `overflow-x-auto`. The
+                     `lg:flex-col` + `lg:overflow-y-auto` switch handles both
+                     modes with one nav node.
+          */}
           <motion.aside
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={spring}
-            className="card p-2 self-start lg:sticky lg:top-24 max-h-[calc(100vh-7rem)] overflow-y-auto scrollbar-thin"
+            className="card lg:p-2 p-1.5 self-start lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto overflow-x-auto scrollbar-hide"
           >
-            <nav className="space-y-0.5">
+            <nav className="flex lg:flex-col gap-1 lg:gap-0.5">
               {TABS.map((t) => {
                 const active = activeTab === t.id;
                 const Icon = t.icon;
@@ -227,7 +236,7 @@ const ProfilePage: React.FC = () => {
                     whileTap={tap}
                     key={t.id}
                     onClick={() => setActiveTab(t.id)}
-                    className={`relative w-full h-11 px-3 rounded-2xl flex items-center gap-3 transition-colors text-left ${
+                    className={`relative h-10 lg:h-11 px-3 rounded-2xl flex items-center gap-2.5 lg:gap-3 transition-colors text-left shrink-0 lg:w-full lg:shrink ${
                       active ? 'text-ink' : 'text-ink-muted hover:bg-subtle hover:text-ink'
                     }`}
                   >
@@ -239,15 +248,22 @@ const ProfilePage: React.FC = () => {
                       />
                     )}
                     <Icon
-                      size={18}
+                      size={16}
                       strokeWidth={active ? 2.4 : 2}
-                      className="relative shrink-0"
-                      style={active ? { color: `rgb(var(--hue-${t.hue || 'lilac'}))` } : undefined}
+                      // Single-color icons (no rainbow hue tints). Active uses
+                      // the brand accent; inactive inherits text-ink-muted from
+                      // the parent button.
+                      className={`relative shrink-0 ${active ? 'text-accent' : ''}`}
                     />
-                    <span className="relative flex-1 text-[13.5px] font-semibold tracking-tight">
+                    <span className="relative text-[13px] lg:text-[13.5px] font-semibold tracking-tight whitespace-nowrap lg:flex-1">
                       {t.label}
                     </span>
-                    {active && <ChevronRight size={14} className="relative text-ink-muted" />}
+                    {active && (
+                      <ChevronRight
+                        size={14}
+                        className="relative text-ink-muted hidden lg:block"
+                      />
+                    )}
                   </motion.button>
                 );
               })}
@@ -277,36 +293,34 @@ const ProfilePage: React.FC = () => {
                   />
                 )}
 
+                {activeTab === 'performance' && (
+                  <SubFrame title="Trading performance" subtitle="Profit, volume, and trade activity over time">
+                    <Suspense fallback={<TabSkeleton />}>
+                      <TradingPerformanceTab />
+                    </Suspense>
+                  </SubFrame>
+                )}
+
                 {activeTab === 'balance' && (
-                  <BalanceTab
-                    balance={Number(balance || 0)}
-                    pendingBalance={Number(pendingBalance || 0)}
-                    totalDeposited={Number(totalDeposited || 0)}
-                    totalSpent={Number(totalSpent || 0)}
-                    transactions={transactions || []}
-                    formatPrice={formatPrice}
-                    onRefresh={() => {
-                      if (user.steamId) {
-                        fetchBalance(user.steamId);
-                        fetchTransactions(user.steamId);
-                        addToast({ type: 'info', title: 'Balance refreshed' });
-                      }
-                    }}
-                  />
+                  <SubFrame title="Balance" subtitle="Funds, lifetime totals, and transaction history">
+                    <Suspense fallback={<TabSkeleton />}>
+                      <BalanceTab />
+                    </Suspense>
+                  </SubFrame>
                 )}
 
                 {activeTab === 'trades' && (
-                  <TradesTab
-                    orders={orders || []}
-                    formatPrice={formatPrice}
-                    onBrowse={() => navigate('/marketplace')}
-                  />
+                  <SubFrame title="Trades" subtitle="Purchases, sales, and items in escrow">
+                    <Suspense fallback={<TabSkeleton />}>
+                      <TradesTab />
+                    </Suspense>
+                  </SubFrame>
                 )}
 
                 {activeTab === 'inventory' && (
                   <SubFrame title="Inventory" subtitle="Items you own on Steam">
                     <Suspense fallback={<TabSkeleton />}>
-                      <InventoryManager steamId={user.steamId} />
+                      <InventoryTab steamId={user.steamId} />
                     </Suspense>
                   </SubFrame>
                 )}
@@ -314,7 +328,7 @@ const ProfilePage: React.FC = () => {
                 {activeTab === 'listings' && (
                   <SubFrame title="Listings" subtitle="Skins you've put up for sale">
                     <Suspense fallback={<TabSkeleton />}>
-                      <MarketplaceListingsManager steamId={user.steamId} />
+                      <ListingsTab steamId={user.steamId} />
                     </Suspense>
                   </SubFrame>
                 )}
@@ -322,7 +336,7 @@ const ProfilePage: React.FC = () => {
                 {activeTab === 'wishlist' && (
                   <SubFrame title="Wishlist" subtitle="Skins you're watching">
                     <Suspense fallback={<TabSkeleton />}>
-                      <WishlistManager />
+                      <WishlistTab />
                     </Suspense>
                   </SubFrame>
                 )}
@@ -330,7 +344,7 @@ const ProfilePage: React.FC = () => {
                 {activeTab === 'shop' && (
                   <SubFrame title="My shop" subtitle="Public storefront for your listings">
                     <Suspense fallback={<TabSkeleton />}>
-                      <ShopManager onNavigateToListings={() => setActiveTab('listings')} />
+                      <MyShopTab onNavigateToListings={() => setActiveTab('listings')} />
                     </Suspense>
                   </SubFrame>
                 )}
@@ -338,7 +352,7 @@ const ProfilePage: React.FC = () => {
                 {activeTab === 'reviews' && (
                   <SubFrame title="Reviews" subtitle="Feedback from people you've traded with">
                     <Suspense fallback={<TabSkeleton />}>
-                      <UserReviews userId={user.steamId} />
+                      <ReviewsTab />
                     </Suspense>
                   </SubFrame>
                 )}
@@ -367,7 +381,7 @@ const ProfilePage: React.FC = () => {
         </div>
       </main>
 
-      <Footer />
+      <Footer slim />
     </div>
   );
 };
@@ -408,8 +422,10 @@ const OverviewTab: React.FC<{
           <motion.div key={t.label} variants={staggerChild} whileHover={{ y: -2 }} transition={spring} className="card p-4">
             <div className="flex items-start justify-between mb-3">
               <span className="label-meta">{t.label}</span>
-              <div className={`icon-chip-sm chip-${t.hue}`}>
-                <t.Icon size={14} strokeWidth={2.2} style={{ color: `rgb(var(--hue-${t.hue}))` }} />
+              {/* Single-color icon chip — accent-soft bg + accent stroke
+                  instead of per-tile hues (used to be rainbow). */}
+              <div className="icon-chip-sm bg-accent-soft">
+                <t.Icon size={14} strokeWidth={2.2} className="text-accent" />
               </div>
             </div>
             <div className="text-[22px] font-bold tracking-tight tabular-nums text-ink leading-none">
@@ -422,7 +438,7 @@ const OverviewTab: React.FC<{
 
       {/* Performance + Quick links */}
       <div className="grid lg:grid-cols-[1.4fr_1fr] gap-4">
-        <motion.div variants={staggerChild} initial="hidden" animate="shown" className="card p-5 md:p-6">
+        <motion.div variants={staggerChild} initial="hidden" animate="shown" className="card p-5 md:p-6 flex flex-col">
           <div className="flex items-end justify-between mb-4">
             <div>
               <span className="label-eyebrow">Performance</span>
@@ -434,9 +450,33 @@ const OverviewTab: React.FC<{
               +{formatPrice(Math.max(0, earned))} earned
             </span>
           </div>
-          <Suspense fallback={<div className="skel h-48" />}>
-            <TradingPerformanceChart />
-          </Suspense>
+          <div className="flex-1 grid grid-cols-2 gap-3">
+            <div className="card-flat p-4">
+              <div className="label-meta">Net flow</div>
+              <div className="text-[22px] font-bold tracking-tight tabular-nums text-ink leading-none mt-1.5">
+                {formatPrice(Math.max(0, earned))}
+              </div>
+              <div className="text-[11.5px] text-ink-dim font-medium mt-1.5">
+                Deposits + sales − purchases
+              </div>
+            </div>
+            <div className="card-flat p-4">
+              <div className="label-meta">Activity</div>
+              <div className="text-[22px] font-bold tracking-tight tabular-nums text-ink leading-none mt-1.5">
+                {ordersCount}
+              </div>
+              <div className="text-[11.5px] text-ink-dim font-medium mt-1.5">
+                Orders all-time
+              </div>
+            </div>
+          </div>
+          <motion.button
+            whileTap={tap}
+            onClick={() => onGoTo('performance')}
+            className="mt-4 h-10 px-4 rounded-full bg-subtle hover:bg-bg text-ink text-[13px] font-semibold flex items-center justify-center gap-1.5 transition-colors"
+          >
+            View detailed performance <ChevronRight size={13} strokeWidth={2.4} />
+          </motion.button>
         </motion.div>
 
         <motion.div variants={staggerChild} initial="hidden" animate="shown" className="card p-5 md:p-6">
@@ -504,11 +544,11 @@ const OverviewTab: React.FC<{
           <ul className="divide-y divide-line">
             {recentOrders.map((o) => (
               <li key={o.id} className="py-3 flex items-center gap-3">
-                <div className="icon-chip chip-mint">
+                <div className="icon-chip bg-accent-soft">
                   <ShoppingBag
                     size={16}
                     strokeWidth={2.2}
-                    style={{ color: 'rgb(var(--hue-mint))' }}
+                    className="text-accent"
                   />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -537,225 +577,7 @@ const OverviewTab: React.FC<{
   );
 };
 
-/* ─────────────────────────────────────────────────────────────────────────
-   BALANCE TAB
-   ───────────────────────────────────────────────────────────────────────── */
-
-const BalanceTab: React.FC<{
-  balance: number;
-  pendingBalance: number;
-  totalDeposited: number;
-  totalSpent: number;
-  transactions: any[];
-  formatPrice: (n: number) => string;
-  onRefresh: () => void;
-}> = ({ balance, pendingBalance, totalDeposited, totalSpent, transactions, formatPrice, onRefresh }) => {
-  return (
-    <div className="space-y-4">
-      <div className="grid lg:grid-cols-[1.4fr_1fr] gap-3">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={spring}
-          className="card p-6 md:p-8 relative overflow-hidden"
-        >
-          <motion.div
-            aria-hidden
-            className="absolute -top-32 -right-24 w-[360px] h-[360px] rounded-full pointer-events-none"
-            style={{
-              background:
-                'radial-gradient(closest-side, rgb(var(--accent) / 0.16), transparent 65%)',
-            }}
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
-          />
-          <div className="relative">
-            <div className="flex items-center justify-between mb-2">
-              <span className="label-eyebrow">Available balance</span>
-              <button
-                onClick={onRefresh}
-                className="icon-chip-sm hover:bg-bg transition-colors"
-                title="Refresh"
-              >
-                <RefreshCw size={13} strokeWidth={2.2} className="text-ink-muted" />
-              </button>
-            </div>
-            <div className="text-[34px] sm:text-[44px] font-bold tracking-tight leading-none tabular-nums text-ink">
-              {formatPrice(balance)}
-            </div>
-            <div className="text-[13px] text-ink-muted font-medium mt-1.5">
-              + {formatPrice(pendingBalance)} pending release
-            </div>
-            <div className="mt-6 flex flex-wrap gap-2">
-              <motion.button
-                whileTap={tap}
-                whileHover={{ scale: 1.02 }}
-                onClick={openDepositModal}
-                className="h-12 px-6 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center gap-2"
-                style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.6)' }}
-              >
-                <ArrowDownToLine size={15} strokeWidth={2.4} />
-                Add funds
-              </motion.button>
-              <motion.button
-                whileTap={tap}
-                whileHover={{ scale: 1.02 }}
-                className="h-12 px-6 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[14px] flex items-center gap-2 transition-colors"
-              >
-                <ArrowUpFromLine size={15} strokeWidth={2.2} />
-                Withdraw
-              </motion.button>
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ...spring, delay: 0.05 }}
-          className="card p-6"
-        >
-          <span className="label-eyebrow">Account summary</span>
-          <div className="mt-4 space-y-3">
-            <SummaryRow label="Lifetime deposited" value={formatPrice(totalDeposited)} />
-            <SummaryRow label="Lifetime spent"     value={formatPrice(totalSpent)} />
-            <SummaryRow label="Pending"            value={formatPrice(pendingBalance)} hueTip="Released 8 days after each sale" />
-          </div>
-        </motion.div>
-      </div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...spring, delay: 0.1 }}
-        className="card p-5 md:p-6"
-      >
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <span className="label-eyebrow">History</span>
-            <h2 className="text-[17px] font-bold tracking-tight mt-1.5 leading-none">
-              Recent transactions
-            </h2>
-          </div>
-        </div>
-        {transactions.length === 0 ? (
-          <div className="py-10 text-center">
-            <Coins size={22} className="mx-auto text-ink-muted mb-2" />
-            <p className="text-[13.5px] text-ink-muted font-medium">
-              No transactions yet.
-            </p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-line">
-            {transactions.slice(0, 12).map((tx: any) => {
-              const positive = ['deposit', 'sale', 'refund'].includes(String(tx.type));
-              return (
-                <li key={tx.id} className="py-3 flex items-center gap-3">
-                  <div className={`icon-chip-sm ${positive ? 'chip-mint' : 'chip-rose'}`}>
-                    {positive ? (
-                      <ArrowDownToLine size={14} strokeWidth={2.2} style={{ color: 'rgb(var(--hue-mint))' }} />
-                    ) : (
-                      <ArrowUpFromLine size={14} strokeWidth={2.2} style={{ color: 'rgb(var(--hue-rose))' }} />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[14px] font-bold text-ink truncate tracking-tight">
-                      {tx.description || tx.type}
-                    </div>
-                    <div className="text-[11.5px] text-ink-dim font-medium mt-0.5">
-                      {tx.created_at ? new Date(tx.created_at).toLocaleString() : '—'}
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0 min-w-[100px]">
-                    <div
-                      className={`text-[14px] font-bold tabular-nums tracking-tight ${
-                        positive ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink'
-                      }`}
-                    >
-                      {positive ? '+' : '−'}
-                      {formatPrice(Number(tx.amount || 0))}
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </motion.div>
-    </div>
-  );
-};
-
-/* ─────────────────────────────────────────────────────────────────────────
-   TRADES TAB
-   ───────────────────────────────────────────────────────────────────────── */
-
-const TradesTab: React.FC<{
-  orders: any[];
-  formatPrice: (n: number) => string;
-  onBrowse: () => void;
-}> = ({ orders, formatPrice, onBrowse }) => {
-  return (
-    <div className="space-y-4">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={spring}
-        className="card p-5 md:p-6"
-      >
-        <div className="flex items-end justify-between mb-4 flex-wrap gap-3">
-          <div>
-            <span className="label-eyebrow">All trades</span>
-            <h2 className="text-[17px] font-bold tracking-tight mt-1.5 leading-none">
-              {orders.length} order{orders.length === 1 ? '' : 's'}
-            </h2>
-          </div>
-          <motion.button
-            whileTap={tap}
-            whileHover={{ scale: 1.02 }}
-            onClick={onBrowse}
-            className="h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold flex items-center gap-1.5"
-            style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.6)' }}
-          >
-            Browse market <ChevronRight size={13} strokeWidth={2.4} />
-          </motion.button>
-        </div>
-        {orders.length === 0 ? (
-          <div className="py-12 text-center">
-            <TrendingUp size={22} className="mx-auto text-ink-muted mb-2" />
-            <p className="text-[14px] text-ink-muted font-medium">
-              No trades yet — start with the marketplace.
-            </p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-line">
-            {orders.map((o) => (
-              <li key={o.id} className="py-3 flex items-center gap-3">
-                <div className="icon-chip chip-mint">
-                  <ShoppingBag size={16} strokeWidth={2.2} style={{ color: 'rgb(var(--hue-mint))' }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[14px] font-bold text-ink truncate tracking-tight">
-                    Order #{String(o.id).slice(-6).toUpperCase()}
-                  </div>
-                  <div className="text-[11.5px] text-ink-dim font-medium mt-0.5">
-                    {o.created_at ? new Date(o.created_at).toLocaleString() : '—'}
-                  </div>
-                </div>
-                <span className="pill bg-subtle text-ink-muted">{o.status || 'pending'}</span>
-                <div className="text-right shrink-0 min-w-[110px]">
-                  <div className="text-[14px] font-bold tabular-nums text-ink tracking-tight">
-                    {formatPrice(Number(o.total_amount || 0))}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </motion.div>
-    </div>
-  );
-};
+/* BalanceTab + TradesTab moved to ./tabs/BalanceTab.tsx and ./tabs/TradesTab.tsx */
 
 /* ─────────────────────────────────────────────────────────────────────────
    Helpers
@@ -797,14 +619,16 @@ const QuickAction: React.FC<{
   label: string;
   sub: string;
   onClick: () => void;
-}> = ({ Icon, hue, label, sub, onClick }) => (
+}> = ({ Icon, label, sub, onClick }) => (
+  // `hue` param kept for source-compat but no longer used — every action
+  // now renders with the brand accent for visual consistency.
   <motion.button
     whileTap={tap}
     onClick={onClick}
     className="w-full text-left p-3 rounded-2xl hover:bg-subtle flex items-center gap-3 transition-colors"
   >
-    <div className={`icon-chip chip-${hue}`}>
-      <Icon size={18} strokeWidth={2.2} style={{ color: `rgb(var(--hue-${hue}))` }} />
+    <div className="icon-chip bg-accent-soft">
+      <Icon size={18} strokeWidth={2.2} className="text-accent" />
     </div>
     <div className="flex-1 min-w-0">
       <div className="text-[14px] font-bold text-ink truncate tracking-tight">{label}</div>

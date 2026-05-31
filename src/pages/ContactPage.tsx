@@ -1,563 +1,366 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  ArrowLeft, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Clock, 
-  Send, 
+import { useNavigate } from 'react-router-dom';
+import {
+  ChevronLeft,
+  Mail,
   MessageCircle,
-  Home,
-  User,
-  Settings,
-  CreditCard,
-  Wallet,
-  Gift,
-  Crown,
-  ChevronDown,
-  ShoppingCart,
-  Star,
-  TrendingUp,
-  Package,
-  Plus
+  Twitter,
+  Github,
+  MapPin,
+  Phone,
+  Building2,
+  Send,
+  Sparkles,
+  Briefcase,
+  Newspaper,
+  Code,
+  Shield,
+  Clock,
+  ArrowRight,
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../store/authStore';
-import { useToastStore } from '../store/toastStore';
-import Header from '../components/Header';
+import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
-import SteamLogin from '../components/auth/SteamLogin';
-import UserProfile from '../components/auth/UserProfile';
+import { useToastStore } from '../store/toastStore';
+import { spring, tap } from '../lib/motion';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   ContactPage — fresh design
+   - Hero with greeting + channel CTAs
+   - Channel cards (live chat / email / discord / twitter)
+   - Form (general inquiry)
+   - Office / company info card
+   ───────────────────────────────────────────────────────────────────────── */
+
+interface ChannelTile {
+  Icon: React.ComponentType<any>;
+  label: string;
+  value: string;
+  sub: string;
+  tint: string;
+  href?: string;
+  onClick?: () => void;
+}
+
+const REASONS = [
+  { id: 'general',     label: 'General inquiry',  Icon: MessageCircle },
+  { id: 'partnership', label: 'Partnership',      Icon: Briefcase },
+  { id: 'press',       label: 'Press & media',    Icon: Newspaper },
+  { id: 'api',         label: 'API / developer',  Icon: Code },
+  { id: 'security',    label: 'Security report',  Icon: Shield },
+] as const;
+
+type Reason = typeof REASONS[number]['id'];
 
 const ContactPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
   const { addToast } = useToastStore();
-  const [selectedLanguage, setSelectedLanguage] = useState('EN');
-  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
-  const [activeSection, setActiveSection] = useState('Contact');
-  const [hoveredNavItem, setHoveredNavItem] = useState(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    subject: '',
-    message: '',
-    priority: 'normal'
-  });
+  const [reason, setReason] = useState<Reason>('general');
+  const [form, setForm] = useState({ name: '', email: '', message: '' });
+  const [submitting, setSubmitting] = useState(false);
 
-  const sidebarSections = [
+  const channels: ChannelTile[] = [
     {
-      name: 'Navigation',
-      items: [
-        { icon: Home, label: 'Home', active: false, onClick: () => navigate('/') },
-        { icon: User, label: 'Profile', active: false, onClick: () => navigate('/profile') }
-      ]
+      Icon: MessageCircle,
+      label: 'Live chat',
+      value: 'Start a chat',
+      sub: 'Avg reply under 5 minutes during peak hours.',
+      tint: '#a855f7',
+      onClick: () => addToast({ type: 'info', title: 'Live chat', message: 'Opening chat — an agent will join shortly.' }),
     },
     {
-      name: 'Trading',
-      items: [
-        { icon: Star, label: 'Rewards', active: false, onClick: () => addToast({ type: 'info', title: 'Coming Soon', message: 'Rewards system is coming soon!' }) },
-        { icon: TrendingUp, label: 'Stats', active: false, onClick: () => navigate('/profile?tab=overview') }
-      ]
+      Icon: Mail,
+      label: 'Email',
+      value: 'support@skinify.gg',
+      sub: 'We reply within 4 hours on average.',
+      tint: '#0ea5e9',
+      href: 'mailto:support@skinify.gg',
     },
     {
-      name: 'Wallet',
-      items: [
-        { icon: CreditCard, label: 'Deposit', active: false, onClick: () => navigate('/profile?tab=balance') },
-        { icon: Wallet, label: 'Withdraw', active: false, onClick: () => navigate('/profile?tab=balance') }
-      ]
+      Icon: Sparkles,
+      label: 'Discord',
+      value: 'Join the community',
+      sub: 'Tips, trades, and direct mod support.',
+      tint: '#10b981',
+      href: '#',
     },
     {
-      name: 'Features',
-      items: [
-        { icon: Users, label: 'Referral', active: false, onClick: () => navigate('/referral') },
-        { icon: Crown, label: 'VIP', active: false, onClick: () => addToast({ type: 'info', title: 'Coming Soon', message: 'VIP program is coming soon!' }) },
-        { icon: Settings, label: 'Settings', active: false, onClick: () => navigate('/profile?tab=settings') }
-      ]
+      Icon: Twitter,
+      label: 'Twitter / X',
+      value: '@skinify',
+      sub: 'Status updates and release notes.',
+      tint: '#ec4899',
+      href: 'https://twitter.com',
+    },
+  ];
+
+  const submit = async () => {
+    if (!form.email.trim() || !form.message.trim()) {
+      addToast({ type: 'error', title: 'Missing info', message: 'Add at least your email and a message.' });
+      return;
     }
-  ];
-
-  const languages = [
-    { code: 'EN', flag: '🇬🇧', name: 'English' },
-    { code: 'ES', flag: '🇪🇸', name: 'Español' },
-    { code: 'DE', flag: '🇩🇪', name: 'Deutsch' },
-    { code: 'FR', flag: '🇫🇷', name: 'Français' }
-  ];
-
-  const navigationItems = [
-    { type: "link", name: 'Market', href: '/', icon: ShoppingCart, onClick: () => { setActiveSection('Market'); navigate('/'); } },
-    { type: "link", name: 'Referral', href: '/referral', icon: Users, onClick: () => { setActiveSection('Referral'); navigate('/referral'); } },
-    { type: "link", name: 'Search', href: '/', icon: Search, onClick: () => { setActiveSection('Search'); setShowSearchModal(true); } },
-    { type: "link", name: 'Affiliate', href: '/affiliate', icon: Gift, onClick: () => { setActiveSection('Affiliate'); addToast({ type: 'info', title: 'Coming Soon', message: 'Affiliate program coming soon!' }); } },
-    { type: "link", name: 'Claims', href: '/claims', icon: Trophy, onClick: () => { setActiveSection('Claims'); addToast({ type: 'info', title: 'Coming Soon', message: 'Claims system coming soon!' }); } }
-  ];
-
-  const handleNavigation = (item: any) => {
-    if (item.onClick) {
-      item.onClick();
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Handle form submission
-    console.log('Contact form submitted:', formData);
-    alert('Thank you for your message! We will get back to you within 2 hours.');
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
+    setSubmitting(true);
+    await new Promise((r) => setTimeout(r, 700));
+    addToast({
+      type: 'success',
+      title: 'Message sent',
+      message: 'We\'ll get back to you within 4 hours.',
     });
+    setForm({ name: '', email: '', message: '' });
+    setSubmitting(false);
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white overflow-hidden">
-      <Header />
+    <div className="min-h-screen bg-bg text-ink">
+      <LandingNav />
 
-      {/* Main Layout */}
-      <div className="flex min-h-screen">
-        {/* Left Sidebar */}
-        <motion.div 
-          style={{
-            y: sidebarY,
-            opacity: sidebarOpacity,
-          }}
-          className="group fixed left-0 top-0 h-full z-50 w-16 hover:w-64 bg-gray-800 border-r border-gray-700/50 flex flex-col transition-all duration-300 ease-in-out py-4 shadow-xl"
+      <main className="max-w-[1100px] mx-auto px-4 sm:px-6 pt-4 pb-16 space-y-4">
+        <motion.button
+          whileTap={tap}
+          whileHover={{ x: -2 }}
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink text-[13px] font-semibold transition-colors"
         >
-          {/* Logo */}
-          <div className="h-12 flex items-center justify-center mb-4 mx-auto group-hover:mx-3 overflow-hidden">
-            <div className="relative flex items-center">
-              <motion.img
-                src="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png"
-                alt="Skinify Logo"
-                className="h-12 w-auto object-contain cursor-pointer"
-                onClick={() => navigate('/')}
-                initial={{ opacity: 1 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-              />
-              
-              <div className="hidden group-hover:block">
-                <motion.img
-                  src="https://i.postimg.cc/xqdxTY2d/skinify2-2-removebg-preview.png"
-                  alt="Skinify Logo Extended"
-                  className="h-12 w-auto object-contain cursor-pointer"
-                  onClick={() => navigate('/')}
-                  initial={{ opacity: 0, x: -20, scale: 0.8 }}
-                  animate={{ 
-                    opacity: 1, 
-                    x: 0, 
-                    scale: 1,
-                    transition: { 
-                      delay: 0.15,
-                      duration: 0.4,
-                      type: "spring",
-                      stiffness: 200,
-                      damping: 20
-                    }
-                  }}
-                />
-              </div>
-            </div>
-          </div>
+          <ChevronLeft size={14} strokeWidth={2.4} />
+          Back
+        </motion.button>
 
-          {/* Sidebar Items with Neon Flash */}
-          <div className="flex flex-col space-y-1 flex-1 px-2 group-hover:px-3">
-            {sidebarSections.map((section, sectionIndex) => (
-              <div key={section.name} className="relative">
-                {sectionIndex > 0 && (
-                  <div className="h-px bg-gradient-to-r from-transparent via-gray-600/30 to-transparent my-2 mx-2" />
-                )}
-                
-                <div className="hidden group-hover:block mb-2">
-                  <div className="text-xs text-purple-400 font-medium px-3 mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-200">
-                    {section.name}
-                  </div>
-                </div>
-                
-                {section.items.map((item, itemIndex) => (
-                  <motion.button
-                    key={itemIndex}
-                    onClick={item.onClick}
-                    whileHover={{
-                      scale: 1.02,
-                      filter: 'drop-shadow(0 0 15px rgba(168, 85, 247, 0.8))'
-                    }}
-                    whileTap={{ scale: 0.98 }}
-                    className={`relative flex items-center p-3 rounded-lg transition-all duration-300 overflow-hidden group/item w-full mb-1 ${
-                      item.active 
-                        ? 'bg-purple-600 text-white' 
-                        : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
-                    }`}
-                  >
-                    <motion.div
-                      animate={item.active ? { 
-                        boxShadow: ['0 0 0px rgba(168, 85, 247, 0)', '0 0 20px rgba(168, 85, 247, 0.8)', '0 0 0px rgba(168, 85, 247, 0)'],
-                        scale: [1, 1.1, 1]
-                      } : {}}
-                      transition={{ duration: 2, repeat: Infinity }}
-                    >
-                      <item.icon size={20} className="flex-shrink-0" />
-                    </motion.div>
-                    
-                    <div className="hidden group-hover:block ml-3">
-                      <span className="text-current whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-150">
-                        {item.label}
-                      </span>
-                    </div>
-                    
-                    <div className="absolute left-full ml-2 px-3 py-2 bg-gray-900/95 border border-gray-600/50 text-white text-sm opacity-0 group-hover:opacity-0 group/item:hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-[60]">
-                      {item.label}
-                    </div>
-                  </motion.button>
-                ))}
-              </div>
-            ))}
+        {/* Hero */}
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={spring}
+          className="card p-7 sm:p-10 relative overflow-hidden"
+        >
+          <motion.div
+            aria-hidden
+            className="absolute -top-32 -right-24 w-[460px] h-[460px] rounded-full pointer-events-none"
+            style={{ background: 'radial-gradient(closest-side, rgb(var(--accent) / 0.18), transparent 65%)' }}
+            animate={{ scale: [1, 1.06, 1] }}
+            transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <div className="relative">
+            <div className="icon-chip-lg bg-accent-soft mb-5">
+              <MessageCircle size={22} className="text-accent" />
+            </div>
+            <span className="label-eyebrow">Contact</span>
+            <h1 className="text-[28px] sm:text-[40px] font-bold tracking-tight mt-2 leading-tight">
+              Talk to a human.
+            </h1>
+            <p className="text-[14px] sm:text-[15px] text-ink-muted font-medium mt-3 max-w-[600px] leading-relaxed">
+              Pick the channel that fits. We're online around the clock — live chat is fastest for trade-blocking
+              issues, email works best for everything else.
+            </p>
           </div>
+        </motion.section>
+
+        {/* Channel tiles */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...spring, delay: 0.05 }}
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"
+        >
+          {channels.map((c, i) => (
+            <motion.a
+              key={c.label}
+              href={c.href}
+              onClick={c.onClick}
+              target={c.href?.startsWith('http') ? '_blank' : undefined}
+              rel="noreferrer"
+              whileHover={{ y: -4 }}
+              whileTap={tap}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...spring, delay: i * 0.05 }}
+              className="card p-5 group relative overflow-hidden block"
+            >
+              <motion.div
+                aria-hidden
+                className="absolute -top-16 -right-10 w-[200px] h-[200px] rounded-full pointer-events-none opacity-50 group-hover:opacity-90 transition-opacity"
+                style={{ background: `radial-gradient(closest-side, ${c.tint}33, transparent 70%)` }}
+              />
+              <div className="relative">
+                <div
+                  className="w-12 h-12 rounded-2xl grid place-items-center mb-4"
+                  style={{
+                    background: `linear-gradient(140deg, ${c.tint}, ${c.tint}cc 55%, ${c.tint}88)`,
+                    boxShadow: `0 10px 22px -8px ${c.tint}66, inset 0 1px 0 rgba(255,255,255,0.28)`,
+                  }}
+                >
+                  <c.Icon size={20} strokeWidth={2.2} className="text-white drop-shadow" />
+                </div>
+                <div className="text-[10.5px] uppercase tracking-wider font-bold text-ink-dim">{c.label}</div>
+                <div className="text-[15px] font-bold text-ink tracking-tight leading-tight mt-1.5">{c.value}</div>
+                <div className="text-[12px] text-ink-muted font-medium mt-2 leading-relaxed">{c.sub}</div>
+              </div>
+            </motion.a>
+          ))}
         </motion.div>
 
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col ml-16 relative">
-          {/* Top Header */}
-          <header className="fixed top-0 left-16 right-0 bg-gray-800/80 backdrop-blur-md border-b border-gray-700/50 p-4 z-30 shadow-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex-1"></div>
+        {/* Form + company */}
+        <div className="grid lg:grid-cols-[1.4fr_1fr] gap-4">
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring, delay: 0.1 }}
+            className="card p-6 md:p-8"
+          >
+            <span className="label-eyebrow">Send a message</span>
+            <h2 className="text-[20px] sm:text-[24px] font-bold tracking-tight mt-1.5 leading-tight">
+              We read every reply
+            </h2>
 
-              {/* Center Navigation */}
-              <div className="flex justify-start flex-1">
-                <motion.nav 
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2, duration: 0.6 }}
-                >
-                  <div 
-                   className="flex items-center space-x-1 bg-gray-900/90 backdrop-blur-xl px-6 py-3 border border-purple-500/40 shadow-2xl rounded-lg"
-                    style={{ 
-                      boxShadow: '0 0 30px rgba(168, 85, 247, 0.4), 0 8px 32px rgba(0, 0, 0, 0.3)',
-                      background: 'linear-gradient(145deg, rgba(17, 24, 39, 0.95), rgba(31, 41, 55, 0.9))'
-                    }}
+            {/* Reason pills */}
+            <div className="mt-5 flex items-center gap-1 overflow-x-auto scrollbar-hide pb-1">
+              {REASONS.map((r) => {
+                const active = reason === r.id;
+                return (
+                  <motion.button
+                    whileTap={tap}
+                    key={r.id}
+                    onClick={() => setReason(r.id)}
+                    className={`relative h-9 px-3.5 rounded-full text-[12.5px] font-semibold inline-flex items-center gap-1.5 whitespace-nowrap transition-colors ${
+                      active ? 'text-on-accent' : 'text-ink-muted hover:text-ink'
+                    }`}
                   >
-                    {navigationItems.map((item) => (
-                      <motion.button
-                        key={item.name}
-                        onClick={() => handleNavigation(item)}
-                        onMouseEnter={() => setHoveredNavItem(item.name)}
-                        onMouseLeave={() => setHoveredNavItem(null)}
-                        whileHover={{ 
-                          scale: 1.05,
-                          filter: 'drop-shadow(0 0 12px rgba(168, 85, 247, 0.9))'
-                        }}
-                        whileTap={{ scale: 0.95 }}
-                        className={`relative px-4 py-2 text-sm font-medium transition-all duration-300 flex items-center space-x-2 ${
-                          activeSection === item.name
-                            ? 'text-white bg-purple-600'
-                            : hoveredNavItem === item.name
-                              ? 'text-purple-200 bg-purple-500/30'
-                              : 'text-gray-300 hover:text-white hover:bg-purple-500/20'
-                        }`}
-                        style={activeSection === item.name ? {
-                          boxShadow: '0 0 25px rgba(168, 85, 247, 0.7), 0 4px 20px rgba(147, 51, 234, 0.5)',
-                          background: 'linear-gradient(145deg, #9333EA, #A855F7)'
-                        } : hoveredNavItem === item.name ? {
-                          boxShadow: '0 0 15px rgba(168, 85, 247, 0.5)',
-                          background: 'linear-gradient(145deg, rgba(147, 51, 234, 0.3), rgba(168, 85, 247, 0.3))'
-                        } : {}}
-                      >
-                        <motion.div
-                          animate={{ 
-                            scale: activeSection === item.name || hoveredNavItem === item.name ? 1.1 : 1,
-                            color: activeSection === item.name ? '#E879F9' : hoveredNavItem === item.name ? '#D8B4FE' : '#9CA3AF'
-                          }}
-                          transition={{ duration: 0.2 }}
-                        >
-                          <item.icon size={16} />
-                        </motion.div>
-                        <span>{item.name}</span>
-                      </motion.button>
-                    ))}
-                  </div>
-                </motion.nav>
-              </div>
+                    {active && (
+                      <motion.span
+                        layoutId="contact-reason-pill"
+                        className="absolute inset-0 rounded-full bg-accent"
+                        transition={spring}
+                      />
+                    )}
+                    <span className="relative inline-flex items-center gap-1.5">
+                      <r.Icon size={12} strokeWidth={2.4} />
+                      {r.label}
+                    </span>
+                  </motion.button>
+                );
+              })}
+            </div>
 
-              {/* Right Side */}
-              <div className="flex items-center space-x-4 flex-shrink-0">
-                <button 
-                  onClick={() => navigate('/profile?tab=balance')}
-                  className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 font-medium transition-all duration-300 flex items-center space-x-2"
-                >
-                  <Plus size={16} />
-                  <span>Refill</span>
-                </button>
-
-                <div className="relative">
-                  <button
-                    onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
-                    className="flex items-center space-x-2 text-gray-300 hover:text-white transition-colors"
-                  >
-                    <span>{languages.find(lang => lang.code === selectedLanguage)?.flag}</span>
-                    <ChevronDown size={16} className={`transition-transform ${showLanguageDropdown ? 'rotate-180' : ''}`} />
-                  </button>
-                  
-                  {showLanguageDropdown && (
-                    <div className="absolute right-0 top-full mt-2 w-48 bg-gray-800 shadow-xl z-50 border border-gray-700/50">
-                      {languages.map(lang => (
-                        <button
-                          key={lang.code}
-                          onClick={() => {
-                            setSelectedLanguage(lang.code);
-                            setShowLanguageDropdown(false);
-                          }}
-                          className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-700/50 transition-colors"
-                        >
-                          <span>{lang.flag}</span>
-                          <span className="text-white">{lang.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+            <div className="mt-5 space-y-3">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label-meta block mb-1.5">Name</label>
+                  <input
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    placeholder="Your name"
+                    className="w-full h-11 px-4 rounded-full bg-subtle outline-none text-ink placeholder:text-ink-dim text-[14px] font-medium focus:ring-2 focus:ring-accent transition-all"
+                  />
                 </div>
+                <div>
+                  <label className="label-meta block mb-1.5">Email</label>
+                  <input
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    type="email"
+                    placeholder="you@example.com"
+                    className="w-full h-11 px-4 rounded-full bg-subtle outline-none text-ink placeholder:text-ink-dim text-[14px] font-medium focus:ring-2 focus:ring-accent transition-all"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="label-meta block mb-1.5">Message</label>
+                <textarea
+                  value={form.message}
+                  onChange={(e) => setForm({ ...form, message: e.target.value })}
+                  rows={6}
+                  placeholder={
+                    reason === 'security'
+                      ? 'Please include reproduction steps and impact details. We follow responsible disclosure.'
+                      : reason === 'press'
+                      ? 'Outlet, deadline, and what you\'d like to cover.'
+                      : 'Tell us what you need.'
+                  }
+                  className="w-full px-4 py-3 rounded-3xl bg-subtle outline-none text-ink placeholder:text-ink-dim text-[14px] font-medium focus:ring-2 focus:ring-accent transition-all resize-none"
+                />
+              </div>
+              <motion.button
+                whileTap={tap}
+                whileHover={{ scale: 1.02 }}
+                onClick={submit}
+                disabled={submitting}
+                className="h-12 px-5 rounded-full bg-accent text-on-accent font-bold text-[14px] inline-flex items-center gap-2 disabled:opacity-50"
+                style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.6)' }}
+              >
+                <Send size={14} strokeWidth={2.4} />
+                {submitting ? 'Sending…' : 'Send message'}
+              </motion.button>
+            </div>
+          </motion.section>
 
-                {user ? <UserProfile /> : <SteamLogin />}
+          <motion.aside
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring, delay: 0.15 }}
+            className="space-y-3"
+          >
+            <section className="card p-6">
+              <span className="label-eyebrow">Company</span>
+              <h3 className="text-[16px] font-bold text-ink tracking-tight mt-1.5 leading-none">Skinify</h3>
+              <dl className="mt-4 space-y-3">
+                {[
+                  { Icon: Building2, label: 'Entity', value: 'LosSelloutos s.r.o.' },
+                  { Icon: MapPin,    label: 'Address', value: 'Bělehradská 858/23, Praha' },
+                  { Icon: Phone,     label: 'Phone',   value: '+420 800 800 800' },
+                  { Icon: Mail,      label: 'Email',   value: 'hello@skinify.gg' },
+                  { Icon: Clock,     label: 'Hours',   value: '24/7 chat · email Mo–Su' },
+                ].map((r) => (
+                  <div key={r.label} className="flex items-start gap-2.5">
+                    <div className="icon-chip-sm bg-accent-soft shrink-0">
+                      <r.Icon size={13} strokeWidth={2.2} className="text-accent" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-ink-dim">{r.label}</div>
+                      <div className="text-[13.5px] font-semibold text-ink truncate">{r.value}</div>
+                    </div>
+                  </div>
+                ))}
+              </dl>
+            </section>
+
+            <button
+              onClick={() => navigate('/support')}
+              className="w-full card p-5 flex items-center justify-between hover:ring-2 hover:ring-accent/40 transition-all"
+            >
+              <div className="flex items-center gap-3 min-w-0 text-left">
+                <div className="icon-chip bg-accent-soft shrink-0">
+                  <MessageCircle size={16} strokeWidth={2.2} className="text-accent" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[14.5px] font-bold text-ink tracking-tight">Help center</div>
+                  <div className="text-[12px] text-ink-muted font-medium">Search common issues first — most are answered there.</div>
+                </div>
+              </div>
+              <ArrowRight size={16} strokeWidth={2.2} className="text-ink-muted shrink-0" />
+            </button>
+
+            <div className="card p-5 flex items-center gap-3">
+              <span className="text-[11.5px] font-semibold text-ink-muted">Follow us</span>
+              <div className="flex items-center gap-1.5">
+                {[
+                  { Icon: MessageCircle, href: '#', label: 'Discord' },
+                  { Icon: Twitter, href: 'https://twitter.com', label: 'Twitter' },
+                  { Icon: Github, href: 'https://github.com', label: 'Github' },
+                ].map(({ Icon, href, label }) => (
+                  <a
+                    key={label}
+                    href={href}
+                    aria-label={label}
+                    className="icon-chip-sm hover:bg-bg transition-colors"
+                  >
+                    <Icon size={13} className="text-ink-muted" />
+                  </a>
+                ))}
               </div>
             </div>
-          </header>
-
-          {/* Contact Content */}
-          <div className="flex-1 pt-20 pb-12">
-            <div className="container mx-auto px-4">
-          {/* Back Button */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="mb-8"
-          >
-            <Link 
-              to="/" 
-              className="inline-flex items-center text-blue-500 hover:text-blue-400 transition-colors"
-            >
-              <ArrowLeft size={20} className="mr-2" />
-              Back to Home
-            </Link>
-          </motion.div>
-
-          {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-8"
-          >
-            <h1 className="text-5xl font-bold mb-6 bg-gradient-to-r from-blue-500 to-blue-700 bg-clip-text text-transparent">
-              Contact Support
-            </h1>
-            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-              Need help? Have questions? Our support team is available 24/7 to assist you with any issues or inquiries.
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Contact Form */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="lg:col-span-2"
-            >
-              <div className="bg-gray-800/50 p-6 rounded-lg">
-                <h2 className="text-2xl font-bold mb-6">Send us a Message</h2>
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label htmlFor="name" className="block text-sm font-medium text-gray-300 mb-2">
-                        Full Name *
-                      </label>
-                      <input
-                        type="text"
-                        id="name"
-                        name="name"
-                        required
-                        value={formData.name}
-                        onChange={handleChange}
-                        className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition-colors"
-                        placeholder="Your full name"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                        Email Address *
-                      </label>
-                      <input
-                        type="email"
-                        id="email"
-                        name="email"
-                        required
-                        value={formData.email}
-                        onChange={handleChange}
-                        className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition-colors"
-                        placeholder="your.email@example.com"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label htmlFor="subject" className="block text-sm font-medium text-gray-300 mb-2">
-                        Subject *
-                      </label>
-                      <input
-                        type="text"
-                        id="subject"
-                        name="subject"
-                        required
-                        value={formData.subject}
-                        onChange={handleChange}
-                        className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition-colors"
-                        placeholder="Brief description of your issue"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="priority" className="block text-sm font-medium text-gray-300 mb-2">
-                        Priority Level
-                      </label>
-                      <select
-                        id="priority"
-                        name="priority"
-                        value={formData.priority}
-                        onChange={handleChange}
-                        className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
-                      >
-                        <option value="low">Low - General inquiry</option>
-                        <option value="normal">Normal - Standard issue</option>
-                        <option value="high">High - Urgent matter</option>
-                        <option value="critical">Critical - Account security</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label htmlFor="message" className="block text-sm font-medium text-gray-300 mb-2">
-                      Message *
-                    </label>
-                    <textarea
-                      id="message"
-                      name="message"
-                      required
-                      value={formData.message}
-                      onChange={handleChange}
-                      rows={6}
-                      className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition-colors resize-vertical"
-                      placeholder="Please provide detailed information about your issue or question..."
-                    />
-                  </div>
-
-                  <motion.button
-                    type="submit"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="w-full bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-2 font-semibold"
-                  >
-                    <Send size={20} />
-                    <span>Send Message</span>
-                  </motion.button>
-                </form>
-              </div>
-            </motion.div>
-
-            {/* Contact Information */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.4 }}
-              className="space-y-8"
-            >
-              {/* Contact Methods */}
-              <div className="bg-gray-800/50 p-6 rounded-lg">
-                <h3 className="text-xl font-semibold mb-6">Contact Information</h3>
-                <div className="space-y-4">
-                  <div className="flex items-start space-x-3">
-                    <Mail className="w-5 h-5 text-blue-500 mt-1 flex-shrink-0" />
-                    <div>
-                      <div className="font-medium">Email Support</div>
-                      <div className="text-gray-400 text-sm">support@csmarket.com</div>
-                      <div className="text-gray-500 text-xs">Response within 2 hours</div>
-                    </div>
-                  </div>
-                  <div className="flex items-start space-x-3">
-                    <MessageCircle className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" />
-                    <div>
-                      <div className="font-medium">Live Chat</div>
-                      <div className="text-gray-400 text-sm">Available 24/7</div>
-                      <div className="text-gray-500 text-xs">Instant support</div>
-                    </div>
-                  </div>
-                  <div className="flex items-start space-x-3">
-                    <Phone className="w-5 h-5 text-purple-500 mt-1 flex-shrink-0" />
-                    <div>
-                      <div className="font-medium">Phone Support</div>
-                      <div className="text-gray-400 text-sm">+420 123 456 789</div>
-                      <div className="text-gray-500 text-xs">Mon-Fri 9AM-6PM CET</div>
-                    </div>
-                  </div>
-                  <div className="flex items-start space-x-3">
-                    <MapPin className="w-5 h-5 text-orange-500 mt-1 flex-shrink-0" />
-                    <div>
-                      <div className="font-medium">Office Location</div>
-                      <div className="text-gray-400 text-sm">Prague, Czech Republic</div>
-                      <div className="text-gray-500 text-xs">European Union</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Response Times */}
-              <div className="bg-gray-800/50 p-6 rounded-lg">
-                <h3 className="text-xl font-semibold mb-6 flex items-center">
-                  <Clock className="w-5 h-5 text-blue-500 mr-2" />
-                  Response Times
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-300">Critical Issues</span>
-                    <span className="text-red-400 font-semibold">&lt; 30 minutes</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-300">High Priority</span>
-                    <span className="text-orange-400 font-semibold">&lt; 1 hour</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-300">Normal Issues</span>
-                    <span className="text-yellow-400 font-semibold">&lt; 2 hours</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-300">General Inquiries</span>
-                    <span className="text-green-400 font-semibold">&lt; 24 hours</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* FAQ Link */}
-              <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 p-6 rounded-lg">
-                <h3 className="text-xl font-semibold mb-3">Quick Help</h3>
-                <p className="text-gray-300 text-sm mb-4">
-                  Check our FAQ section for instant answers to common questions.
-                </p>
-                <Link
-                  to="/faq"
-                  className="inline-flex items-center text-blue-400 hover:text-blue-300 transition-colors"
-                >
-                  Visit FAQ
-                  <ArrowLeft className="w-4 h-4 ml-1 rotate-180" />
-                </Link>
-              </div>
-            </motion.div>
-          </div>
+          </motion.aside>
         </div>
-          </div>
-        </div>
-      </div>
-      
+      </main>
+
       <Footer />
     </div>
   );

@@ -190,6 +190,29 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
     });
   };
 
+  /* Direct numeric price entry — overrides the slider and recomputes the
+     percentage so the slider thumb tracks the new value. Clamped to the
+     same ±20%/+50% bounds the slider enforces, so listings can't go to
+     absurd values that the rest of the form can't visualise. */
+  const handleCustomPrice = (index: number, raw: string) => {
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed <= 0) return;
+    setGroupedItems((prev) => {
+      const updated = [...prev];
+      const group = updated[index];
+      const base = group.marketPrice || parsed;
+      const rawPct = ((parsed - base) / base) * 100;
+      const pct = Math.min(MAX_PERCENTAGE, Math.max(MIN_PERCENTAGE, rawPct));
+      const clamped = calculatePriceWithPercentage(base, pct);
+      updated[index] = {
+        ...group,
+        price: clamped,
+        pricePercentage: pct,
+      };
+      return updated;
+    });
+  };
+
   const handleQuantityChange = (index: number, delta: number) => {
     setGroupedItems((prev) => {
       const updated = [...prev];
@@ -349,92 +372,89 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/65 backdrop-blur-md p-4"
         onClick={onClose}
       >
         <motion.div
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.95, opacity: 0 }}
-          className="bg-black rounded-2xl shadow-2xl w-full border-2 border-purple-500/40 flex flex-col"
-          style={{
-            maxWidth: '900px',
-            maxHeight: '85vh',
-            boxShadow: '0 0 60px rgba(168, 85, 247, 0.3), inset 0 1px 0 rgba(168, 85, 247, 0.15)'
-          }}
+          initial={{ scale: 0.96, opacity: 0, y: 12 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.96, opacity: 0, y: 8 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 32, mass: 0.7 }}
+          className="card w-full flex flex-col overflow-hidden"
+          style={{ maxWidth: '900px', maxHeight: '85vh' }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div
-            className="flex items-center justify-between p-6 border-b border-purple-500/20 flex-shrink-0 bg-gradient-to-r from-purple-900/10 to-pink-900/10"
-            style={{
-              boxShadow: '0 4px 20px rgba(168, 85, 247, 0.15)'
-            }}
-          >
-            <div className="flex items-center gap-3">
-              <Sparkles className="w-6 h-6 text-purple-400" />
-              <h2 className="text-2xl font-bold text-white">
-                {getTotalItemCount()} {getTotalItemCount() === 1 ? 'item' : 'items'} for sale
-              </h2>
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b border-line shrink-0 relative overflow-hidden">
+            <motion.div
+              aria-hidden
+              className="absolute -top-24 -right-16 w-[280px] h-[280px] rounded-full pointer-events-none"
+              style={{ background: 'radial-gradient(closest-side, rgb(var(--accent) / 0.14), transparent 65%)' }}
+              animate={{ scale: [1, 1.05, 1] }}
+              transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <div className="relative flex items-center gap-3">
+              <div className="icon-chip bg-accent-soft">
+                <Sparkles className="text-accent" size={18} strokeWidth={2.2} />
+              </div>
+              <div>
+                <span className="label-eyebrow">Sell on Skinify</span>
+                <h2 className="text-[20px] font-bold text-ink tracking-tight mt-1 leading-none">
+                  {getTotalItemCount()} {getTotalItemCount() === 1 ? 'item' : 'items'} for sale
+                </h2>
+              </div>
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-purple-500/20 rounded-lg transition-colors text-purple-400 hover:text-purple-300"
+              className="relative h-9 w-9 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors"
             >
-              <X size={24} />
+              <X size={16} strokeWidth={2.4} />
             </button>
           </div>
 
-          <div className="overflow-y-auto flex-1 p-6 space-y-4">
+          <div className="overflow-y-auto flex-1 p-5 sm:p-6 space-y-3">
             {groupedItems.map((group, index) => (
               <motion.div
                 key={`${group.name}-${index}`}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className="bg-gray-900/80 rounded-xl p-4 border-2 border-purple-500/20 hover:border-purple-500/40 transition-all"
-                style={{
-                  boxShadow: '0 0 15px rgba(168, 85, 247, 0.08)'
-                }}
+                transition={{ delay: index * 0.04, type: 'spring', stiffness: 380, damping: 30 }}
+                className="card-flat p-4 transition-all hover:bg-subtle/40"
               >
                 <div className="flex items-start gap-4">
-                  <div
-                    className="w-20 h-20 rounded-lg bg-black/60 flex-shrink-0 border border-purple-500/15 p-2"
-                    style={{
-                      boxShadow: '0 0 12px rgba(168, 85, 247, 0.15)'
-                    }}
-                  >
+                  <div className="w-20 h-20 rounded-2xl bg-subtle/60 shrink-0 grid place-items-center overflow-hidden">
                     <img
                       src={group.image}
                       alt={group.name}
-                      className="w-full h-full object-contain"
+                      className="w-[85%] h-[85%] object-contain"
                     />
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-4 mb-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-purple-400 text-sm mb-1 font-medium">
-                          {group.type || 'Item'} {group.rarity}
-                        </p>
-                        <h3 className="text-white font-bold text-lg truncate">
+                        <div className="text-[11px] text-ink-dim font-semibold uppercase tracking-wider">
+                          {group.type || 'Item'} · {group.rarity}
+                        </div>
+                        <h3 className="text-ink font-bold text-[16px] tracking-tight truncate mt-1 leading-tight">
                           {group.name}
                         </h3>
                         {group.wear && (
-                          <p className="text-purple-300/60 text-xs mt-1">{group.wear}</p>
+                          <p className="text-ink-muted text-[12px] font-medium mt-1">{group.wear}</p>
                         )}
                       </div>
 
-                      <div className="text-right">
-                        <p className="text-purple-400 text-sm mb-1">Your Price</p>
-                        <p className="text-white font-bold text-2xl">
+                      <div className="text-right shrink-0">
+                        <div className="label-meta">Your price</div>
+                        <p className="text-ink font-bold text-[22px] tracking-tight tabular-nums leading-none mt-1">
                           {group.isLoadingPrice ? (
-                            <span className="text-purple-400 animate-pulse">...</span>
+                            <span className="text-ink-muted animate-pulse">…</span>
                           ) : (
                             formatPrice(group.price)
                           )}
                         </p>
                         {!group.isLoadingPrice && (
-                          <p className="text-purple-300/60 text-xs mt-1">
+                          <p className="text-ink-dim text-[11.5px] font-medium mt-1">
                             Steam: {formatPrice(group.marketPrice)}
                           </p>
                         )}
@@ -443,7 +463,7 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
 
                     {!group.isLoadingPrice && (
                       <>
-                        <div className="mb-4">
+                        <div className="mb-3">
                           <input
                             type="range"
                             min={MIN_PERCENTAGE}
@@ -451,149 +471,164 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
                             step={1}
                             value={group.pricePercentage}
                             onChange={(e) => handlePriceChange(index, parseFloat(e.target.value))}
-                            className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-thumb-purple"
+                            className="w-full h-2 rounded-full appearance-none cursor-pointer slider-thumb-purple"
                             style={{
-                              background: `linear-gradient(to right, #a855f7 0%, #a855f7 ${
+                              background: `linear-gradient(to right, rgb(var(--accent)) 0%, rgb(var(--accent)) ${
                                 ((group.pricePercentage - MIN_PERCENTAGE) / (MAX_PERCENTAGE - MIN_PERCENTAGE)) * 100
-                              }%, #374151 ${
+                              }%, rgb(var(--subtle)) ${
                                 ((group.pricePercentage - MIN_PERCENTAGE) / (MAX_PERCENTAGE - MIN_PERCENTAGE)) * 100
-                              }%, #374151 100%)`,
+                              }%, rgb(var(--subtle)) 100%)`,
                             }}
                           />
                         </div>
 
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2">
                             {React.createElement(getPriceRecommendation(group.pricePercentage).icon, {
-                              size: 20,
-                              className: getPriceRecommendation(group.pricePercentage).color,
+                              size: 14,
+                              strokeWidth: 2.4,
+                              className: 'text-accent',
                             })}
-                            <span className={`font-medium ${getPriceRecommendation(group.pricePercentage).color}`}>
+                            <span className="text-[12.5px] font-bold text-ink">
                               {getPriceRecommendation(group.pricePercentage).text}
                             </span>
                           </div>
-                          <span className="text-white font-bold text-xl">
+                          <span className="text-ink font-bold text-[15px] tabular-nums">
                             {group.pricePercentage > 0 ? '+' : ''}
                             {group.pricePercentage.toFixed(0)}%
                           </span>
                         </div>
 
-                        <div className="flex items-center justify-between mb-4 text-sm">
-                          <span className="text-purple-300/70">Steam Market Price:</span>
-                          <span className="text-purple-400 font-semibold">{formatPrice(group.marketPrice)}</span>
+                        <div className="flex items-center justify-between mb-3 text-[12.5px]">
+                          <span className="text-ink-muted font-medium">Steam market price</span>
+                          <span className="text-ink font-bold tabular-nums">{formatPrice(group.marketPrice)}</span>
                         </div>
 
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="text-purple-400 text-sm font-medium">Quantity</span>
-                          <div className="flex items-center gap-3">
+                        {/* Custom-price field — fine-grained control beyond the slider.
+                            Bound to the same percentage system so the slider tracks it. */}
+                        <div className="flex items-center justify-between gap-3 mb-3">
+                          <span className="text-ink-muted text-[12.5px] font-semibold shrink-0">
+                            Custom price
+                          </span>
+                          <div className="flex items-center gap-1.5 flex-1 max-w-[200px] h-9 px-3 rounded-full bg-subtle focus-within:ring-2 focus-within:ring-accent transition-all">
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min={0}
+                              step="0.01"
+                              value={Number(group.price.toFixed(2))}
+                              onChange={(e) => handleCustomPrice(index, e.target.value)}
+                              className="flex-1 min-w-0 bg-transparent outline-none text-ink text-[13px] font-bold tabular-nums text-right"
+                              aria-label="Custom price"
+                            />
+                            <span className="text-[11.5px] font-bold text-ink-dim uppercase">
+                              {selectedCurrency.symbol}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-ink-muted text-[12.5px] font-semibold">Quantity</span>
+                          <div className="flex items-center gap-1.5">
                             <button
                               onClick={() => handleQuantityChange(index, -1)}
                               disabled={group.selectedQuantity <= 1}
-                              className="w-8 h-8 flex items-center justify-center bg-purple-500/20 hover:bg-purple-500/30 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg transition-colors border border-purple-500/30"
+                              className="h-8 w-8 rounded-full bg-subtle hover:bg-bg disabled:opacity-40 disabled:cursor-not-allowed grid place-items-center transition-colors"
                             >
-                              <Minus size={16} className="text-purple-300" />
+                              <Minus size={13} strokeWidth={2.4} className="text-ink" />
                             </button>
-                            <span className="text-white font-bold text-lg min-w-[60px] text-center">
+                            <span className="text-ink font-bold text-[13.5px] tabular-nums min-w-[60px] text-center">
                               {group.selectedQuantity} / {group.quantity}
                             </span>
                             <button
                               onClick={() => handleQuantityChange(index, 1)}
                               disabled={group.selectedQuantity >= group.quantity}
-                              className="w-8 h-8 flex items-center justify-center bg-purple-500/20 hover:bg-purple-500/30 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg transition-colors border border-purple-500/30"
+                              className="h-8 w-8 rounded-full bg-subtle hover:bg-bg disabled:opacity-40 disabled:cursor-not-allowed grid place-items-center transition-colors"
                             >
-                              <Plus size={16} className="text-purple-300" />
+                              <Plus size={13} strokeWidth={2.4} className="text-ink" />
                             </button>
                           </div>
                         </div>
                       </>
                     )}
 
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
+                    {/* Labeled action chips — each option says what it does
+                        + shows its current value (Public/Private, Buy now/Auction,
+                        etc.) so the user never has to guess what the icon means. */}
+                    <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+                      {([
+                        {
+                          type: 'info',
+                          Icon: Info,
+                          label: 'Item info',
+                          value: group.wear || 'Details',
+                          tone: 'neutral' as const,
+                          onClick: () => setShowInfoModal(index),
+                        },
+                        {
+                          type: 'description',
+                          Icon: FileText,
+                          label: 'Description',
+                          value: group.description?.trim()
+                            ? group.description.length > 14
+                              ? `${group.description.slice(0, 14)}…`
+                              : group.description
+                            : 'Add note',
+                          tone: group.description?.trim() ? ('active' as const) : ('neutral' as const),
+                          onClick: () => setShowDescriptionModal(index),
+                        },
+                        {
+                          type: 'visibility',
+                          Icon: Globe,
+                          label: 'Visibility',
+                          value: group.visibility === 'private' ? 'Private link' : 'Public',
+                          tone: group.visibility === 'private' ? ('active' as const) : ('neutral' as const),
+                          onClick: () => setShowVisibilityModal(index),
+                        },
+                        {
+                          type: 'listing',
+                          Icon: ShoppingCart,
+                          label: 'Listing type',
+                          value:
+                            group.listingType === 'auction'
+                              ? `Auction · ${group.auctionDuration ?? 3}d`
+                              : 'Buy now',
+                          tone: group.listingType === 'auction' ? ('active' as const) : ('neutral' as const),
+                          onClick: () => setShowListingTypeModal(index),
+                        },
+                        {
+                          type: 'steam',
+                          Icon: LinkIcon,
+                          label: 'Steam market',
+                          value: 'Open',
+                          tone: 'neutral' as const,
+                          onClick: () => openSteamMarket(group.name),
+                        },
+                      ]).map(({ type, Icon, label, value, tone, onClick }) => (
                         <button
-                          onClick={() => setShowInfoModal(index)}
-                          onMouseEnter={() => setHoveredButton({index, type: 'info'})}
-                          onMouseLeave={() => setHoveredButton(null)}
-                          className="p-2 bg-purple-500/10 hover:bg-purple-500/20 rounded-lg transition-colors text-purple-400 border border-purple-500/20"
+                          key={type}
+                          onClick={onClick}
+                          className={`h-9 px-3 rounded-full text-[12px] font-semibold inline-flex items-center gap-1.5 transition-colors ${
+                            tone === 'active'
+                              ? 'bg-accent-soft text-ink'
+                              : 'bg-subtle hover:bg-bg text-ink-muted hover:text-ink'
+                          }`}
+                          title={`${label}: ${value}`}
                         >
-                          <Info size={18} />
+                          <Icon size={12} strokeWidth={2.4} className={tone === 'active' ? 'text-accent' : ''} />
+                          <span className="hidden sm:inline text-ink-dim font-medium">{label}</span>
+                          <span className={`max-w-[120px] truncate ${tone === 'active' ? 'text-accent' : 'text-ink'}`}>
+                            {value}
+                          </span>
                         </button>
-                        {hoveredButton?.index === index && hoveredButton?.type === 'info' && (
-                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 border border-purple-500/30 rounded text-xs text-purple-300 whitespace-nowrap z-50">
-                            Item Info
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="relative">
-                        <button
-                          onClick={() => setShowDescriptionModal(index)}
-                          onMouseEnter={() => setHoveredButton({index, type: 'description'})}
-                          onMouseLeave={() => setHoveredButton(null)}
-                          className="p-2 bg-purple-500/10 hover:bg-purple-500/20 rounded-lg transition-colors text-purple-400 border border-purple-500/20"
-                        >
-                          <FileText size={18} />
-                        </button>
-                        {hoveredButton?.index === index && hoveredButton?.type === 'description' && (
-                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 border border-purple-500/30 rounded text-xs text-purple-300 whitespace-nowrap z-50">
-                            Set Description
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="relative">
-                        <button
-                          onClick={() => setShowVisibilityModal(index)}
-                          onMouseEnter={() => setHoveredButton({index, type: 'visibility'})}
-                          onMouseLeave={() => setHoveredButton(null)}
-                          className="p-2 bg-purple-500/10 hover:bg-purple-500/20 rounded-lg transition-colors text-purple-400 border border-purple-500/20"
-                        >
-                          <Globe size={18} />
-                        </button>
-                        {hoveredButton?.index === index && hoveredButton?.type === 'visibility' && (
-                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 border border-purple-500/30 rounded text-xs text-purple-300 whitespace-nowrap z-50">
-                            Listing Visibility
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="relative">
-                        <button
-                          onClick={() => setShowListingTypeModal(index)}
-                          onMouseEnter={() => setHoveredButton({index, type: 'listing'})}
-                          onMouseLeave={() => setHoveredButton(null)}
-                          className="p-2 bg-purple-500/10 hover:bg-purple-500/20 rounded-lg transition-colors text-purple-400 border border-purple-500/20"
-                        >
-                          <ShoppingCart size={18} />
-                        </button>
-                        {hoveredButton?.index === index && hoveredButton?.type === 'listing' && (
-                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 border border-purple-500/30 rounded text-xs text-purple-300 whitespace-nowrap z-50">
-                            Listing Type
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="relative">
-                        <button
-                          onClick={() => openSteamMarket(group.name)}
-                          onMouseEnter={() => setHoveredButton({index, type: 'steam'})}
-                          onMouseLeave={() => setHoveredButton(null)}
-                          className="p-2 bg-purple-500/10 hover:bg-purple-500/20 rounded-lg transition-colors text-purple-400 border border-purple-500/20"
-                        >
-                          <LinkIcon size={18} />
-                        </button>
-                        {hoveredButton?.index === index && hoveredButton?.type === 'steam' && (
-                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 border border-purple-500/30 rounded text-xs text-purple-300 whitespace-nowrap z-50">
-                            View on Steam
-                          </div>
-                        )}
-                      </div>
-
+                      ))}
                       <button
                         onClick={() => handleRemoveGroup(index)}
-                        className="p-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors text-red-400 ml-auto border border-red-500/30"
+                        title="Remove from listing"
+                        className="ml-auto h-9 px-3 rounded-full bg-subtle hover:bg-rose-500/15 text-ink-muted hover:text-rose-500 inline-flex items-center gap-1.5 text-[12px] font-semibold transition-colors"
                       >
-                        <Trash2 size={18} />
+                        <Trash2 size={12} strokeWidth={2.4} />
+                        Remove
                       </button>
                     </div>
                   </div>
@@ -602,344 +637,212 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
             ))}
           </div>
 
-          <div
-            className="border-t border-purple-500/20 p-6 bg-gradient-to-r from-purple-900/10 to-pink-900/10 flex-shrink-0"
-            style={{
-              boxShadow: '0 -4px 20px rgba(168, 85, 247, 0.15)'
-            }}
-          >
-            <div className="bg-purple-500/5 border border-purple-500/20 rounded-xl p-4 mb-4 flex items-start gap-3">
-              <Info size={20} className="text-purple-400 flex-shrink-0 mt-0.5" />
-              <p className="text-purple-300 text-sm">
-                We've updated {groupedItems.length} price{groupedItems.length !== 1 ? 's' : ''} to the closest market value
+          <div className="border-t border-line p-5 sm:p-6 shrink-0 bg-surface/40">
+            <div className="rounded-2xl bg-accent-soft p-3.5 mb-4 flex items-start gap-2.5">
+              <Info size={15} strokeWidth={2.2} className="text-accent shrink-0 mt-0.5" />
+              <p className="text-ink text-[13px] font-medium leading-snug">
+                We've updated {groupedItems.length} price{groupedItems.length !== 1 ? 's' : ''} to the closest market value. Adjust the slider to set your own.
               </p>
             </div>
 
-            <div className="space-y-3 mb-4">
-              <div className="flex justify-between text-purple-300">
-                <span>Subtotal</span>
-                <span className="font-medium text-white">{formatPrice(calculateSubtotal())}</span>
+            <div className="space-y-2.5 mb-4">
+              <div className="flex justify-between items-center text-[13.5px]">
+                <span className="text-ink-muted font-medium">Subtotal</span>
+                <span className="font-bold text-ink tabular-nums">{formatPrice(calculateSubtotal())}</span>
               </div>
-              <div className="flex justify-between text-purple-300">
-                <span>Sale Fee ({SALE_FEE_PERCENTAGE}%)</span>
-                <span className="font-medium text-red-400">- {formatPrice(calculateSaleFee())}</span>
+              <div className="flex justify-between items-center text-[13.5px]">
+                <span className="text-ink-muted font-medium">Sale fee ({SALE_FEE_PERCENTAGE}%)</span>
+                <span className="font-bold text-rose-500 tabular-nums">− {formatPrice(calculateSaleFee())}</span>
               </div>
-              <div
-                className="flex justify-between text-white text-xl font-bold pt-3 border-t border-purple-500/20"
-                style={{
-                  textShadow: '0 0 8px rgba(168, 85, 247, 0.4)'
-                }}
-              >
-                <span>Total Earnings</span>
-                <span className="text-purple-300">{formatPrice(calculateTotalEarnings())}</span>
+              <div className="flex justify-between items-baseline pt-3 border-t border-line">
+                <span className="label-eyebrow">Total earnings</span>
+                <span className="text-[22px] sm:text-[26px] font-bold text-ink tracking-tight tabular-nums leading-none">
+                  {formatPrice(calculateTotalEarnings())}
+                </span>
               </div>
             </div>
 
-            <button
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              whileHover={isSubmitting || groupedItems.length === 0 ? {} : { scale: 1.01 }}
               onClick={() => setShowConfirmation(true)}
               disabled={isSubmitting || groupedItems.length === 0}
-              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed text-white py-4 rounded-xl font-bold text-lg transition-all shadow-lg"
-              style={{
-                boxShadow: isSubmitting || groupedItems.length === 0
-                  ? 'none'
-                  : '0 0 30px rgba(168, 85, 247, 0.5), 0 4px 20px rgba(168, 85, 247, 0.3)'
-              }}
+              className="w-full h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] transition-all disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+              style={{ boxShadow: isSubmitting || groupedItems.length === 0 ? 'none' : '0 10px 24px -10px rgb(var(--accent) / 0.6)' }}
             >
               {isSubmitting ? (
-                <span className="flex items-center justify-center gap-2">
-                  <Sparkles className="w-5 h-5 animate-pulse" />
-                  Listing Items...
-                </span>
+                <>
+                  <Sparkles size={15} strokeWidth={2.4} className="animate-pulse" />
+                  Listing items…
+                </>
               ) : (
-                <span className="flex items-center justify-center gap-2">
-                  <Sparkles className="w-5 h-5" />
-                  Sell Items
-                </span>
+                <>
+                  <Sparkles size={15} strokeWidth={2.4} />
+                  Sell items
+                </>
               )}
-            </button>
+            </motion.button>
           </div>
         </motion.div>
       </motion.div>
 
+      {/* ─── Item Info ─── */}
       {showInfoModal !== null && groupedItems[showInfoModal] && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4"
-          onClick={() => setShowInfoModal(null)}
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 max-w-2xl w-full border-2 border-purple-500/30 shadow-2xl"
-            style={{ boxShadow: '0 0 50px rgba(168, 85, 247, 0.3)' }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-2xl font-bold text-white">{groupedItems[showInfoModal].name}</h3>
-              <button
-                onClick={() => setShowInfoModal(null)}
-                className="p-2 hover:bg-purple-500/20 rounded-lg transition-colors"
-              >
-                <X size={24} className="text-purple-400" />
-              </button>
+        <SubModal onClose={() => setShowInfoModal(null)} title="Item details" maxWidth={560}>
+          <div className="flex gap-5">
+            <div className="w-36 h-36 rounded-2xl bg-subtle/60 grid place-items-center overflow-hidden shrink-0">
+              <img
+                src={groupedItems[showInfoModal].image}
+                alt={groupedItems[showInfoModal].name}
+                className="w-[85%] h-[85%] object-contain"
+              />
             </div>
-
-            <div className="space-y-4">
-              <div className="flex gap-6">
-                <div className="w-48 h-48 bg-black/60 rounded-lg p-4 border border-purple-500/20 flex-shrink-0">
-                  <img
-                    src={groupedItems[showInfoModal].image}
-                    alt={groupedItems[showInfoModal].name}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-
-                <div className="flex-1 space-y-3">
-                  <div>
-                    <p className="text-purple-400 text-sm mb-1">Type</p>
-                    <p className="text-white font-semibold">{groupedItems[showInfoModal].type || 'N/A'}</p>
-                  </div>
-                  {groupedItems[showInfoModal].rarity && (
-                    <div>
-                      <p className="text-purple-400 text-sm mb-1">Rarity</p>
-                      <p className="text-white font-semibold">{groupedItems[showInfoModal].rarity}</p>
-                    </div>
-                  )}
-                  {groupedItems[showInfoModal].wear && (
-                    <div>
-                      <p className="text-purple-400 text-sm mb-1">Wear</p>
-                      <p className="text-white font-semibold">{groupedItems[showInfoModal].wear}</p>
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-purple-400 text-sm mb-1">Steam Market Price</p>
-                    <p className="text-white font-bold text-xl">{formatPrice(groupedItems[showInfoModal].marketPrice)}</p>
-                  </div>
-                  <div>
-                    <p className="text-purple-400 text-sm mb-1">Your Price</p>
-                    <p className="text-white font-bold text-xl">{formatPrice(groupedItems[showInfoModal].price)}</p>
-                  </div>
-                </div>
+            <div className="flex-1 min-w-0 space-y-2">
+              <div className="text-[11px] text-ink-dim font-semibold uppercase tracking-wider">
+                {groupedItems[showInfoModal].type || 'Item'}
               </div>
+              <div className="text-[15px] font-bold text-ink tracking-tight leading-tight">
+                {groupedItems[showInfoModal].name}
+              </div>
+              {groupedItems[showInfoModal].rarity && (
+                <div className="text-[12px] text-ink-muted font-medium">
+                  {groupedItems[showInfoModal].rarity}
+                </div>
+              )}
+              {groupedItems[showInfoModal].wear && (
+                <div className="text-[12px] text-ink-muted font-medium">
+                  Wear · {groupedItems[showInfoModal].wear}
+                </div>
+              )}
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <InfoTile label="Steam market" value={formatPrice(groupedItems[showInfoModal].marketPrice)} />
+            <InfoTile label="Your price" value={formatPrice(groupedItems[showInfoModal].price)} accent />
+          </div>
+        </SubModal>
       )}
 
+      {/* ─── Description ─── */}
       {showDescriptionModal !== null && groupedItems[showDescriptionModal] && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4"
-          onClick={() => setShowDescriptionModal(null)}
+        <SubModal
+          onClose={() => setShowDescriptionModal(null)}
+          title="Add a note for buyers"
+          subtitle="Shown under the item name in your listing. 32 characters max."
+          maxWidth={460}
         >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 max-w-md w-full border-2 border-purple-500/30 shadow-2xl"
-            style={{ boxShadow: '0 0 50px rgba(168, 85, 247, 0.3)' }}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="label-meta">Description</span>
+              <span className="text-[11px] font-bold text-ink-dim tabular-nums">
+                {groupedItems[showDescriptionModal].description?.length || 0} / 32
+              </span>
+            </div>
+            <textarea
+              autoFocus
+              value={groupedItems[showDescriptionModal].description || ''}
+              onChange={(e) => handleDescriptionChange(showDescriptionModal, e.target.value)}
+              maxLength={32}
+              placeholder="e.g. low float, rare pattern, fast delivery…"
+              className="w-full px-4 py-3 rounded-3xl bg-subtle outline-none text-ink placeholder:text-ink-dim text-[14px] font-medium focus:ring-2 focus:ring-accent transition-all resize-none"
+              rows={3}
+            />
+          </div>
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            whileHover={{ scale: 1.01 }}
+            onClick={() => setShowDescriptionModal(null)}
+            className="mt-4 w-full h-11 rounded-full bg-accent text-on-accent font-bold text-[13.5px]"
+            style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.6)' }}
           >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white">Set Description</h3>
-              <button
-                onClick={() => setShowDescriptionModal(null)}
-                className="p-2 hover:bg-purple-500/20 rounded-lg transition-colors"
-              >
-                <X size={20} className="text-purple-400" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="text-purple-400 text-sm mb-2 block">
-                  Description ({groupedItems[showDescriptionModal].description?.length || 0}/32)
-                </label>
-                <textarea
-                  value={groupedItems[showDescriptionModal].description || ''}
-                  onChange={(e) => handleDescriptionChange(showDescriptionModal, e.target.value)}
-                  maxLength={32}
-                  placeholder="Enter item description..."
-                  className="w-full bg-gray-800/50 border border-purple-500/30 rounded-lg p-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
-                  rows={3}
-                />
-              </div>
-              <button
-                onClick={() => setShowDescriptionModal(null)}
-                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white py-3 rounded-lg font-semibold transition-all"
-              >
-                Save Description
-              </button>
-            </div>
-          </motion.div>
-        </motion.div>
+            Save description
+          </motion.button>
+        </SubModal>
       )}
 
+      {/* ─── Visibility ─── */}
       {showVisibilityModal !== null && groupedItems[showVisibilityModal] && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4"
-          onClick={() => setShowVisibilityModal(null)}
+        <SubModal
+          onClose={() => setShowVisibilityModal(null)}
+          title="Listing visibility"
+          subtitle="Who can see and buy this listing?"
+          maxWidth={460}
         >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 max-w-md w-full border-2 border-purple-500/30 shadow-2xl"
-            style={{ boxShadow: '0 0 50px rgba(168, 85, 247, 0.3)' }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white">Listing Visibility</h3>
-              <button
-                onClick={() => setShowVisibilityModal(null)}
-                className="p-2 hover:bg-purple-500/20 rounded-lg transition-colors"
-              >
-                <X size={20} className="text-purple-400" />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <button
-                onClick={() => {
-                  handleVisibilityChange(showVisibilityModal, 'public');
-                  setShowVisibilityModal(null);
-                }}
-                className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                  groupedItems[showVisibilityModal].visibility === 'public'
-                    ? 'bg-purple-500/20 border-purple-500'
-                    : 'bg-gray-800/50 border-purple-500/30 hover:border-purple-500/50'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Globe size={24} className="text-purple-400" />
-                  <div className="flex-1">
-                    <p className="text-white font-semibold">Public Listing</p>
-                    <p className="text-purple-300/70 text-sm">Show on marketplace</p>
-                  </div>
-                  {groupedItems[showVisibilityModal].visibility === 'public' && (
-                    <CheckCircle size={20} className="text-green-400" />
-                  )}
-                </div>
-              </button>
-
-              <button
-                onClick={() => {
-                  handleVisibilityChange(showVisibilityModal, 'private');
-                  setShowVisibilityModal(null);
-                }}
-                className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                  groupedItems[showVisibilityModal].visibility === 'private'
-                    ? 'bg-purple-500/20 border-purple-500'
-                    : 'bg-gray-800/50 border-purple-500/30 hover:border-purple-500/50'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <LinkIcon size={24} className="text-purple-400" />
-                  <div className="flex-1">
-                    <p className="text-white font-semibold">Private Listing</p>
-                    <p className="text-purple-300/70 text-sm">Share via unique URL</p>
-                  </div>
-                  {groupedItems[showVisibilityModal].visibility === 'private' && (
-                    <CheckCircle size={20} className="text-green-400" />
-                  )}
-                </div>
-              </button>
-            </div>
-          </motion.div>
-        </motion.div>
+          <div className="space-y-2">
+            <OptionRow
+              Icon={Globe}
+              label="Public listing"
+              sub="Anyone browsing the marketplace can find and buy it."
+              active={groupedItems[showVisibilityModal].visibility === 'public'}
+              onClick={() => {
+                handleVisibilityChange(showVisibilityModal, 'public');
+                setShowVisibilityModal(null);
+              }}
+            />
+            <OptionRow
+              Icon={LinkIcon}
+              label="Private link"
+              sub="Only people you share the link with can see this listing."
+              active={groupedItems[showVisibilityModal].visibility === 'private'}
+              onClick={() => {
+                handleVisibilityChange(showVisibilityModal, 'private');
+                setShowVisibilityModal(null);
+              }}
+            />
+          </div>
+        </SubModal>
       )}
 
+      {/* ─── Listing type ─── */}
       {showListingTypeModal !== null && groupedItems[showListingTypeModal] && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4"
-          onClick={() => setShowListingTypeModal(null)}
+        <SubModal
+          onClose={() => setShowListingTypeModal(null)}
+          title="Listing type"
+          subtitle="Fixed-price sale or open it up to bids."
+          maxWidth={460}
         >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 max-w-md w-full border-2 border-purple-500/30 shadow-2xl"
-            style={{ boxShadow: '0 0 50px rgba(168, 85, 247, 0.3)' }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white">Listing Type</h3>
-              <button
-                onClick={() => setShowListingTypeModal(null)}
-                className="p-2 hover:bg-purple-500/20 rounded-lg transition-colors"
-              >
-                <X size={20} className="text-purple-400" />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <button
-                onClick={() => {
-                  handleListingTypeChange(showListingTypeModal, 'buy_now');
-                  setShowListingTypeModal(null);
-                }}
-                className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                  groupedItems[showListingTypeModal].listingType === 'buy_now'
-                    ? 'bg-purple-500/20 border-purple-500'
-                    : 'bg-gray-800/50 border-purple-500/30 hover:border-purple-500/50'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <ShoppingCart size={24} className="text-purple-400" />
-                  <div className="flex-1">
-                    <p className="text-white font-semibold">Buy Now</p>
-                    <p className="text-purple-300/70 text-sm">Fixed price listing</p>
-                  </div>
-                  {groupedItems[showListingTypeModal].listingType === 'buy_now' && (
-                    <CheckCircle size={20} className="text-green-400" />
-                  )}
-                </div>
-              </button>
-
-              <div className="space-y-2">
-                <p className="text-purple-400 text-sm font-semibold px-2">Auction Duration</p>
-                {([1, 3, 7, 14] as const).map((duration) => (
+          <div className="space-y-2">
+            <OptionRow
+              Icon={ShoppingCart}
+              label="Buy now"
+              sub="Sell instantly at the price you set. Recommended for fast turnover."
+              active={groupedItems[showListingTypeModal].listingType === 'buy_now'}
+              onClick={() => {
+                handleListingTypeChange(showListingTypeModal, 'buy_now');
+                setShowListingTypeModal(null);
+              }}
+            />
+          </div>
+          <div className="mt-5">
+            <div className="label-meta mb-2">Auction · duration</div>
+            <div className="grid grid-cols-4 gap-2">
+              {([1, 3, 7, 14] as const).map((duration) => {
+                const isActive =
+                  groupedItems[showListingTypeModal].listingType === 'auction' &&
+                  groupedItems[showListingTypeModal].auctionDuration === duration;
+                return (
                   <button
                     key={duration}
                     onClick={() => {
                       handleListingTypeChange(showListingTypeModal, 'auction', duration);
                       setShowListingTypeModal(null);
                     }}
-                    className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                      groupedItems[showListingTypeModal].listingType === 'auction' &&
-                      groupedItems[showListingTypeModal].auctionDuration === duration
-                        ? 'bg-purple-500/20 border-purple-500'
-                        : 'bg-gray-800/50 border-purple-500/30 hover:border-purple-500/50'
+                    className={`h-14 rounded-2xl text-[13px] font-bold transition-colors ${
+                      isActive
+                        ? 'bg-accent text-on-accent'
+                        : 'bg-subtle text-ink hover:bg-bg'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <AlertCircle size={24} className="text-purple-400" />
-                      <div className="flex-1">
-                        <p className="text-white font-semibold">Auction - {duration} {duration === 1 ? 'Day' : 'Days'}</p>
-                        <p className="text-purple-300/70 text-sm">Users can bid on this item</p>
-                      </div>
-                      {groupedItems[showListingTypeModal].listingType === 'auction' &&
-                       groupedItems[showListingTypeModal].auctionDuration === duration && (
-                        <CheckCircle size={20} className="text-green-400" />
-                      )}
-                    </div>
+                    {duration}d
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          </motion.div>
-        </motion.div>
+            <p className="text-[11.5px] text-ink-dim font-medium mt-2">
+              Highest bidder wins when the timer ends. Your set price acts as the minimum bid.
+            </p>
+          </div>
+        </SubModal>
       )}
 
       <ConfirmationModal
@@ -956,3 +859,101 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
     </AnimatePresence>
   );
 };
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Reusable sub-modal shell + option row + info tile.
+   Used by the Item-info / Description / Visibility / Listing-type pickers
+   so they all share the same chrome instead of each having a slightly
+   different look.
+   ───────────────────────────────────────────────────────────────────────── */
+
+const SubModal: React.FC<{
+  onClose: () => void;
+  title: string;
+  subtitle?: string;
+  maxWidth?: number;
+  children: React.ReactNode;
+}> = ({ onClose, title, subtitle, maxWidth = 460, children }) => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 dark:bg-black/65 backdrop-blur-md p-4"
+    onClick={onClose}
+  >
+    <motion.div
+      initial={{ scale: 0.96, opacity: 0, y: 12 }}
+      animate={{ scale: 1, opacity: 1, y: 0 }}
+      exit={{ scale: 0.96, opacity: 0, y: 8 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 32, mass: 0.7 }}
+      onClick={(e) => e.stopPropagation()}
+      className="card w-full p-6 sm:p-7"
+      style={{ maxWidth }}
+    >
+      <div className="flex items-start justify-between gap-4 mb-5">
+        <div>
+          <h3 className="text-[18px] font-bold text-ink tracking-tight leading-tight">{title}</h3>
+          {subtitle && (
+            <p className="text-[12.5px] text-ink-muted font-medium mt-1.5 leading-relaxed">{subtitle}</p>
+          )}
+        </div>
+        <button
+          onClick={onClose}
+          className="h-9 w-9 shrink-0 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors"
+        >
+          <X size={15} strokeWidth={2.4} />
+        </button>
+      </div>
+      {children}
+    </motion.div>
+  </motion.div>
+);
+
+const OptionRow: React.FC<{
+  Icon: React.ComponentType<any>;
+  label: string;
+  sub: string;
+  active: boolean;
+  onClick: () => void;
+}> = ({ Icon, label, sub, active, onClick }) => (
+  <button
+    onClick={onClick}
+    className={`w-full p-4 rounded-3xl text-left transition-all flex items-start gap-3 ${
+      active
+        ? 'bg-accent-soft ring-2 ring-accent'
+        : 'bg-subtle hover:bg-bg'
+    }`}
+  >
+    <div
+      className={`icon-chip-sm shrink-0 ${active ? 'bg-accent text-on-accent' : 'bg-bg/60 text-ink-muted'}`}
+    >
+      <Icon size={14} strokeWidth={2.4} />
+    </div>
+    <div className="flex-1 min-w-0">
+      <div className={`text-[14px] font-bold tracking-tight ${active ? 'text-ink' : 'text-ink'}`}>
+        {label}
+      </div>
+      <div className="text-[12px] text-ink-muted font-medium mt-1 leading-relaxed">{sub}</div>
+    </div>
+    {active && (
+      <CheckCircle size={16} className="text-accent shrink-0 mt-0.5" strokeWidth={2.4} />
+    )}
+  </button>
+);
+
+const InfoTile: React.FC<{ label: string; value: string; accent?: boolean }> = ({
+  label,
+  value,
+  accent,
+}) => (
+  <div className="card-flat p-3.5">
+    <div className="label-meta">{label}</div>
+    <div
+      className={`text-[16px] font-bold tracking-tight tabular-nums mt-1 ${
+        accent ? 'text-accent' : 'text-ink'
+      }`}
+    >
+      {value}
+    </div>
+  </div>
+);

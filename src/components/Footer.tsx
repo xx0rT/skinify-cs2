@@ -2,11 +2,6 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronDown,
-  Shield,
-  CheckCircle2,
-  Lock,
-  Star,
-  Headphones,
   Twitter,
   Github,
   MessageCircle,
@@ -21,14 +16,6 @@ const paymentMethods = [
   'Bitpay', 'Clickandbuy',
 ];
 
-const trustBadges = [
-  { Icon: Shield, label: 'Steam-verified', hue: 'sky' },
-  { Icon: CheckCircle2, label: 'CS2 partner', hue: 'mint' },
-  { Icon: Lock, label: 'Escrow protected', hue: 'lilac' },
-  { Icon: Star, label: 'Trusted marketplace', hue: 'lemon' },
-  { Icon: Headphones, label: '24/7 support', hue: 'peach' },
-];
-
 const faqItems = [
   {
     q: 'Can I buy real CS2 skins on Skinify?',
@@ -36,23 +23,39 @@ const faqItems = [
   },
   {
     q: 'What CS2 items can I find here?',
-    a: 'Knives, rifles, pistols, gloves, stickers, agents and cases — from $0.50 listings to high-tier collectibles. Use weapon and rarity filters to narrow it down.',
+    a: 'Knives, rifles, pistols, gloves, stickers, agents, music kits and cases — from $0.50 listings to high-tier collectibles. Use weapon, rarity, float and sticker filters to narrow it down.',
   },
   {
     q: 'Is Skinify a safe marketplace?',
-    a: 'Trades are escrow-protected: payment is only released to the seller after you confirm the item has been delivered. Disputes are reviewed by our team within 24 hours.',
+    a: 'Trades are escrow-protected: payment is only released to the seller after you confirm the item has been delivered. Disputes are reviewed by our team within 24 hours and refunded in full if the seller fails to deliver.',
   },
   {
     q: 'Is there a welcome bonus?',
-    a: 'Yes — new accounts receive a deposit bonus on their first top-up. See the Bonuses page for current offers and ramp dates.',
+    a: 'Yes — new accounts receive a deposit bonus on their first top-up. See the Bonuses page for current offers, deposit tiers, and seasonal ramp dates.',
   },
   {
     q: 'How do trades work?',
-    a: 'Browse → add to cart → pay → the seller sends a Steam trade offer → you confirm receipt → escrow releases the funds. Average completion is under 60 seconds.',
+    a: 'Browse → add to cart → pay → the seller sends a Steam trade offer → you confirm receipt → escrow releases the funds. Average completion is under 60 seconds for in-stock items.',
   },
   {
     q: 'How do deposits and withdrawals work?',
-    a: 'Card, PayPal, bank transfer and crypto are supported. Deposits are instant. Withdrawals process within 24 hours; verified users get same-day payouts.',
+    a: 'Card, PayPal, Apple Pay, Google Pay, bank transfer and crypto (BTC, ETH, USDT) are supported. Deposits are instant. Withdrawals process within 24 hours; VIP users get same-day payouts.',
+  },
+  {
+    q: 'Do you charge buyer fees?',
+    a: 'No. We charge 0% on buy-now and cart purchases. Sellers pay a 2% listing fee, which decreases with VIP tiers down to 0% on Diamond.',
+  },
+  {
+    q: 'Why is there an 8-day hold on funds?',
+    a: 'CS2 reserves a 7-day window where item ownership can be reverted by Steam. Our escrow holds for 8 days to fully cover that window — you can still see pending funds in your balance the entire time.',
+  },
+  {
+    q: 'What happens if my trade offer is declined?',
+    a: 'You get an automatic full refund within minutes. The order is cancelled, the seller\'s reputation takes a hit, and you can re-purchase from another seller of the same item.',
+  },
+  {
+    q: 'Can I list items with stickers, charms or rare patterns?',
+    a: 'Yes. The listing modal pulls Steam metadata automatically — stickers, charms, pattern templates, float and fade percentages all show on the public listing.',
   },
 ];
 
@@ -62,6 +65,7 @@ const footerColumns = [
     links: [
       { label: 'Browse market', to: '/marketplace' },
       { label: 'Sell items', to: '/profile?tab=inventory' },
+      { label: 'My listings', to: '/profile?tab=listings' },
       { label: 'Trades', to: '/profile?tab=trades' },
       { label: 'Rewards', to: '/rewards' },
     ],
@@ -97,7 +101,79 @@ const footerColumns = [
   },
 ];
 
-const Footer: React.FC = () => {
+/* Discovery / SEO link clusters. Rendered below the main column grid so
+   crawlers and skim-readers hit the high-intent skin and weapon queries
+   without cluttering the main nav. */
+const seoSections = [
+  {
+    title: 'Popular rifles',
+    links: [
+      { label: 'AK-47 skins',  to: '/marketplace?weapon=AK-47' },
+      { label: 'M4A4 skins',   to: '/marketplace?weapon=M4A4' },
+      { label: 'M4A1-S skins', to: '/marketplace?weapon=M4A1-S' },
+      { label: 'AWP skins',    to: '/marketplace?weapon=AWP' },
+      { label: 'FAMAS skins',  to: '/marketplace?weapon=FAMAS' },
+      { label: 'Galil AR',     to: '/marketplace?weapon=Galil%20AR' },
+      { label: 'SSG 08',       to: '/marketplace?weapon=SSG%2008' },
+    ],
+  },
+  {
+    title: 'Pistols',
+    links: [
+      { label: 'Desert Eagle', to: '/marketplace?weapon=Desert%20Eagle' },
+      { label: 'USP-S',        to: '/marketplace?weapon=USP-S' },
+      { label: 'Glock-18',     to: '/marketplace?weapon=Glock-18' },
+      { label: 'P250',         to: '/marketplace?weapon=P250' },
+      { label: 'Five-SeveN',   to: '/marketplace?weapon=Five-SeveN' },
+      { label: 'Tec-9',        to: '/marketplace?weapon=Tec-9' },
+      { label: 'CZ75-Auto',    to: '/marketplace?weapon=CZ75-Auto' },
+    ],
+  },
+  {
+    title: 'Knives & gloves',
+    links: [
+      { label: 'Karambit',        to: '/marketplace?weapon=Karambit' },
+      { label: 'M9 Bayonet',      to: '/marketplace?weapon=M9%20Bayonet' },
+      { label: 'Butterfly Knife', to: '/marketplace?weapon=Butterfly%20Knife' },
+      { label: 'Bayonet',         to: '/marketplace?weapon=Bayonet' },
+      { label: 'Sport Gloves',    to: '/marketplace?weapon=Sport%20Gloves' },
+      { label: 'Specialist Gloves', to: '/marketplace?weapon=Specialist%20Gloves' },
+      { label: 'Driver Gloves',   to: '/marketplace?weapon=Driver%20Gloves' },
+    ],
+  },
+  {
+    title: 'SMGs & shotguns',
+    links: [
+      { label: 'MP9',     to: '/marketplace?weapon=MP9' },
+      { label: 'MAC-10',  to: '/marketplace?weapon=MAC-10' },
+      { label: 'MP7',     to: '/marketplace?weapon=MP7' },
+      { label: 'P90',     to: '/marketplace?weapon=P90' },
+      { label: 'UMP-45',  to: '/marketplace?weapon=UMP-45' },
+      { label: 'Nova',    to: '/marketplace?weapon=Nova' },
+      { label: 'MAG-7',   to: '/marketplace?weapon=MAG-7' },
+    ],
+  },
+  {
+    title: 'Browse by rarity',
+    links: [
+      { label: 'Covert skins',      to: '/marketplace?rarity=Covert' },
+      { label: 'Classified',        to: '/marketplace?rarity=Classified' },
+      { label: 'Restricted',        to: '/marketplace?rarity=Restricted' },
+      { label: 'Mil-Spec',          to: '/marketplace?rarity=Mil-Spec' },
+      { label: 'StatTrak™',         to: '/marketplace?stattrak=true' },
+      { label: 'Souvenir',          to: '/marketplace?souvenir=true' },
+      { label: 'Cases & capsules',  to: '/marketplace?category=Cases' },
+    ],
+  },
+];
+
+interface FooterProps {
+  /** When true (Profile/account pages), only renders the link columns +
+      brand row — hides the FAQ and Accepted-payments sections. */
+  slim?: boolean;
+}
+
+const Footer: React.FC<FooterProps> = ({ slim = false }) => {
   const currentYear = new Date().getFullYear();
   const [openFAQ, setOpenFAQ] = useState<number | null>(0);
 
@@ -107,7 +183,9 @@ const Footer: React.FC = () => {
           Single-column list style — Linear/Stripe/Apple-support feel. Items
           are flat with a hairline separator; only the expanded answer reveals
           on click. No per-item backgrounds or emoji icons; the eye scans
-          questions vertically without color noise. */}
+          questions vertically without color noise.
+          Hidden in slim mode (Profile). */}
+      {!slim && (
       <section className="card p-6 md:p-10">
         <div className="flex items-end justify-between mb-7 flex-wrap gap-3">
           <div>
@@ -168,25 +246,11 @@ const Footer: React.FC = () => {
           })}
         </ul>
       </section>
+      )}
 
-      {/* ===== TRUST + PAYMENTS ===== */}
+      {/* ===== PAYMENTS — hidden in slim mode (Profile) ===== */}
+      {!slim && (
       <section className="card p-6 md:p-8">
-        <div className="flex flex-wrap items-center gap-2 mb-6">
-          {trustBadges.map(({ Icon, label, hue }) => (
-            <span
-              key={label}
-              className="h-9 px-3 rounded-full bg-subtle text-ink text-[12.5px] font-semibold inline-flex items-center gap-2"
-            >
-              <Icon
-                size={14}
-                strokeWidth={2.2}
-                style={{ color: `rgb(var(--hue-${hue}))` }}
-              />
-              {label}
-            </span>
-          ))}
-        </div>
-
         <div className="label-eyebrow mb-3">Accepted payments</div>
         <div className="relative overflow-hidden h-12 rounded-2xl bg-subtle/40">
           <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-bg to-transparent z-10" />
@@ -209,6 +273,7 @@ const Footer: React.FC = () => {
           </motion.div>
         </div>
       </section>
+      )}
 
       {/* ===== LINK COLUMNS + BRAND ===== */}
       <section className="card p-6 md:p-8">
@@ -262,6 +327,29 @@ const Footer: React.FC = () => {
               </ul>
             </div>
           ))}
+        </div>
+
+        {/* SEO discovery sections — popular weapons, knives, rarities */}
+        <div className="mt-8 pt-7 border-t border-line">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-7">
+            {seoSections.map((s) => (
+              <div key={s.title}>
+                <div className="label-eyebrow mb-3">{s.title}</div>
+                <ul className="space-y-2">
+                  {s.links.map((l) => (
+                    <li key={l.label}>
+                      <Link
+                        to={l.to}
+                        className="text-[12.5px] text-ink-muted hover:text-ink font-medium transition-colors"
+                      >
+                        {l.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="mt-8 pt-5 border-t border-line flex flex-wrap items-center justify-between gap-3 text-[12.5px] text-ink-muted font-medium">

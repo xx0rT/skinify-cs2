@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+
+  <!-- Core funnel -->
+  <url>
+    <loc>https://skinify.gg/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://skinify.gg/marketplace</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.95</priority>
+  </url>
+  <url>
+    <loc>https://skinify.gg/weapons</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <!-- Weapon category landing pages -->
+  <url><loc>https://skinify.gg/weapons/Pistols</loc>     <changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/weapons/Rifles</loc>      <changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/weapons/SMGs</loc>        <changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/weapons/Heavy</loc>       <changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/weapons/Knives</loc>      <changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/weapons/Gloves</loc>      <changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/weapons/Containers</loc>  <changefreq>daily</changefreq><priority>0.7</priority></url>
+
+  <!-- High-intent weapon deep links (SEO) -->
+  <url><loc>https://skinify.gg/weapons/Rifles/AK-47</loc>          <changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/weapons/Rifles/M4A4</loc>           <changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/weapons/Rifles/M4A1-S</loc>         <changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/weapons/Rifles/AWP</loc>            <changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/weapons/Pistols/Desert%20Eagle</loc> <changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/weapons/Pistols/USP-S</loc>         <changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/weapons/Pistols/Glock-18</loc>      <changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/weapons/Pistols/P250</loc>          <changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://skinify.gg/weapons/Knives/Karambit</loc>       <changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/weapons/Knives/M9%20Bayonet</loc>   <changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/weapons/Knives/Butterfly%20Knife</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/weapons/Knives/Bayonet</loc>        <changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://skinify.gg/weapons/Gloves/Sport%20Gloves</loc> <changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/weapons/Gloves/Specialist%20Gloves</loc><changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://skinify.gg/weapons/Gloves/Driver%20Gloves</loc> <changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://skinify.gg/weapons/SMGs/MP9</loc>              <changefreq>daily</changefreq><priority>0.65</priority></url>
+  <url><loc>https://skinify.gg/weapons/SMGs/MAC-10</loc>           <changefreq>daily</changefreq><priority>0.65</priority></url>
+  <url><loc>https://skinify.gg/weapons/SMGs/P90</loc>              <changefreq>daily</changefreq><priority>0.65</priority></url>
+
+  <!-- Account / rewards -->
+  <url><loc>https://skinify.gg/rewards</loc>   <changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://skinify.gg/bonuses</loc>   <changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://skinify.gg/vip</loc>       <changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://skinify.gg/referral</loc>  <changefreq>weekly</changefreq><priority>0.65</priority></url>
+
+  <!-- Help -->
+  <url><loc>https://skinify.gg/faq</loc>             <changefreq>weekly</changefreq><priority>0.75</priority></url>
+  <url><loc>https://skinify.gg/trading-guide</loc>   <changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://skinify.gg/security-tips</loc>   <changefreq>monthly</changefreq><priority>0.65</priority></url>
+  <url><loc>https://skinify.gg/support</loc>         <changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://skinify.gg/contact</loc>         <changefreq>monthly</changefreq><priority>0.55</priority></url>
+
+  <!-- Legal -->
+  <url><loc>https://skinify.gg/terms</loc>          <changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://skinify.gg/privacy</loc>        <changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://skinify.gg/refund-policy</loc>  <changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://skinify.gg/dispute-resolution</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+
+  <!-- About -->
+  <url><loc>https://skinify.gg/about</loc>      <changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://skinify.gg/changelog</loc>  <changefreq>weekly</changefreq><priority>0.45</priority></url>
+</urlset>

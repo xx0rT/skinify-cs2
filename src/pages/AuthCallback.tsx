@@ -153,19 +153,23 @@ export default function AuthCallback() {
 
         setStatus('success');
 
-        // Redirect to home page after a short delay
+        // Redirect after a short delay. NEW users go through the
+        // 3-step onboarding tour (unless they've already finished it
+        // in a previous session); returning users land on /.
         setTimeout(() => {
+          let onboarded = false;
           try {
-           // Only show trade setup for NEW users without trade link
-           if (userData.isNewUser && !userData.tradeLink) {
-              // Redirect to home with flag to show trade setup modal
-              navigate('/?setup_trade_link=true', { replace: true });
-            } else {
-              navigate('/', { replace: true });
-            }
+            onboarded = localStorage.getItem('skinify_onboarded') === '1';
+          } catch {
+            /* private window */
+          }
+          const goToOnboarding = userData.isNewUser && !onboarded;
+          const destination = goToOnboarding ? '/onboarding' : '/';
+          try {
+            navigate(destination, { replace: true });
           } catch (navError) {
             console.error('Navigation error, fallback to window.location:', navError);
-           window.location.href = (userData.isNewUser && !userData.tradeLink) ? '/?setup_trade_link=true' : '/';
+            window.location.href = destination;
           }
         }, 2000);
 

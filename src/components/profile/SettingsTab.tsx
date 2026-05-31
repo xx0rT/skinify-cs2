@@ -4,6 +4,7 @@ import {
   Check,
   Copy,
   ExternalLink,
+  Globe,
   Monitor,
   Moon,
   Palette,
@@ -13,6 +14,7 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { useToastStore } from '../../store/toastStore';
 import { useTheme } from '../../theme/ThemeProvider';
+import { useCurrencyStore, currencies } from '../../store/currencyStore';
 import { palettes, PaletteId } from '../../theme/palettes';
 import { spring, tap } from '../../lib/motion';
 
@@ -31,6 +33,7 @@ const SettingsTab: React.FC = () => {
   const { user, logout, updateTradeLink } = useAuthStore();
   const { addToast } = useToastStore();
   const { mode, setMode, palette, setPalette, resolvedMode } = useTheme();
+  const { selectedCurrency, setSelectedCurrency, isAutoDetected } = useCurrencyStore();
 
   const [tradeLink, setTradeLink] = useState(user?.tradeLink || '');
   const [savingTrade, setSavingTrade] = useState(false);
@@ -234,6 +237,72 @@ const SettingsTab: React.FC = () => {
               );
             })}
           </div>
+        </div>
+      </Section>
+
+      {/* ───── Currency ──────────────────────────────────────── */}
+      <Section
+        title="Currency"
+        subtitle="All prices on Skinify will display in your selected currency."
+      >
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="label-eyebrow">Display currency</div>
+            {isAutoDetected && (
+              <span className="pill bg-accent-soft text-accent inline-flex items-center gap-1">
+                <Globe size={10} strokeWidth={2.6} />
+                Auto-detected
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {currencies.map((c) => {
+              const active = selectedCurrency.code === c.code;
+              return (
+                <motion.button
+                  whileTap={tap}
+                  key={c.code}
+                  onClick={() => {
+                    setSelectedCurrency(c);
+                    addToast({
+                      type: 'success',
+                      title: `Currency · ${c.code}`,
+                      message: `Prices now shown in ${c.name}.`,
+                    });
+                  }}
+                  className={`relative h-14 rounded-2xl px-3 flex items-center justify-between gap-2 transition-colors ${
+                    active
+                      ? 'bg-accent text-on-accent'
+                      : 'bg-subtle text-ink-muted hover:bg-bg hover:text-ink'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span
+                      className={`w-8 h-8 rounded-xl grid place-items-center text-[13px] font-bold ${
+                        active ? 'bg-white/20' : 'bg-bg/40'
+                      }`}
+                    >
+                      {c.symbol}
+                    </span>
+                    <div className="text-left min-w-0">
+                      <div className="text-[12.5px] font-bold leading-none">{c.code}</div>
+                      <div
+                        className={`text-[10.5px] mt-0.5 font-medium truncate ${
+                          active ? 'text-on-accent/80' : 'text-ink-dim'
+                        }`}
+                      >
+                        {c.name}
+                      </div>
+                    </div>
+                  </div>
+                  {active && <Check size={14} strokeWidth={2.6} className="shrink-0" />}
+                </motion.button>
+              );
+            })}
+          </div>
+          <p className="text-[11.5px] text-ink-dim font-medium mt-3">
+            Conversion uses fixed rates from CZK · refreshed weekly. Item sellers always price in CZK; we just translate the display for you.
+          </p>
         </div>
       </Section>
 

@@ -39,8 +39,25 @@ const readMode = (): ModePref => {
   return v === 'light' || v === 'dark' || v === 'auto' ? v : 'auto';
 };
 const readPalette = (): PaletteId => {
-  if (typeof localStorage === 'undefined') return 'graphite';
+  // Default is violet for every code path — matches the brand logo.
+  if (typeof localStorage === 'undefined') return 'violet';
+
+  // One-shot migration: very early users had `graphite` written to
+  // localStorage when it was the default. They never picked it; it was just
+  // the seed. We bump the keyed default once so those users get the brand
+  // accent. The version key prevents this from re-firing on subsequent
+  // visits, and a user who *explicitly* picks graphite from Settings will
+  // still keep it because we only auto-migrate if the value is the stale
+  // default.
+  const migratedKey = 'skinify.palette.v';
+  const migrated = localStorage.getItem(migratedKey);
   const v = localStorage.getItem(PALETTE_KEY) as PaletteId | null;
+  if (!migrated && v === 'graphite') {
+    localStorage.setItem(migratedKey, '1');
+    localStorage.setItem(PALETTE_KEY, 'violet');
+    return 'violet';
+  }
+  if (!migrated) localStorage.setItem(migratedKey, '1');
   return v ?? 'violet';
 };
 const systemPrefersDark = () =>

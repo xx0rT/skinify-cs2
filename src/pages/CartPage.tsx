@@ -10,17 +10,30 @@ import {
   CheckCircle2,
   Lock,
   ArrowRight,
+  Plus,
+  Minus,
+  Sparkles,
 } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
 import { useCurrencyStore } from '../store/currencyStore';
 import { useBalanceStore } from '../store/balanceStore';
-import Header from '../components/Header';
+import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import { CachedImage } from '../components/ui/CachedImage';
 import ConfirmationModal from '../components/ui/ConfirmationModal';
 import { rarityColor } from '../components/ui/SkinCard';
+import { spring, tap } from '../lib/motion';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   CartPage — redesigned to the landing/profile theme
+   - Hero header with item count + total
+   - Item rows with rarity bar, image, seller, price, remove
+   - Sticky summary: promo code, breakdown, secure checkout CTA
+   - Balance row with quick "Refill" deep-link if insufficient
+   - Empty-state with marketplace CTA
+   ───────────────────────────────────────────────────────────────────────── */
 
 const CartPage: React.FC = () => {
   const navigate = useNavigate();
@@ -90,36 +103,51 @@ const CartPage: React.FC = () => {
     }
   };
 
+  /* ─── Empty state ─── */
   if (items.length === 0) {
     return (
-      <div className="min-h-screen text-white">
-        <Header activeSection="Cart" />
-        <main className="md:pl-[100px] pl-4 pr-4 pt-24 pb-16 max-w-[1480px] mx-auto">
-          <button
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-zinc-300 hover:text-white text-[13px] font-medium transition-colors mb-5"
+      <div className="min-h-screen bg-bg text-ink">
+        <LandingNav />
+        <main className="max-w-[1480px] mx-auto px-4 sm:px-6 pt-4 pb-16">
+          <BackButton onClick={() => navigate(-1)} />
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={spring}
+            className="card p-12 sm:p-16 text-center relative overflow-hidden mt-2"
           >
-            <ChevronLeft size={15} />
-            Back
-          </button>
-
-          <div className="glass rounded-3xl2 p-16 text-center">
-            <div className="w-16 h-16 rounded-3xl bg-white/[0.05] grid place-items-center mx-auto mb-5">
-              <ShoppingCart size={26} className="text-zinc-400" />
+            <motion.div
+              aria-hidden
+              className="absolute -top-32 -right-24 w-[420px] h-[420px] rounded-full pointer-events-none"
+              style={{
+                background:
+                  'radial-gradient(closest-side, rgb(var(--accent) / 0.18), transparent 65%)',
+              }}
+              animate={{ scale: [1, 1.06, 1] }}
+              transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <div className="relative">
+              <div className="icon-chip-lg mx-auto mb-5 bg-accent-soft">
+                <ShoppingCart size={24} className="text-accent" />
+              </div>
+              <span className="label-eyebrow">Cart</span>
+              <h1 className="text-[26px] sm:text-[32px] font-bold tracking-tight mt-2 leading-none">
+                Your cart is empty
+              </h1>
+              <p className="text-[14px] text-ink-muted font-medium mt-3 max-w-md mx-auto">
+                Browse the marketplace, add the skins you want, and check out in one go.
+              </p>
+              <motion.button
+                whileTap={tap}
+                whileHover={{ scale: 1.03 }}
+                onClick={() => navigate('/marketplace')}
+                className="mt-7 h-12 px-6 rounded-full bg-accent text-on-accent font-bold text-[14px] inline-flex items-center gap-2"
+                style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.6)' }}
+              >
+                Browse marketplace <ArrowRight size={15} strokeWidth={2.4} />
+              </motion.button>
             </div>
-            <h1 className="text-[22px] font-display font-bold text-white tracking-tight">
-              Your cart is empty
-            </h1>
-            <p className="text-[14px] text-zinc-400 mt-1.5 max-w-md mx-auto">
-              Browse the marketplace, add skins you want, and check out in one go.
-            </p>
-            <button
-              onClick={() => navigate('/marketplace')}
-              className="mt-6 h-12 px-6 rounded-2xl bg-accent-500 hover:bg-accent-400 text-white font-semibold shadow-accent-glow transition-colors inline-flex items-center gap-2"
-            >
-              Browse marketplace <ArrowRight size={15} />
-            </button>
-          </div>
+          </motion.div>
         </main>
         <Footer />
       </div>
@@ -127,175 +155,239 @@ const CartPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen text-white">
-      <Header activeSection="Cart" />
+    <div className="min-h-screen bg-bg text-ink">
+      <LandingNav />
 
-      <main className="md:pl-[100px] pl-4 pr-4 pt-24 pb-16 max-w-[1480px] mx-auto">
-        <div className="flex items-end justify-between flex-wrap gap-4 mb-6">
-          <div>
-            <h1 className="text-[34px] font-display font-bold text-white tracking-tight leading-tight">
-              Cart
-            </h1>
-            <p className="text-[14px] text-zinc-400 mt-1">
-              {items.length} {items.length === 1 ? 'item' : 'items'} · {formatPrice(subtotal)}
-            </p>
+      <main className="max-w-[1480px] mx-auto px-4 sm:px-6 pt-4 pb-16">
+        <BackButton onClick={() => navigate(-1)} />
+
+        {/* Header card */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={spring}
+          className="card p-5 sm:p-6 mb-4 relative overflow-hidden"
+        >
+          <motion.div
+            aria-hidden
+            className="absolute -top-32 -right-24 w-[360px] h-[360px] rounded-full pointer-events-none"
+            style={{
+              background:
+                'radial-gradient(closest-side, rgb(var(--accent) / 0.14), transparent 65%)',
+            }}
+            animate={{ scale: [1, 1.05, 1] }}
+            transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <div className="relative flex items-end justify-between flex-wrap gap-3">
+            <div>
+              <span className="label-eyebrow">Checkout</span>
+              <h1 className="text-[26px] sm:text-[32px] font-bold tracking-tight mt-1.5 leading-none">
+                Your cart
+              </h1>
+              <p className="text-[13px] text-ink-muted font-medium mt-2">
+                {items.length} {items.length === 1 ? 'item' : 'items'} · {formatPrice(subtotal)}
+              </p>
+            </div>
+            <motion.button
+              whileTap={tap}
+              onClick={() => setConfirmClearOpen(true)}
+              className="h-10 px-4 rounded-full bg-subtle hover:bg-bg flex items-center gap-1.5 text-[13px] text-ink-muted hover:text-ink font-semibold transition-colors"
+            >
+              <Trash2 size={13} strokeWidth={2.2} />
+              Clear cart
+            </motion.button>
           </div>
-          <button
-            onClick={() => setConfirmClearOpen(true)}
-            className="h-11 px-4 rounded-2xl bg-white/[0.05] hover:bg-white/[0.10] border border-white/[0.06] text-[13px] text-zinc-300 hover:text-white font-medium flex items-center gap-2 transition-colors"
-          >
-            <Trash2 size={14} />
-            Clear cart
-          </button>
-        </div>
+        </motion.div>
 
-        <div className="grid lg:grid-cols-[1fr_400px] gap-4">
-          {/* Items */}
+        <div className="grid lg:grid-cols-[1fr_420px] gap-4">
+          {/* Items column */}
           <section className="space-y-2 min-w-0">
             <AnimatePresence initial={false}>
-              {items.map((item) => {
+              {items.map((item, idx) => {
                 const color = rarityColor(item.rarity);
                 return (
                   <motion.article
                     key={item.id}
                     layout
-                    initial={{ opacity: 0, y: 6 }}
+                    initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                    transition={{ duration: 0.2 }}
-                    className="relative glass rounded-3xl2 p-3 pr-4 flex items-center gap-4 overflow-hidden"
+                    exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                    transition={{ ...spring, delay: Math.min(idx * 0.04, 0.2) }}
+                    whileHover={{ y: -2 }}
+                    className="relative card p-3 pr-3 sm:pr-4 flex items-center gap-3 sm:gap-4 overflow-hidden"
                   >
                     <div
                       className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full"
-                      style={{ background: color }}
+                      style={{ background: color || 'rgb(var(--accent))' }}
                     />
-                    <button
+                    <motion.button
+                      whileTap={tap}
                       onClick={() => navigate(`/item/${item.id}`)}
-                      className="w-24 h-24 shrink-0 rounded-2xl bg-white/[0.03] grid place-items-center overflow-hidden hover:bg-white/[0.06] transition-colors"
+                      className="w-20 h-20 sm:w-24 sm:h-24 shrink-0 rounded-2xl bg-subtle/60 grid place-items-center overflow-hidden hover:bg-subtle transition-colors relative"
                     >
+                      <motion.div
+                        aria-hidden
+                        className="absolute inset-0 pointer-events-none"
+                        style={{
+                          background: `radial-gradient(circle at 50% 50%, ${color || 'rgb(var(--accent))'}22, transparent 65%)`,
+                        }}
+                      />
                       <CachedImage
                         src={item.image}
                         alt={item.name}
-                        className="w-[88%] h-[88%] object-contain"
+                        className="relative w-[85%] h-[85%] object-contain"
                       />
-                    </button>
+                    </motion.button>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline justify-between gap-2 mb-0.5">
+                      <div className="flex items-baseline gap-2 mb-0.5 flex-wrap">
                         <span
-                          className="text-[11px] uppercase tracking-wider font-semibold"
-                          style={{ color }}
+                          className="text-[10.5px] uppercase tracking-wider font-bold"
+                          style={{ color: color || 'rgb(var(--accent))' }}
                         >
                           {item.rarity || 'Standard'}
                         </span>
-                        <span className="text-[11px] text-zinc-500">{item.condition || ''}</span>
+                        {item.condition && (
+                          <span className="text-[10.5px] text-ink-dim font-semibold uppercase tracking-wider">
+                            {item.condition}
+                          </span>
+                        )}
                       </div>
                       <h3
-                        className="text-[14px] font-semibold text-white truncate cursor-pointer hover:underline"
+                        className="text-[14px] sm:text-[15px] font-bold text-ink truncate cursor-pointer hover:underline tracking-tight leading-tight"
                         onClick={() => navigate(`/item/${item.id}`)}
                       >
                         {item.name}
                       </h3>
                       {item.seller?.name && (
-                        <p className="text-[12px] text-zinc-500 mt-0.5 truncate">
-                          Seller {item.seller.name}
+                        <p className="text-[12px] text-ink-muted font-medium mt-1 truncate">
+                          Seller · {item.seller.name}
                         </p>
                       )}
                     </div>
-                    <div className="text-right">
-                      <div className="text-[16px] font-display font-bold text-white tracking-tight leading-none">
+                    <div className="text-right shrink-0">
+                      <div className="text-[15px] sm:text-[17px] font-bold tabular-nums text-ink tracking-tight leading-none">
                         {formatPrice(item.price)}
                       </div>
                     </div>
-                    <button
+                    <motion.button
+                      whileTap={tap}
                       onClick={() => removeItem(item.id)}
-                      className="w-10 h-10 rounded-2xl bg-white/[0.05] hover:bg-rose-500/20 hover:text-rose-300 text-zinc-400 grid place-items-center transition-colors"
+                      className="h-10 w-10 shrink-0 rounded-full bg-subtle hover:bg-rose-500/15 text-ink-muted hover:text-rose-500 grid place-items-center transition-colors"
                       title="Remove"
                     >
-                      <Trash2 size={15} />
-                    </button>
+                      <Trash2 size={14} strokeWidth={2.2} />
+                    </motion.button>
                   </motion.article>
                 );
               })}
             </AnimatePresence>
 
-            <button
+            <motion.button
+              whileTap={tap}
+              whileHover={{ y: -1 }}
               onClick={() => navigate('/marketplace')}
-              className="w-full h-12 mt-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-[13.5px] text-zinc-300 hover:text-white font-medium flex items-center justify-center gap-2 transition-colors"
+              className="w-full h-12 mt-3 rounded-3xl bg-subtle hover:bg-bg text-ink text-[13.5px] font-bold flex items-center justify-center gap-2 transition-colors"
             >
-              <ShoppingCart size={14} />
+              <ShoppingCart size={14} strokeWidth={2.2} />
               Continue browsing
-            </button>
+            </motion.button>
           </section>
 
-          {/* Summary */}
-          <aside className="lg:sticky lg:top-24 self-start space-y-4">
-            <section className="glass rounded-3xl2 p-6">
-              <h2 className="text-[16px] font-display font-semibold text-white tracking-tight mb-4">
-                Order summary
+          {/* Summary column */}
+          <aside className="lg:sticky lg:top-24 self-start space-y-3">
+            <motion.section
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...spring, delay: 0.08 }}
+              className="card p-6"
+            >
+              <span className="label-eyebrow">Summary</span>
+              <h2 className="text-[17px] font-bold tracking-tight mt-1.5 leading-none mb-5">
+                Order details
               </h2>
 
               <div className="space-y-2.5 text-[13.5px]">
                 <Row label={`Subtotal (${items.length})`} value={formatPrice(subtotal)} />
-                {appliedPromo && (
-                  <Row
-                    label={`Discount · ${appliedPromo.code}`}
-                    value={`-${formatPrice(discount)}`}
-                    valueClass="text-emerald-400"
-                  />
-                )}
-                <Row label="Marketplace fee" value="0%" valueClass="text-emerald-400" />
+                <AnimatePresence>
+                  {appliedPromo && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <Row
+                        label={`Discount · ${appliedPromo.code}`}
+                        value={`−${formatPrice(discount)}`}
+                        valueClass="text-emerald-600 dark:text-emerald-400"
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <Row label="Marketplace fee" value="0%" valueClass="text-emerald-600 dark:text-emerald-400" />
               </div>
 
-              <div className="my-4 border-t border-white/[0.06]" />
+              <div className="my-4 border-t border-line" />
 
               <div className="flex items-baseline justify-between mb-5">
-                <span className="text-[13px] uppercase tracking-wide text-zinc-500 font-semibold">
-                  Total
-                </span>
-                <span className="text-[26px] font-display font-bold text-white tracking-tight">
+                <span className="label-eyebrow">Total</span>
+                <motion.span
+                  key={total}
+                  initial={{ scale: 0.94, opacity: 0.5 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={spring}
+                  className="text-[26px] sm:text-[30px] font-bold tracking-tight tabular-nums text-ink leading-none"
+                >
                   {formatPrice(total)}
-                </span>
+                </motion.span>
               </div>
 
               {/* Promo */}
               <div className="flex gap-2 mb-4">
-                <div className="flex-1 flex items-center gap-2 h-11 px-3 rounded-2xl bg-white/[0.04] border border-white/[0.08]">
-                  <Tag size={14} className="text-zinc-500 shrink-0" />
+                <div className="flex-1 flex items-center gap-2 h-11 px-3.5 rounded-full bg-subtle">
+                  <Tag size={14} strokeWidth={2.2} className="text-ink-muted shrink-0" />
                   <input
                     value={promo}
                     onChange={(e) => setPromo(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && applyPromo()}
                     placeholder="Promo code"
-                    className="flex-1 bg-transparent outline-none text-white placeholder-zinc-500 text-[13.5px] uppercase tracking-wide"
+                    className="flex-1 bg-transparent outline-none text-ink placeholder:text-ink-dim text-[13px] font-bold uppercase tracking-wider"
                   />
                 </div>
-                <button
+                <motion.button
+                  whileTap={tap}
                   onClick={applyPromo}
-                  className="h-11 px-4 rounded-2xl bg-white/[0.06] hover:bg-white/[0.12] text-white text-[13px] font-medium transition-colors"
+                  className="h-11 px-4 rounded-full bg-subtle hover:bg-bg text-ink text-[12.5px] font-bold transition-colors"
                 >
                   Apply
-                </button>
+                </motion.button>
               </div>
 
-              <button
+              <motion.button
+                whileTap={tap}
+                whileHover={{ scale: 1.02 }}
                 onClick={handleCheckout}
                 disabled={processing}
-                className="w-full h-12 rounded-2xl bg-accent-500 hover:bg-accent-400 text-white font-semibold shadow-accent-glow transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full h-12 rounded-full bg-accent hover:bg-accent text-on-accent font-bold text-[14px] flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+                style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.6)' }}
               >
-                <Lock size={14} />
+                <Lock size={14} strokeWidth={2.4} />
                 Secure checkout
-              </button>
+              </motion.button>
 
               {user && (
-                <div className="mt-3 flex items-center justify-between text-[12px]">
-                  <span className="text-zinc-500">Balance after</span>
+                <div className="mt-3.5 flex items-center justify-between text-[12.5px] font-medium">
+                  <span className="text-ink-muted">Balance after</span>
                   <span
-                    className={canAfford ? 'text-zinc-300 font-medium' : 'text-rose-400 font-medium'}
+                    className={
+                      canAfford ? 'text-ink-muted font-semibold tabular-nums' : 'text-rose-500 font-bold tabular-nums'
+                    }
                   >
                     {formatPrice(Math.max(0, (balance || 0) - total))}
                     {!canAfford && (
                       <button
                         onClick={() => navigate('/profile?tab=balance')}
-                        className="ml-2 text-accent-400 hover:text-accent-300 font-semibold"
+                        className="ml-2 text-accent hover:underline font-bold"
                       >
                         Refill
                       </button>
@@ -303,21 +395,30 @@ const CartPage: React.FC = () => {
                   </span>
                 </div>
               )}
-            </section>
+            </motion.section>
 
-            <section className="glass rounded-3xl2 p-5">
-              <ul className="space-y-3 text-[13px]">
+            <motion.section
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...spring, delay: 0.12 }}
+              className="card p-5"
+            >
+              <span className="label-eyebrow">Why you're protected</span>
+              <ul className="mt-3 space-y-2.5">
                 {[
-                  { icon: Shield, label: 'Escrow until you confirm receipt' },
-                  { icon: CheckCircle2, label: 'Refunded if any seller fails' },
-                ].map(({ icon: Icon, label }) => (
-                  <li key={label} className="flex items-center gap-2.5">
-                    <Icon size={14} className="text-accent-400 shrink-0" />
-                    <span className="text-zinc-300">{label}</span>
+                  { Icon: Shield, label: 'Escrow until you confirm receipt' },
+                  { Icon: CheckCircle2, label: 'Refunded if any seller fails' },
+                  { Icon: Sparkles, label: 'Items remain tradable on Steam' },
+                ].map(({ Icon, label }) => (
+                  <li key={label} className="flex items-center gap-2.5 text-[13px] text-ink-muted font-medium">
+                    <div className="icon-chip-sm bg-accent-soft shrink-0">
+                      <Icon size={13} strokeWidth={2.2} className="text-accent" />
+                    </div>
+                    <span>{label}</span>
                   </li>
                 ))}
               </ul>
-            </section>
+            </motion.section>
           </aside>
         </div>
       </main>
@@ -354,14 +455,26 @@ const CartPage: React.FC = () => {
   );
 };
 
+const BackButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
+  <motion.button
+    whileTap={tap}
+    whileHover={{ x: -2 }}
+    onClick={onClick}
+    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink text-[13px] font-semibold transition-colors mb-3"
+  >
+    <ChevronLeft size={14} strokeWidth={2.4} />
+    Back
+  </motion.button>
+);
+
 const Row: React.FC<{ label: string; value: string; valueClass?: string }> = ({
   label,
   value,
-  valueClass = 'text-white',
+  valueClass = 'text-ink',
 }) => (
   <div className="flex items-center justify-between">
-    <span className="text-zinc-400">{label}</span>
-    <span className={`font-medium ${valueClass}`}>{value}</span>
+    <span className="text-ink-muted font-medium">{label}</span>
+    <span className={`font-bold tabular-nums ${valueClass}`}>{value}</span>
   </div>
 );
 

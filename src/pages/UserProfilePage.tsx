@@ -1,47 +1,45 @@
-import { getSupabaseCredentials } from '../utils/supabaseHelpers';
-import { supabase } from '../lib/supabaseClient';
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { 
-  ArrowLeft, 
-  User, 
-  Star, 
-  Calendar, 
-  ExternalLink,
-  ShoppingCart,
-  Eye,
-  TrendingUp,
-  Award,
-  Shield,
-  Package,
-  Activity,
-  Gamepad2,
-  RefreshCw,
-  Loader,
-  AlertCircle,
-  Upload,
-  Camera,
-  Edit3,
-  Save,
-  X,
+import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  ChevronRight,
+  ChevronLeft,
+  Star,
+  ShoppingBag,
   Heart,
   MessageCircle,
+  ExternalLink,
+  Sparkles,
   Search,
-  Trophy,
-  Gift
+  Copy,
+  Check,
+  TrendingUp,
+  Package,
 } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
+import { getSupabaseCredentials } from '../utils/supabaseHelpers';
 import { useCurrencyStore } from '../store/currencyStore';
 import { useToastStore } from '../store/toastStore';
 import { useCartStore } from '../store/cartStore';
 import { useWishlistStore } from '../store/wishlistStore';
 import { useAuthStore } from '../store/authStore';
 import { useOnlineStatusStore } from '../store/onlineStatusStore';
-import { useChatStore } from '../store/chatStore';
-import Header from '../components/Header';
+import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
-import UserReviews from '../components/profile/UserReviews';
-import TradeOfferModal from '../components/trade/TradeOfferModal';
+import { SkinCard } from '../components/ui/SkinCard';
+import { spring, tap } from '../lib/motion';
+
+const UserReviews = lazy(() => import('../components/profile/UserReviews'));
+
+/* ─────────────────────────────────────────────────────────────────────────
+   UserProfilePage — public-facing trader profile
+
+   - Hero card: avatar, display name, online dot, member-since, copy steamid,
+     primary stats (Rating · Deals · Reply)
+   - Tabbed: Listings · Reviews · About
+   - Listings tab: search + sort + SkinCard grid
+   - Theme tokens (card / accent / ink) — no legacy gray chrome
+   ───────────────────────────────────────────────────────────────────────── */
 
 interface UserListing {
   id: string;
@@ -60,27 +58,20 @@ interface UserListing {
   created_at: string;
 }
 
-interface UserStats {
-  totalListings: number;
-  averagePrice: number;
-  totalValue: number;
-  joinDate: string;
-  lastSeen: string;
-  rating: number;
-  completedTrades: number;
-}
-
 interface UserProfile {
+  uuid: string;
   steamId: string;
   displayName: string;
   avatarUrl: string;
-  bannerUrl?: string;
   memberSince: string;
   lastLogin: string;
   totalTrades: number;
-  successRate: number;
-  reputation: number;
+  rating: number;
+  totalReviews: number;
 }
+
+type TabId = 'listings' | 'reviews' | 'about';
+type SortKey = 'newest' | 'price-asc' | 'price-desc';
 
 const UserProfilePage: React.FC = () => {
   const { steamId } = useParams<{ steamId: string }>();
@@ -90,768 +81,574 @@ const UserProfilePage: React.FC = () => {
   const { addToast } = useToastStore();
   const { addItem } = useCartStore();
   const { toggleItem, isInWishlist } = useWishlistStore();
-  
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [listings, setListings] = useState<UserListing[]>([]);
-  const [userStats, setUserStats] = useState<UserStats | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'listings' | 'stats' | 'reviews'>('listings');
-  const [editingBanner, setEditingBanner] = useState(false);
-  const [bannerUrl, setBannerUrl] = useState('');
-  const [showTradeModal, setShowTradeModal] = useState(false);
   const { getUserStatus } = useOnlineStatusStore();
-  const { initializeChatSession, setActiveChat } = useChatStore();
 
-  const isOwnProfile = user?.steamId === steamId;
-  const userStatus = steamId ? getUserStatus(steamId) : 'offline';
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [listings, setListings] = useState<UserListing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<TabId>('listings');
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<SortKey>('newest');
+  const [copied, setCopied] = useState(false);
+
+  const isOwn = user?.steamId === steamId;
+  const status = steamId ? getUserStatus(steamId) : 'offline';
+  const isOnline = status === 'online';
 
   useEffect(() => {
+    window.scrollTo(0, 0);
     if (steamId) {
-      fetchUserProfile();
-      fetchUserListings();
+      fetchProfile();
+      fetchListings();
     }
   }, [steamId]);
 
-  const fetchUserProfile = async () => {
+  const fetchProfile = async () => {
     if (!steamId) return;
-
     setLoading(true);
+    setError(null);
     try {
-      // Fetch real user data from database
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
         .eq('steam_id', steamId)
         .maybeSingle();
-
       if (userError) throw userError;
+      if (!userData) throw new Error('User not found');
 
-      if (!userData) {
-        throw new Error('User not found');
-      }
-
-      // Fetch user stats
       const { data: statsData } = await supabase
         .from('user_stats')
-        .select('*')
+        .select('average_rating, total_reviews')
         .eq('user_id', userData.id)
         .maybeSingle();
 
-      // Fetch completed trades count
       const { count: tradesCount } = await supabase
         .from('orders')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'completed')
         .or(`buyer_steam_id.eq.${steamId},seller_steam_id.eq.${steamId}`);
 
-      const profile: UserProfile = {
+      setProfile({
+        uuid: userData.id,
         steamId: userData.steam_id,
         displayName: userData.display_name || `Trader_${userData.steam_id.slice(-6)}`,
-        avatarUrl: userData.avatar_url || 'https://avatars.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb_medium.jpg',
-        bannerUrl: userData.banner_url || 'https://images.pexels.com/photos/1671327/pexels-photo-1671327.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+        avatarUrl:
+          userData.avatar_url ||
+          `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.steam_id}`,
         memberSince: userData.created_at || new Date().toISOString(),
         lastLogin: userData.last_login || new Date().toISOString(),
         totalTrades: tradesCount || 0,
-        successRate: statsData?.success_rate || 0,
-        reputation: statsData?.average_rating || 0
-      };
-
-      setUserProfile(profile);
-      setBannerUrl(profile.bannerUrl || '');
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-      setError('Failed to load user profile');
+        rating: Number(statsData?.average_rating || 0),
+        totalReviews: Number(statsData?.total_reviews || 0),
+      });
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load profile');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchUserListings = async () => {
+  const fetchListings = async () => {
     if (!steamId) return;
-    
     try {
       const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
-      
-      const response = await fetch(`${supabaseUrl}/functions/v1/marketplace-listings?steamId=${steamId}&userOnly=true`, {
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        const userListings: UserListing[] = (data.items || []).map((item: any) => ({
-          id: item.id,
-          asset_id: item.asset_id,
-          item_name: item.name || item.item_name,
-          market_hash_name: item.market_name || item.market_hash_name,
-          item_type: item.type || item.item_type,
-          rarity: item.rarity,
-          condition: item.condition,
-          price: item.price,
-          image_url: item.image || item.image_url,
-          float_value: item.float,
-          stickers: item.stickers,
-          description: item.description,
-          views: item.views || 0,
-          created_at: item.listed_at || item.created_at
-        }));
-
-        setListings(userListings);
-
-        // Calculate user stats
-        const stats: UserStats = {
-          totalListings: userListings.length,
-          averagePrice: userListings.length > 0 ? userListings.reduce((sum, listing) => sum + listing.price, 0) / userListings.length : 0,
-          totalValue: userListings.reduce((sum, listing) => sum + listing.price, 0),
-          joinDate: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toISOString(),
-          lastSeen: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-          rating: 4.2 + Math.random() * 0.8,
-          completedTrades: Math.floor(Math.random() * 500) + 50
-        };
-
-        setUserStats(stats);
-      } else {
-        throw new Error('Failed to fetch user listings');
-      }
-    } catch (error) {
-      console.error('Error fetching user listings:', error);
-      setError('Failed to load user listings');
+      const res = await fetch(
+        `${supabaseUrl}/functions/v1/marketplace-listings?steamId=${steamId}&userOnly=true`,
+        {
+          headers: { Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
+        },
+      );
+      if (!res.ok) throw new Error('Failed to fetch listings');
+      const data = await res.json();
+      const mapped: UserListing[] = (data.items || []).map((it: any) => ({
+        id: it.id,
+        asset_id: it.asset_id,
+        item_name: it.name || it.item_name,
+        market_hash_name: it.market_name || it.market_hash_name,
+        item_type: it.type || it.item_type || 'Unknown',
+        rarity: it.rarity || 'Consumer Grade',
+        condition: it.condition || 'Factory New',
+        price: Number(it.price || 0),
+        image_url: it.image || it.image_url || '',
+        float_value: it.float,
+        stickers: it.stickers,
+        description: it.description,
+        views: Number(it.views || 0),
+        created_at: it.listed_at || it.created_at || new Date().toISOString(),
+      }));
+      setListings(mapped);
+    } catch {
       setListings([]);
     }
   };
 
-  const handleAddToCart = (listing: UserListing) => {
-    const cartItem = {
-      id: listing.id,
-      name: listing.item_name,
-      market_name: listing.market_hash_name,
-      type: listing.item_type,
-      condition: listing.condition,
-      price: listing.price,
-      image: listing.image_url,
-      rarity: listing.rarity,
-      seller: {
-        steamId: steamId!,
-        name: userProfile?.displayName || 'Unknown'
-      }
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let arr = listings.filter((l) => !q || l.item_name.toLowerCase().includes(q));
+    if (sort === 'newest')
+      arr = [...arr].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    if (sort === 'price-asc') arr = [...arr].sort((a, b) => a.price - b.price);
+    if (sort === 'price-desc') arr = [...arr].sort((a, b) => b.price - a.price);
+    return arr;
+  }, [listings, query, sort]);
+
+  const totals = useMemo(() => {
+    const totalValue = listings.reduce((s, l) => s + l.price, 0);
+    const totalViews = listings.reduce((s, l) => s + l.views, 0);
+    return {
+      count: listings.length,
+      totalValue,
+      totalViews,
     };
+  }, [listings]);
 
-    addItem(cartItem);
-    addToast({
-      type: 'success',
-      title: 'Added to Cart!',
-      message: `${listing.item_name} - ${formatPrice(listing.price)}`,
-      duration: 2000
-    });
+  const handleAddCart = (l: UserListing) => {
+    addItem({
+      id: l.id,
+      name: l.item_name,
+      market_name: l.market_hash_name,
+      type: l.item_type,
+      condition: l.condition,
+      price: l.price,
+      image: l.image_url,
+      rarity: l.rarity,
+      seller: { steamId: steamId!, name: profile?.displayName || 'Unknown' },
+    } as any);
+    addToast({ type: 'success', title: 'Added to cart', message: l.item_name });
   };
 
-  const handleToggleWishlist = (listing: UserListing) => {
-    toggleItem({
-      id: listing.id,
-      name: listing.item_name,
-      price: listing.price,
-      image: listing.image_url,
-      rarity: listing.rarity
-    });
-
-    const isNowFavorited = !isInWishlist(listing.id);
-    addToast({
-      type: isNowFavorited ? 'success' : 'info',
-      title: isNowFavorited ? 'Added to Wishlist' : 'Removed from Wishlist',
-      message: listing.item_name,
-      duration: 2000
-    });
-  };
-
-  const handleSaveBanner = async () => {
-    if (!bannerUrl.trim() || !isOwnProfile) return;
-    
-    try {
-      // In production, this would save to the backend
-      setUserProfile(prev => prev ? { ...prev, bannerUrl: bannerUrl.trim() } : null);
-      setEditingBanner(false);
-      
-      addToast({
-        type: 'success',
-        title: 'Banner Updated!',
-        message: 'Your profile banner has been updated successfully',
-        duration: 3000
-      });
-    } catch (error) {
-      addToast({
-        type: 'error',
-        title: 'Update Failed',
-        message: 'Failed to update profile banner',
-        duration: 3000
-      });
+  const handleWish = (l: UserListing) => {
+    if (!user) {
+      addToast({ type: 'warning', title: 'Sign in', message: 'Sign in to use wishlist.' });
+      return;
     }
+    toggleItem(
+      {
+        id: l.id,
+        name: l.item_name,
+        price: l.price,
+        image: l.image_url,
+        condition: l.condition,
+        rarity: l.rarity,
+        type: l.item_type,
+        seller: { steamId: steamId!, name: profile?.displayName || 'Unknown' },
+      } as any,
+      user.steamId,
+    );
   };
 
-  const getRarityColor = (rarity: string) => {
-    const rarityLower = rarity.toLowerCase();
-    if (rarityLower.includes('exceedingly rare') || rarityLower.includes('★')) return 'text-yellow-400 bg-yellow-500/10 border-yellow-400/30';
-    if (rarityLower.includes('covert')) return 'text-red-400 bg-red-500/10 border-red-400/30';
-    if (rarityLower.includes('classified')) return 'text-purple-400 bg-purple-500/10 border-purple-400/30';
-    if (rarityLower.includes('restricted')) return 'text-pink-400 bg-pink-500/10 border-pink-400/30';
-    if (rarityLower.includes('mil-spec')) return 'text-blue-400 bg-blue-500/10 border-blue-400/30';
-    return 'text-gray-400 bg-gray-500/10 border-gray-400/30';
+  const copySteamId = () => {
+    if (!steamId) return;
+    navigator.clipboard.writeText(steamId);
+    setCopied(true);
+    addToast({ type: 'success', title: 'Steam ID copied' });
+    setTimeout(() => setCopied(false), 1600);
   };
 
-  if (!steamId) {
+  const memberSinceLabel = useMemo(() => {
+    if (!profile?.memberSince) return '—';
+    const d = new Date(profile.memberSince);
+    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
+  }, [profile?.memberSince]);
+
+  /* ─── Loading / error ─── */
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white">
-        <Header />
-        <div className="pt-20 pb-12 flex items-center justify-center">
-          <div className="text-center">
-            <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold mb-2">Invalid Profile</h1>
-            <p className="text-gray-400">Steam ID not found in URL</p>
-            <Link to="/" className="mt-4 inline-block text-blue-400 hover:text-blue-300">
-              Return to Marketplace
-            </Link>
+      <div className="min-h-screen bg-bg text-ink">
+        <LandingNav />
+        <main className="max-w-[1280px] mx-auto px-4 sm:px-6 pt-4 pb-16 space-y-4">
+          <div className="skel h-9 w-32" />
+          <div className="skel h-44" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="skel" style={{ aspectRatio: '5 / 6.4' }} />
+            ))}
           </div>
-        </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (error || !profile) {
+    return (
+      <div className="min-h-screen bg-bg text-ink">
+        <LandingNav />
+        <main className="max-w-[1280px] mx-auto px-4 sm:px-6 pt-4 pb-16">
+          <div className="card p-12 text-center mt-12 max-w-xl mx-auto">
+            <Package size={26} className="mx-auto text-ink-muted mb-3" />
+            <p className="text-[15px] font-bold text-ink">{error || 'User not found'}</p>
+            <p className="text-[13px] text-ink-muted font-medium mt-1.5">
+              The trader you're looking for doesn't exist on Skinify.
+            </p>
+            <motion.button
+              whileTap={tap}
+              onClick={() => navigate('/marketplace')}
+              className="mt-5 h-11 px-5 rounded-full bg-accent text-on-accent font-bold text-[13.5px]"
+            >
+              Back to marketplace
+            </motion.button>
+          </div>
+        </main>
+        <Footer />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <Header />
-      
-      <div className="pt-20 pb-12">
-        <div className="container mx-auto px-4">
-          {/* Back Button */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="mb-8 mt-4"
-          >
-            <button
-              onClick={() => navigate(-1)}
-              className="inline-flex items-center text-blue-400 hover:text-blue-300 transition-colors group"
-            >
-              <ArrowLeft size={20} className="mr-2 group-hover:-translate-x-1 transition-transform" />
-              Back
-            </button>
-          </motion.div>
+    <div className="min-h-screen bg-bg text-ink">
+      <LandingNav />
 
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="text-center">
-                <Loader className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
-                <p className="text-gray-400">Loading user profile...</p>
-              </div>
+      <main className="max-w-[1280px] mx-auto px-4 sm:px-6 pt-4 pb-16 space-y-4">
+        {/* Breadcrumb */}
+        <motion.nav
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={spring}
+          className="flex items-center gap-1.5 text-[12.5px] font-semibold text-ink-muted overflow-x-auto scrollbar-hide"
+          aria-label="Breadcrumb"
+        >
+          <button onClick={() => navigate('/marketplace')} className="hover:text-ink transition-colors whitespace-nowrap">
+            Market
+          </button>
+          <ChevronRight size={12} strokeWidth={2.4} className="text-ink-dim shrink-0" />
+          <span className="text-ink font-bold whitespace-nowrap">Sellers</span>
+          <ChevronRight size={12} strokeWidth={2.4} className="text-ink-dim shrink-0" />
+          <span className="text-ink font-bold whitespace-nowrap">{profile.displayName}</span>
+        </motion.nav>
+
+        {/* Hero */}
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={spring}
+          className="card p-6 sm:p-8"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+            {/* Avatar */}
+            <div className="relative w-24 h-24 rounded-3xl bg-subtle grid place-items-center overflow-hidden shrink-0">
+              <img
+                src={profile.avatarUrl}
+                alt={profile.displayName}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.steamId}`;
+                }}
+              />
+              <span
+                className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full ring-2 ring-surface ${
+                  isOnline ? 'bg-emerald-500' : 'bg-ink-dim'
+                }`}
+                title={isOnline ? 'Online' : 'Offline'}
+              />
             </div>
-          ) : error ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="text-center">
-                <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-red-400 mb-2">Failed to Load Profile</h3>
-                <p className="text-gray-400 mb-4">{error}</p>
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-[24px] sm:text-[28px] font-bold tracking-tight leading-none truncate">
+                  {profile.displayName}
+                </h1>
+                <span className="pill bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">Verified</span>
+                {isOwn && <span className="pill bg-accent-soft text-accent">You</span>}
+              </div>
+
+              <div className="mt-2.5 flex items-center gap-2 flex-wrap text-[12.5px] text-ink-muted font-medium">
+                <span>Member since {memberSinceLabel}</span>
+                <span>·</span>
                 <button
-                  onClick={() => window.location.reload()}
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-lg transition-all duration-300"
+                  onClick={copySteamId}
+                  className="inline-flex items-center gap-1 hover:text-ink transition-colors"
                 >
-                  Try Again
+                  <span className="font-mono">{profile.steamId}</span>
+                  {copied ? (
+                    <Check size={11} strokeWidth={2.4} className="text-emerald-600 dark:text-emerald-400" />
+                  ) : (
+                    <Copy size={11} strokeWidth={2.4} />
+                  )}
                 </button>
               </div>
-            </div>
-          ) : userProfile ? (
-            <div className="space-y-6">
-              {/* Profile Header with Banner */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="relative bg-gray-800/50 rounded-2xl overflow-hidden border border-gray-700/50"
-              >
-                {/* Background Banner */}
-                <div 
-                  className="h-48 sm:h-64 bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 relative"
-                  style={userProfile.bannerUrl ? {
-                    backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.5)), url(${userProfile.bannerUrl})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center'
-                  } : {}}
-                >
-                  {/* Banner Edit Button (Own Profile Only) */}
-                  {isOwnProfile && (
-                    <div className="absolute top-4 right-4">
-                      {editingBanner ? (
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="url"
-                            value={bannerUrl}
-                            onChange={(e) => setBannerUrl(e.target.value)}
-                            placeholder="Enter banner image URL..."
-                            className="bg-gray-900/80 backdrop-blur-sm border border-gray-600 rounded-lg px-3 py-2 text-white text-sm w-64"
-                          />
-                          <button
-                            onClick={handleSaveBanner}
-                            className="bg-green-600 hover:bg-green-500 text-white p-2 rounded-lg transition-colors"
-                          >
-                            <Save size={16} />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditingBanner(false);
-                              setBannerUrl(userProfile.bannerUrl || '');
-                            }}
-                            className="bg-gray-600 hover:bg-gray-500 text-white p-2 rounded-lg transition-colors"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setEditingBanner(true)}
-                          className="bg-gray-900/80 backdrop-blur-sm hover:bg-gray-800/80 text-white p-3 rounded-lg transition-all duration-300 border border-gray-600/50"
-                        >
-                          <Edit3 size={18} />
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Overlay Pattern */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-transparent to-transparent opacity-60"></div>
-                </div>
 
-                {/* Profile Info */}
-                <div className="relative -mt-16 px-6 pb-6">
-                  <div className="flex flex-col sm:flex-row items-center sm:items-end space-y-4 sm:space-y-0 sm:space-x-6">
-                    {/* Avatar */}
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-                      className="relative"
+              {/* Action row */}
+              <div className="mt-4 flex flex-wrap gap-2">
+                {!isOwn && (
+                  <>
+                    <motion.button
+                      whileTap={tap}
+                      whileHover={{ scale: 1.02 }}
+                      onClick={() => {
+                        if (!user) {
+                          addToast({ type: 'warning', title: 'Sign in', message: 'Sign in to chat.' });
+                          return;
+                        }
+                        addToast({ type: 'info', title: 'Chat', message: `Opening chat with ${profile.displayName}` });
+                      }}
+                      className="h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold inline-flex items-center gap-1.5"
+                      style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.6)' }}
                     >
-                      <img
-                        src={userProfile.avatarUrl}
-                        alt={userProfile.displayName}
-                        className="w-32 h-32 rounded-2xl border-4 border-gray-900 shadow-2xl"
-                      />
-                      {/* Online Status Indicator */}
-                      <div className={`absolute -bottom-2 -right-2 w-8 h-8 rounded-full border-4 border-gray-900 flex items-center justify-center ${
-                        userStatus === 'online' ? 'bg-green-500' :
-                        userStatus === 'away' ? 'bg-yellow-500' :
-                        'bg-gray-500'
-                      }`}>
-                        <div className="w-3 h-3 bg-white rounded-full"></div>
-                      </div>
-                    </motion.div>
-                    
-                    {/* Profile Details */}
-                    <div className="text-center sm:text-left flex-1">
-                      <motion.h1
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3 }}
-                        className="text-3xl font-bold text-white mb-2"
-                      >
-                        {userProfile.displayName}
-                      </motion.h1>
-                      
-                      <div className="flex flex-col sm:flex-row items-center sm:items-center space-y-2 sm:space-y-0 sm:space-x-6 text-sm text-gray-300">
-                        <div className="flex items-center space-x-2">
-                          <Gamepad2 className="w-4 h-4 text-blue-400" />
-                          <span>Steam User</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Calendar className="w-4 h-4 text-green-400" />
-                          <span>Member since {new Date(userProfile.memberSince).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Activity className="w-4 h-4 text-purple-400" />
-                          <span>{userProfile.totalTrades} completed trades</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Star className="w-4 h-4 text-yellow-400" />
-                          <span>{userProfile.reputation > 0 ? userProfile.reputation.toFixed(1) : 'N/A'}/5.0</span>
-                        </div>
-                        {/* Status Badge */}
-                        <div className="flex items-center space-x-2">
-                          <div className={`w-2 h-2 rounded-full ${
-                            userStatus === 'online' ? 'bg-green-500' :
-                            userStatus === 'away' ? 'bg-yellow-500' :
-                            'bg-gray-500'
-                          }`}></div>
-                          <span className="capitalize">{userStatus}</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Action Buttons */}
-                    <div className="flex items-center space-x-3">
-                      <button
-                        onClick={() => window.open(`https://steamcommunity.com/profiles/${steamId}`, '_blank')}
-                        className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg transition-all duration-300 flex items-center space-x-2"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        <span>Steam Profile</span>
-                      </button>
-                      
-                      {!isOwnProfile && user && (
-                        <>
-                          <button
-                            onClick={() => setShowTradeModal(true)}
-                            className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg transition-all duration-300 flex items-center space-x-2"
-                          >
-                            <TrendingUp className="w-4 h-4" />
-                            <span>Trade Offer</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              // Create a temporary order ID for direct messaging
-                              const chatId = `dm_${user.steamId}_${steamId}`;
-                              initializeChatSession(chatId, user.steamId, steamId);
-                              setActiveChat(chatId);
-                              addToast({
-                                type: 'info',
-                                title: 'Chat Opening',
-                                message: `Opening chat with ${userProfile.displayName}`,
-                                duration: 2000
-                              });
-                              // Navigate to profile page where chat can be accessed
-                              navigate('/profile');
-                            }}
-                            className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-all duration-300 flex items-center space-x-2"
-                          >
-                            <MessageCircle className="w-4 h-4" />
-                            <span>Send Message</span>
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Stats Cards */}
-              {userStats && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                  className="grid grid-cols-2 md:grid-cols-4 gap-4"
+                      <MessageCircle size={13} strokeWidth={2.4} />
+                      Message
+                    </motion.button>
+                  </>
+                )}
+                <motion.a
+                  whileTap={tap}
+                  href={`https://steamcommunity.com/profiles/${profile.steamId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="h-10 px-4 rounded-full bg-subtle hover:bg-bg text-ink text-[13px] font-semibold inline-flex items-center gap-1.5 transition-colors"
                 >
-                  <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-green-400">{userStats.totalListings}</div>
-                    <div className="text-gray-400 text-sm">Active Listings</div>
-                  </div>
-                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-blue-400">
-                      {formatPrice(userStats.totalValue)}
-                    </div>
-                    <div className="text-gray-400 text-sm">Total Value</div>
-                  </div>
-                  <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-purple-400">
-                      {userStats.rating.toFixed(1)}★
-                    </div>
-                    <div className="text-gray-400 text-sm">User Rating</div>
-                  </div>
-                  <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-orange-400">{userStats.completedTrades}</div>
-                    <div className="text-gray-400 text-sm">Completed Trades</div>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Tabs */}
-              <div className="flex border-b border-gray-700/50">
-                {[
-                  { id: 'listings', label: 'Marketplace Listings', icon: Package, count: listings.length },
-                  { id: 'stats', label: 'Statistics', icon: TrendingUp },
-                  { id: 'reviews', label: 'Reviews', icon: Star, count: userStats?.completedTrades || 0 }
-                ].map(({ id, label, icon: Icon, count }) => (
-                  <button
-                    key={id}
-                    onClick={() => setActiveTab(id as any)}
-                    className={`flex items-center space-x-2 px-6 py-4 transition-all duration-300 border-b-2 relative ${
-                      activeTab === id
-                        ? 'border-blue-500 text-blue-300'
-                        : 'border-transparent text-gray-400 hover:text-white'
-                    }`}
-                  >
-                    <Icon size={18} />
-                    <span className="font-medium">{label}</span>
-                    {count !== undefined && (
-                      <span className="bg-blue-500/20 text-blue-400 px-2 py-1 rounded-full text-xs">
-                        {count}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {/* Tab Content */}
-              <div className="min-h-[400px]">
-                {activeTab === 'listings' && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="space-y-6"
-                  >
-                    {listings.length === 0 ? (
-                      <div className="text-center py-20">
-                        <Package className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                        <h3 className="text-xl font-semibold text-gray-400 mb-2">No Active Listings</h3>
-                        <p className="text-gray-500">{userProfile.displayName} doesn't have any items listed for sale</p>
-                      </div>
-                    ) : (
-                      <>
-                        {/* Listings Summary */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 text-center">
-                            <div className="text-2xl font-bold text-green-400">{listings.length}</div>
-                            <div className="text-gray-400 text-sm">Active Listings</div>
-                          </div>
-                          <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 text-center">
-                            <div className="text-2xl font-bold text-blue-400">
-                              {formatPrice(userStats?.totalValue || 0)}
-                            </div>
-                            <div className="text-gray-400 text-sm">Total Value</div>
-                          </div>
-                          <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4 text-center">
-                            <div className="text-2xl font-bold text-purple-400">
-                              {formatPrice(userStats?.averagePrice || 0)}
-                            </div>
-                            <div className="text-gray-400 text-sm">Average Price</div>
-                          </div>
-                        </div>
-
-                        {/* Listings Grid */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                          {listings.map((listing, index) => (
-                            <motion.div
-                              key={listing.id}
-                              initial={{ opacity: 0, y: 20 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: index * 0.05 }}
-                              whileHover={{ scale: 1.03, y: -4 }}
-                              className={`bg-gray-800/50 rounded-lg border-2 transition-all duration-300 p-4 group cursor-pointer ${
-                                getRarityColor(listing.rarity)
-                              }`}
-                              onClick={() => window.open(`/item/${listing.id}`, '_blank')}
-                            >
-                              {/* Item Image */}
-                              <div className="aspect-square bg-gray-700/30 rounded mb-3 flex items-center justify-center relative overflow-hidden">
-                                <img 
-                                  src={listing.image_url} 
-                                  alt={listing.item_name}
-                                  className="max-w-full max-h-full object-contain group-hover:scale-110 transition-transform duration-300"
-                                />
-                                
-                                {/* Special Effects for Rare Items */}
-                                {listing.rarity.toLowerCase().includes('★') && (
-                                  <motion.div
-                                    animate={{ rotate: 360 }}
-                                    transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-                                    className="absolute top-1 right-1 text-yellow-400 text-sm"
-                                  >
-                                    ⭐
-                                  </motion.div>
-                                )}
-                              </div>
-                              
-                              {/* Item Details */}
-                              <div className="space-y-2">
-                                <h4 className="text-white font-medium text-sm line-clamp-2 group-hover:text-blue-400 transition-colors">
-                                  {listing.item_name}
-                                </h4>
-                                
-                                <div className="flex items-center justify-between text-xs">
-                                  <span className="text-gray-400">{listing.condition}</span>
-                                  <div className={`px-2 py-1 rounded-full border text-xs ${getRarityColor(listing.rarity)}`}>
-                                    {listing.rarity}
-                                  </div>
-                                </div>
-                                
-                                {/* Price and Actions */}
-                                <div className="flex items-center justify-between pt-2 border-t border-gray-600/30">
-                                  <div className="text-lg font-bold text-green-400">
-                                    {formatPrice(listing.price)}
-                                  </div>
-                                  
-                                  <div className="flex items-center space-x-1">
-                                    <motion.button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleToggleWishlist(listing);
-                                      }}
-                                      whileHover={{ scale: 1.1 }}
-                                      whileTap={{ scale: 0.9 }}
-                                      className={`p-1.5 rounded transition-colors ${
-                                        isInWishlist(listing.id) 
-                                          ? 'text-red-400 hover:text-red-300' 
-                                          : 'text-gray-400 hover:text-red-400'
-                                      }`}
-                                    >
-                                      <Heart size={12} fill={isInWishlist(listing.id) ? 'currentColor' : 'none'} />
-                                    </motion.button>
-                                    
-                                    <motion.button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleAddToCart(listing);
-                                      }}
-                                      whileHover={{ scale: 1.1 }}
-                                      whileTap={{ scale: 0.9 }}
-                                      className="bg-blue-600 hover:bg-blue-500 text-white p-1.5 rounded transition-all duration-300"
-                                    >
-                                      <ShoppingCart size={12} />
-                                    </motion.button>
-                                  </div>
-                                </div>
-                                
-                                {/* Views and Date */}
-                                <div className="flex items-center justify-between text-xs text-gray-500 pt-1">
-                                  <div className="flex items-center space-x-1">
-                                    <Eye size={10} />
-                                    <span>{listing.views} views</span>
-                                  </div>
-                                  <span>{new Date(listing.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                                </div>
-                              </div>
-                            </motion.div>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </motion.div>
-                )}
-
-                {activeTab === 'stats' && userStats && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="space-y-6"
-                  >
-                    {/* Detailed Statistics */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-xl p-6 border border-green-500/20">
-                        <h3 className="text-lg font-bold text-green-300 mb-4 flex items-center">
-                          <Award className="w-5 h-5 mr-2" />
-                          Trading Statistics
-                        </h3>
-                        <div className="space-y-3">
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Total Trades</span>
-                            <span className="text-white font-bold">{userStats.completedTrades}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Success Rate</span>
-                            <span className="text-green-400 font-bold">{userProfile.successRate.toFixed(1)}%</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Avg Response Time</span>
-                            <span className="text-blue-400 font-bold">12 minutes</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">User Rating</span>
-                            <div className="flex items-center space-x-1">
-                              <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                              <span className="text-yellow-400 font-bold">{userStats.rating.toFixed(1)}/5.0</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-xl p-6 border border-blue-500/20">
-                        <h3 className="text-lg font-bold text-blue-300 mb-4 flex items-center">
-                          <Calendar className="w-5 h-5 mr-2" />
-                          Account Information
-                        </h3>
-                        <div className="space-y-3">
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Member Since</span>
-                            <span className="text-white">{new Date(userStats.joinDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Last Seen</span>
-                            <span className="text-white">{new Date(userStats.lastSeen).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Steam Guard</span>
-                            <div className="flex items-center space-x-1">
-                              <Shield className="w-4 h-4 text-green-400" />
-                              <span className="text-green-400 font-medium">Enabled</span>
-                            </div>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Verification</span>
-                            <div className="flex items-center space-x-1">
-                              <Gamepad2 className="w-4 h-4 text-blue-400" />
-                              <span className="text-blue-400 font-medium">Steam Verified</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Performance Metrics */}
-                    <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-xl p-6 border border-purple-500/20">
-                      <h3 className="text-lg font-bold text-purple-300 mb-4 flex items-center">
-                        <TrendingUp className="w-5 h-5 mr-2" />
-                        Marketplace Performance
-                      </h3>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="text-center">
-                          <div className="text-xl font-bold text-purple-400">{formatPrice(userStats.totalValue)}</div>
-                          <div className="text-gray-400 text-sm">Listed Value</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-xl font-bold text-blue-400">{formatPrice(userStats.averagePrice)}</div>
-                          <div className="text-gray-400 text-sm">Avg Price</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-xl font-bold text-green-400">{listings.reduce((sum, l) => sum + l.views, 0)}</div>
-                          <div className="text-gray-400 text-sm">Total Views</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-xl font-bold text-orange-400">
-                            {listings.length > 0 ? Math.round(listings.reduce((sum, l) => sum + l.views, 0) / listings.length) : 0}
-                          </div>
-                          <div className="text-gray-400 text-sm">Avg Views</div>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {activeTab === 'reviews' && userProfile && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                  >
-                    <UserReviews userId={steamId} steamId={userProfile.steamId} />
-                  </motion.div>
-                )}
+                  <ExternalLink size={13} strokeWidth={2.2} />
+                  Steam profile
+                </motion.a>
               </div>
             </div>
-          ) : null}
-        </div>
-      </div>
+
+            {/* Quick stats — right rail on desktop, inline grid on mobile */}
+            <div className="grid grid-cols-3 gap-2 sm:min-w-[280px] shrink-0">
+              <StatTile
+                label="Rating"
+                value={profile.rating > 0 ? profile.rating.toFixed(1) : '—'}
+                icon={<Star size={11} strokeWidth={2.4} className="fill-amber-400 text-amber-400" />}
+              />
+              <StatTile label="Trades" value={profile.totalTrades.toLocaleString()} />
+              <StatTile label="Listings" value={String(totals.count)} />
+            </div>
+          </div>
+        </motion.section>
+
+        {/* Tabs */}
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...spring, delay: 0.05 }}
+          className="flex items-center gap-1 p-1 card max-w-fit"
+        >
+          {([
+            { id: 'listings' as TabId, label: `Listings · ${totals.count}` },
+            { id: 'reviews' as TabId,  label: `Reviews · ${profile.totalReviews}` },
+            { id: 'about' as TabId,    label: 'About' },
+          ]).map((t) => {
+            const active = tab === t.id;
+            return (
+              <motion.button
+                whileTap={tap}
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`relative h-9 px-3.5 rounded-full text-[12.5px] font-semibold whitespace-nowrap transition-colors ${
+                  active ? 'text-on-accent' : 'text-ink-muted hover:text-ink'
+                }`}
+              >
+                {active && (
+                  <motion.span
+                    layoutId="user-tab-pill"
+                    className="absolute inset-0 rounded-full bg-accent"
+                    transition={spring}
+                  />
+                )}
+                <span className="relative">{t.label}</span>
+              </motion.button>
+            );
+          })}
+        </motion.div>
+
+        {/* Tab content */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={tab}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ ...spring, mass: 0.6 }}
+          >
+            {tab === 'listings' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex-1 min-w-[200px] flex items-center gap-2 h-11 px-4 rounded-full bg-subtle">
+                    <Search size={14} strokeWidth={2} className="text-ink-muted shrink-0" />
+                    <input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Search this seller's items…"
+                      className="flex-1 bg-transparent outline-none text-ink placeholder:text-ink-dim text-[13.5px] font-medium"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 p-1 rounded-full bg-subtle">
+                    {([
+                      { k: 'newest' as SortKey,     l: 'New' },
+                      { k: 'price-asc' as SortKey,  l: 'Price ↑' },
+                      { k: 'price-desc' as SortKey, l: 'Price ↓' },
+                    ]).map((o) => {
+                      const active = sort === o.k;
+                      return (
+                        <motion.button
+                          whileTap={tap}
+                          key={o.k}
+                          onClick={() => setSort(o.k)}
+                          className={`relative h-8 px-3 rounded-full text-[12px] font-semibold transition-colors ${
+                            active ? 'text-on-accent' : 'text-ink-muted hover:text-ink'
+                          }`}
+                        >
+                          {active && (
+                            <motion.span
+                              layoutId="user-sort-pill"
+                              className="absolute inset-0 rounded-full bg-accent"
+                              transition={spring}
+                            />
+                          )}
+                          <span className="relative">{o.l}</span>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {filtered.length === 0 ? (
+                  <div className="card p-12 text-center">
+                    <ShoppingBag size={26} className="mx-auto text-ink-muted mb-3" />
+                    <p className="text-[15px] font-bold text-ink">
+                      {listings.length === 0 ? 'No listings yet' : 'No matches'}
+                    </p>
+                    <p className="text-[13px] text-ink-muted font-medium mt-1.5">
+                      {listings.length === 0
+                        ? `${profile.displayName} hasn't listed any items.`
+                        : 'Try a different search.'}
+                    </p>
+                  </div>
+                ) : (
+                  <motion.div
+                    layout
+                    initial="hidden"
+                    animate="shown"
+                    variants={{
+                      hidden: {},
+                      shown: { transition: { staggerChildren: 0.03 } },
+                    }}
+                    className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"
+                  >
+                    <AnimatePresence mode="popLayout">
+                      {filtered.map((l) => (
+                        <motion.div
+                          key={l.id}
+                          layout
+                          variants={{
+                            hidden: { opacity: 0, y: 10 },
+                            shown: { opacity: 1, y: 0, transition: spring },
+                          }}
+                          exit={{ opacity: 0, scale: 0.96 }}
+                          whileHover={{ y: -3 }}
+                          transition={spring}
+                        >
+                          <SkinCard
+                            item={{
+                              id: l.id,
+                              name: l.item_name,
+                              market_name: l.market_hash_name,
+                              type: l.item_type,
+                              rarity: l.rarity,
+                              condition: l.condition,
+                              price: l.price,
+                              image: l.image_url,
+                              float: l.float_value,
+                              stickers: l.stickers,
+                              views: l.views,
+                            }}
+                            onView={() => navigate(`/item/${l.id}`)}
+                            onAddCart={() => handleAddCart(l)}
+                            onToggleWish={() => handleWish(l)}
+                            wished={isInWishlist(l.id)}
+                            formatPrice={formatPrice}
+                          />
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </motion.div>
+                )}
+              </div>
+            )}
+
+            {tab === 'reviews' && (
+              <Suspense
+                fallback={
+                  <div className="card p-12 text-center">
+                    <div className="text-[13.5px] text-ink-muted font-medium">Loading reviews…</div>
+                  </div>
+                }
+              >
+                <UserReviews userId={profile.steamId} steamId={profile.steamId} />
+              </Suspense>
+            )}
+
+            {tab === 'about' && (
+              <div className="card p-6 sm:p-8 space-y-5">
+                <div>
+                  <span className="label-eyebrow">About</span>
+                  <h2 className="text-[18px] sm:text-[20px] font-bold tracking-tight mt-1.5 leading-none">
+                    {profile.displayName}
+                  </h2>
+                  <p className="text-[13.5px] text-ink-muted font-medium mt-3 leading-relaxed max-w-[640px]">
+                    {isOwn
+                      ? 'This is what other traders see when they visit your profile. Listings, reviews, and your reputation come together here.'
+                      : `${profile.displayName} has been trading on Skinify since ${memberSinceLabel} and completed ${profile.totalTrades.toLocaleString()} successful trades.`}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <Detail label="Steam ID" value={profile.steamId} mono />
+                  <Detail label="Member since" value={memberSinceLabel} />
+                  <Detail label="Listings value" value={formatPrice(totals.totalValue)} />
+                  <Detail label="Total views" value={totals.totalViews.toLocaleString()} />
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Back button at the bottom for quick return */}
+        <motion.button
+          whileTap={tap}
+          whileHover={{ x: -2 }}
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink text-[13px] font-semibold transition-colors"
+        >
+          <ChevronLeft size={14} strokeWidth={2.4} />
+          Back
+        </motion.button>
+      </main>
 
       <Footer />
-
-      {/* Trade Offer Modal */}
-      {showTradeModal && userProfile && (
-        <TradeOfferModal
-          isOpen={showTradeModal}
-          onClose={() => setShowTradeModal(false)}
-          recipientSteamId={steamId!}
-          recipientName={userProfile.displayName}
-        />
-      )}
     </div>
   );
 };
+
+const StatTile: React.FC<{ label: string; value: string; icon?: React.ReactNode }> = ({
+  label,
+  value,
+  icon,
+}) => (
+  <div className="card-flat p-3 text-center">
+    <div className="label-meta">{label}</div>
+    <div className="mt-1 inline-flex items-center gap-1 text-[14px] font-bold text-ink tracking-tight tabular-nums">
+      {icon}
+      {value}
+    </div>
+  </div>
+);
+
+const Detail: React.FC<{ label: string; value: string; mono?: boolean }> = ({
+  label,
+  value,
+  mono,
+}) => (
+  <div className="card-flat p-3">
+    <div className="label-meta">{label}</div>
+    <div
+      className={`text-[13.5px] font-bold text-ink mt-1 truncate tracking-tight ${
+        mono ? 'font-mono' : ''
+      }`}
+    >
+      {value}
+    </div>
+  </div>
+);
 
 export default UserProfilePage;

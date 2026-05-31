@@ -23,186 +23,13 @@ import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import { SkinCard } from '../components/ui/SkinCard';
 import { weaponCategories } from '../data/weaponCategories';
+import { MOCK_MARKET_ITEMS } from '../data/mockMarketItems';
 import { spring, tap } from '../lib/motion';
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Mocked listings used when the live `useMarketplaceItems()` hook returns
-   nothing. Lets the page demo correctly with no real listings yet. Each item
-   uses Steam's CDN icon URL pattern so we get a real CS2 visual without
-   shipping image binaries. Mocked items have `id` prefixed `mock-` so we
-   can hide cart/wishlist semantics — they're for visual demo only.
-   ───────────────────────────────────────────────────────────────────────── */
-const MOCK_ITEMS = [
-  {
-    id: 'mock-1',
-    name: 'AWP | Dragon Lore',
-    market_name: 'AWP | Dragon Lore (Field-Tested)',
-    type: 'Sniper Rifle',
-    rarity: 'Covert',
-    condition: 'Field-Tested',
-    price: 142500,
-    image:
-      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpot7HxfDhjxszJemkV09-1mZWMmuPLJ7XEhGRu7Mwn3evP9NWg2QPj_Bc4N2yhI4eVcQE2YlmC_FntyL_n0Z6_v52cnSdgsiAh4mGdwULdz5l_GhA/360fx360f',
-    float: '0.21',
-    priceChange: 12.4,
-    seller: { steamId: 'mock-seller-1', name: 'BluePhase' },
-  },
-  {
-    id: 'mock-2',
-    name: 'AK-47 | Fire Serpent',
-    market_name: 'AK-47 | Fire Serpent (Minimal Wear)',
-    type: 'Rifle',
-    rarity: 'Covert',
-    condition: 'Minimal Wear',
-    price: 38900,
-    image:
-      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpouj63LQRm-PrgZThR5cmim5GRqOH6IbnUmlRd6cF4n-T--Y3nj1H6_xY-Z2H7coSWcw9rNQ7Vrla6lO_n08K8tJjImXY1u3VxsHbcyhDl1B5SLrs4lvCKWdb0kg/360fx360f',
-    float: '0.09',
-    priceChange: -3.2,
-    seller: { steamId: 'mock-seller-2', name: 'CT_Camper' },
-  },
-  {
-    id: 'mock-3',
-    name: 'Karambit | Doppler',
-    market_name: '★ Karambit | Doppler (Factory New)',
-    type: 'Knife',
-    rarity: 'Covert',
-    condition: 'Factory New',
-    price: 89400,
-    image:
-      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpou7TyJgRf0vL3dDpV4M-im5SOhfL4MITdn2xZ_Pp9j-vT8Y2migzj_kdrYW-iJoaUcVdoNgnY-Vi-w-vphMToupzKwHB9-n51KmGdwUKnP-uOLdM/360fx360f',
-    float: '0.007',
-    priceChange: 5.1,
-    seller: { steamId: 'mock-seller-3', name: 'TyphonGG' },
-    special: 'stattrak' as const,
-  },
-  {
-    id: 'mock-4',
-    name: 'M4A4 | Howl',
-    market_name: 'M4A4 | Howl (Factory New)',
-    type: 'Rifle',
-    rarity: 'Contraband',
-    condition: 'Factory New',
-    price: 215000,
-    image:
-      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpouj63LQRm-PrgZThR5cmim5GRqOH6IbnUmlRd6cF4n-T--Y3nj1H6_xY-Z2H7coSWcw9rNQ7Vrla6lO_n08K8tJjImXY1u3VxsHbcyhDl1B5SLrs4lvCKWdb0kg/360fx360f',
-    float: '0.04',
-    priceChange: 18.7,
-    seller: { steamId: 'mock-seller-1', name: 'BluePhase' },
-  },
-  {
-    id: 'mock-5',
-    name: 'Glock-18 | Fade',
-    market_name: 'Glock-18 | Fade (Factory New)',
-    type: 'Pistol',
-    rarity: 'Restricted',
-    condition: 'Factory New',
-    price: 4290,
-    image:
-      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgposr-kLQpf7v_3IzhX09GwhpKAk-zLP7LWnn8fucMo2u3D8diniwa1qBdoa2H1cYWQc1U7N1HXq1S4xLrshpa9v8nIyXYxv3F2sCqIyhKxnxxIcKUx0sk7zfQI/360fx360f',
-    float: '0.012',
-    priceChange: 2.3,
-    seller: { steamId: 'mock-seller-2', name: 'CT_Camper' },
-  },
-  {
-    id: 'mock-6',
-    name: 'USP-S | Kill Confirmed',
-    market_name: 'USP-S | Kill Confirmed (Minimal Wear)',
-    type: 'Pistol',
-    rarity: 'Covert',
-    condition: 'Minimal Wear',
-    price: 2150,
-    image:
-      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgposr-kLQpf7v_3IzhX09GwhpKAk-zLP7LWnn8fucMo2u3D8diniwa1qBdoa2H1cYWQc1U7N1HXq1S4xLrshpa9v8nIyXYxv3F2sCqIyhKxnxxIcKUx0sk7zfQI/360fx360f',
-    float: '0.09',
-    priceChange: -1.1,
-    seller: { steamId: 'mock-seller-4', name: 'A_Long' },
-  },
-  {
-    id: 'mock-7',
-    name: 'M4A1-S | Hyper Beast',
-    market_name: 'M4A1-S | Hyper Beast (Factory New)',
-    type: 'Rifle',
-    rarity: 'Covert',
-    condition: 'Factory New',
-    price: 1890,
-    image:
-      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpouj63LQRm-PrgZThR5cmim5GRqOH6IbnUmlRd6cF4n-T--Y3nj1H6_xY-Z2H7coSWcw9rNQ7Vrla6lO_n08K8tJjImXY1u3VxsHbcyhDl1B5SLrs4lvCKWdb0kg/360fx360f',
-    float: '0.05',
-    priceChange: 0.4,
-    seller: { steamId: 'mock-seller-5', name: 'Hooch' },
-  },
-  {
-    id: 'mock-8',
-    name: 'Desert Eagle | Blaze',
-    market_name: 'Desert Eagle | Blaze (Factory New)',
-    type: 'Pistol',
-    rarity: 'Restricted',
-    condition: 'Factory New',
-    price: 5780,
-    image:
-      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgposr-kLQpf7v_3IzhX09GwhpKAk-zLP7LWnn8fucMo2u3D8diniwa1qBdoa2H1cYWQc1U7N1HXq1S4xLrshpa9v8nIyXYxv3F2sCqIyhKxnxxIcKUx0sk7zfQI/360fx360f',
-    float: '0.008',
-    priceChange: 7.9,
-    seller: { steamId: 'mock-seller-3', name: 'TyphonGG' },
-  },
-  {
-    id: 'mock-9',
-    name: 'Butterfly Knife | Doppler',
-    market_name: '★ Butterfly Knife | Doppler (Factory New)',
-    type: 'Knife',
-    rarity: 'Covert',
-    condition: 'Factory New',
-    price: 78900,
-    image:
-      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpou7TyJgRf0vL3dDpV4M-im5SOhfL4MITdn2xZ_Pp9j-vT8Y2migzj_kdrYW-iJoaUcVdoNgnY-Vi-w-vphMToupzKwHB9-n51KmGdwUKnP-uOLdM/360fx360f',
-    float: '0.006',
-    priceChange: 9.2,
-    seller: { steamId: 'mock-seller-1', name: 'BluePhase' },
-  },
-  {
-    id: 'mock-10',
-    name: 'P250 | Asiimov',
-    market_name: 'P250 | Asiimov (Field-Tested)',
-    type: 'Pistol',
-    rarity: 'Classified',
-    condition: 'Field-Tested',
-    price: 920,
-    image:
-      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgposr-kLQpf7v_3IzhX09GwhpKAk-zLP7LWnn8fucMo2u3D8diniwa1qBdoa2H1cYWQc1U7N1HXq1S4xLrshpa9v8nIyXYxv3F2sCqIyhKxnxxIcKUx0sk7zfQI/360fx360f',
-    float: '0.21',
-    priceChange: -2.5,
-    seller: { steamId: 'mock-seller-2', name: 'CT_Camper' },
-  },
-  {
-    id: 'mock-11',
-    name: 'AWP | Asiimov',
-    market_name: 'AWP | Asiimov (Field-Tested)',
-    type: 'Sniper Rifle',
-    rarity: 'Covert',
-    condition: 'Field-Tested',
-    price: 2840,
-    image:
-      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpot7HxfDhjxszJemkV09-1mZWMmuPLJ7XEhGRu7Mwn3evP9NWg2QPj_Bc4N2yhI4eVcQE2YlmC_FntyL_n0Z6_v52cnSdgsiAh4mGdwULdz5l_GhA/360fx360f',
-    float: '0.18',
-    priceChange: 4.6,
-    seller: { steamId: 'mock-seller-5', name: 'Hooch' },
-  },
-  {
-    id: 'mock-12',
-    name: 'Sport Gloves | Pandora’s Box',
-    market_name: '★ Sport Gloves | Pandora’s Box (Minimal Wear)',
-    type: 'Gloves',
-    rarity: 'Covert',
-    condition: 'Minimal Wear',
-    price: 64900,
-    image:
-      'https://community.cloudflare.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpot7HxfDhjxszJemkV09-1mZWMmuPLJ7XEhGRu7Mwn3evP9NWg2QPj_Bc4N2yhI4eVcQE2YlmC_FntyL_n0Z6_v52cnSdgsiAh4mGdwULdz5l_GhA/360fx360f',
-    float: '0.10',
-    priceChange: 11.2,
-    seller: { steamId: 'mock-seller-4', name: 'A_Long' },
-  },
-];
+/* Shared demo listings — used when the live `useMarketplaceItems()` hook
+   returns nothing. ItemDetailPage uses the same dataset so deep links to
+   `/item/mock-X` work too. */
+const MOCK_ITEMS = MOCK_MARKET_ITEMS;
 
 type SortKey = 'newest' | 'price-asc' | 'price-desc' | 'float-asc' | 'float-desc';
 
@@ -234,7 +61,15 @@ const staggerChild = {
   shown: { opacity: 1, y: 0, transition: spring },
 };
 
+import useDocumentMeta from '../hooks/useDocumentMeta';
+
 const MarketplacePage: React.FC = () => {
+  useDocumentMeta({
+    title: 'CS2 marketplace — browse all skins, knives & gloves',
+    description:
+      'Browse thousands of CS2 listings. Filter by weapon, rarity, float, and stickers. Secure peer-to-peer trading with escrow protection.',
+  });
+
   const navigate = useNavigate();
   const location = useLocation();
   const { items: liveItems, loading, error, refetch } = useMarketplaceItems();
@@ -253,7 +88,11 @@ const MarketplacePage: React.FC = () => {
 
   const [sort, setSort] = useState<SortKey>('newest');
   const [view, setView] = useState<'grid' | 'list'>('grid');
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  // Default open on desktop, closed on mobile so the page renders to the
+  // grid immediately on small screens (where a fixed sidebar would be a wall).
+  const [filtersOpen, setFiltersOpen] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
+  );
   const [sortMenu, setSortMenu] = useState(false);
   const [activeTypes, setActiveTypes] = useState<Set<string>>(new Set());
   const [activeRarities, setActiveRarities] = useState<Set<string>>(new Set());
@@ -449,6 +288,18 @@ const MarketplacePage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Categories funnel entry — All categories → Category → Weapon → Skins */}
+            <motion.button
+              whileTap={tap}
+              whileHover={{ y: -1 }}
+              onClick={() => navigate('/weapons')}
+              className="h-11 px-4 rounded-full bg-subtle hover:bg-subtle/70 text-ink text-[13px] font-semibold inline-flex items-center gap-1.5 transition-colors"
+              title="Browse by category"
+            >
+              <span>Categories</span>
+              <ChevronDown size={13} strokeWidth={2.4} className="text-ink-muted -rotate-90" />
+            </motion.button>
+
             <motion.button
               whileTap={tap}
               onClick={refetch}
@@ -458,7 +309,8 @@ const MarketplacePage: React.FC = () => {
               <RefreshCw size={16} strokeWidth={2} className={loading ? 'animate-spin text-ink-muted' : 'text-ink-muted'} />
             </motion.button>
 
-            <div className="card-flat flex h-11 p-1 gap-0.5">
+            {/* View toggle — md+ only (mobile defaults to grid, no need to switch) */}
+            <div className="hidden md:flex card-flat h-11 p-1 gap-0.5">
               <motion.button
                 whileTap={tap}
                 onClick={() => setView('grid')}
@@ -483,14 +335,18 @@ const MarketplacePage: React.FC = () => {
               <motion.button
                 whileTap={tap}
                 onClick={() => setSortMenu((v) => !v)}
-                className="h-11 px-4 rounded-full bg-subtle hover:bg-subtle/70 text-[13px] text-ink font-semibold flex items-center gap-2 transition-colors"
+                aria-label="Sort"
+                title="Sort"
+                className="h-11 sm:px-4 px-0 w-11 sm:w-auto rounded-full bg-subtle hover:bg-subtle/70 text-[13px] text-ink font-semibold flex items-center justify-center sm:gap-2 transition-colors"
               >
                 <ArrowUpDown size={14} strokeWidth={2.2} />
-                {SORT_OPTIONS.find((o) => o.key === sort)?.label}
+                <span className="hidden sm:inline">
+                  {SORT_OPTIONS.find((o) => o.key === sort)?.label}
+                </span>
                 <ChevronDown
                   size={14}
                   strokeWidth={2.2}
-                  className={`transition-transform ${sortMenu ? 'rotate-180' : ''}`}
+                  className={`hidden sm:block transition-transform ${sortMenu ? 'rotate-180' : ''}`}
                 />
               </motion.button>
               <AnimatePresence>
@@ -527,12 +383,12 @@ const MarketplacePage: React.FC = () => {
             <motion.button
               whileTap={tap}
               onClick={() => setFiltersOpen((v) => !v)}
-              className={`h-11 px-4 rounded-full text-[13px] font-semibold flex items-center gap-2 transition-colors ${
+              className={`h-11 sm:px-4 px-0 w-11 sm:w-auto rounded-full text-[13px] font-semibold flex items-center justify-center sm:gap-2 transition-colors ${
                 filtersOpen ? 'bg-accent text-on-accent' : 'bg-subtle text-ink hover:bg-subtle/70'
               }`}
             >
               <SlidersHorizontal size={14} strokeWidth={2.4} />
-              Filters
+              <span className="hidden sm:inline">Filters</span>
               {activeFilterCount > 0 && (
                 <span
                   className={`ml-1 min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold grid place-items-center ${
@@ -584,16 +440,56 @@ const MarketplacePage: React.FC = () => {
         </motion.div>
 
         <div className={`grid gap-4 ${filtersOpen ? 'lg:grid-cols-[280px_1fr]' : 'grid-cols-1'}`}>
-          {/* ===== FILTERS SIDEBAR ===== */}
+          {/* ===== FILTERS — sidebar on lg+, bottom-sheet on <lg =====
+              On large screens this is an in-flow sticky sidebar. Below lg we
+              promote the same content to a fixed bottom-sheet so it doesn't
+              consume the viewport above the results grid. The backdrop +
+              sheet animate together, are closed by default on mobile, and
+              get a top drag handle so the modal pattern is obvious.
+          */}
           <AnimatePresence initial={false}>
             {filtersOpen && (
-              <motion.aside
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                transition={spring}
-                className="card p-5 self-start lg:sticky lg:top-24 max-h-[calc(100vh-7rem)] overflow-y-auto scrollbar-thin"
-              >
+              <>
+                {/* Backdrop — mobile only */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  onClick={() => setFiltersOpen(false)}
+                  className="fixed inset-0 z-40 bg-ink/40 backdrop-blur-sm lg:hidden"
+                  aria-hidden
+                />
+                <motion.aside
+                  // Single node: in-flow sticky on lg+, fixed bottom-sheet on
+                  // <lg. We avoid translate animations because they'd misbehave
+                  // across the two layout modes; a simple opacity fade reads
+                  // clean for both pop-in and slide-up.
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="
+                    fixed bottom-0 left-0 right-0 z-50
+                    rounded-t-3xl rounded-b-none
+                    max-h-[82vh] overflow-y-auto scrollbar-thin
+                    card p-5
+                    lg:static lg:z-auto
+                    lg:rounded-3xl
+                    lg:self-start lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)]
+                  "
+                >
+                  {/* Drag handle — mobile only (visual affordance, not interactive yet) */}
+                  <div className="lg:hidden flex items-center justify-between mb-3">
+                    <span className="text-[14px] font-bold text-ink tracking-tight">Filters</span>
+                    <button
+                      onClick={() => setFiltersOpen(false)}
+                      className="icon-chip-sm hover:bg-subtle"
+                      aria-label="Close filters"
+                    >
+                      <X size={14} className="text-ink-muted" />
+                    </button>
+                  </div>
                 {/* Price */}
                 <FilterSection title="Price range">
                   <div className="flex items-center gap-2">
@@ -704,6 +600,7 @@ const MarketplacePage: React.FC = () => {
                   </label>
                 </FilterSection>
               </motion.aside>
+              </>
             )}
           </AnimatePresence>
 
@@ -774,7 +671,7 @@ const MarketplacePage: React.FC = () => {
                   >
                     <SkinCard
                       item={item}
-                      onView={() => !String(item.id).startsWith('mock-') && navigate(`/item/${item.id}`)}
+                      onView={() => navigate(`/item/${item.id}`)}
                       onAddCart={() => handleAddCart(item)}
                       onToggleWish={() => handleWish(item)}
                       wished={isInWishlist(item.id)}
@@ -795,7 +692,7 @@ const MarketplacePage: React.FC = () => {
                     <SkinCard
                       variant="list"
                       item={item}
-                      onView={() => !String(item.id).startsWith('mock-') && navigate(`/item/${item.id}`)}
+                      onView={() => navigate(`/item/${item.id}`)}
                       onAddCart={() => handleAddCart(item)}
                       onToggleWish={() => handleWish(item)}
                       wished={isInWishlist(item.id)}

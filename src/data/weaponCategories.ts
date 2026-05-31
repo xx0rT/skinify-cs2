@@ -1,4 +1,4 @@
-// CS2 weapon categories with all available weapons
+// CS2 gories with all available weapons
 export interface WeaponCategory {
   name: string;
   icon?: string;

@@ -146,17 +146,26 @@ export const DepositModal: React.FC = () => {
             onClick={() => !submitting && setOpen(false)}
             className="fixed inset-0 z-[90] bg-ink/45 backdrop-blur-sm"
           />
-          <motion.div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Add funds to your balance"
-            initial={{ opacity: 0, y: 24, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.97 }}
-            transition={spring}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[91] w-[92vw] max-w-[520px] max-h-[90vh] overflow-y-auto scrollbar-thin"
-          >
-            <div className="card-elevated overflow-hidden">
+          {/*
+            Centering layer — Tailwind's -translate-x-1/2 -translate-y-1/2
+            CANNOT live on the motion.div because framer-motion's animate prop
+            sets `transform: translateY(0) scale(1)` inline, overriding the
+            tailwind translate and slamming the modal to (left:50%, top:50%)
+            which renders bottom-right of center. Outer flex layer owns
+            position; inner motion.div only animates.
+          */}
+          <div className="fixed inset-0 z-[91] flex items-center justify-center px-4 py-4 pointer-events-none">
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Add funds to your balance"
+              initial={{ opacity: 0, y: 24, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.97 }}
+              transition={spring}
+              className="w-full max-w-[520px] max-h-[90vh] overflow-y-auto scrollbar-thin pointer-events-auto"
+            >
+              <div className="card-elevated overflow-hidden">
               {/* Header */}
               <div className="px-6 pt-6 pb-4 flex items-start justify-between gap-3 relative overflow-hidden">
                 <motion.div
@@ -309,7 +318,8 @@ export const DepositModal: React.FC = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
+            </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>

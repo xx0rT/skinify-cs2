@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, ShoppingBag } from 'lucide-react';
+import { Activity, ShoppingBag, ArrowUpRight, TrendingUp, Users } from 'lucide-react';
 import { useRecentActivity, RecentActivity } from '../hooks/useRecentActivity';
 import { useCurrencyStore } from '../store/currencyStore';
 import { CachedImage } from './ui/CachedImage';
@@ -33,9 +33,10 @@ interface Props {
 }
 
 /**
- * Live activity feed — push-from-top, oldest slides off the bottom.
- * Theme-adaptive: uses .card + .icon-chip + ink hierarchy. The "new row"
- * accent wash uses the active --accent (matches whichever palette is set).
+ * Market activity feed — push-from-top, oldest slides off the bottom.
+ * Layout has a header with running counters (active buyers, last hour,
+ * 24h volume) and a clean activity list. No "LIVE" badge or pulse-dot
+ * theatrics; the motion itself reads as live.
  */
 export const LiveActivityFeed: React.FC<Props> = ({
   className = '',
@@ -82,55 +83,89 @@ export const LiveActivityFeed: React.FC<Props> = ({
     return () => clearInterval(id);
   }, []);
 
-  const renderedRows = useMemo(() => visible, [visible]);
+  // Derived stats from the pool
+  const stats = useMemo(() => {
+    const now = Date.now();
+    const lastHour = (pool || []).filter(
+      (a) => now - new Date(a.created_at).getTime() < 60 * 60 * 1000,
+    );
+    const last24h = (pool || []).filter(
+      (a) => now - new Date(a.created_at).getTime() < 24 * 60 * 60 * 1000,
+    );
+    const uniqueBuyers = new Set(last24h.map((a) => a.buyer_name)).size;
+    const volume24h = last24h.reduce((s, a) => s + Number(a.price || 0), 0);
+    return {
+      lastHourCount: lastHour.length,
+      uniqueBuyers,
+      volume24h,
+    };
+  }, [pool]);
 
   return (
-    <section className={`card p-5 md:p-6 ${className}`}>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2.5">
-          <div className="icon-chip relative" style={{ background: 'rgb(var(--accent-soft))' }}>
+    <section className={`card p-5 md:p-6 relative overflow-hidden ${className}`}>
+      {/* Header */}
+      <div className="flex items-start justify-between mb-5 flex-wrap gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="icon-chip bg-accent-soft shrink-0">
             <Activity size={16} strokeWidth={2.4} className="text-accent" />
-            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           </div>
-          <div>
-            <div className="text-[14.5px] font-bold text-ink tracking-tight">
-              Live market activity
-            </div>
-            <div className="text-[12px] text-ink-muted font-medium">
-              Recent purchases from across the marketplace
-            </div>
+          <div className="min-w-0">
+            <span className="label-eyebrow">Market activity</span>
+            <h3 className="text-[16px] sm:text-[17px] font-bold text-ink tracking-tight mt-1 leading-none">
+              What's trading right now
+            </h3>
           </div>
         </div>
-        <span className="pill bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-          <span className="chip-dot bg-emerald-500 animate-pulse" />
-          LIVE
-        </span>
+
+        {/* Mini stat row */}
+        <div className="flex items-stretch gap-2 sm:gap-3">
+          {[
+            { Icon: TrendingUp, label: 'Last hour', value: stats.lastHourCount.toLocaleString() },
+            { Icon: Users,      label: 'Buyers (24h)', value: stats.uniqueBuyers.toLocaleString() },
+            { Icon: ShoppingBag, label: 'Volume (24h)', value: formatPrice(stats.volume24h) },
+          ].map((s) => (
+            <div
+              key={s.label}
+              className="card-flat px-3 py-2 flex items-center gap-2.5 min-w-[110px]"
+            >
+              <div className="icon-chip-sm bg-accent-soft shrink-0">
+                <s.Icon size={12} strokeWidth={2.4} className="text-accent" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-ink-dim truncate">
+                  {s.label}
+                </div>
+                <div className="text-[13.5px] font-bold tabular-nums text-ink leading-none mt-0.5 truncate">
+                  {s.value}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/*
-        Fixed-height container — locks the parent to (rows × 56px row + 6px gap × (rows-1))
-        so when the oldest row exits, the surrounding page DOES NOT REFLOW.
-        Previous bug: `exit={{ height: 0 }}` collapsed the row, the <ul> shrank,
-        and any content below jumped up while the user was reading. Now the
-        container reserves the space and rows can leave the bottom freely.
+        Fixed-height container — locks the parent so when the oldest row
+        exits, the surrounding page DOES NOT REFLOW.
       */}
       <div
         className="relative"
-        style={{ minHeight: rows * 56 + (rows - 1) * 6 }}
+        style={{ minHeight: rows * 64 + (rows - 1) * 8 }}
       >
         {loading || visible.length === 0 ? (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {Array.from({ length: rows }).map((_, i) => (
-              <div key={i} className="skel h-14" />
+              <div key={i} className="skel h-16" />
             ))}
           </div>
         ) : (
-          <ul className="relative space-y-1.5">
+          <ul className="relative space-y-2">
             <AnimatePresence initial={false} mode="popLayout">
-              {renderedRows.map((a, idx) => {
+              {visible.map((a, idx) => {
                 const rarity = inferRarity(a.item_name);
                 const color = rarityColor(rarity);
                 const isNew = idx === 0;
+                const buyerInitial = (a.buyer_name || '?').charAt(0).toUpperCase();
                 return (
                   <motion.li
                     key={a.id}
@@ -145,11 +180,11 @@ export const LiveActivityFeed: React.FC<Props> = ({
                       mass: 0.7,
                       opacity: { duration: 0.22 },
                     }}
-                    className={`relative flex items-center gap-3 h-14 px-3 rounded-2xl overflow-hidden ${
-                      isNew ? 'bg-accent-soft' : 'bg-subtle/60'
+                    className={`relative flex items-center gap-3 h-16 px-3 sm:px-4 rounded-2xl overflow-hidden card-flat ${
+                      isNew ? 'ring-1 ring-accent/40' : ''
                     }`}
                   >
-                    {/* rarity strip */}
+                    {/* rarity color bar */}
                     <div
                       className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full"
                       style={{ background: color }}
@@ -158,48 +193,57 @@ export const LiveActivityFeed: React.FC<Props> = ({
 
                     {isNew && (
                       <motion.div
-                        initial={{ opacity: 0.5 }}
+                        initial={{ opacity: 0.55 }}
                         animate={{ opacity: 0 }}
-                        transition={{ duration: 1.4, ease: 'easeOut' }}
+                        transition={{ duration: 1.5, ease: 'easeOut' }}
                         className="absolute inset-0 pointer-events-none"
                         style={{
                           background:
-                            'linear-gradient(90deg, rgb(var(--accent) / 0.16), transparent 60%)',
+                            'linear-gradient(90deg, rgb(var(--accent) / 0.18), transparent 55%)',
                         }}
                       />
                     )}
 
-                    <div className="icon-chip-sm bg-surface relative overflow-hidden">
-                      {a.item_image ? (
+                    {/* Item image with rarity halo — only renders when an image exists */}
+                    {a.item_image && (
+                      <div className="relative w-12 h-12 rounded-xl bg-subtle/60 grid place-items-center overflow-hidden shrink-0">
+                        <div
+                          className="absolute inset-0"
+                          style={{
+                            background: `radial-gradient(circle at 50% 50%, ${color || 'rgb(var(--accent))'}28, transparent 65%)`,
+                          }}
+                        />
                         <CachedImage
                           src={a.item_image}
                           alt={a.item_name}
-                          className="w-[88%] h-[88%] object-contain"
+                          className="relative w-[85%] h-[85%] object-contain"
                         />
-                      ) : (
-                        <ShoppingBag size={13} className="text-ink-dim" />
-                      )}
-                    </div>
+                      </div>
+                    )}
 
                     <div className="flex-1 min-w-0 relative">
-                      <div className="text-[12.5px] text-ink-muted truncate font-medium">
-                        <span className="text-ink font-bold">{a.buyer_name}</span>{' '}
-                        bought{' '}
-                        <span className="text-ink font-semibold">{a.item_name}</span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        {/* Buyer avatar */}
+                        <div className="w-5 h-5 rounded-full bg-accent-soft grid place-items-center text-[9.5px] font-bold text-accent shrink-0">
+                          {buyerInitial}
+                        </div>
+                        <div className="text-[13px] text-ink-muted truncate font-medium">
+                          <span className="text-ink font-bold">{a.buyer_name}</span>{' '}
+                          bought{' '}
+                          <span className="text-ink font-semibold">{a.item_name}</span>
+                        </div>
                       </div>
-                      <div className="text-[11px] text-ink-dim mt-0.5 flex items-center gap-1.5 font-medium">
+                      <div className="text-[11px] text-ink-dim mt-1 font-medium tabular-nums">
                         {relativeTime(a.created_at)}
-                        {isNew && (
-                          <span className="text-accent font-bold tracking-wider uppercase text-[9.5px]">
-                            · new
-                          </span>
-                        )}
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0 relative">
-                      <div className="text-[14px] font-bold text-ink tracking-tight tabular-nums">
+                    <div className="text-right shrink-0 relative flex items-center gap-2">
+                      <div className="text-[15px] font-bold text-ink tracking-tight tabular-nums leading-none">
                         {formatPrice(a.price)}
+                      </div>
+                      <div className="w-7 h-7 rounded-full bg-subtle hidden sm:grid place-items-center">
+                        <ArrowUpRight size={12} strokeWidth={2.4} className="text-ink-muted" />
                       </div>
                     </div>
                   </motion.li>

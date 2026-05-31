@@ -476,18 +476,18 @@ const TradingPerformanceChart: React.FC<TradingPerformanceChartProps> = ({ class
   };
 
   return (
-    <div ref={containerRef} className={`bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden relative ${className}`}>
+    <div ref={containerRef} className={`overflow-hidden relative ${className}`}>
       {/* Header */}
       <div className="p-6 border-b border-gray-700/30">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold text-white flex items-center">
+          <h3 className="text-xl font-bold text-ink flex items-center">
             <TrendingUp className="w-6 h-6 text-purple-500 mr-2" />
             Trading Performance
           </h3>
           <select 
             value={timeframe}
             onChange={(e) => setTimeframe(e.target.value)}
-            className="bg-gray-700/50 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500 transition-colors"
+            className="bg-subtle border border border-line rounded-lg px-3 py-2 text-ink text-sm focus:outline-none focus:border-purple-500 transition-colors"
           >
             <option value="7d">Last 7 days</option>
             <option value="30d">Last 30 days</option>
@@ -508,7 +508,7 @@ const TradingPerformanceChart: React.FC<TradingPerformanceChartProps> = ({ class
               className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-300 ${
                 activeMetric === key
                   ? `bg-${color}-500/20 text-${color}-400 border border-${color}-500/30`
-                  : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                  : 'text-ink-muted hover:text-ink hover:bg-subtle'
               }`}
             >
               <Icon size={16} />
@@ -523,22 +523,22 @@ const TradingPerformanceChart: React.FC<TradingPerformanceChartProps> = ({ class
         {/* Summary Stats */}
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="text-center">
-            <div className="text-2xl font-bold text-purple-400">
+            <div className="text-2xl font-bold text-accent">
               {totalProfit.toLocaleString('cs-CZ')} Kč
             </div>
-            <div className="text-gray-400 text-sm">Total Profit</div>
+            <div className="text-ink-muted text-sm">Total Profit</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-purple-400">
+            <div className="text-2xl font-bold text-accent">
               {totalVolume.toLocaleString('cs-CZ')} Kč
             </div>
-            <div className="text-gray-400 text-sm">Total Volume</div>
+            <div className="text-ink-muted text-sm">Total Volume</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-purple-400">
+            <div className="text-2xl font-bold text-accent">
               {totalTrades}
             </div>
-            <div className="text-gray-400 text-sm">Total Trades</div>
+            <div className="text-ink-muted text-sm">Total Trades</div>
           </div>
         </div>
 
@@ -548,7 +548,7 @@ const TradingPerformanceChart: React.FC<TradingPerformanceChartProps> = ({ class
             ref={canvasRef}
             width="800"
             height="250"
-            className="w-full h-60 rounded-lg cursor-crosshair bg-gray-900/30"
+            className="w-full h-60 rounded-lg cursor-crosshair bg-subtle"
             onMouseMove={handleCanvasMouseMove}
             onMouseLeave={handleCanvasMouseLeave}
             style={{ display: 'block' }}
@@ -557,7 +557,7 @@ const TradingPerformanceChart: React.FC<TradingPerformanceChartProps> = ({ class
           {/* Tooltip - positioned with fixed dimensions */}
           {hoveredPoint !== null && (
             <div
-              className="absolute bg-gray-900/95 backdrop-blur-sm border border-gray-600/50 rounded-lg p-3 pointer-events-none z-50 shadow-xl"
+              className="absolute bg-elevated backdrop-blur-sm border border border-line/50 rounded-lg p-3 pointer-events-none z-50 shadow-xl"
               style={{
                 left: `${hoveredPoint.x}px`,
                 top: `${hoveredPoint.y}px`,
@@ -567,14 +567,14 @@ const TradingPerformanceChart: React.FC<TradingPerformanceChartProps> = ({ class
               }}
             >
               <div className="text-center">
-                <div className="font-semibold text-white flex items-center justify-center space-x-2 mb-1">
+                <div className="font-semibold text-ink flex items-center justify-center space-x-2 mb-1">
                   {getMetricIcon()}
                   <span>{formatValue(getMetricValue(tradingData[hoveredPoint.index]))}</span>
                 </div>
-                <div className="text-gray-400 text-sm mb-2">
+                <div className="text-ink-muted text-sm mb-2">
                   {new Date(tradingData[hoveredPoint.index].date).toLocaleDateString('cs-CZ')}
                 </div>
-                <div className="text-xs text-gray-500 space-y-1">
+                <div className="text-xs text-ink-dim space-y-1">
                   <div>{tradingData[hoveredPoint.index].trades} trades</div>
                   <div>{tradingData[hoveredPoint.index].volume.toLocaleString('cs-CZ')} Kč volume</div>
                   <div>{tradingData[hoveredPoint.index].profit.toLocaleString('cs-CZ')} Kč profit</div>
@@ -586,50 +586,50 @@ const TradingPerformanceChart: React.FC<TradingPerformanceChartProps> = ({ class
 
         {/* Performance Metrics */}
         <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4 text-center">
+          <div className="bg-accent-soft border border border-line rounded-lg p-4 text-center">
             <div className="flex items-center justify-center space-x-2 mb-2">
-              <TrendingUp className="w-5 h-5 text-purple-400" />
-              <span className="text-purple-400 font-medium">Avg Daily Profit</span>
+              <TrendingUp className="w-5 h-5 text-accent" />
+              <span className="text-accent font-medium">Avg Daily Profit</span>
             </div>
-            <div className="text-xl font-bold text-white">
+            <div className="text-xl font-bold text-ink">
               {avgProfit.toLocaleString('cs-CZ')} Kč
             </div>
-            <div className="text-purple-400 text-sm">
+            <div className="text-accent text-sm">
               +{((avgProfit / 1000) * 100).toFixed(1)}% ROI
             </div>
           </div>
 
-          <div className="bg-purple-600/10 border border-purple-600/20 rounded-lg p-4 text-center">
+          <div className="bg-accent-soft border border border-line rounded-lg p-4 text-center">
             <div className="flex items-center justify-center space-x-2 mb-2">
-              <DollarSign className="w-5 h-5 text-purple-400" />
-              <span className="text-purple-400 font-medium">Peak Day</span>
+              <DollarSign className="w-5 h-5 text-accent" />
+              <span className="text-accent font-medium">Peak Day</span>
             </div>
-            <div className="text-xl font-bold text-white">
+            <div className="text-xl font-bold text-ink">
               {Math.max(...tradingData.map(d => d.profit)).toLocaleString('cs-CZ')} Kč
             </div>
-            <div className="text-purple-400 text-sm">Best performance</div>
+            <div className="text-accent text-sm">Best performance</div>
           </div>
 
           <div className="bg-purple-700/10 border border-purple-700/20 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center space-x-2 mb-2">
-              <Activity className="w-5 h-5 text-purple-400" />
-              <span className="text-purple-400 font-medium">Avg Trades/Day</span>
+              <Activity className="w-5 h-5 text-accent" />
+              <span className="text-accent font-medium">Avg Trades/Day</span>
             </div>
-            <div className="text-xl font-bold text-white">
+            <div className="text-xl font-bold text-ink">
               {Math.round(totalTrades / tradingData.length)}
             </div>
-            <div className="text-purple-400 text-sm">Daily activity</div>
+            <div className="text-accent text-sm">Daily activity</div>
           </div>
 
           <div className="bg-purple-800/10 border border-purple-800/20 rounded-lg p-4 text-center">
             <div className="flex items-center justify-center space-x-2 mb-2">
-              <BarChart3 className="w-5 h-5 text-purple-400" />
-              <span className="text-purple-400 font-medium">Success Rate</span>
+              <BarChart3 className="w-5 h-5 text-accent" />
+              <span className="text-accent font-medium">Success Rate</span>
             </div>
-            <div className="text-xl font-bold text-white">
+            <div className="text-xl font-bold text-ink">
               {stats.totalOrders > 0 ? `${stats.successRate.toFixed(1)}%` : 'N/A'}
             </div>
-            <div className="text-purple-400 text-sm">{stats.totalOrders} total trades</div>
+            <div className="text-accent text-sm">{stats.totalOrders} total trades</div>
           </div>
         </div>
 
@@ -641,7 +641,7 @@ const TradingPerformanceChart: React.FC<TradingPerformanceChartProps> = ({ class
                 className="w-3 h-3 rounded-full"
                 style={{ backgroundColor: colors.primary }}
               />
-              <span className="text-gray-400 capitalize">{activeMetric}</span>
+              <span className="text-ink-muted capitalize">{activeMetric}</span>
             </div>
             {realData.length > 0 ? (
               <div className="flex items-center space-x-1 px-2 py-1 bg-green-500/10 border border-green-500/30 rounded-full">
@@ -656,7 +656,7 @@ const TradingPerformanceChart: React.FC<TradingPerformanceChartProps> = ({ class
             )}
           </div>
 
-          <div className="text-gray-500 flex items-center space-x-2">
+          <div className="text-ink-dim flex items-center space-x-2">
             <span>Updated: {new Date().toLocaleDateString('cs-CZ')}</span>
           </div>
         </div>

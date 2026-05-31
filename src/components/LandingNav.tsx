@@ -81,7 +81,7 @@ export const LandingNav: React.FC = () => {
         }`}
       >
         <div
-          className={`max-w-[1480px] mx-auto px-4 sm:px-6 transition-all duration-300 ${
+          className={`max-w-[1480px] mx-auto px-3 sm:px-6 transition-all duration-300 ${
             scrolled ? 'py-1.5' : 'py-3'
           }`}
         >
@@ -93,12 +93,19 @@ export const LandingNav: React.FC = () => {
             flex-1 would push the search left/right whenever a side cell
             changes size (e.g. logged out vs logged in).
           */}
-          <div className="card grid items-center gap-3 h-16 px-3 grid-cols-[1fr_auto_1fr]">
-            {/* LEFT — logo + nav */}
-            <div className="flex items-center gap-2 min-w-0 justify-self-start">
+          {/*
+            RESPONSIVE LAYOUT:
+            - md+ : true 3-column grid (auto/1fr/auto) with the full search pill in the middle.
+            - sub-md : a single flex row (logo | spacer | search icon | cart | menu).
+              We never try to fit the full pill on a 360px screen — it would
+              squish the actions or shove the logo offscreen.
+          */}
+          <div className="card h-16 px-1.5 sm:px-3 flex lg:grid items-center gap-1 sm:gap-2 lg:gap-3 lg:grid-cols-[1fr_auto_1fr]" style={{ overflowX: 'clip', overflowY: 'visible' }}>
+            {/* LEFT — logo + (lg+) nav links */}
+            <div className="flex items-center gap-2 min-w-0 lg:justify-self-start">
               <Link
                 to="/"
-                className="flex items-center gap-2.5 shrink-0 px-2"
+                className="flex items-center gap-2.5 shrink-0 px-1 sm:px-2"
                 aria-label="Skinify home"
               >
                 <div className="icon-chip bg-accent text-on-accent">
@@ -108,12 +115,12 @@ export const LandingNav: React.FC = () => {
                     className="w-6 h-6"
                   />
                 </div>
-                <span className="text-[16px] font-bold text-ink tracking-tight hidden sm:inline">
+                <span className="text-[16px] font-bold text-ink tracking-tight hidden lg:inline">
                   Skinify
                 </span>
               </Link>
 
-              <nav className="hidden lg:flex items-center gap-1 ml-2">
+              <nav className="hidden xl:flex items-center gap-1 ml-2">
                 {NAV_LINKS.map((l) => (
                   <Link
                     key={l.label}
@@ -126,31 +133,43 @@ export const LandingNav: React.FC = () => {
               </nav>
             </div>
 
-            {/* CENTER — search (anchored in geometric middle, fixed width).
-                Opens the global ⌘K palette instead of navigating. */}
+            {/* SPACER for sub-lg flex layout — collapses on lg+ where grid takes over */}
+            <div className="flex-1 lg:hidden" aria-hidden />
+
+            {/* CENTER — search.
+                lg+ : full pill, anchored in the grid's geometric middle.
+                sub-lg : single icon button (still opens the same palette). */}
             <motion.button
               whileTap={tap}
               whileHover={{ scale: 1.01 }}
               onClick={openSearchPalette}
-              className="w-[260px] sm:w-[360px] md:w-[420px] h-11 px-4 rounded-full bg-subtle hover:bg-subtle/70 flex items-center gap-3 text-ink-muted hover:text-ink transition-colors justify-self-center"
+              aria-label="Search"
+              className="hidden lg:flex w-[360px] xl:w-[420px] h-11 px-4 rounded-full bg-subtle hover:bg-subtle/70 items-center gap-3 text-ink-muted hover:text-ink transition-colors lg:justify-self-center"
             >
               <Search size={18} strokeWidth={2} className="shrink-0" />
               <span className="text-[13.5px] font-medium truncate text-left flex-1">
                 Search skins, weapons, collections…
               </span>
-              {/* Distinct chip with hairline border so it's visible in light
-                  theme — surface-color alone reads as invisible on the bg. */}
-              <kbd className="hidden md:inline-flex items-center text-[10.5px] font-bold tracking-wider text-ink-muted px-1.5 py-0.5 rounded-md bg-surface ring-1 ring-line">
+              <kbd className="hidden xl:inline-flex items-center text-[10.5px] font-bold tracking-wider text-ink-muted px-1.5 py-0.5 rounded-md bg-surface ring-1 ring-line">
                 ⌘K
               </kbd>
             </motion.button>
+            <motion.button
+              whileTap={tap}
+              onClick={openSearchPalette}
+              aria-label="Search"
+              className="lg:hidden icon-chip hover:bg-bg transition-colors"
+            >
+              <Search size={18} strokeWidth={2} className="text-ink-muted" />
+            </motion.button>
 
-            {/* RIGHT — actions */}
-            <div className="flex items-center gap-1 shrink-0 justify-self-end">
+            {/* RIGHT — actions. md+ shows the full stack; sub-md keeps just
+                cart + drawer trigger to save horizontal space. */}
+            <div className="flex items-center gap-1 shrink-0 lg:justify-self-end">
               <motion.button
                 whileTap={tap}
                 onClick={openDepositModal}
-                className="hidden sm:flex h-11 px-4 rounded-full bg-accent text-on-accent text-[13.5px] font-bold items-center gap-1.5 hover:opacity-90 transition-opacity"
+                className="hidden lg:flex h-11 px-4 rounded-full bg-accent text-on-accent text-[13.5px] font-bold items-center gap-1.5 hover:opacity-90 transition-opacity"
                 style={{ boxShadow: '0 8px 20px -10px rgb(var(--accent) / 0.6)' }}
               >
                 <Plus size={15} strokeWidth={2.6} />
@@ -171,7 +190,7 @@ export const LandingNav: React.FC = () => {
                   navigate('/profile?tab=inventory');
                 }}
                 aria-label="Wishlist"
-                className="icon-chip hover:bg-bg transition-colors"
+                className="hidden lg:grid icon-chip hover:bg-bg transition-colors"
               >
                 <Heart size={18} strokeWidth={2} className="text-ink-muted" />
               </motion.button>
@@ -190,8 +209,8 @@ export const LandingNav: React.FC = () => {
                 )}
               </motion.button>
 
-              {/* Theme menu */}
-              <div className="relative" ref={themeMenuRef}>
+              {/* Theme menu — md+ only (moved into drawer on mobile) */}
+              <div className="relative hidden lg:block" ref={themeMenuRef}>
                 <motion.button
                   whileTap={tap}
                   onClick={() => setThemeMenuOpen((v) => !v)}
@@ -237,11 +256,12 @@ export const LandingNav: React.FC = () => {
                 </AnimatePresence>
               </div>
 
-              <div className="pl-1 hidden sm:block">
+              {/* UserProfile dropdown — md+ only; drawer surfaces it on mobile */}
+              <div className="pl-1 hidden lg:block">
                 {user ? <UserProfile /> : <SteamLogin />}
               </div>
 
-              {/* Mobile menu */}
+              {/* Mobile drawer trigger */}
               <motion.button
                 whileTap={tap}
                 onClick={() => setMenuOpen(true)}
@@ -272,10 +292,10 @@ export const LandingNav: React.FC = () => {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', stiffness: 320, damping: 34 }}
-              className="fixed right-0 top-0 bottom-0 z-50 w-[280px] max-w-[88vw] bg-elevated p-5 lg:hidden"
+              className="fixed right-0 top-0 bottom-0 z-50 w-[300px] max-w-[88vw] bg-elevated p-5 lg:hidden overflow-y-auto scrollbar-thin"
             >
-              <div className="flex items-center justify-between mb-6">
-                <span className="text-[16px] font-bold text-ink">Menu</span>
+              <div className="flex items-center justify-between mb-5">
+                <span className="text-[16px] font-bold text-ink tracking-tight">Menu</span>
                 <button
                   onClick={() => setMenuOpen(false)}
                   className="icon-chip hover:bg-subtle"
@@ -284,19 +304,90 @@ export const LandingNav: React.FC = () => {
                   <X size={18} className="text-ink-muted" />
                 </button>
               </div>
-              <nav className="space-y-1">
+
+              {/* Refill — primary action moved here from the top bar */}
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  openDepositModal();
+                }}
+                className="w-full h-12 mb-4 rounded-full bg-accent text-on-accent text-[14px] font-bold flex items-center justify-center gap-1.5"
+                style={{ boxShadow: '0 8px 20px -10px rgb(var(--accent) / 0.6)' }}
+              >
+                <Plus size={15} strokeWidth={2.6} />
+                Add funds
+              </button>
+
+              {/* Primary nav */}
+              <nav className="space-y-0.5">
                 {NAV_LINKS.map((l) => (
                   <Link
                     key={l.label}
                     to={l.to}
                     onClick={() => setMenuOpen(false)}
-                    className="block h-11 px-3 rounded-2xl flex items-center text-[14.5px] font-semibold text-ink-muted hover:bg-subtle hover:text-ink transition-colors"
+                    className="h-11 px-3 rounded-2xl flex items-center text-[14.5px] font-semibold text-ink-muted hover:bg-subtle hover:text-ink transition-colors"
                   >
                     {l.label}
                   </Link>
                 ))}
               </nav>
-              <div className="mt-6 pt-6 border-t border-line">
+
+              {/* Secondary actions */}
+              <div className="mt-4 pt-4 border-t border-line space-y-0.5">
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    if (!user) {
+                      addToast({
+                        type: 'warning',
+                        title: 'Login required',
+                        message: 'Please log in to view your wishlist.',
+                      });
+                      return;
+                    }
+                    navigate('/profile?tab=wishlist');
+                  }}
+                  className="w-full h-11 px-3 rounded-2xl flex items-center gap-3 text-[14px] font-semibold text-ink-muted hover:bg-subtle hover:text-ink transition-colors"
+                >
+                  <Heart size={16} strokeWidth={2} />
+                  Wishlist
+                </button>
+
+                {/* Theme — segmented */}
+                <div className="px-3 py-2">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-ink-dim mb-2">
+                    Theme
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(
+                      [
+                        { id: 'light', label: 'Light', Icon: Sun },
+                        { id: 'dark', label: 'Dark', Icon: Moon },
+                        { id: 'auto', label: 'Auto', Icon: Monitor },
+                      ] as const
+                    ).map(({ id, label, Icon }) => {
+                      const active = mode === id;
+                      return (
+                        <button
+                          key={id}
+                          onClick={() => setMode(id)}
+                          className={`h-10 rounded-2xl flex items-center justify-center gap-1.5 text-[12px] font-semibold transition-colors ${
+                            active
+                              ? 'bg-accent text-on-accent'
+                              : 'bg-subtle text-ink-muted hover:text-ink'
+                          }`}
+                        >
+                          <Icon size={13} strokeWidth={active ? 2.4 : 2.2} />
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Account */}
+              <div className="mt-4 pt-4 border-t border-line">
                 {user ? <UserProfile /> : <SteamLogin />}
               </div>
             </motion.div>

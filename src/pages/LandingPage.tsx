@@ -2,10 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion';
 import {
   ArrowRight,
-  Shield,
-  Zap,
-  ShieldCheck,
-  LineChart,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -64,7 +60,16 @@ const staggerChild = {
    Page
    ───────────────────────────────────────────────────────────────────────── */
 
+import useDocumentMeta from '../hooks/useDocumentMeta';
+
 const LandingPage: React.FC = () => {
+  useDocumentMeta({
+    title: 'Skinify — Buy & sell CS2 skins with escrow protection',
+    description:
+      'Premium peer-to-peer CS2 marketplace. 0% buyer fees, escrow protection, instant payouts. Trade AK-47, AWP, Karambit, Butterfly Knife and more.',
+    canonical: 'https://skinify.gg/',
+  });
+
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
@@ -163,7 +168,7 @@ const LandingPage: React.FC = () => {
     <div className="min-h-screen bg-bg text-ink">
       <LandingNav />
 
-      <main className="max-w-[1480px] mx-auto px-4 sm:px-6 pt-2 pb-16">
+      <main className="max-w-[1480px] mx-auto px-4 sm:px-6 pt-3 pb-12 sm:pb-16">
         {/* ===== HERO ===== */}
         <section className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-3 mb-3">
           {/* Headline card — animates in on mount with a calm fade-up */}
@@ -171,7 +176,7 @@ const LandingPage: React.FC = () => {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...spring, delay: 0.04 }}
-            className="card p-8 md:p-10 relative overflow-hidden flex flex-col justify-between min-h-[320px]"
+            className="card p-5 sm:p-8 md:p-10 relative overflow-hidden flex flex-col justify-between min-h-[260px] sm:min-h-[320px]"
           >
             {/* Hero ambient accent — gently breathes */}
             <motion.div
@@ -200,7 +205,7 @@ const LandingPage: React.FC = () => {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ ...spring, delay: 0.2 }}
-                className="mt-5 text-[34px] md:text-[44px] leading-[1.05] font-bold tracking-tight text-ink"
+                className="mt-4 sm:mt-5 text-[28px] sm:text-[34px] md:text-[44px] leading-[1.05] font-bold tracking-tight text-ink"
               >
                 Trade CS2 skins.
                 <br />
@@ -261,7 +266,7 @@ const LandingPage: React.FC = () => {
                 +2.4%
               </span>
             </div>
-            <div className="text-[34px] font-bold tracking-tight leading-none text-ink mt-1 tabular-nums">
+            <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none text-ink mt-1 tabular-nums break-words">
               {user ? formatPrice(portfolio) : formatPrice(36714736)}
             </div>
             <div className="text-[13px] text-ink-muted font-medium mt-1.5">
@@ -318,42 +323,6 @@ const LandingPage: React.FC = () => {
           </motion.div>
         </section>
 
-        {/* ===== TRUST STRIP =====
-            Staggered children — each badge lifts in with a small spring,
-            and bows down 2px on hover. Subtle but adds life. */}
-        <Reveal className="mb-3">
-          <motion.div
-            variants={staggerParent}
-            className="card px-5 py-4 grid grid-cols-2 md:grid-cols-4 gap-4"
-          >
-            {[
-              { Icon: ShieldCheck, hue: 'mint',  label: 'Escrow protected', sub: 'Every trade insured' },
-              { Icon: Zap,         hue: 'peach', label: 'Instant trades',   sub: 'Avg 14 seconds' },
-              { Icon: Shield,      hue: 'sky',   label: '0% fees',          sub: 'No hidden charges' },
-              { Icon: LineChart,   hue: 'lilac', label: 'Live pricing',     sub: 'Updated each minute' },
-            ].map(({ Icon, hue, label, sub }) => (
-              <motion.div
-                key={label}
-                variants={staggerChild}
-                whileHover={{ y: -2 }}
-                transition={spring}
-                className="flex items-center gap-3 min-w-0"
-              >
-                <div className={`icon-chip chip-${hue}`}>
-                  <Icon
-                    size={18}
-                    strokeWidth={2.2}
-                    style={{ color: `rgb(var(--hue-${hue}))` }}
-                  />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-[13.5px] font-bold text-ink truncate tracking-tight">{label}</div>
-                  <div className="text-[12px] text-ink-muted truncate font-medium">{sub}</div>
-                </div>
-              </motion.div>
-            ))}
-          </motion.div>
-        </Reveal>
 
         {/* ===== LIVE MARKET ACTIVITY ===== */}
         <Reveal className="mb-6">
@@ -498,7 +467,7 @@ const LandingPage: React.FC = () => {
 
         {/* ===== CTA ===== */}
         <Reveal>
-          <div className="card p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
+          <div className="card p-5 sm:p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5 sm:gap-6 relative overflow-hidden">
             <motion.div
               aria-hidden
               className="absolute -bottom-24 -right-24 w-[360px] h-[360px] rounded-full pointer-events-none"

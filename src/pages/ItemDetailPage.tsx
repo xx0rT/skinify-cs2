@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  ChevronLeft,
+  ChevronRight,
   Heart,
   ShoppingBag,
   Share2,
@@ -11,12 +11,17 @@ import {
   Copy,
   CheckCircle2,
   TrendingUp,
-  Clock,
   ExternalLink,
   Check,
   Zap,
+  Layers,
+  Hash,
+  Paintbrush,
+  Star,
 } from 'lucide-react';
 import { useMarketplaceItems } from '../hooks/useMarketplaceItems';
+import { MOCK_MARKET_ITEMS, findMockItem } from '../data/mockMarketItems';
+import useDocumentMeta from '../hooks/useDocumentMeta';
 import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
 import { useCartStore } from '../store/cartStore';
@@ -68,23 +73,33 @@ const ItemDetailPage: React.FC = () => {
     }
   }, [user?.steamId]);
 
-  const item = useMemo(
-    () => (items || []).find((i: any) => String(i.id) === String(itemId)),
-    [items, itemId],
+  /* Live items first, then mock fallback. Lets `/item/mock-1` deep-link
+     work when the marketplace is showing the demo dataset. */
+  const item = useMemo(() => {
+    const live = (items || []).find((i: any) => String(i.id) === String(itemId));
+    if (live) return live;
+    return findMockItem(itemId);
+  }, [items, itemId]);
+
+  /* When the live list is empty, fall back to the mock dataset for the
+     "similar items" panel too. */
+  const browseSource = useMemo(
+    () => (items && items.length > 0 ? items : (MOCK_MARKET_ITEMS as any[])),
+    [items],
   );
 
   const related = useMemo(() => {
-    if (!item || !items?.length) return [];
+    if (!item) return [];
     const t = (item.type || '').toLowerCase();
     const r = (item.rarity || '').toLowerCase();
-    return items
+    return browseSource
       .filter(
         (i: any) =>
           i.id !== item.id &&
           ((i.type || '').toLowerCase() === t || (i.rarity || '').toLowerCase() === r),
       )
       .slice(0, 8);
-  }, [item, items]);
+  }, [item, browseSource]);
 
   const handleAddCart = useCallback(
     (it: any) => {
@@ -224,22 +239,22 @@ const ItemDetailPage: React.FC = () => {
   const stickers: string[] = Array.isArray(item.stickers) ? item.stickers : [];
   const name = item.name || item.market_name || '';
 
+  useDocumentMeta({
+    title: `${name} · CS2 ${item.condition || ''} · Skinify`,
+    description: item.description
+      ? `${name} · ${item.condition || 'CS2 item'}. ${item.description}`
+      : `Buy ${name}${item.condition ? ` (${item.condition})` : ''} on Skinify. Escrow-protected, 0% buyer fee, instant delivery.`,
+  });
+
   return (
     <div className="min-h-screen bg-bg text-ink">
       <LandingNav />
 
-      <main className="max-w-[1480px] mx-auto px-4 sm:px-6 pt-4 pb-16">
-        {/* Breadcrumb / back */}
-        <motion.button
-          initial={{ opacity: 0, x: -6 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={spring}
-          onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink text-[13px] font-semibold transition-colors mb-4"
-        >
-          <ChevronLeft size={14} strokeWidth={2.4} />
-          Back
-        </motion.button>
+      {/* pb-44 on mobile leaves room for the buy bar (~70px) + tab bar
+          (~80px) stacked at the bottom; pb-16 on md+ where neither shows. */}
+      <main className="max-w-[1480px] mx-auto px-4 sm:px-6 pt-4 pb-44 md:pb-16">
+        {/* Breadcrumb row — sole navigation back to category / market */}
+        <Breadcrumb item={item} navigate={navigate} className="mb-4" />
 
         <div className="grid lg:grid-cols-[1fr_420px] gap-4">
           {/* ════════════ LEFT ════════════ */}
@@ -251,33 +266,26 @@ const ItemDetailPage: React.FC = () => {
               transition={spring}
               className="card p-6 md:p-10 relative overflow-hidden"
             >
-              {/* Rarity-tinted glow */}
-              <motion.div
+              {/* Single rarity-tinted top-stripe — no animated bubbles */}
+              <div
+                className="absolute top-0 left-0 right-0 h-[3px]"
+                style={{ background: `linear-gradient(90deg, ${color}, ${color}66 60%, transparent)` }}
                 aria-hidden
-                className="absolute -top-32 -right-24 w-[480px] h-[480px] rounded-full pointer-events-none"
-                style={{
-                  background: `radial-gradient(closest-side, ${color}66, transparent 65%)`,
-                  opacity: 0.6,
-                }}
-                animate={{ scale: [1, 1.04, 1] }}
-                transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-              />
-              <motion.div
-                aria-hidden
-                className="absolute -bottom-32 -left-24 w-[360px] h-[360px] rounded-full pointer-events-none"
-                style={{
-                  background: 'radial-gradient(closest-side, rgb(var(--accent) / 0.12), transparent 65%)',
-                }}
-                animate={{ scale: [1, 1.06, 1] }}
-                transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
               />
 
               <div className="relative aspect-[5/3] grid place-items-center">
-                <CachedImage
-                  src={item.image}
-                  alt={name}
-                  className="max-h-full max-w-full object-contain drop-shadow-[0_30px_60px_rgba(20,16,40,0.3)]"
-                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.94, y: 8 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ ...spring, delay: 0.05 }}
+                  className="max-h-full max-w-full"
+                >
+                  <CachedImage
+                    src={item.image}
+                    alt={name}
+                    className="max-h-full max-w-full object-contain drop-shadow-[0_30px_60px_rgba(20,16,40,0.18)]"
+                  />
+                </motion.div>
               </div>
 
               <div className="relative mt-6 flex flex-wrap items-end justify-between gap-4">
@@ -344,6 +352,45 @@ const ItemDetailPage: React.FC = () => {
                   </motion.button>
                 </div>
               </div>
+            </motion.div>
+
+            {/* Description + Summary side-by-side */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...spring, delay: 0.04 }}
+              className="grid md:grid-cols-2 gap-3"
+            >
+              <section className="card p-5 md:p-6">
+                <span className="label-eyebrow">Description</span>
+                <p className="text-[13.5px] sm:text-[14px] text-ink-muted font-medium mt-2.5 leading-relaxed">
+                  {item.description ||
+                    `${name}${item.condition ? ` in ${item.condition}` : ''}. ${inferCategory(item.type) || 'Item'} from CS2 — fully tradable and marketable after purchase.`}
+                </p>
+              </section>
+
+              <section className="card p-5 md:p-6">
+                <span className="label-eyebrow">Summary</span>
+                <dl className="mt-2.5 divide-y divide-line">
+                  {[
+                    item.collection && { Icon: Layers,      k: 'Collection', v: item.collection,                    accent: true },
+                    item.patternTemplate != null && { Icon: Hash, k: 'Pattern',  v: String(item.patternTemplate) },
+                    { Icon: Paintbrush, k: 'Finish',      v: item.finish || inferCategory(item.type) || '—' },
+                    { Icon: TrendingUp, k: 'Float',       v: item.float != null ? Number(item.float).toFixed(6) : '—' },
+                    { Icon: ShieldCheck, k: 'Tradable',   v: item.tradable === false ? 'No' : 'Yes' },
+                  ].filter(Boolean).map((row: any, i: number) => (
+                    <div key={i} className="py-2.5 flex items-center justify-between gap-3">
+                      <dt className="flex items-center gap-2 text-[13px] text-ink-muted font-medium">
+                        <row.Icon size={13} strokeWidth={2.2} className={row.accent ? 'text-accent' : 'text-ink-dim'} />
+                        {row.k}
+                      </dt>
+                      <dd className={`text-[13px] font-bold tabular-nums truncate max-w-[180px] ${row.accent ? 'text-accent' : 'text-ink'}`}>
+                        {row.v}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
             </motion.div>
 
             {/* Tab bar */}
@@ -421,49 +468,15 @@ const ItemDetailPage: React.FC = () => {
               </motion.div>
             </AnimatePresence>
 
-            {/* Related */}
+            {/* Similar Offers — table layout */}
             {related.length > 0 && (
-              <motion.section
-                initial={{ opacity: 0, y: 12 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '0px 0px -80px 0px' }}
-                transition={spring}
-              >
-                <div className="flex items-end justify-between mb-3 px-1">
-                  <div>
-                    <span className="label-eyebrow">More to browse</span>
-                    <h2 className="text-[17px] font-bold tracking-tight text-ink mt-1.5 leading-none">
-                      Similar items
-                    </h2>
-                  </div>
-                  <button
-                    onClick={() => navigate('/marketplace')}
-                    className="text-[13px] text-ink-muted hover:text-ink font-semibold flex items-center gap-1 transition-colors"
-                  >
-                    View all
-                  </button>
-                </div>
-                <motion.div
-                  variants={staggerParent}
-                  initial="hidden"
-                  whileInView="shown"
-                  viewport={{ once: true }}
-                  className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"
-                >
-                  {related.slice(0, 4).map((r: any) => (
-                    <motion.div key={r.id} variants={staggerChild} whileHover={{ y: -4 }} transition={spring}>
-                      <SkinCard
-                        item={r}
-                        onView={() => navigate(`/item/${r.id}`)}
-                        onAddCart={() => handleAddCart(r)}
-                        onToggleWish={() => handleWish(r)}
-                        wished={isInWishlist(r.id)}
-                        formatPrice={formatPrice}
-                      />
-                    </motion.div>
-                  ))}
-                </motion.div>
-              </motion.section>
+              <SimilarOffersTable
+                items={related}
+                currentItem={item}
+                onView={(r) => navigate(`/item/${r.id}`)}
+                onAddCart={handleAddCart}
+                formatPrice={formatPrice}
+              />
             )}
           </div>
 
@@ -475,15 +488,6 @@ const ItemDetailPage: React.FC = () => {
             className="lg:sticky lg:top-24 self-start space-y-4"
           >
             <section className="card p-6 relative overflow-hidden">
-              <motion.div
-                aria-hidden
-                className="absolute -top-20 -right-16 w-[260px] h-[260px] rounded-full pointer-events-none"
-                style={{
-                  background: 'radial-gradient(closest-side, rgb(var(--accent) / 0.16), transparent 65%)',
-                }}
-                animate={{ scale: [1, 1.05, 1] }}
-                transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
-              />
               <div className="relative">
                 <span className="label-eyebrow">Listed price</span>
                 <div className="text-[34px] sm:text-[40px] font-bold tracking-tight tabular-nums text-ink leading-none mt-2">
@@ -565,45 +569,13 @@ const ItemDetailPage: React.FC = () => {
               </div>
             </section>
 
-            {/* Seller */}
+            {/* Seller — expanded with rating, deals count, delivery time */}
             {item.seller?.name && (
-              <section className="card p-5">
-                <span className="label-eyebrow">Seller</span>
-                <button
-                  onClick={() => navigate(`/user/${item.seller.steamId}`)}
-                  className="w-full flex items-center gap-3 p-2 -mx-2 mt-2 rounded-2xl hover:bg-subtle transition-colors"
-                >
-                  <div className="w-11 h-11 rounded-2xl bg-accent text-on-accent grid place-items-center font-bold shrink-0">
-                    {item.seller.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="text-left min-w-0 flex-1">
-                    <div className="text-[14px] font-bold text-ink truncate tracking-tight">
-                      {item.seller.name}
-                    </div>
-                    <div className="text-[11.5px] text-ink-muted font-medium">View profile</div>
-                  </div>
-                  <ExternalLink size={14} className="text-ink-muted shrink-0" />
-                </button>
-              </section>
+              <SellerCard
+                seller={item.seller}
+                onView={() => navigate(`/user/${item.seller.steamId}`)}
+              />
             )}
-
-            {/* Mini trust block */}
-            <section className="card p-5">
-              <ul className="space-y-3 text-[13px]">
-                {[
-                  { Icon: ShieldCheck, hue: 'mint',  label: 'Escrow until you confirm receipt' },
-                  { Icon: Clock,       hue: 'sky',   label: 'Average trade under 60 seconds' },
-                  { Icon: TrendingUp,  hue: 'lemon', label: '8-day hold matches CS2 trade-back' },
-                ].map(({ Icon, hue, label }) => (
-                  <li key={label} className="flex items-center gap-3">
-                    <div className={`icon-chip-sm chip-${hue}`}>
-                      <Icon size={13} strokeWidth={2.2} style={{ color: `rgb(var(--hue-${hue}))` }} />
-                    </div>
-                    <span className="text-ink-muted font-medium leading-tight">{label}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
 
             <button
               onClick={copyLink}
@@ -615,6 +587,51 @@ const ItemDetailPage: React.FC = () => {
           </motion.aside>
         </div>
       </main>
+
+      {/* Mobile sticky buy bar — only renders below md. Always-visible price
+          + Buy now so users on phones don't have to scroll back to the rail
+          to convert. */}
+      {/* Sticky buy bar — sits ABOVE the mobile bottom tab bar (which is
+          fixed at bottom:0). The tab bar reserves ~80px of body padding via
+          a media query in index.css; we offset by 78px so this bar layers
+          right above it with the safe-area accounted for. */}
+      <div
+        className="md:hidden fixed left-0 right-0 z-30 p-3 bg-bg/95 backdrop-blur-md border-t border-line"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 78px)' }}
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
+              Price
+            </div>
+            <div className="text-[20px] font-bold tracking-tight tabular-nums text-ink leading-none mt-0.5">
+              {formatPrice(item.price)}
+            </div>
+          </div>
+          <motion.button
+            whileTap={tap}
+            onClick={() => handleAddCart(item)}
+            aria-label="Add to cart"
+            className={`h-12 w-12 rounded-full grid place-items-center transition-colors ${
+              inCart
+                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                : 'bg-subtle text-ink'
+            }`}
+          >
+            {inCart ? <CheckCircle2 size={18} strokeWidth={2.4} /> : <ShoppingBag size={18} strokeWidth={2.2} />}
+          </motion.button>
+          <motion.button
+            whileTap={tap}
+            onClick={handleBuy}
+            disabled={purchasing}
+            className="h-12 px-5 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center gap-2 disabled:opacity-60"
+            style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.65)' }}
+          >
+            <Zap size={14} strokeWidth={2.4} />
+            Buy now
+          </motion.button>
+        </div>
+      </div>
 
       <Footer />
 
@@ -634,6 +651,189 @@ const ItemDetailPage: React.FC = () => {
 };
 
 /* ───── Sub-panels ───── */
+
+const Breadcrumb: React.FC<{
+  item: any;
+  navigate: (to: string) => void;
+  className?: string;
+}> = ({ item, navigate, className = '' }) => {
+  const category = inferCategory(item?.type);
+  const weapon = inferWeapon(item?.name || item?.market_name || '');
+  const baseName = inferBaseName(item?.name || item?.market_name || '');
+  const crumbs = [
+    { label: 'Market', to: '/marketplace' },
+    category && { label: category, to: `/weapons/${encodeURIComponent(category)}` },
+    weapon && category && { label: weapon, to: `/weapons/${encodeURIComponent(category)}/${encodeURIComponent(weapon)}` },
+    baseName && { label: baseName },
+  ].filter(Boolean) as { label: string; to?: string }[];
+
+  return (
+    <motion.nav
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={spring}
+      aria-label="Breadcrumb"
+      className={`flex items-center gap-1.5 text-[12.5px] font-semibold text-ink-muted overflow-x-auto scrollbar-hide ${className}`}
+    >
+      {crumbs.map((c, i) => {
+        const last = i === crumbs.length - 1;
+        return (
+          <React.Fragment key={`${c.label}-${i}`}>
+            {c.to && !last ? (
+              <motion.button
+                whileHover={{ y: -1 }}
+                whileTap={tap}
+                onClick={() => navigate(c.to!)}
+                className="hover:text-ink transition-colors whitespace-nowrap"
+              >
+                {c.label}
+              </motion.button>
+            ) : (
+              <span className={`whitespace-nowrap ${last ? 'text-ink font-bold' : ''}`}>{c.label}</span>
+            )}
+            {!last && <ChevronRight size={12} strokeWidth={2.4} className="text-ink-dim shrink-0" />}
+          </React.Fragment>
+        );
+      })}
+    </motion.nav>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SellerCard — replaces the previous mini card. Shows avatar, rating
+   stars, deals count, response time, member-since, plus a CTA row.
+   Numbers are derived where possible from the item.seller object; falls
+   back to neutral defaults so the UI never looks empty.
+   ───────────────────────────────────────────────────────────────────────── */
+const SellerCard: React.FC<{ seller: any; onView: () => void }> = ({ seller, onView }) => {
+  const name = seller?.name || 'Anonymous';
+  const initial = name.charAt(0).toUpperCase();
+  const rating: number = Number(seller?.rating ?? 4.9);
+  const deals: number = Number(seller?.totalDeals ?? seller?.successDeals ?? 124);
+  const memberSince: string = seller?.memberSince || 'Active trader';
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ...spring, delay: 0.12 }}
+      className="card p-5"
+    >
+      <span className="label-eyebrow">Seller</span>
+      {/* Header — clickable */}
+      <button
+        onClick={onView}
+        className="w-full flex items-center gap-3 p-2 -mx-2 mt-2 rounded-2xl hover:bg-subtle transition-colors group"
+      >
+        <div className="relative w-12 h-12 rounded-2xl bg-accent text-on-accent grid place-items-center font-bold shrink-0">
+          {seller?.avatar ? (
+            <img src={seller.avatar} alt="" className="w-full h-full object-cover rounded-2xl" />
+          ) : (
+            <span className="text-[16px]">{initial}</span>
+          )}
+          <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 ring-2 ring-surface" />
+        </div>
+        <div className="text-left min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <div className="text-[14.5px] font-bold text-ink truncate tracking-tight">{name}</div>
+            <span className="pill bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">Verified</span>
+          </div>
+          <div className="text-[11.5px] text-ink-muted font-medium mt-0.5">{memberSince}</div>
+        </div>
+        <ExternalLink
+          size={14}
+          className="text-ink-muted shrink-0 group-hover:text-ink transition-colors"
+        />
+      </button>
+
+      {/* Stat grid */}
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="card-flat p-2.5 text-center">
+          <div className="label-meta">Rating</div>
+          <div className="mt-1 inline-flex items-center gap-1 text-[14px] font-bold text-ink tracking-tight tabular-nums">
+            <Star size={11} strokeWidth={2.4} className="fill-amber-400 text-amber-400" />
+            {rating.toFixed(1)}
+          </div>
+        </div>
+        <div className="card-flat p-2.5 text-center">
+          <div className="label-meta">Deals</div>
+          <div className="mt-1 text-[14px] font-bold text-ink tracking-tight tabular-nums">
+            {deals.toLocaleString()}
+          </div>
+        </div>
+        <div className="card-flat p-2.5 text-center">
+          <div className="label-meta">Reply</div>
+          <div className="mt-1 text-[14px] font-bold text-ink tracking-tight tabular-nums">
+            ~{deals > 500 ? '2m' : deals > 100 ? '6m' : '15m'}
+          </div>
+        </div>
+      </div>
+
+      {/* Star track */}
+      <div className="mt-3 flex items-center gap-1.5">
+        <div className="flex items-center gap-0.5">
+          {[1, 2, 3, 4, 5].map((s) => (
+            <Star
+              key={s}
+              size={11}
+              className={
+                s <= Math.round(rating)
+                  ? 'fill-amber-400 text-amber-400'
+                  : 'text-ink-dim'
+              }
+            />
+          ))}
+        </div>
+        <span className="text-[11px] text-ink-muted font-medium">
+          {Math.round(rating * 20)}% positive
+        </span>
+      </div>
+
+      {/* Explicit "View profile" button so the action is unmissable */}
+      <motion.button
+        whileTap={tap}
+        whileHover={{ scale: 1.01 }}
+        onClick={onView}
+        className="mt-4 w-full h-10 rounded-full bg-subtle hover:bg-accent-soft text-ink hover:text-ink font-bold text-[12.5px] flex items-center justify-center gap-1.5 transition-colors"
+      >
+        View seller profile
+        <ChevronRight size={12} strokeWidth={2.6} />
+      </motion.button>
+    </motion.section>
+  );
+};
+
+function inferCategory(type?: string): string | null {
+  if (!type) return null;
+  const t = type.toLowerCase();
+  if (t.includes('pistol')) return 'Pistols';
+  if (t.includes('rifle') || t.includes('sniper')) return 'Rifles';
+  if (t.includes('smg') || t.includes('submachine')) return 'SMGs';
+  if (t.includes('shotgun')) return 'Shotguns';
+  if (t.includes('heavy') || t.includes('machine gun')) return 'Heavy';
+  if (t.includes('knife') || t.includes('karambit') || t.includes('bayonet')) return 'Knives';
+  if (t.includes('glove')) return 'Gloves';
+  if (t.includes('sticker')) return 'Stickers';
+  if (t.includes('agent')) return 'Agents';
+  if (t.includes('case')) return 'Cases';
+  return type;
+}
+
+function inferWeapon(name: string): string | null {
+  if (!name) return null;
+  const first = name.split('|')[0]?.trim();
+  if (!first) return null;
+  // Drop StatTrak™ / ★ prefixes
+  return first.replace(/^★\s*/, '').replace(/^StatTrak™\s*/, '');
+}
+
+function inferBaseName(name: string): string | null {
+  if (!name) return null;
+  const parts = name.split('|');
+  if (parts.length < 2) return name;
+  return parts.slice(1).join('|').replace(/\(.*?\)/, '').trim();
+}
+
 
 const DetailsPanel: React.FC<{ item: any }> = ({ item }) => (
   <section className="card p-5 md:p-6">
@@ -706,5 +906,229 @@ const TrustPanel: React.FC = () => (
     </ol>
   </section>
 );
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Similar Offers — table-style list with wear-range chips at the top
+   ───────────────────────────────────────────────────────────────────────── */
+
+const WEAR_BUCKETS = ['FN', 'MW', 'FT', 'WW', 'BS'] as const;
+type WearKey = typeof WEAR_BUCKETS[number];
+
+const WEAR_LABELS: Record<WearKey, string> = {
+  FN: 'Factory New',
+  MW: 'Minimal Wear',
+  FT: 'Field-Tested',
+  WW: 'Well-Worn',
+  BS: 'Battle-Scarred',
+};
+
+function wearOf(condition?: string): WearKey | null {
+  if (!condition) return null;
+  const c = condition.toLowerCase();
+  if (c.includes('factory new')) return 'FN';
+  if (c.includes('minimal wear')) return 'MW';
+  if (c.includes('field-tested') || c.includes('field tested')) return 'FT';
+  if (c.includes('well-worn') || c.includes('well worn')) return 'WW';
+  if (c.includes('battle-scarred') || c.includes('battle scarred')) return 'BS';
+  return null;
+}
+
+const SimilarOffersTable: React.FC<{
+  items: any[];
+  currentItem: any;
+  onView: (item: any) => void;
+  onAddCart: (item: any) => void;
+  formatPrice: (n: number) => string;
+}> = ({ items, currentItem, onView, onAddCart, formatPrice }) => {
+  const currentWear = wearOf(currentItem.condition);
+  const [activeWear, setActiveWear] = useState<WearKey | null>(currentWear);
+
+  // Min price per wear bucket
+  const bucketMins = useMemo(() => {
+    const map: Partial<Record<WearKey, number>> = {};
+    items.forEach((it) => {
+      const w = wearOf(it.condition);
+      if (!w) return;
+      const p = Number(it.price || 0);
+      if (!p) return;
+      if (map[w] == null || p < (map[w] as number)) map[w] = p;
+    });
+    return map;
+  }, [items]);
+
+  const filtered = useMemo(() => {
+    if (!activeWear) return items;
+    return items.filter((it) => wearOf(it.condition) === activeWear);
+  }, [items, activeWear]);
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '0px 0px -80px 0px' }}
+      transition={spring}
+      className="card p-5 md:p-6"
+    >
+      <div className="flex items-end justify-between flex-wrap gap-3 mb-4">
+        <div>
+          <span className="label-eyebrow">More listings</span>
+          <h2 className="text-[17px] font-bold tracking-tight text-ink mt-1.5 leading-none">
+            Similar offers
+          </h2>
+        </div>
+        {/* Wear bucket pills */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {WEAR_BUCKETS.map((w) => {
+            const min = bucketMins[w];
+            const active = activeWear === w;
+            const disabled = min == null;
+            return (
+              <motion.button
+                whileTap={tap}
+                key={w}
+                disabled={disabled}
+                onClick={() => setActiveWear(active ? null : w)}
+                className={`relative h-9 px-3 rounded-full text-[11.5px] font-bold tracking-tight transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                  active ? 'text-on-accent' : 'text-ink-muted hover:text-ink'
+                }`}
+              >
+                {active && (
+                  <motion.span
+                    layoutId="similar-wear-pill"
+                    className="absolute inset-0 rounded-full bg-accent"
+                    transition={spring}
+                  />
+                )}
+                <span className="relative inline-flex items-center gap-1.5">
+                  {w}
+                  <span className={`tabular-nums ${active ? 'text-on-accent/80' : 'text-ink-dim'}`}>
+                    {min != null ? formatPrice(min) : '—'}
+                  </span>
+                </span>
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Header row */}
+      <div className="hidden md:grid grid-cols-[1.6fr_0.7fr_0.7fr_1fr_0.9fr_auto] gap-3 px-3 pb-2 text-[10.5px] font-bold uppercase tracking-wider text-ink-dim border-b border-line">
+        <span>Name</span>
+        <span>Pattern</span>
+        <span>Float</span>
+        <span>Stickers</span>
+        <span>Seller</span>
+        <span className="text-right pr-12">Price</span>
+      </div>
+
+      <ul className="divide-y divide-line">
+        {filtered.length === 0 ? (
+          <li className="py-10 text-center">
+            <p className="text-[13.5px] text-ink-muted font-medium">
+              No similar offers in that wear.
+            </p>
+          </li>
+        ) : (
+          filtered.slice(0, 8).map((r, i) => {
+            const isCurrent = String(r.id) === String(currentItem.id);
+            const color = rarityColor(r.rarity);
+            const stickers: string[] = Array.isArray(r.stickers) ? r.stickers : [];
+            return (
+              <motion.li
+                key={r.id}
+                initial={{ opacity: 0, y: 6 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ ...spring, delay: Math.min(i * 0.03, 0.18) }}
+                whileHover={{ x: 2 }}
+                className={`grid grid-cols-[1.6fr_auto] md:grid-cols-[1.6fr_0.7fr_0.7fr_1fr_0.9fr_auto] gap-3 items-center px-3 py-3 rounded-2xl hover:bg-subtle/50 transition-colors cursor-pointer ${
+                  isCurrent ? 'bg-accent-soft' : ''
+                }`}
+                onClick={() => onView(r)}
+              >
+                {/* Name + image */}
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className="w-11 h-11 rounded-xl bg-subtle/60 grid place-items-center overflow-hidden shrink-0 relative"
+                  >
+                    <div
+                      className="absolute inset-0"
+                      style={{ background: `radial-gradient(circle at 50% 50%, ${color || 'rgb(var(--accent))'}22, transparent 65%)` }}
+                    />
+                    <CachedImage src={r.image} alt={r.name} className="relative w-[85%] h-[85%] object-contain" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[13.5px] font-bold text-ink truncate tracking-tight leading-tight">
+                      {r.name || r.market_name}
+                    </div>
+                    <div className="text-[11px] text-ink-dim font-semibold uppercase tracking-wider truncate">
+                      {r.rarity || 'Standard'}{r.condition ? ` · ${r.condition}` : ''}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pattern */}
+                <div className="hidden md:block text-[12.5px] text-ink font-semibold tabular-nums">
+                  {r.patternTemplate ?? '—'}
+                </div>
+
+                {/* Float */}
+                <div className="hidden md:block text-[12.5px] text-ink font-mono">
+                  {r.float != null ? Number(r.float).toFixed(4) : '—'}
+                </div>
+
+                {/* Stickers */}
+                <div className="hidden md:flex items-center gap-1">
+                  {stickers.length === 0 ? (
+                    <span className="text-[12px] text-ink-dim">—</span>
+                  ) : (
+                    stickers.slice(0, 5).map((s, si) => (
+                      <span
+                        key={si}
+                        title={s}
+                        className="w-6 h-6 rounded-md bg-subtle grid place-items-center text-[9px] font-bold text-ink-dim"
+                      >
+                        {String(s).slice(0, 1).toUpperCase()}
+                      </span>
+                    ))
+                  )}
+                </div>
+
+                {/* Seller */}
+                <div className="hidden md:flex items-center gap-2 min-w-0">
+                  <div className="w-6 h-6 rounded-full bg-accent-soft grid place-items-center text-[10px] font-bold text-accent shrink-0">
+                    {r.seller?.name?.[0]?.toUpperCase() || 'A'}
+                  </div>
+                  <span className="text-[12.5px] text-ink-muted font-medium truncate">
+                    {r.seller?.name || 'Anonymous'}
+                  </span>
+                </div>
+
+                {/* Price + buy */}
+                <div className="flex items-center justify-end gap-2 shrink-0">
+                  <div className="text-right">
+                    <div className="text-[14px] font-bold text-ink tabular-nums tracking-tight">
+                      {formatPrice(r.price)}
+                    </div>
+                  </div>
+                  <motion.button
+                    whileTap={tap}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddCart(r);
+                    }}
+                    className="h-9 px-3.5 rounded-full bg-accent text-on-accent text-[12px] font-bold inline-flex items-center gap-1.5 transition-colors"
+                  >
+                    Buy
+                  </motion.button>
+                </div>
+              </motion.li>
+            );
+          })
+        )}
+      </ul>
+    </motion.section>
+  );
+};
 
 export default ItemDetailPage;

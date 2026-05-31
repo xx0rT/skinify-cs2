@@ -1,0 +1,33 @@
+# Skinify · robots.txt
+# Allow well-behaved crawlers; deflect ones that hammer or scrape pricing data
+# without contributing back. Steam itself doesn't crawl us.
+
+User-agent: *
+Allow: /
+Disallow: /profile
+Disallow: /cart
+Disallow: /auth/
+Disallow: /onboarding
+Disallow: /admin
+Disallow: /api/
+
+# Block aggressive AI crawlers that don't surface traffic
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+Sitemap: https://skinify.gg/sitemap.xml

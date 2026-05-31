@@ -1,1032 +1,621 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ChevronDown, 
-  User,
-  Settings,
-  Home,
-  CreditCard,
-  Wallet,
-  Gift,
-  Crown,
-  Star,
-  TrendingUp,
-  ShoppingCart,
+import {
+  ChevronLeft,
+  ChevronDown,
+  LifeBuoy,
   MessageCircle,
-  Package,
-  Trophy,
-  Send,
-  Plus,
-  HelpCircle,
   Mail,
-  Phone,
-  Clock,
-  Shield,
-  Zap,
-  CheckCircle,
-  Headphones,
-  FileText,
-  BookOpen,
-  AlertCircle,
-  ExternalLink,
-  DollarSign,
+  Send,
   Search,
-  Filter,
-  ChevronUp,
-  ArrowLeft,
-  Lightbulb,
-  Users,
-  Globe,
-  Lock,
-  Eye,
-  Camera,
-  Video,
-  Download,
-  Heart
+  Sparkles,
+  AlertTriangle,
+  Wallet,
+  ShieldCheck,
+  Package,
+  Settings as SettingsIcon,
+  HelpCircle,
+  ArrowRight,
+  Clock,
 } from 'lucide-react';
-// Chat widget temporarily disabled due to dependency conflict
-// import { Widget, addResponseMessage, addUserMessage, dropMessages } from 'react-chat-widget';
-// import 'react-chat-widget/lib/styles.css';
-import { Flipper, Flipped } from 'react-flip-toolkit';
+import LandingNav from '../components/LandingNav';
+import Footer from '../components/Footer';
 import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
-import { useCartStore } from '../store/cartStore';
-import ToastContainer from '../components/ui/ToastContainer';
-import SteamLogin from '../components/auth/SteamLogin';
-import UserProfile from '../components/auth/UserProfile';
+import { spring, tap } from '../lib/motion';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SupportPage — fresh design in the landing/profile theme
+   - Hero with section eyebrow, status pill, two big contact CTAs
+   - Status & SLA row
+   - Quick-help category tiles
+   - Searchable common-issue list (accordion)
+   - Inline ticket form
+   ───────────────────────────────────────────────────────────────────────── */
+
+type Category = 'trade' | 'payment' | 'account' | 'security' | 'listing' | 'other';
+
+interface Issue {
+  id: string;
+  category: Category;
+  title: string;
+  body: string;
+  Icon: React.ComponentType<any>;
+  tint: string;
+}
+
+const CATEGORIES: { id: Category | 'all'; label: string; Icon: React.ComponentType<any>; tint: string }[] = [
+  { id: 'all',      label: 'All',       Icon: HelpCircle,   tint: '#a855f7' },
+  { id: 'trade',    label: 'Trades',    Icon: Package,      tint: '#0ea5e9' },
+  { id: 'payment',  label: 'Payments',  Icon: Wallet,       tint: '#f59e0b' },
+  { id: 'account',  label: 'Account',   Icon: SettingsIcon, tint: '#10b981' },
+  { id: 'security', label: 'Security',  Icon: ShieldCheck,  tint: '#ef4444' },
+  { id: 'listing',  label: 'Listings',  Icon: Sparkles,     tint: '#ec4899' },
+];
+
+const ISSUES: Issue[] = [
+  {
+    id: 'trade-pending',
+    category: 'trade',
+    title: 'My trade is stuck in pending',
+    body: 'Steam trade offers can take up to 15 minutes to deliver if you haven\'t enabled the Mobile Authenticator. Without it, Steam holds the offer in escrow for 15 days. Enable Steam Guard Mobile, then re-send the offer from the order page.',
+    Icon: Package,
+    tint: '#0ea5e9',
+  },
+  {
+    id: 'trade-cancelled',
+    category: 'trade',
+    title: 'My trade was cancelled — am I refunded?',
+    body: 'Yes. If the seller cancels or fails to deliver within 60 minutes, escrow auto-refunds to your Skinify balance. You can re-purchase from another seller of the same item without re-depositing.',
+    Icon: AlertTriangle,
+    tint: '#0ea5e9',
+  },
+  {
+    id: 'payment-failed',
+    category: 'payment',
+    title: 'My deposit failed but money was charged',
+    body: 'Most failed deposits auto-reverse within 1-3 business days. If you have a transaction ID, send it to support with a screenshot of your statement — we\'ll cross-reference with our payment processor and credit your account within 24h.',
+    Icon: Wallet,
+    tint: '#f59e0b',
+  },
+  {
+    id: 'withdraw-pending',
+    category: 'payment',
+    title: 'My withdrawal is still pending',
+    body: 'Card and PayPal withdrawals process within 24 hours. SEPA can take 1-3 business days. Crypto withdrawals confirm in under 30 minutes once on-chain. If yours is past those windows, open a ticket with the withdrawal ID.',
+    Icon: Clock,
+    tint: '#f59e0b',
+  },
+  {
+    id: 'account-locked',
+    category: 'account',
+    title: 'My account is locked',
+    body: 'Accounts auto-lock after 5 failed Steam-link attempts or suspicious activity. Locks lift after 30 minutes. If your account is still locked after 1 hour, contact support — we can manually verify and unlock once you\'ve confirmed your Steam Guard.',
+    Icon: ShieldCheck,
+    tint: '#10b981',
+  },
+  {
+    id: 'inventory-empty',
+    category: 'account',
+    title: 'My Steam inventory shows empty',
+    body: 'Your Steam profile must be set to Public. Go to Steam → Profile → Edit Profile → Privacy → Inventory → Public. After changing, hit refresh in the Inventory tab. Our cache refreshes every 60 seconds.',
+    Icon: Package,
+    tint: '#10b981',
+  },
+  {
+    id: 'sec-2fa',
+    category: 'security',
+    title: 'How do I enable two-factor authentication?',
+    body: 'Skinify uses Steam Guard for trade confirmations. There\'s no separate Skinify password — your security is tied to Steam. We strongly recommend enabling Steam Guard Mobile to unlock instant trades.',
+    Icon: ShieldCheck,
+    tint: '#ef4444',
+  },
+  {
+    id: 'sec-phishing',
+    category: 'security',
+    title: 'I got a suspicious DM about Skinify',
+    body: 'We never DM users about trades, passwords, or "verification". Anyone asking for your Steam password or your Skinify session is impersonating us. Forward the message to support and block the sender.',
+    Icon: AlertTriangle,
+    tint: '#ef4444',
+  },
+  {
+    id: 'listing-fee',
+    category: 'listing',
+    title: 'Why was a fee taken from my sale?',
+    body: 'Sellers pay a 2% listing fee deducted from the sale price. VIP Gold reduces it to 1.5%, Platinum 1.0%, Diamond 0%. The fee is shown before you list and broken down on the order receipt.',
+    Icon: Sparkles,
+    tint: '#ec4899',
+  },
+  {
+    id: 'listing-remove',
+    category: 'listing',
+    title: 'How do I delete a listing?',
+    body: 'Go to Profile → Listings → click the trash icon on the listing card. Active listings can be removed any time before a buyer pays. Sold or in-escrow listings can\'t be cancelled by the seller.',
+    Icon: Sparkles,
+    tint: '#ec4899',
+  },
+];
 
 const SupportPage: React.FC = () => {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
-  const navigate = useNavigate();
-  const [selectedLanguage, setSelectedLanguage] = useState('EN');
-  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
-  const [activeSection, setActiveSection] = useState('Support');
-  const [hoveredNavItem, setHoveredNavItem] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [openFAQ, setOpenFAQ] = useState<number | null>(null);
-  const [sidebarY, setSidebarY] = useState(0);
-  const [sidebarOpacity, setSidebarOpacity] = useState(1);
-  const { getItemCount } = useCartStore();
-  const cartCount = getItemCount();
+  const [cat, setCat] = useState<Category | 'all'>('all');
+  const [query, setQuery] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [form, setForm] = useState({ subject: '', message: '' });
+  const [submitting, setSubmitting] = useState(false);
 
-  const sidebarSections = [
-    {
-      name: 'Navigation',
-      items: [
-        { icon: Home, label: 'Home', active: false, onClick: () => { navigate('/'); setActiveSection('Market'); } },
-        { icon: User, label: 'Profile', active: false, onClick: () => { navigate('/profile'); setActiveSection('Profile'); } }
-      ]
-    },
-    {
-      name: 'Trading',
-      items: [
-        { icon: Star, label: 'Rewards', active: false, onClick: () => { navigate('/rewards'); setActiveSection('Rewards'); } },
-        { icon: TrendingUp, label: 'Stats', active: false, onClick: () => navigate('/profile?tab=overview') }
-      ]
-    },
-    {
-      name: 'Wallet',
-      items: [
-        { icon: CreditCard, label: 'Deposit', active: false, onClick: () => navigate('/profile?tab=balance') },
-        { icon: Wallet, label: 'Withdraw', active: false, onClick: () => navigate('/profile?tab=balance') }
-      ]
-    },
-    {
-      name: 'Features',
-      items: [
-        { icon: Users, label: 'Referral', active: false, onClick: () => navigate('/referral') },
-        { icon: Crown, label: 'VIP', active: false, onClick: () => { navigate('/vip'); setActiveSection('VIP'); } },
-        { icon: Settings, label: 'Settings', active: false, onClick: () => navigate('/profile?tab=settings') }
-      ]
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return ISSUES.filter((i) => {
+      if (cat !== 'all' && i.category !== cat) return false;
+      if (!q) return true;
+      return (
+        i.title.toLowerCase().includes(q) ||
+        i.body.toLowerCase().includes(q) ||
+        i.category.includes(q)
+      );
+    });
+  }, [cat, query]);
+
+  const submit = async () => {
+    if (!form.subject.trim() || !form.message.trim()) {
+      addToast({ type: 'error', title: 'Missing info', message: 'Add a subject and message before submitting.' });
+      return;
     }
-  ];
-
-  const languages = [
-    { code: 'EN', flag: '🇬🇧', name: 'English' },
-    { code: 'ES', flag: '🇪🇸', name: 'Español' },
-    { code: 'DE', flag: '🇩🇪', name: 'Deutsch' },
-    { code: 'FR', flag: '🇫🇷', name: 'Français' }
-  ];
-
-  const navigationItems = [
-    { name: 'Market', href: '/', icon: ShoppingCart, onClick: () => { setActiveSection('Market'); navigate('/'); } },
-    { name: 'Referral', href: '/referral', icon: Users, onClick: () => { setActiveSection('Referral'); navigate('/referral'); } },
-    { name: 'FAQ', href: '/faq', icon: HelpCircle, onClick: () => { setActiveSection('FAQ'); navigate('/faq'); } },
-    { name: 'Bonuses', href: '/bonuses', icon: Gift, onClick: () => { setActiveSection('Bonuses'); navigate('/bonuses'); } },
-    { name: 'Claims', href: '/claims', icon: Trophy, onClick: () => { setActiveSection('Claims'); addToast({ type: 'info', title: 'Coming Soon', message: 'Claims system coming soon!' }); } }
-  ];
-
-  const handleNavigation = (item: any) => {
-    if (item.onClick) {
-      item.onClick();
-    }
+    setSubmitting(true);
+    await new Promise((r) => setTimeout(r, 700));
+    addToast({
+      type: 'success',
+      title: 'Ticket submitted',
+      message: 'We\'ll reply within 4 hours on average.',
+    });
+    setForm({ subject: '', message: '' });
+    setSubmitting(false);
   };
 
-  // FAQ Data
-  const faqCategories = ['All', 'Account', 'Trading', 'Payment', 'Security', 'Technical'];
+  return (
+    <div className="min-h-screen bg-bg text-ink">
+      <LandingNav />
 
-  const faqData = [
-    {
-      id: 1,
-      category: 'Account',
-      question: 'How do I create an account?',
-      answer: 'Simply click "Sign in with Steam" and authorize through Steam\'s official login. No additional registration needed - your Steam account becomes your Skinify account automatically.'
-    },
-    {
-      id: 2,
-      category: 'Account',
-      question: 'How do I set up my trade link?',
-      answer: 'Go to your Profile → Settings and enter your Steam trade URL. Get it from Steam by visiting your Trade Offers page and clicking "Who can send me trade offers?"'
-    },
-    {
-      id: 3,
-      category: 'Trading',
-      question: 'How long do trades take to complete?',
-      answer: 'Most trades complete within minutes! Once you purchase an item, sellers are notified immediately and typically send Steam trade offers within 5-10 minutes.'
-    },
-    {
-      id: 4,
-      category: 'Trading',
-      question: 'What happens if I don\'t receive my items?',
-      answer: 'Your payment is protected by our escrow system. If you don\'t receive items within 48 hours, funds are automatically refunded. You can also contact support immediately.'
-    },
-    {
-      id: 5,
-      category: 'Payment',
-      question: 'What payment methods do you accept?',
-      answer: 'We support credit/debit cards, Revolut, PayPal, bank transfers, and cryptocurrencies. All payments are processed securely through certified payment providers.'
-    },
-    {
-      id: 6,
-      category: 'Payment',
-      question: 'Are there any fees?',
-      answer: 'We charge a 2% trading fee (among the lowest in the industry) with volume discounts available. Withdrawal fee is 1.5%. All fees are clearly shown before transactions.'
-    },
-    {
-      id: 7,
-      category: 'Security',
-      question: 'Is it safe to trade on Skinify?',
-      answer: 'Absolutely! We use Steam authentication, escrow protection, fraud detection, SSL encryption, and 24/7 monitoring. We have a 99.9% successful trade rate.'
-    },
-    {
-      id: 8,
-      category: 'Security',
-      question: 'What is escrow protection?',
-      answer: 'Escrow holds your payment securely until you receive and confirm your items. Sellers only get paid after you confirm receipt, ensuring protection for both parties.'
-    },
-    {
-      id: 9,
-      category: 'Technical',
-      question: 'Why can\'t I see my Steam inventory?',
-      answer: 'Your Steam inventory might be set to private. Go to Steam Profile Privacy Settings and set your Inventory to Public. Changes can take 15-30 minutes to take effect.'
-    },
-    {
-      id: 10,
-      category: 'Technical',
-      question: 'The site is loading slowly, what should I do?',
-      answer: 'Try refreshing the page, clearing your browser cache, or switching to a different browser. If issues persist, it might be a temporary Steam API delay.'
-    },
-    {
-      id: 11,
-      category: 'Payment',
-      question: 'How do I withdraw my funds?',
-      answer: 'Go to Profile → Balance and click "Withdraw Funds". Choose your preferred method (bank transfer, PayPal, etc.) and enter the amount. Withdrawals process within 24 hours.'
-    },
-    {
-      id: 12,
-      category: 'Trading',
-      question: 'Can I sell my own items?',
-      answer: 'Yes! Go to your Profile → Inventory, select items from your Steam inventory, set prices, and list them for sale. Items appear in the marketplace immediately.'
-    }
-  ];
+      <main className="max-w-[1100px] mx-auto px-4 sm:px-6 pt-4 pb-16 space-y-4">
+        <motion.button
+          whileTap={tap}
+          whileHover={{ x: -2 }}
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink text-[13px] font-semibold transition-colors"
+        >
+          <ChevronLeft size={14} strokeWidth={2.4} />
+          Back
+        </motion.button>
 
-  const filteredFAQ = faqData.filter(item => {
-    const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
-    const matchesSearch = searchQuery === '' || 
-                         item.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         item.answer.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+        {/* Hero */}
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={spring}
+          className="card p-7 sm:p-10 relative overflow-hidden"
+        >
+          <motion.div
+            aria-hidden
+            className="absolute -top-32 -right-24 w-[460px] h-[460px] rounded-full pointer-events-none"
+            style={{ background: 'radial-gradient(closest-side, rgb(var(--accent) / 0.18), transparent 65%)' }}
+            animate={{ scale: [1, 1.06, 1] }}
+            transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <div className="relative">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="icon-chip-lg bg-accent-soft">
+                <LifeBuoy size={22} className="text-accent" />
+              </div>
+              <span className="label-eyebrow">Support center</span>
+            </div>
+            <h1 className="text-[28px] sm:text-[40px] font-bold tracking-tight leading-tight">
+              We're here when<br className="hidden sm:block" /> something breaks.
+            </h1>
+            <p className="text-[14px] sm:text-[15px] text-ink-muted font-medium mt-3 max-w-[520px] leading-relaxed">
+              Search common issues, open a ticket, or chat with us live. Trade-blocking issues get a dedicated
+              queue with a 30-minute SLA.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-2">
+              <motion.button
+                whileTap={tap}
+                whileHover={{ scale: 1.02 }}
+                onClick={() => addToast({ type: 'info', title: 'Live chat', message: 'Opening chat — agent will join shortly.' })}
+                className="h-12 px-5 rounded-full bg-accent text-on-accent font-bold text-[14px] inline-flex items-center gap-2"
+                style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.6)' }}
+              >
+                <MessageCircle size={15} strokeWidth={2.4} />
+                Start live chat
+              </motion.button>
+              <motion.a
+                whileTap={tap}
+                whileHover={{ scale: 1.02 }}
+                href="mailto:support@skinify.gg"
+                className="h-12 px-5 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[14px] inline-flex items-center gap-2 transition-colors"
+              >
+                <Mail size={15} strokeWidth={2.2} />
+                Email support
+              </motion.a>
+            </div>
+          </div>
+        </motion.section>
 
-  const toggleFAQ = (id: number) => {
-    setOpenFAQ(openFAQ === id ? null : id);
-  };
+        {/* Status strip — full-width horizontal bar under the hero. Expansion
+            opens an absolute popover instead of pushing the surrounding
+            layout down. */}
+        <StatusCard />
 
-  // Chat widget handlers
-  const handleNewUserMessage = (newMessage: string) => {
-    console.log('New message from user:', newMessage);
-    
-    // Simulate agent response after delay
-    setTimeout(() => {
-      const responses = [
-        "Thank you for your message! A support agent will assist you shortly.",
-        "I understand your inquiry. Let me check this for you...",
-        "Thanks for reaching out! I'm looking into this now.",
-        "Hi! I'm here to help. Let me review your question."
-      ];
-      
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-      // addResponseMessage(randomResponse);
-    }, 1000 + Math.random() * 2000);
-  };
+        {/* Quick categories */}
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...spring, delay: 0.05 }}
+        >
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {CATEGORIES.filter((c) => c.id !== 'all').map((c, i) => (
+              <motion.button
+                key={c.id}
+                onClick={() => setCat(c.id)}
+                whileHover={{ y: -3 }}
+                whileTap={tap}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...spring, delay: i * 0.04 }}
+                className={`card p-4 text-left group relative overflow-hidden transition-all ${
+                  cat === c.id ? 'ring-2 ring-accent' : ''
+                }`}
+              >
+                <motion.div
+                  aria-hidden
+                  className="absolute -top-16 -right-10 w-[180px] h-[180px] rounded-full pointer-events-none opacity-50 group-hover:opacity-90 transition-opacity"
+                  style={{ background: `radial-gradient(closest-side, ${c.tint}33, transparent 70%)` }}
+                />
+                <div className="relative">
+                  <div
+                    className="w-10 h-10 rounded-2xl grid place-items-center mb-3"
+                    style={{
+                      background: `linear-gradient(140deg, ${c.tint}, ${c.tint}cc 55%, ${c.tint}88)`,
+                      boxShadow: `0 10px 22px -8px ${c.tint}55, inset 0 1px 0 rgba(255,255,255,0.28)`,
+                    }}
+                  >
+                    <c.Icon size={16} strokeWidth={2.4} className="text-white drop-shadow" />
+                  </div>
+                  <div className="text-[13.5px] font-bold text-ink tracking-tight">{c.label}</div>
+                </div>
+              </motion.button>
+            ))}
+          </div>
+        </motion.section>
 
-  // Initialize chat when user is available
+        {/* Search + list */}
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...spring, delay: 0.1 }}
+          className="card p-5 md:p-6"
+        >
+          <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
+            <div>
+              <span className="label-eyebrow">Common issues</span>
+              <h2 className="text-[18px] font-bold tracking-tight mt-1.5 leading-none">
+                {filtered.length} {filtered.length === 1 ? 'article' : 'articles'}
+              </h2>
+            </div>
+            <div className="flex-1 min-w-[200px] max-w-[420px] flex items-center gap-2 h-10 px-3.5 rounded-full bg-subtle">
+              <Search size={14} strokeWidth={2} className="text-ink-muted shrink-0" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search support…"
+                className="flex-1 bg-transparent outline-none text-ink placeholder:text-ink-dim text-[13px] font-medium"
+              />
+              {cat !== 'all' && (
+                <button
+                  onClick={() => setCat('all')}
+                  className="text-[11.5px] text-ink-muted hover:text-ink font-semibold"
+                >
+                  Reset filter
+                </button>
+              )}
+            </div>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="py-12 text-center">
+              <HelpCircle size={26} className="mx-auto text-ink-muted mb-3" />
+              <p className="text-[14px] text-ink-muted font-medium">
+                Nothing matched. Try a different search or open a ticket below.
+              </p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-line">
+              <AnimatePresence initial={false}>
+                {filtered.map((i) => {
+                  const open = openId === i.id;
+                  return (
+                    <motion.li
+                      key={i.id}
+                      layout="position"
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setOpenId(open ? null : i.id)}
+                        aria-expanded={open}
+                        className="w-full py-4 flex items-start gap-4 text-left group"
+                      >
+                        <div
+                          className="w-9 h-9 rounded-2xl grid place-items-center shrink-0"
+                          style={{
+                            background: `linear-gradient(140deg, ${i.tint}, ${i.tint}cc)`,
+                            boxShadow: `0 8px 18px -10px ${i.tint}55`,
+                          }}
+                        >
+                          <i.Icon size={14} strokeWidth={2.4} className="text-white" />
+                        </div>
+                        <span className="flex-1 text-[14.5px] sm:text-[15px] font-bold text-ink leading-snug tracking-tight pt-1">
+                          {i.title}
+                        </span>
+                        <span
+                          className={`shrink-0 mt-0.5 w-8 h-8 rounded-full grid place-items-center transition-all duration-200 ${
+                            open ? 'bg-accent text-on-accent rotate-180' : 'bg-subtle text-ink-muted group-hover:bg-accent-soft group-hover:text-ink'
+                          }`}
+                        >
+                          <ChevronDown size={13} strokeWidth={2.4} />
+                        </span>
+                      </button>
+                      <AnimatePresence initial={false}>
+                        {open && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.26, ease: [0.2, 0.8, 0.2, 1] }}
+                            className="overflow-hidden"
+                          >
+                            <p className="text-[13.5px] text-ink-muted leading-relaxed font-medium pb-5 pl-[52px] pr-12">
+                              {i.body}
+                            </p>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.li>
+                  );
+                })}
+              </AnimatePresence>
+            </ul>
+          )}
+        </motion.section>
+
+        {/* Ticket form */}
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...spring, delay: 0.15 }}
+          className="card p-6 md:p-8"
+        >
+          <div className="grid md:grid-cols-[1fr_1.2fr] gap-6 md:gap-10">
+            <div>
+              <span className="label-eyebrow">Still stuck?</span>
+              <h2 className="text-[20px] sm:text-[24px] font-bold tracking-tight mt-1.5 leading-tight">
+                Open a ticket
+              </h2>
+              <p className="text-[13px] text-ink-muted font-medium mt-2.5 leading-relaxed max-w-[280px]">
+                A human reads every message. Be specific — include order IDs,
+                trade URLs, or screenshots if relevant.
+              </p>
+              <div className="mt-5 space-y-2 text-[12.5px] text-ink-muted font-medium">
+                <div className="flex items-center gap-2">
+                  <Mail size={13} strokeWidth={2.2} className="text-accent" />
+                  support@skinify.gg
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock size={13} strokeWidth={2.2} className="text-accent" />
+                  Avg reply under 4 hours
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="label-meta block mb-1.5">Subject</label>
+                <input
+                  value={form.subject}
+                  onChange={(e) => setForm({ ...form, subject: e.target.value })}
+                  placeholder="What's the issue?"
+                  className="w-full h-11 px-4 rounded-full bg-subtle outline-none text-ink placeholder:text-ink-dim text-[14px] font-medium focus:ring-2 focus:ring-accent transition-all"
+                />
+              </div>
+              <div>
+                <label className="label-meta block mb-1.5">Message</label>
+                <textarea
+                  value={form.message}
+                  onChange={(e) => setForm({ ...form, message: e.target.value })}
+                  rows={5}
+                  placeholder="Tell us what happened. Include order IDs if relevant."
+                  className="w-full px-4 py-3 rounded-3xl bg-subtle outline-none text-ink placeholder:text-ink-dim text-[14px] font-medium focus:ring-2 focus:ring-accent transition-all resize-none"
+                />
+              </div>
+              {user && (
+                <div className="text-[12px] text-ink-dim font-medium">
+                  Replying to <span className="text-ink font-semibold">{user.displayName}</span> · Steam ID {user.steamId}
+                </div>
+              )}
+              <motion.button
+                whileTap={tap}
+                whileHover={{ scale: 1.02 }}
+                onClick={submit}
+                disabled={submitting}
+                className="h-12 px-5 rounded-full bg-accent text-on-accent font-bold text-[14px] inline-flex items-center gap-2 disabled:opacity-50"
+                style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.6)' }}
+              >
+                <Send size={14} strokeWidth={2.4} />
+                {submitting ? 'Submitting…' : 'Submit ticket'}
+              </motion.button>
+            </div>
+          </div>
+        </motion.section>
+
+      </main>
+
+      <Footer />
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   StatusCard — replaces the static "All systems operational" tile with an
+   expandable panel. Collapsed: status pill + 4 SLA stats. Expanded: per-
+   service rows with their own dots and timings.
+   ───────────────────────────────────────────────────────────────────────── */
+
+interface ServiceStatus {
+  name: string;
+  state: 'operational' | 'degraded' | 'outage';
+  detail: string;
+}
+
+const SERVICES: ServiceStatus[] = [
+  { name: 'Live chat',         state: 'operational', detail: 'Avg response · 4m 12s' },
+  { name: 'Email support',     state: 'operational', detail: 'Avg response · 3h 48m' },
+  { name: 'Trade engine',      state: 'operational', detail: 'All trades processing normally' },
+  { name: 'Steam connectivity', state: 'operational', detail: 'Last sync · 32 seconds ago' },
+  { name: 'Card payments',     state: 'operational', detail: 'Stripe · 99.98% uptime · 30d' },
+  { name: 'Crypto payments',   state: 'operational', detail: 'BTC / ETH / USDT confirming under 30m' },
+  { name: 'Dispute resolution', state: 'operational', detail: 'Backlog · 4 open · median resolution 18h' },
+];
+
+const StateDot: React.FC<{ state: ServiceStatus['state'] }> = ({ state }) => {
+  const cls =
+    state === 'operational'
+      ? 'bg-emerald-500'
+      : state === 'degraded'
+      ? 'bg-amber-500'
+      : 'bg-rose-500';
+  return <span className={`w-2 h-2 rounded-full ${cls}`} aria-hidden />;
+};
+
+const StatusCard: React.FC = () => {
+  const [open, setOpen] = useState(false);
+  const wrapRef = React.useRef<HTMLDivElement | null>(null);
+
+  /* Close on outside click / escape */
   React.useEffect(() => {
-    // Chat widget disabled
-    // if (user) {
-    //   dropMessages();
-    //   setTimeout(() => {
-    //     addResponseMessage(`Hello ${user.displayName}! 👋 Welcome to Skinify support. How can I help you today?`);
-    //   }, 1000);
-    // }
-  }, [user]);
+    const onClick = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
 
-  const supportCategories = [
-    {
-      title: 'Account & Login',
-      icon: User,
-      color: 'blue',
-      items: [
-        { title: 'Steam Authentication Issues', description: 'Problems logging in with Steam', urgent: false },
-        { title: 'Account Recovery', description: 'Lost access to your account', urgent: true },
-        { title: 'Profile Setup Help', description: 'Setting up trade links and preferences', urgent: false },
-        { title: 'Account Security', description: 'Suspicious activity or security concerns', urgent: true }
-      ]
-    },
-    {
-      title: 'Trading & Orders',
-      icon: Package,
-      color: 'green',
-      items: [
-        { title: 'Order Status', description: 'Check your purchase or sale status', urgent: false },
-        { title: 'Missing Items', description: 'Items not received after purchase', urgent: true },
-        { title: 'Steam Trade Issues', description: 'Problems with Steam trade offers', urgent: false },
-        { title: 'Refund Request', description: 'Request refund for failed trade', urgent: true }
-      ]
-    },
-    {
-      title: 'Payments & Balance',
-      icon: CreditCard,
-      color: 'purple',
-      items: [
-        { title: 'Deposit Problems', description: 'Issues adding funds to account', urgent: true },
-        { title: 'Withdrawal Issues', description: 'Problems withdrawing funds', urgent: true },
-        { title: 'Payment Methods', description: 'Questions about supported payments', urgent: false },
-        { title: 'Transaction History', description: 'View or dispute transactions', urgent: false }
-      ]
-    }
+  const allOk = SERVICES.every((s) => s.state === 'operational');
+  const summary = allOk
+    ? 'All systems operational'
+    : SERVICES.some((s) => s.state === 'outage')
+    ? 'Partial outage detected'
+    : 'Degraded performance';
+
+  const SLA = [
+    { label: 'Chat', value: '< 5 min' },
+    { label: 'Email', value: '< 4 hrs' },
+    { label: 'Disputes', value: '< 24 hrs' },
+    { label: 'VIP', value: '< 1 hr' },
   ];
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white overflow-hidden">
-      <ToastContainer />
-      
-      {/* Chat Widget */}
-      {/* Chat widget temporarily disabled */}
-      
-      {/* Main Layout */}
-      <div className="flex min-h-screen">
-        {/* Left Sidebar */}
-        <div className="group fixed left-0 top-0 h-full z-40 w-16 hover:w-64 bg-gray-800/80 backdrop-blur-md border-r border-gray-700/50 flex flex-col transition-all duration-300 ease-in-out py-4 shadow-xl">
-          {/* Logo */}
-          <div className="h-12 flex items-center justify-center mb-4 mx-auto group-hover:mx-3 overflow-hidden">
-            <div className="relative flex items-center">
-              <motion.img
-                src="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png"
-                alt="Skinify Logo"
-                className="h-10 w-auto object-contain"
-                initial={{ opacity: 1 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-              />
-              
-              <div className="hidden group-hover:block">
-                <motion.img
-                  src="https://i.postimg.cc/xqdxTY2d/skinify2-2-removebg-preview.png"
-                  alt="Skinify Logo Extended"
-                  className="h-10 w-auto object-contain"
-                  initial={{ opacity: 0, x: -20, scale: 0.8 }}
-                  animate={{ 
-                    opacity: 1, 
-                    x: 0, 
-                    scale: 1,
-                    transition: { 
-                      delay: 0.15,
-                      duration: 0.4,
-                      type: "spring",
-                      stiffness: 200,
-                      damping: 20
-                    }
-                  }}
-                  whileHover={{ 
-                    scale: 1.05,
-                    transition: { duration: 0.2 }
-                  }}
-                  style={{ 
-                    filter: 'drop-shadow(0 0 8px rgba(139, 92, 246, 0.3))'
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-          
-          {/* Sidebar Items */}
-          <div className="flex flex-col space-y-1 flex-1 px-2 group-hover:px-3">
-            {sidebarSections.map((section, sectionIndex) => (
-              <div key={section.name} className="relative">
-                {sectionIndex > 0 && (
-                  <div className="h-px bg-gradient-to-r from-transparent via-gray-600/30 to-transparent my-2 mx-2" />
-                )}
-                
-                <div className="hidden group-hover:block mb-2">
-                  <div className="text-xs text-purple-400 font-medium px-3 mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-200">
-                    {section.name}
-                  </div>
-                </div>
-                
-                {section.items.map((item, itemIndex) => (
-                  <button
-                    key={itemIndex}
-                    onClick={item.onClick}
-                    className={`relative flex items-center p-3 rounded-lg transition-all duration-300 overflow-hidden group/item w-full mb-1 ${
-                      item.active 
-                        ? 'bg-purple-600 text-white' 
-                        : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
-                    }`}
-                  >
-                    <item.icon size={20} className="flex-shrink-0" />
-                    
-                    <div className="hidden group-hover:block ml-3">
-                      <span className="text-current whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-150">
-                        {item.label}
-                      </span>
-                    </div>
-                    
-                    <div className="absolute left-full ml-2 px-3 py-2 bg-gray-900/95 border border-gray-600/50 text-white text-sm opacity-0 group-hover:opacity-0 group/item:hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-[60]">
-                      {item.label}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ))}
-          </div>
+    <div className="relative" ref={wrapRef}>
+      {/* Strip — status pill on the left, SLA chips stretched across,
+          expand toggle on the right. One row tall; never grows. */}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="w-full card-flat px-4 sm:px-5 h-14 flex items-center gap-3 sm:gap-4 hover:bg-subtle/40 transition-colors text-left overflow-hidden"
+      >
+        <div className="flex items-center gap-2 shrink-0">
+          <StateDot state={allOk ? 'operational' : 'degraded'} />
+          <span
+            className={`text-[11.5px] sm:text-[12.5px] font-bold uppercase tracking-wider whitespace-nowrap ${
+              allOk
+                ? 'text-emerald-700 dark:text-emerald-300'
+                : 'text-amber-700 dark:text-amber-300'
+            }`}
+          >
+            {summary}
+          </span>
         </div>
 
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col ml-16 relative">
-          {/* Top Header */}
-          <motion.header
-            style={{
-              y: sidebarY,
-              opacity: sidebarOpacity,
-            }}
-            className="fixed top-0 left-0 right-0 bg-gray-900/95 backdrop-blur-xl border-b border-purple-500/20 p-4 z-40 shadow-2xl"
-          >
-            <div className="flex items-center justify-between">
-              {/* Left Side - Logo */}
-              <div className="flex items-center space-x-4">
-                <motion.img
-                  src="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png"
-                  alt="Skinify Logo"
-                  className="h-8 w-auto object-contain"
-                  whileHover={{ scale: 1.05 }}
-                  style={{ filter: 'drop-shadow(0 0 8px rgba(139, 92, 246, 0.3))' }}
-                />
-              </div>
-
-              {/* Right Side */}
-              <div className="flex items-center space-x-4">
-                <button 
-                  onClick={() => navigate('/profile?tab=balance')}
-                  className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg font-medium transition-all duration-300 flex items-center space-x-2"
-                >
-                  <Plus size={16} />
-                  <span>Refill</span>
-                </button>
-
-                <div className="relative">
-                  <button
-                    onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
-                    className="flex items-center space-x-2 text-gray-300 hover:text-white transition-colors"
-                  >
-                    <span>{languages.find(lang => lang.code === selectedLanguage)?.flag}</span>
-                    <ChevronDown size={16} className={`transition-transform ${showLanguageDropdown ? 'rotate-180' : ''}`} />
-                  </button>
-                  
-                  {showLanguageDropdown && (
-                    <div className="absolute right-0 top-full mt-2 w-48 bg-gray-800 shadow-xl z-50 border border-gray-700/50">
-                      {languages.map(lang => (
-                        <button
-                          key={lang.code}
-                          onClick={() => {
-                            setSelectedLanguage(lang.code);
-                            setShowLanguageDropdown(false);
-                          }}
-                          className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-700/50 transition-colors"
-                        >
-                          <span>{lang.flag}</span>
-                          <span className="text-white">{lang.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {user ? <UserProfile /> : <SteamLogin />}
-              </div>
+        {/* Inline SLA chips — hidden on tight screens to avoid wrapping */}
+        <div className="hidden md:flex items-center gap-4 flex-1 min-w-0 overflow-hidden">
+          {SLA.map((s) => (
+            <div key={s.label} className="flex items-baseline gap-1.5 min-w-0">
+              <span className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
+                {s.label}
+              </span>
+              <span className="text-[12.5px] font-bold text-ink tabular-nums whitespace-nowrap">
+                {s.value}
+              </span>
             </div>
-          </motion.header>
+          ))}
+        </div>
 
-          {/* Main Header Navigation */}
-          <motion.header
-            style={{
-              y: sidebarY,
-              opacity: sidebarOpacity,
-            }}
-            className="fixed top-12 left-16 right-0 bg-gray-800 border-b border-gray-700/50 p-4 z-30 shadow-lg"
+        <span className="ml-auto inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-ink-muted shrink-0">
+          <span className="hidden sm:inline">{open ? 'Hide details' : 'Details'}</span>
+          <ChevronDown
+            size={13}
+            strokeWidth={2.4}
+            className={`transition-transform ${open ? 'rotate-180' : ''}`}
+          />
+        </span>
+      </button>
+
+      {/* Popover details — absolute, so opening doesn't push the rest of
+          the page. Anchored under the strip, full width of the strip,
+          capped to viewport with a max-height + scroll. */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
+            className="absolute left-0 right-0 top-full mt-2 z-30 card-elevated p-4 sm:p-5 max-h-[60vh] overflow-y-auto"
           >
-            <div className="flex items-center relative">
-              {/* Center Navigation */}
-              <div className="flex justify-center w-full">
-                <Flipper flipKey={`${activeSection}-${hoveredNavItem}`}>
-                  <motion.nav 
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2, duration: 0.6 }}
-                  >
-                    <div 
-                      className="flex justify-center space-x-1 bg-gray-900 px-6 py-3 border border-purple-500/40 shadow-2xl rounded-lg"
-                      style={{ 
-                        boxShadow: '0 0 30px rgba(168, 85, 247, 0.4), 0 8px 32px rgba(0, 0, 0, 0.3)',
-                        background: 'linear-gradient(145deg, rgba(17, 24, 39, 0.95), rgba(31, 41, 55, 0.9))'
-                      }}
-                    >
-                      {navigationItems.map((item) => (
-                        <Flipped key={item.name} flipId={`header-nav-${item.name}`}>
-                          <motion.button
-                            onClick={() => handleNavigation(item)}
-                            onMouseEnter={() => setHoveredNavItem(item.name)}
-                            onMouseLeave={() => setHoveredNavItem(null)}
-                            whileHover={{ 
-                              scale: 1.05,
-                              filter: 'drop-shadow(0 0 12px rgba(168, 85, 247, 0.9))'
-                            }}
-                            whileTap={{ scale: 0.95 }}
-                            className={`flex justify-center relative px-4 py-2 text-sm font-medium transition-all duration-300 flex items-center space-x-2 rounded-lg ${
-                              activeSection === item.name
-                                ? 'text-white bg-purple-600'
-                                : hoveredNavItem === item.name
-                                  ? 'text-purple-200 bg-purple-500/30'
-                                  : 'text-gray-300 hover:text-white hover:bg-purple-500/20'
-                            }`}
-                            style={activeSection === item.name ? {
-                              boxShadow: '0 0 25px rgba(168, 85, 247, 0.7), 0 4px 20px rgba(147, 51, 234, 0.5)',
-                              background: 'linear-gradient(145deg, #9333EA, #A855F7)'
-                            } : hoveredNavItem === item.name ? {
-                              boxShadow: '0 0 15px rgba(168, 85, 247, 0.5)',
-                              background: 'linear-gradient(145deg, rgba(147, 51, 234, 0.3), rgba(168, 85, 247, 0.3))'
-                            } : {}}
-                          >
-                            <motion.div
-                              animate={{ 
-                                scale: activeSection === item.name || hoveredNavItem === item.name ? 1.1 : 1,
-                                color: activeSection === item.name ? '#E879F9' : hoveredNavItem === item.name ? '#D8B4FE' : '#9CA3AF'
-                              }}
-                              transition={{ duration: 0.2 }}
-                            >
-                              <item.icon size={16} />
-                            </motion.div>
-                            <span>{item.name}</span>
-                            
-                            {(activeSection === item.name || hoveredNavItem === item.name) && (
-                              <Flipped flipId="header-nav-glow">
-                                <motion.div
-                                  layoutId="headerNavActiveIndicator"
-                                  className="absolute inset-0 bg-gradient-to-r from-purple-600/50 via-purple-500/70 to-purple-600/50 -z-10 rounded-lg"
-                                  initial={{ opacity: 0, scale: 0.8 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  exit={{ opacity: 0, scale: 0.8 }}
-                                  transition={{ 
-                                    type: "spring", 
-                                    stiffness: 400, 
-                                    damping: 30,
-                                    duration: 0.3 
-                                  }}
-                                />
-                              </Flipped>
-                            )}
-                          </motion.button>
-                        </Flipped>
-                      ))}
+            <div className="label-eyebrow mb-2.5">Per-service status</div>
+            <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-1 divide-y sm:divide-y-0 divide-line">
+              {SERVICES.map((s) => (
+                <li key={s.name} className="py-2.5 flex items-start gap-2.5">
+                  <span className="mt-1.5"><StateDot state={s.state} /></span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-bold text-ink tracking-tight leading-tight">
+                      {s.name}
                     </div>
-                  </motion.nav>
-                </Flipper>
-              </div>
-
-              {/* Right Side - Positioned Absolutely */}
-              <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center space-x-2">
-                {/* Wishlist Button */}
-                <motion.button
-                  onClick={() => navigate('/profile?tab=wishlist')}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  className="p-2 text-gray-300 hover:text-purple-400 transition-colors relative"
-                >
-                  <Heart size={20} />
-                </motion.button>
-
-                {/* Cart Button */}
-                <motion.button
-                  onClick={() => navigate('/cart')}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  className="p-2 text-gray-300 hover:text-purple-400 transition-colors relative"
-                >
-                  <ShoppingCart size={20} />
-                  {cartCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-purple-500 rounded-full flex items-center justify-center text-xs text-white font-bold">
-                      {cartCount > 9 ? '9+' : cartCount}
-                    </span>
-                  )}
-                </motion.button>
-
-                {/* Sign In / User Profile */}
-                <div className="ml-2">
-                  {user ? <UserProfile /> : <SteamLogin />}
-                </div>
-              </div>
-            </div>
-          </motion.header>
-
-          {/* Support Content */}
-          <div className="flex-1 pt-32 pb-12">
-            <div className="container mx-auto px-6">
-              {/* Back Button */}
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="mb-8"
-              >
-                <button 
-                  onClick={() => navigate('/')}
-                  className="inline-flex items-center text-blue-400 hover:text-blue-300 transition-colors group"
-                >
-                  <ArrowLeft size={20} className="mr-2 group-hover:-translate-x-1 transition-transform" />
-                  Back to Home
-                </button>
-              </motion.div>
-
-              {/* Hero Section */}
-              <div className="text-center mb-16">
-                <motion.div
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="w-20 h-20 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-6"
-                  style={{ 
-                    boxShadow: '0 0 40px rgba(168, 85, 247, 0.6)'
-                  }}
-                >
-                  <Headphones className="w-10 h-10 text-white" />
-                </motion.div>
-
-                <motion.h1
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="text-6xl font-bold mb-6 bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent"
-                >
-                  24/7 Support Center
-                </motion.h1>
-                
-                <motion.p
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                  className="text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed mb-8"
-                >
-                  Get instant help from our expert support team! We're here to make your CS2 trading experience smooth and secure.
-                </motion.p>
-
-                {/* Response Time Stats */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.6 }}
-                  className="grid grid-cols-1 md:grid-cols-4 gap-6 max-w-4xl mx-auto"
-                >
-                  {[
-                    { label: 'Average Response', value: '< 2 minutes', icon: Clock, color: 'blue' },
-                    { label: 'Success Rate', value: '99.9%', icon: CheckCircle, color: 'green' },
-                    { label: 'Satisfaction', value: '4.9/5', icon: Star, color: 'yellow' },
-                    { label: 'Availability', value: '24/7', icon: Globe, color: 'purple' }
-                  ].map((stat, index) => (
-                    <motion.div
-                      key={stat.label}
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.8 + index * 0.1 }}
-                      className={`bg-${stat.color}-500/10 border border-${stat.color}-500/30 rounded-xl p-4 text-center`}
-                    >
-                      <div className="flex items-center justify-center mb-2">
-                        <stat.icon className={`w-6 h-6 text-${stat.color}-400`} />
-                      </div>
-                      <div className={`text-lg font-bold text-${stat.color}-400`}>{stat.value}</div>
-                      <div className="text-gray-400 text-sm">{stat.label}</div>
-                    </motion.div>
-                  ))}
-                </motion.div>
-              </div>
-
-              {/* Quick Help Categories */}
-              <div className="mb-16">
-                <motion.h2
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-3xl font-bold text-center mb-12 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent"
-                >
-                  How Can We Help You?
-                </motion.h2>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  {supportCategories.map((category, index) => (
-                    <motion.div
-                      key={category.title}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      className={`bg-${category.color}-500/10 border border-${category.color}-500/20 rounded-xl p-6 hover:border-${category.color}-500/40 transition-all duration-300 group`}
-                    >
-                      <div className="flex items-center space-x-3 mb-6">
-                        <div className={`w-12 h-12 bg-${category.color}-500/20 rounded-xl flex items-center justify-center group-hover:bg-${category.color}-500/30 transition-colors`}>
-                          <category.icon className={`w-6 h-6 text-${category.color}-400`} />
-                        </div>
-                        <h3 className={`text-xl font-bold text-white group-hover:text-${category.color}-300 transition-colors`}>
-                          {category.title}
-                        </h3>
-                      </div>
-
-                      <div className="space-y-3">
-                        {category.items.map((item, itemIndex) => (
-                          <motion.button
-                            key={itemIndex}
-                            onClick={() => {
-                              if (user) {
-                                addToast({ 
-                                  type: 'info', 
-                                  title: 'Support Request Started', 
-                                  message: `Getting help for: ${item.title}` 
-                                });
-                                // Auto-send message to chat widget (disabled)
-                                // addUserMessage(`Hi! I need help with: ${item.title} - ${item.description}`);
-                              } else {
-                                addToast({ 
-                                  type: 'warning', 
-                                  title: 'Sign In Required', 
-                                  message: 'Please sign in to access support chat' 
-                                });
-                              }
-                            }}
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            className="w-full bg-gray-800/50 rounded-lg p-4 text-left hover:bg-gray-700/50 transition-all duration-300 border border-gray-600/20 hover:border-gray-500/40 group/item"
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <h4 className="text-white font-medium mb-1 group-hover/item:text-blue-300 transition-colors">
-                                  {item.title}
-                                  {item.urgent && (
-                                    <span className="ml-2 bg-red-500/20 text-red-400 px-2 py-1 text-xs rounded-full">
-                                      URGENT
-                                    </span>
-                                  )}
-                                </h4>
-                                <p className="text-gray-400 text-sm group-hover/item:text-gray-300 transition-colors">
-                                  {item.description}
-                                </p>
-                              </div>
-                              <ChevronDown className="w-4 h-4 text-gray-400 -rotate-90 group-hover/item:rotate-0 transition-transform duration-300" />
-                            </div>
-                          </motion.button>
-                        ))}
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Contact Methods */}
-              <div className="mb-16">
-                <motion.h2
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  className="text-3xl font-bold text-center mb-12"
-                >
-                  Multiple Ways to Get Support
-                </motion.h2>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    whileHover={{ scale: 1.02 }}
-                    className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 rounded-xl p-8 border border-blue-500/20 hover:border-blue-500/40 transition-all duration-300 text-center"
-                  >
-                    <div className="w-16 h-16 bg-blue-500/20 rounded-xl flex items-center justify-center mx-auto mb-6">
-                      <MessageCircle className="w-8 h-8 text-blue-400" />
-                    </div>
-                    <h3 className="text-xl font-bold text-white mb-4">Live Chat</h3>
-                    <p className="text-gray-400 mb-6">
-                      Get instant help from our support agents. Available 24/7 for immediate assistance.
-                    </p>
-                    <div className="space-y-2 text-sm text-blue-400">
-                      <div>✓ Instant responses</div>
-                      <div>✓ Screen sharing available</div>
-                      <div>✓ Escalate to specialists</div>
-                    </div>
-                  </motion.div>
-
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.1 }}
-                    whileHover={{ scale: 1.02 }}
-                    className="bg-gradient-to-br from-green-500/10 to-green-600/10 rounded-xl p-8 border border-green-500/20 hover:border-green-500/40 transition-all duration-300 text-center"
-                  >
-                    <div className="w-16 h-16 bg-green-500/20 rounded-xl flex items-center justify-center mx-auto mb-6">
-                      <Mail className="w-8 h-8 text-green-400" />
-                    </div>
-                    <h3 className="text-xl font-bold text-white mb-4">Email Support</h3>
-                    <p className="text-gray-400 mb-6">
-                      Send detailed inquiries to our support team. Perfect for complex issues.
-                    </p>
-                    <div className="space-y-2 text-sm text-green-400">
-                      <div>📧 support@skinify.com</div>
-                      <div>⏱️ Response within 2 hours</div>
-                      <div>📎 Attach screenshots</div>
-                    </div>
-                  </motion.div>
-
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.2 }}
-                    whileHover={{ scale: 1.02 }}
-                    className="bg-gradient-to-br from-purple-500/10 to-purple-600/10 rounded-xl p-8 border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 text-center"
-                  >
-                    <div className="w-16 h-16 bg-purple-500/20 rounded-xl flex items-center justify-center mx-auto mb-6">
-                      <Phone className="w-8 h-8 text-purple-400" />
-                    </div>
-                    <h3 className="text-xl font-bold text-white mb-4">Phone Support</h3>
-                    <p className="text-gray-400 mb-6">
-                      Call us for urgent matters requiring immediate voice support.
-                    </p>
-                    <div className="space-y-2 text-sm text-purple-400">
-                      <div>📞 +420 123 456 789</div>
-                      <div>🕒 Mon-Fri 9AM-6PM CET</div>
-                      <div>🚨 Emergency line available</div>
-                    </div>
-                  </motion.div>
-                </div>
-              </div>
-
-              {/* FAQ Section */}
-              <div className="mb-16">
-                <motion.h2
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  className="text-3xl font-bold text-center mb-12 bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent"
-                >
-                  Frequently Asked Questions
-                </motion.h2>
-
-                {/* FAQ Search and Filter */}
-                <div className="max-w-4xl mx-auto mb-8">
-                  <div className="flex flex-col md:flex-row gap-4">
-                    {/* Search Bar */}
-                    <div className="relative flex-1">
-                      <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                      <input
-                        type="text"
-                        placeholder="Search frequently asked questions..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-gray-800/50 border border-gray-600 rounded-xl pl-12 pr-4 py-4 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition-colors"
-                      />
-                    </div>
-                    
-                    {/* Category Filter */}
-                    <div className="relative">
-                      <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                      <select
-                        value={selectedCategory}
-                        onChange={(e) => setSelectedCategory(e.target.value)}
-                        className="bg-gray-800/50 border border-gray-600 rounded-xl pl-10 pr-8 py-4 text-white focus:outline-none focus:border-purple-500 transition-colors appearance-none"
-                      >
-                        {faqCategories.map((category) => (
-                          <option key={category} value={category} className="bg-gray-800">
-                            {category}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                    <div className="text-[11.5px] text-ink-muted font-medium mt-0.5 truncate">
+                      {s.detail}
                     </div>
                   </div>
-                </div>
-
-                {/* FAQ Items */}
-                <div className="max-w-4xl mx-auto space-y-4">
-                  {filteredFAQ.length === 0 ? (
-                    <div className="text-center py-12">
-                      <HelpCircle className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                      <h3 className="text-xl font-semibold text-gray-400 mb-2">No results found</h3>
-                      <p className="text-gray-500">Try adjusting your search or category filter</p>
-                    </div>
-                  ) : (
-                    filteredFAQ.map((item, index) => (
-                      <motion.div
-                        key={item.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.05 }}
-                        className="bg-gray-800/50 rounded-xl border border-gray-700/50 hover:border-gray-600/50 transition-all duration-300 overflow-hidden"
-                      >
-                        <button
-                          onClick={() => toggleFAQ(item.id)}
-                          className="w-full px-6 py-6 text-left flex items-center justify-between hover:bg-gray-700/30 transition-colors duration-200"
-                        >
-                          <div className="flex items-center space-x-4">
-                            <div className="flex items-center space-x-3">
-                              {/* Category Badge */}
-                              <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
-                                item.category === 'Account' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
-                                item.category === 'Trading' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
-                                item.category === 'Payment' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
-                                item.category === 'Security' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
-                                item.category === 'Technical' ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
-                                'bg-gray-500/20 text-gray-400 border-gray-500/30'
-                              }`}>
-                                {item.category}
-                              </span>
-                              
-                              {/* Category Icon */}
-                              {item.category === 'Account' && <User className="w-4 h-4 text-blue-500" />}
-                              {item.category === 'Trading' && <Package className="w-4 h-4 text-green-500" />}
-                              {item.category === 'Payment' && <DollarSign className="w-4 h-4 text-purple-500" />}
-                              {item.category === 'Security' && <Shield className="w-4 h-4 text-red-500" />}
-                              {item.category === 'Technical' && <Settings className="w-4 h-4 text-orange-500" />}
-                            </div>
-                            
-                            <h3 className="text-lg font-medium text-white group-hover:text-purple-300 transition-colors">
-                              {item.question}
-                            </h3>
-                          </div>
-                          
-                          <ChevronDown 
-                            className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${
-                              openFAQ === item.id ? 'rotate-180' : ''
-                            }`} 
-                          />
-                        </button>
-                        
-                        <AnimatePresence>
-                          {openFAQ === item.id && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.3 }}
-                              className="overflow-hidden"
-                            >
-                              <div className="px-6 pb-6 border-t border-gray-700/30">
-                                <motion.p
-                                  initial={{ opacity: 0, y: -10 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  transition={{ delay: 0.1 }}
-                                  className="text-gray-300 leading-relaxed pt-4"
-                                >
-                                  {item.answer}
-                                </motion.p>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </motion.div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Additional Resources */}
-              <div className="mb-16">
-                <motion.h2
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  className="text-3xl font-bold text-center mb-12"
-                >
-                  Additional Resources
-                </motion.h2>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {[
-                    { 
-                      title: 'Trading Guide', 
-                      description: 'Learn how to trade safely', 
-                      icon: BookOpen, 
-                      color: 'blue',
-                      onClick: () => navigate('/trading-guide')
-                    },
-                    { 
-                      title: 'Security Tips', 
-                      description: 'Protect your account', 
-                      icon: Shield, 
-                      color: 'green',
-                      onClick: () => navigate('/security-tips')
-                    },
-                    { 
-                      title: 'Video Tutorials', 
-                      description: 'Watch step-by-step guides', 
-                      icon: Video, 
-                      color: 'purple',
-                      onClick: () => addToast({ type: 'info', title: 'Coming Soon', message: 'Video tutorials coming soon!' })
-                    },
-                    { 
-                      title: 'Download Guides', 
-                      description: 'PDF guides and resources', 
-                      icon: Download, 
-                      color: 'orange',
-                      onClick: () => addToast({ type: 'info', title: 'Coming Soon', message: 'Download center coming soon!' })
-                    }
-                  ].map((resource, index) => (
-                    <motion.button
-                      key={resource.title}
-                      initial={{ opacity: 0, y: 20 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: index * 0.1 }}
-                      onClick={resource.onClick}
-                      whileHover={{ scale: 1.05, y: -2 }}
-                      whileTap={{ scale: 0.98 }}
-                      className={`bg-${resource.color}-500/10 border border-${resource.color}-500/20 hover:border-${resource.color}-500/40 rounded-xl p-6 text-center transition-all duration-300 group`}
-                    >
-                      <div className={`w-12 h-12 bg-${resource.color}-500/20 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:bg-${resource.color}-500/30 transition-colors`}>
-                        <resource.icon className={`w-6 h-6 text-${resource.color}-400`} />
-                      </div>
-                      <h3 className={`text-lg font-bold text-white group-hover:text-${resource.color}-300 transition-colors mb-2`}>
-                        {resource.title}
-                      </h3>
-                      <p className="text-gray-400 group-hover:text-gray-300 transition-colors text-sm">
-                        {resource.description}
-                      </p>
-                    </motion.button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Emergency Support */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                className="bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/20 rounded-xl p-8 text-center"
-              >
-                <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-6" />
-                <h2 className="text-3xl font-bold text-white mb-4">Emergency Support</h2>
-                <p className="text-gray-300 mb-8 max-w-2xl mx-auto">
-                  If your account is compromised or you're experiencing security issues, contact our emergency support immediately.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => addToast({ type: 'warning', title: 'Emergency Contact', message: 'Emergency support would be contacted immediately' })}
-                    className="bg-red-600 hover:bg-red-500 text-white px-8 py-3 rounded-lg font-bold transition-all duration-300"
-                    style={{ boxShadow: '0 4px 20px rgba(239, 68, 68, 0.4)' }}
-                  >
-                    Emergency Contact
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => navigate('/security-tips')}
-                    className="border border-red-500 text-red-400 hover:bg-red-500 hover:text-white px-8 py-3 rounded-lg font-bold transition-all duration-300"
-                  >
-                    Security Guide
-                  </motion.button>
-                </div>
-              </motion.div>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 pt-3 border-t border-line text-[11px] font-medium text-ink-dim">
+              Status refreshed every minute · last refresh just now.
             </div>
-          </div>
-        </div>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

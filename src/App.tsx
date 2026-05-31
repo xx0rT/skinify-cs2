@@ -10,6 +10,7 @@ import ScrollToTop from './components/ScrollToTop';
 import AgeVerificationModal from './components/AgeVerificationModal';
 import SearchPalette from './components/SearchPalette';
 import DepositModal from './components/DepositModal';
+import MobileTabBar from './components/MobileTabBar';
 import { ThemeProvider } from './theme/ThemeProvider';
 
 // Critical pages - loaded immediately
@@ -36,6 +37,7 @@ const AdminPage = lazy(() => import('./pages/AdminPage'));
 const AdminPanelNew = lazy(() => import('./pages/AdminPanelNew'));
 const ItemDetailPage = lazy(() => import('./pages/ItemDetailPage'));
 const WeaponCategoryPage = lazy(() => import('./pages/WeaponCategoryPage'));
+const WeaponCategoriesIndexPage = lazy(() => import('./pages/WeaponCategoriesIndexPage'));
 const UserProfilePage = lazy(() => import('./pages/UserProfilePage'));
 const MarketplacePage = lazy(() => import('./pages/MarketplacePage'));
 const BonusesPage = lazy(() => import('./pages/BonusesPage'));
@@ -50,6 +52,7 @@ const DeveloperDocsPage = lazy(() => import('./pages/DeveloperDocsPage'));
 const ChangelogPage = lazy(() => import('./pages/ChangelogPage'));
 const BlogDetailPage = lazy(() => import('./pages/BlogDetailPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
 
 // All supported language codes for routing
 const LANG_PATTERN = "en|es|cs|de|ru|fr|it|pt|pl|tr|ar|zh|ja|ko|nl|sv|no|da|fi|hu|ro|uk|el|th|vi|id|hi";
@@ -104,7 +107,7 @@ export default function App() {
   // Lightweight skeleton fallback for route-level Suspense — keeps the layout
   // calm while a lazy chunk arrives. No spinner, no full-screen loader.
   const LoadingFallback = () => (
-    <div className="min-h-screen px-4 pt-24 pb-16 max-w-[1480px] mx-auto md:pl-[100px]">
+    <div className="min-h-screen px-4 sm:px-6 pt-24 pb-16 max-w-[1480px] mx-auto">
       <div className="rounded-3xl h-[340px] mb-6 skeleton" />
       <div className="rounded-3xl h-[180px] mb-6 skeleton" />
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -123,23 +126,26 @@ export default function App() {
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             {/* Main routes - always use mobile version for small screens */}
-            <Route path="/" element=<LandingPage /> />
-            <Route path={`/:lang(${LANG_PATTERN})`} element=<LandingPage /> />
+            <Route path="/" element={<LandingPage />} />
+            <Route path={`/:lang(${LANG_PATTERN})`} element={<LandingPage />} />
 
-            <Route path="/profile" element=<ProfilePage /> />
-            <Route path={`/:lang(${LANG_PATTERN})/profile`} element=<ProfilePage /> />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path={`/:lang(${LANG_PATTERN})/profile`} element={<ProfilePage />} />
 
-            <Route path="/cart" element=<CartPage /> />
-            <Route path={`/:lang(${LANG_PATTERN})/cart`} element=<CartPage /> />
+            <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route path={`/:lang(${LANG_PATTERN})/onboarding`} element={<OnboardingPage />} />
 
-            <Route path="/rewards" element=<RewardsPage /> />
-            <Route path={`/:lang(${LANG_PATTERN})/rewards`} element=<RewardsPage /> />
+            <Route path="/cart" element={<CartPage />} />
+            <Route path={`/:lang(${LANG_PATTERN})/cart`} element={<CartPage />} />
 
-            <Route path="/item/:itemId" element=<ItemDetailPage /> />
-            <Route path={`/:lang(${LANG_PATTERN})/item/:itemId`} element=<ItemDetailPage /> />
+            <Route path="/rewards" element={<RewardsPage />} />
+            <Route path={`/:lang(${LANG_PATTERN})/rewards`} element={<RewardsPage />} />
 
-            <Route path="/order/:orderId" element=<ItemDetailPage /> />
-            <Route path={`/:lang(${LANG_PATTERN})/order/:orderId`} element=<ItemDetailPage /> />
+            <Route path="/item/:itemId" element={<ItemDetailPage />} />
+            <Route path={`/:lang(${LANG_PATTERN})/item/:itemId`} element={<ItemDetailPage />} />
+
+            <Route path="/order/:orderId" element={<ItemDetailPage />} />
+            <Route path={`/:lang(${LANG_PATTERN})/order/:orderId`} element={<ItemDetailPage />} />
 
             {/* Other routes */}
             <Route path="/support" element={<SupportPage />} />
@@ -150,8 +156,8 @@ export default function App() {
 
             <Route path="/auth/callback" element={<AuthCallback />} />
 
-            <Route path="/marketplace" element=<MarketplacePage /> />
-            <Route path={`/:lang(${LANG_PATTERN})/marketplace`} element=<MarketplacePage /> />
+            <Route path="/marketplace" element={<MarketplacePage />} />
+            <Route path={`/:lang(${LANG_PATTERN})/marketplace`} element={<MarketplacePage />} />
 
             <Route path="/contact" element={<ContactPage />} />
             <Route path={`/:lang(${LANG_PATTERN})/contact`} element={<ContactPage />} />
@@ -177,11 +183,14 @@ export default function App() {
             <Route path="/admin" element={<AdminPanelNew />} />
             <Route path="/admin-old" element={<AdminPage />} />
 
-            <Route path="/weapons/:category" element=<WeaponCategoryPage /> />
-            <Route path={`/:lang(${LANG_PATTERN})/weapons/:category`} element=<WeaponCategoryPage /> />
+            <Route path="/weapons" element={<WeaponCategoriesIndexPage />} />
+            <Route path={`/:lang(${LANG_PATTERN})/weapons`} element={<WeaponCategoriesIndexPage />} />
 
-            <Route path="/weapons/:category/:weapon" element=<WeaponCategoryPage /> />
-            <Route path={`/:lang(${LANG_PATTERN})/weapons/:category/:weapon`} element=<WeaponCategoryPage /> />
+            <Route path="/weapons/:category" element={<WeaponCategoryPage />} />
+            <Route path={`/:lang(${LANG_PATTERN})/weapons/:category`} element={<WeaponCategoryPage />} />
+
+            <Route path="/weapons/:category/:weapon" element={<WeaponCategoryPage />} />
+            <Route path={`/:lang(${LANG_PATTERN})/weapons/:category/:weapon`} element={<WeaponCategoryPage />} />
 
             <Route path="/user/:steamId" element={<UserProfilePage />} />
             <Route path={`/:lang(${LANG_PATTERN})/user/:steamId`} element={<UserProfilePage />} />
@@ -213,8 +222,8 @@ export default function App() {
             <Route path="/blog/:slug" element={<BlogDetailPage />} />
             <Route path={`/:lang(${LANG_PATTERN})/blog/:slug`} element={<BlogDetailPage />} />
 
-            <Route path="/shop/:shopUrl" element=<UserShopPage /> />
-            <Route path={`/:lang(${LANG_PATTERN})/shop/:shopUrl`} element=<UserShopPage /> />
+            <Route path="/shop/:shopUrl" element={<UserShopPage />} />
+            <Route path={`/:lang(${LANG_PATTERN})/shop/:shopUrl`} element={<UserShopPage />} />
 
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
@@ -227,6 +236,10 @@ export default function App() {
         {/* Global Deposit Modal - opens via openDepositModal().
             Inside Router for consistency / future routing-aware behavior. */}
         <DepositModal />
+
+        {/* Mobile bottom tab bar — only renders <md. Inside Router because
+            tab links use react-router <Link>. */}
+        <MobileTabBar />
       </BrowserRouter>
 
       {/* Toast Container - Always Present */}

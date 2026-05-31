@@ -50,6 +50,11 @@ const UserProfile: React.FC = () => {
   }, [user?.steamId]);
 
   useEffect(() => {
+    /* Outside-click handler — attached on `click` (not `mousedown`) so it
+       runs AFTER React's onClick toggles `open`. Using `mousedown` here
+       races with the trigger button: the listener saw the click on the
+       trigger as "outside the menu" (the menu didn't exist yet on the
+       first click) and immediately closed the just-opened state. */
     const onClick = (e: MouseEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
         setOpen(false);
@@ -58,10 +63,10 @@ const UserProfile: React.FC = () => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
     };
-    document.addEventListener('mousedown', onClick);
+    document.addEventListener('click', onClick);
     window.addEventListener('keydown', onKey);
     return () => {
-      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('click', onClick);
       window.removeEventListener('keydown', onKey);
     };
   }, []);
@@ -81,8 +86,12 @@ const UserProfile: React.FC = () => {
     <div className="relative" ref={wrapRef}>
       {/* ── Trigger — minimal: avatar + caret ──────────────── */}
       <motion.button
+        type="button"
         whileTap={tap}
-        onClick={() => setOpen((v) => !v)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Open profile menu"

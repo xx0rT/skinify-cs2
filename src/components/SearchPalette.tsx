@@ -124,14 +124,23 @@ export const SearchPalette: React.FC = () => {
             className="fixed inset-0 z-[80] bg-ink/40 backdrop-blur-sm"
           />
 
-          {/* Panel */}
-          <motion.div
-            initial={{ opacity: 0, y: -12, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.98 }}
-            transition={spring}
-            className="fixed top-[10vh] left-1/2 -translate-x-1/2 z-[81] w-[92vw] max-w-[640px]"
-          >
+          {/*
+            Panel — wrapped in a fixed full-width centering layer.
+            We CANNOT put `-translate-x-1/2` on the framer-animated motion.div
+            because framer's `animate={{ y, scale }}` writes its own inline
+            `transform`, overriding the Tailwind translate and slamming the
+            panel back to `left: 50%` (i.e. the right half of the screen).
+            Outer fixed layer handles the centering with flex; inner motion.div
+            only owns the entrance animation.
+          */}
+          <div className="fixed inset-x-0 top-[10vh] z-[81] flex justify-center px-3 pointer-events-none">
+            <motion.div
+              initial={{ opacity: 0, y: -12, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.98 }}
+              transition={spring}
+              className="w-full max-w-[640px] pointer-events-auto"
+            >
             <div className="card-elevated overflow-hidden">
               {/* Search input */}
               <div className="flex items-center gap-3 h-14 px-4 border-b border-line">
@@ -215,7 +224,8 @@ export const SearchPalette: React.FC = () => {
                 </button>
               </div>
             </div>
-          </motion.div>
+            </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>
