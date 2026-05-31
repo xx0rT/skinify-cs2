@@ -156,6 +156,21 @@ const WeaponCategoryPage: React.FC = () => {
     );
   };
 
+  /* useDocumentMeta must run on every render — placed BEFORE any early
+     returns to obey the rules of hooks. */
+  useDocumentMeta({
+    title: resolvedCategory
+      ? resolvedWeapon
+        ? `${resolvedWeapon} skins · ${resolvedCategory.name} · Skinify`
+        : `${resolvedCategory.name} · CS2 marketplace · Skinify`
+      : 'Browse CS2 weapons · Skinify',
+    description: resolvedCategory
+      ? resolvedWeapon
+        ? `Buy and sell ${resolvedWeapon} CS2 skins safely on Skinify. Browse all wears, floats and patterns with escrow-protected trades.`
+        : `Browse all CS2 ${resolvedCategory.name.toLowerCase()} on Skinify. ${resolvedCategory.description}`
+      : 'Browse every CS2 weapon category on Skinify.',
+  });
+
   if (!resolvedCategory) {
     return (
       <div className="min-h-screen bg-bg text-ink">
@@ -179,15 +194,6 @@ const WeaponCategoryPage: React.FC = () => {
   }
 
   const title = resolvedWeapon || resolvedCategory.name;
-
-  useDocumentMeta({
-    title: resolvedWeapon
-      ? `${resolvedWeapon} skins · ${resolvedCategory.name} · Skinify`
-      : `${resolvedCategory.name} · CS2 marketplace · Skinify`,
-    description: resolvedWeapon
-      ? `Buy and sell ${resolvedWeapon} CS2 skins safely on Skinify. Browse all wears, floats and patterns with escrow-protected trades.`
-      : `Browse all CS2 ${resolvedCategory.name.toLowerCase()} on Skinify. ${resolvedCategory.description}`,
-  });
 
   return (
     <div className="min-h-screen bg-bg text-ink">

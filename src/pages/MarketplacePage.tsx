@@ -196,14 +196,6 @@ const MarketplacePage: React.FC = () => {
 
   const handleAddCart = useCallback(
     (item: any) => {
-      if (String(item.id).startsWith('mock-')) {
-        addToast({
-          type: 'info',
-          title: 'Demo listing',
-          message: 'This is a placeholder while the marketplace is being populated.',
-        });
-        return;
-      }
       addItem({
         id: item.id,
         name: item.name || item.market_name,
@@ -227,10 +219,6 @@ const MarketplacePage: React.FC = () => {
     (item: any) => {
       if (!user) {
         addToast({ type: 'warning', title: 'Login required', message: 'Sign in to use wishlist.' });
-        return;
-      }
-      if (String(item.id).startsWith('mock-')) {
-        addToast({ type: 'info', title: 'Demo listing' });
         return;
       }
       toggleItem(

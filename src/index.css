@@ -112,14 +112,16 @@ html {
   -webkit-tap-highlight-color: transparent;
   scroll-padding-top: 80px;
   text-rendering: optimizeLegibility;
-  /* Hard-lock horizontal scrolling at the root so an oversized descendant
-     can never make the whole page swipeable sideways on mobile. */
-  overflow-x: hidden;
+  /* `overflow-x: hidden` on <html> or #root would break `position: sticky`
+     because it makes the root a scroll container. We instead lock the
+     viewport width and let `overflow-x: clip` on the body alone catch
+     any oversized descendant — clip doesn't create a scroll context, so
+     children can still stick to the viewport. */
   max-width: 100vw;
 }
 
 #root {
-  overflow-x: clip;
+  /* DO NOT add overflow here — it breaks sticky positioning. */
   max-width: 100vw;
 }
 
@@ -154,7 +156,11 @@ body {
   /* iOS safe areas */
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
-  overflow-x: hidden;
+  /* `clip` not `hidden` — clip is non-scrolling so sticky positioning
+     in descendants still works. Older Safari (<16) falls back to hidden,
+     where sticky breaks; we accept that since locking horizontal scroll
+     on mobile is the higher-impact concern. */
+  overflow-x: clip;
 }
 
 /* Mobile bottom tab bar clearance: at <md viewports we reserve 80px at the

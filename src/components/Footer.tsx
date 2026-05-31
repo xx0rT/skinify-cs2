@@ -308,6 +308,22 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
                 </a>
               ))}
             </div>
+
+            {/* DMCA Protection badge */}
+            <a
+              href="//www.dmca.com/Protection/Status.aspx?ID=9cb1cfc0-5c9d-4546-981d-bc8d34bc4c7d"
+              title="DMCA.com Protection Status"
+              className="dmca-badge inline-block mt-4 opacity-80 hover:opacity-100 transition-opacity"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <img
+                src="https://images.dmca.com/Badges/dmca-badge-w200-5x1-08.png?ID=9cb1cfc0-5c9d-4546-981d-bc8d34bc4c7d"
+                alt="DMCA.com Protection Status"
+                className="h-7 w-auto"
+                loading="lazy"
+              />
+            </a>
           </div>
 
           {footerColumns.map((col) => (

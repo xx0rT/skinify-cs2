@@ -141,6 +141,20 @@ const ItemDetailPage: React.FC = () => {
     [user, toggleItem, addToast],
   );
 
+  /* useDocumentMeta must run on every render (rules of hooks) — moved
+     above the early returns. Title falls back to "Item · Skinify" while
+     `item` is still loading or null. */
+  useDocumentMeta({
+    title: item
+      ? `${item.name || item.market_name || 'Item'} · CS2 ${item.condition || ''} · Skinify`
+      : 'Item · Skinify',
+    description: item?.description
+      ? `${item.name || item.market_name} · ${item.condition || 'CS2 item'}. ${item.description}`
+      : item
+      ? `Buy ${item.name || item.market_name}${item.condition ? ` (${item.condition})` : ''} on Skinify. Escrow-protected, 0% buyer fee, instant delivery.`
+      : 'Buy and sell CS2 skins on Skinify. Escrow-protected, instant delivery.',
+  });
+
   /* ───── Not-found / loading ───── */
   if (!loading && !item) {
     return (
@@ -238,13 +252,6 @@ const ItemDetailPage: React.FC = () => {
 
   const stickers: string[] = Array.isArray(item.stickers) ? item.stickers : [];
   const name = item.name || item.market_name || '';
-
-  useDocumentMeta({
-    title: `${name} · CS2 ${item.condition || ''} · Skinify`,
-    description: item.description
-      ? `${name} · ${item.condition || 'CS2 item'}. ${item.description}`
-      : `Buy ${name}${item.condition ? ` (${item.condition})` : ''} on Skinify. Escrow-protected, 0% buyer fee, instant delivery.`,
-  });
 
   return (
     <div className="min-h-screen bg-bg text-ink">
@@ -512,8 +519,7 @@ const ItemDetailPage: React.FC = () => {
                     whileHover={{ scale: 1.02 }}
                     onClick={handleBuy}
                     disabled={purchasing}
-                    className="h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center justify-center gap-2 disabled:opacity-60"
-                    style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.65)' }}
+                    className="h-12 rounded-full bg-accent hover:opacity-95 text-on-accent font-bold text-[14px] flex items-center justify-center gap-2 disabled:opacity-60 transition-opacity"
                   >
                     <Zap size={14} strokeWidth={2.4} />
                     Buy now · {formatPrice(item.price)}
@@ -625,7 +631,6 @@ const ItemDetailPage: React.FC = () => {
             onClick={handleBuy}
             disabled={purchasing}
             className="h-12 px-5 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center gap-2 disabled:opacity-60"
-            style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.65)' }}
           >
             <Zap size={14} strokeWidth={2.4} />
             Buy now

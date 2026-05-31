@@ -4,7 +4,6 @@ import {
   Check,
   Copy,
   ExternalLink,
-  Globe,
   Monitor,
   Moon,
   Palette,
@@ -33,7 +32,7 @@ const SettingsTab: React.FC = () => {
   const { user, logout, updateTradeLink } = useAuthStore();
   const { addToast } = useToastStore();
   const { mode, setMode, palette, setPalette, resolvedMode } = useTheme();
-  const { selectedCurrency, setSelectedCurrency, isAutoDetected } = useCurrencyStore();
+  const { selectedCurrency, setSelectedCurrency } = useCurrencyStore();
 
   const [tradeLink, setTradeLink] = useState(user?.tradeLink || '');
   const [savingTrade, setSavingTrade] = useState(false);
@@ -246,15 +245,7 @@ const SettingsTab: React.FC = () => {
         subtitle="All prices on Skinify will display in your selected currency."
       >
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <div className="label-eyebrow">Display currency</div>
-            {isAutoDetected && (
-              <span className="pill bg-accent-soft text-accent inline-flex items-center gap-1">
-                <Globe size={10} strokeWidth={2.6} />
-                Auto-detected
-              </span>
-            )}
-          </div>
+          <div className="label-eyebrow mb-3">Display currency</div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {currencies.map((c) => {
               const active = selectedCurrency.code === c.code;

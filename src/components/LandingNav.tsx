@@ -1,19 +1,27 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useMotionValueEvent, useScroll } from 'framer-motion';
 import {
-  Search,
-  ShoppingBag,
+  LogOut,
   Heart,
-  Sun,
-  Moon,
-  Monitor,
-  Plus,
   Menu,
+  Monitor,
+  Moon,
+  Package,
+  Plus,
+  Search,
+  Settings as SettingsIcon,
+  ShoppingBag,
+  Store,
+  Sun,
+  TrendingUp,
+  User as UserIcon,
   X,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { useBalanceStore } from '../store/balanceStore';
 import { useCartStore } from '../store/cartStore';
+import { useCurrencyStore } from '../store/currencyStore';
 import { useToastStore } from '../store/toastStore';
 import SteamLogin from './auth/SteamLogin';
 import UserProfile from './auth/UserProfile';
@@ -74,15 +82,18 @@ export const LandingNav: React.FC = () => {
   return (
     <>
       <header
-        className={`sticky top-0 z-40 transition-all duration-300 ${
+        className={`sticky top-0 z-40 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
           scrolled
             ? 'bg-bg/85 backdrop-blur-xl shadow-[0_4px_24px_-12px_rgba(20,16,40,0.18)]'
-            : 'bg-bg/60 backdrop-blur-md'
+            : 'bg-transparent backdrop-blur-0'
         }`}
       >
         <div
-          className={`max-w-[1480px] mx-auto px-3 sm:px-6 transition-all duration-300 ${
-            scrolled ? 'py-1.5' : 'py-3'
+          className={`max-w-[1480px] mx-auto transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+            /* At top: extra side breathing room + roomy vertical padding,
+               makes the card-style nav feel like a floating pill. On scroll
+               it docks tightly to the viewport edge for content focus. */
+            scrolled ? 'px-3 sm:px-6 py-1.5' : 'px-4 sm:px-8 py-3.5'
           }`}
         >
           {/*
@@ -100,7 +111,7 @@ export const LandingNav: React.FC = () => {
               We never try to fit the full pill on a 360px screen — it would
               squish the actions or shove the logo offscreen.
           */}
-          <div className="card h-16 px-1.5 sm:px-3 flex lg:grid items-center gap-1 sm:gap-2 lg:gap-3 lg:grid-cols-[1fr_auto_1fr]" style={{ overflowX: 'clip', overflowY: 'visible' }}>
+          <div className="card h-16 px-1.5 sm:px-3 flex lg:grid items-center gap-1 sm:gap-2 lg:gap-3 lg:grid-cols-[1fr_auto_1fr]">
             {/* LEFT — logo + (lg+) nav links */}
             <div className="flex items-center gap-2 min-w-0 lg:justify-self-start">
               <Link
@@ -386,15 +397,124 @@ export const LandingNav: React.FC = () => {
                 </div>
               </div>
 
-              {/* Account */}
+              {/* Account — flat list on mobile (no nested dropdown) so
+                  it doesn't get cut off by the drawer's width. */}
               <div className="mt-4 pt-4 border-t border-line">
-                {user ? <UserProfile /> : <SteamLogin />}
+                {user ? (
+                  <MobileAccountPanel onNavigate={() => setMenuOpen(false)} />
+                ) : (
+                  <SteamLogin />
+                )}
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
     </>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MobileAccountPanel — flat replacement for the UserProfile dropdown when
+   it lives inside the mobile drawer. The desktop dropdown is too narrow
+   for a 300px drawer and got clipped; here we render the same content
+   inline so nothing gets cut off.
+   ───────────────────────────────────────────────────────────────────────── */
+
+const MobileAccountPanel: React.FC<{ onNavigate: () => void }> = ({ onNavigate }) => {
+  const { user, logout } = useAuthStore();
+  const { balance, pendingBalance } = useBalanceStore();
+  const { formatPrice } = useCurrencyStore();
+  const navigate = useNavigate();
+
+  if (!user) return null;
+
+  const go = (path: string) => {
+    onNavigate();
+    navigate(path);
+  };
+
+  const initial = (user.displayName || 'U').charAt(0).toUpperCase();
+
+  return (
+    <div className="space-y-3">
+      {/* Identity row */}
+      <div className="flex items-center gap-3 px-1">
+        <div className="relative w-11 h-11 rounded-full bg-accent text-on-accent grid place-items-center overflow-hidden shrink-0">
+          {user.avatarUrl ? (
+            <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-[14px] font-bold tracking-tight">{initial}</span>
+          )}
+          <span
+            className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-elevated ${
+              user.tradeLink ? 'bg-emerald-500' : 'bg-amber-500'
+            }`}
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[13.5px] font-bold text-ink truncate tracking-tight leading-tight">
+            {user.displayName}
+          </div>
+          <div className="text-[11px] text-ink-dim font-mono truncate mt-0.5">
+            {user.steamId}
+          </div>
+        </div>
+      </div>
+
+      {/* Balance tile */}
+      <button
+        onClick={() => go('/profile?tab=balance')}
+        className="w-full card-flat p-3 text-left hover:bg-subtle/60 transition-colors"
+      >
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-[10.5px] font-bold uppercase tracking-wider text-ink-muted">
+            Balance
+          </span>
+          {Number(pendingBalance || 0) > 0 && (
+            <span className="text-[10.5px] font-semibold text-ink-dim tabular-nums">
+              +{formatPrice(Number(pendingBalance || 0))} pending
+            </span>
+          )}
+        </div>
+        <div className="text-[18px] font-bold text-ink tracking-tight tabular-nums leading-none mt-1.5">
+          {formatPrice(Number(balance || 0))}
+        </div>
+      </button>
+
+      {/* Quick links */}
+      <nav className="space-y-0.5">
+        {[
+          { Icon: UserIcon, label: 'Profile', to: '/profile' },
+          { Icon: Package, label: 'Inventory', to: '/profile?tab=inventory' },
+          { Icon: ShoppingBag, label: 'My listings', to: '/profile?tab=listings' },
+          { Icon: TrendingUp, label: 'Trades', to: '/profile?tab=trades' },
+          { Icon: Store, label: 'My shop', to: '/profile?tab=shop' },
+          { Icon: SettingsIcon, label: 'Settings', to: '/profile?tab=settings' },
+        ].map(({ Icon, label, to }) => (
+          <button
+            key={label}
+            onClick={() => go(to)}
+            className="w-full h-11 px-3 rounded-2xl flex items-center gap-3 text-[13.5px] font-semibold text-ink-muted hover:bg-subtle hover:text-ink transition-colors"
+          >
+            <Icon size={15} strokeWidth={2.2} />
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {/* Sign out */}
+      <button
+        onClick={() => {
+          onNavigate();
+          logout();
+        }}
+        className="w-full h-11 px-3 rounded-2xl flex items-center gap-3 text-[13.5px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors"
+      >
+        <LogOut size={15} strokeWidth={2.2} />
+        Sign out
+      </button>
+    </div>
   );
 };
 

@@ -1,4 +1,4 @@
-import React, { useEffect, lazy, Suspense } from 'react';
+import React, { useEffect, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { useSaleNotifications } from './hooks/useSaleNotifications';
 import { useCurrencyStore } from './store/currencyStore';
@@ -58,34 +58,57 @@ const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
 const LANG_PATTERN = "en|es|cs|de|ru|fr|it|pt|pl|tr|ar|zh|ja|ko|nl|sv|no|da|fi|hu|ro|uk|el|th|vi|id|hi";
 
 export default function App() {
-  const { setAutoDetectedCurrency, isAutoDetected } = useCurrencyStore();
+  const setAutoDetectedCurrency = useCurrencyStore((s) => s.setAutoDetectedCurrency);
+  const autoDetectAttempted = useRef(false);
 
   useSaleNotifications();
 
+  /* Auto-detect runs AT MOST ONCE per app mount. We can't depend on
+     `isAutoDetected` here because the moment a user manually picks a
+     currency (Settings), `setSelectedCurrency` flips `isAutoDetected`
+     back to false — which previously re-ran this effect and overwrote
+     their pick with the geo-detected one. */
   useEffect(() => {
-    if (!isAutoDetected) {
-      autoDetectAndSetCurrency()
-        .then((data) => {
-          if (data) {
-            setAutoDetectedCurrency(data.currency);
-            // Save to user preferences if logged in
-            if (data.countryCode) {
-              import('./lib/supabaseClient').then(({ supabase }) => {
-                supabase.auth.getUser().then(({ data: { user } }) => {
-                  if (user) {
-                    supabase.from('users').update({
-                      detected_country: data.countryCode,
-                      preferred_currency: data.currency.code
-                    }).eq('id', user.id);
-                  }
-                });
-              });
-            }
-          }
-        })
-        .catch(() => {});
+    if (autoDetectAttempted.current) return;
+    autoDetectAttempted.current = true;
+
+    // Skip auto-detect entirely if the user already manually picked one
+    // (persisted via zustand-persist). isAutoDetected starts true after
+    // a successful auto-detect; it's only false in two cases: (1) first
+    // ever visit, (2) user manually chose. Read both fields raw so we
+    // don't subscribe to changes.
+    const { isAutoDetected, selectedCurrency } = useCurrencyStore.getState();
+    if (!isAutoDetected && selectedCurrency.code !== 'CZK') {
+      // CZK is the default — anything else means a real prior choice.
+      return;
     }
-  }, [isAutoDetected, setAutoDetectedCurrency]);
+
+    autoDetectAndSetCurrency()
+      .then((data) => {
+        if (!data) return;
+        // Re-check just before writing — the user might have made a
+        // choice while geo-IP was in flight.
+        const fresh = useCurrencyStore.getState();
+        if (fresh.isAutoDetected || fresh.selectedCurrency.code === 'CZK') {
+          setAutoDetectedCurrency(data.currency);
+          if (data.countryCode) {
+            import('./lib/supabaseClient').then(({ supabase }) => {
+              supabase.auth.getUser().then(({ data: { user } }) => {
+                if (!user) return;
+                // Don't write preferred_currency — only the detected
+                // country. The user's explicit pick is the source of
+                // truth for the currency column.
+                supabase
+                  .from('users')
+                  .update({ detected_country: data.countryCode })
+                  .eq('id', user.id);
+              });
+            });
+          }
+        }
+      })
+      .catch(() => {});
+  }, [setAutoDetectedCurrency]);
 
   useEffect(() => {
     const cleanupInterval = memoryOptimizer.schedulePeriodicCleanup(10 * 60 * 1000);

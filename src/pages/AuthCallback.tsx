@@ -59,11 +59,11 @@ const classifyError = (raw: unknown, response?: Response | null): FailureInfo =>
   ) {
     return {
       kind: 'network',
-      title: 'Couldn\'t reach the sign-in service',
+      title: 'Connection hiccup — please try again',
       message:
-        'Your browser blocked the request before it left your device. The Skinify servers are online.',
+        "We couldn't reach Steam just now. This is usually a brief connection blip — give it another go.",
       hint:
-        'Disable ad-blockers, privacy extensions (uBlock, Brave Shields, Ghostery), VPNs, and DNS filters (NextDNS, Pi-hole) for skinify.gg and supabase.co, then try again.',
+        "If it keeps failing, an ad-blocker, VPN, or DNS filter (uBlock, Brave Shields, NextDNS, Pi-hole) might be blocking *.supabase.co. Try an incognito window or disable those for skinify.gg.",
       details: message,
     };
   }
@@ -163,19 +163,34 @@ export default function AuthCallback() {
 
         const authUrl = `${supabaseUrl}/functions/v1/auth${window.location.search}`;
 
+        /* Manual abort controller — AbortSignal.timeout isn't available in
+           older Safari/Chromium and throws synchronously when missing,
+           which the outer catch reads as "Load failed" and confuses
+           users into thinking an extension blocked them. */
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 30000);
         try {
           response = await fetch(authUrl, {
             method: 'GET',
             headers: {
               Authorization: `Bearer ${supabaseKey}`,
               'Content-Type': 'application/json',
+              apikey: supabaseKey,
             },
-            signal: AbortSignal.timeout(30000),
+            credentials: 'omit',
+            mode: 'cors',
+            cache: 'no-store',
+            signal: controller.signal,
           });
         } catch (fetchError) {
+          if ((fetchError as any)?.name === 'AbortError') {
+            throw new Error('Request timed out');
+          }
           throw new Error(
             fetchError instanceof Error ? fetchError.message : 'Network error',
           );
+        } finally {
+          window.clearTimeout(timeoutId);
         }
 
         if (!response.ok) {

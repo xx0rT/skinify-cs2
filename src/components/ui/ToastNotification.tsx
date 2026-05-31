@@ -46,7 +46,10 @@ const TYPE_STYLES: Record<
   },
 };
 
-const ToastNotification: React.FC<ToastNotificationProps> = ({ toast, onRemove }) => {
+/* forwardRef so AnimatePresence's PopChildMeasure can read this node's
+   layout during exit — without it React logs "Function components cannot
+   be given refs" on every toast removal. */
+const ToastNotification = React.forwardRef<HTMLDivElement, ToastNotificationProps>(({ toast, onRemove }, ref) => {
   const duration = toast.duration ?? 3200;
   const [paused, setPaused] = useState(false);
   const elapsedRef = useRef(0);
@@ -68,6 +71,7 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({ toast, onRemove }
 
   return (
     <motion.div
+      ref={ref}
       layout="position"
       // Entrance: slide from right, slight overshoot via spring. Exit:
       // quick fade + small slide off right + a tiny scale-down so stacked
@@ -152,6 +156,8 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({ toast, onRemove }
       />
     </motion.div>
   );
-};
+});
+
+ToastNotification.displayName = 'ToastNotification';
 
 export default ToastNotification;
