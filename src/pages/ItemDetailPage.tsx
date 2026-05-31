@@ -67,20 +67,13 @@ const ItemDetailPage: React.FC = () => {
   const [copied, setCopied] = useState(false);
 
   /* The mobile floating buy chip should only appear when the in-page
-     buy panel is NOT visible — sliding into view when the user scrolls
-     past it, and tucking back away when they scroll back to it. */
+     buy panel is NOT visible. The actual IntersectionObserver effect
+     lives below the `item` useMemo because Vite's prod minifier reorders
+     `const` declarations and using `item` here as a dep would land in
+     the temporal dead zone — visible on mobile as a blank page with
+     "Cannot access 'he' before initialization". */
   const buyPanelRef = useRef<HTMLDivElement | null>(null);
   const [buyPanelVisible, setBuyPanelVisible] = useState(true);
-  useEffect(() => {
-    const target = buyPanelRef.current;
-    if (!target || typeof IntersectionObserver === 'undefined') return;
-    const obs = new IntersectionObserver(
-      ([entry]) => setBuyPanelVisible(entry.isIntersecting),
-      { rootMargin: '-80px 0px -80px 0px', threshold: 0.05 },
-    );
-    obs.observe(target);
-    return () => obs.disconnect();
-  }, [item]);
 
   useEffect(() => {
     if (user?.steamId) {
@@ -96,6 +89,19 @@ const ItemDetailPage: React.FC = () => {
     if (live) return live;
     return findMockItem(itemId);
   }, [items, itemId]);
+
+  /* Observer wired AFTER `item` is declared. `item?.id` in deps ensures
+     the observer re-binds when the page swaps to a different listing. */
+  useEffect(() => {
+    const target = buyPanelRef.current;
+    if (!target || typeof IntersectionObserver === 'undefined') return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setBuyPanelVisible(entry.isIntersecting),
+      { rootMargin: '-80px 0px -80px 0px', threshold: 0.05 },
+    );
+    obs.observe(target);
+    return () => obs.disconnect();
+  }, [item?.id]);
 
   /* When the live list is empty, fall back to the mock dataset for the
      "similar items" panel too. */

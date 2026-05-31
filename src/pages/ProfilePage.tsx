@@ -225,12 +225,9 @@ const ProfilePage: React.FC = () => {
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={spring}
-            /* Sticky on every breakpoint. On <lg the nav is a horizontal
-               pill scroller anchored under the page header (`top-20`);
-               on lg+ it becomes a vertical sidebar under the LandingNav
-               (`top-24`). Slight z-bump so it floats above tab content
-               on scroll without being covered by hover effects. */
-            className="card lg:p-2 p-1.5 self-start sticky top-20 lg:top-24 z-20 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto overflow-x-auto scrollbar-hide"
+            /* Flows with the page — not sticky. Horizontal pill scroller
+               on <lg, vertical card on lg+. */
+            className="card lg:p-2 p-1.5 self-start lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto overflow-x-auto scrollbar-hide"
           >
             <nav className="flex lg:flex-col gap-1 lg:gap-0.5">
               {TABS.map((t) => {
