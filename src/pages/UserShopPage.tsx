@@ -1,30 +1,67 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Store, Mail, MessageCircle, ExternalLink, Grid2x2 as Grid, List, Eye, Heart, Share2, ArrowLeft } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ExternalLink,
+  Eye,
+  Grid2x2,
+  List as ListIcon,
+  MessageCircle,
+  Palette,
+  Save,
+  Sparkles,
+  Store,
+  X,
+  Edit3,
+  Code2,
+  Globe,
+  Twitter,
+  Instagram,
+  Youtube,
+  Mail,
+} from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { useAuthStore } from '../store/authStore';
+import { useToastStore } from '../store/toastStore';
+import { useCurrencyStore } from '../store/currencyStore';
+import { useCartStore } from '../store/cartStore';
 import ShopItemModal from '../components/marketplace/ShopItemModal';
-import Header from '../components/Header';
+import { spring, tap } from '../lib/motion';
+import useDocumentMeta from '../hooks/useDocumentMeta';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   UserShopPage — public shop hosted at /shop/:shopUrl
+
+   No LandingNav, no Footer. The shop runs in its own theme — colours,
+   layout, font, and custom CSS come from the owner's `user_shops` row.
+   When the signed-in user IS the owner, an in-page editor toolbar appears
+   with live-preview controls (preset themes, primary/secondary/accent
+   colour pickers, banner/logo URLs, social links, custom-CSS box).
+   ───────────────────────────────────────────────────────────────────────── */
 
 interface Shop {
   id: string;
   user_id: string;
   shop_name: string;
   shop_url: string;
-  description: string;
-  logo_url: string;
-  banner_url: string;
+  description: string | null;
+  logo_url: string | null;
+  banner_url: string | null;
   primary_color: string;
   secondary_color: string;
   accent_color: string;
-  layout_style: string;
-  email: string;
-  discord_username: string;
-  twitter_url: string;
-  instagram_url: string;
+  layout_style: 'grid' | 'list' | 'masonry';
+  email: string | null;
+  discord_username: string | null;
+  twitter_url: string | null;
+  instagram_url: string | null;
+  youtube_url: string | null;
   total_views: number;
   total_sales: number;
-  custom_css?: string;
+  custom_css?: string | null;
 }
 
 interface ShopItem {
@@ -38,522 +75,852 @@ interface ShopItem {
     image_url: string;
     price: number;
     condition: string;
+    rarity?: string;
     is_active: boolean;
   };
 }
 
+/* ─── Presets ────────────────────────────────────────────────────────── */
+
+interface Preset {
+  id: string;
+  label: string;
+  primary: string;
+  secondary: string;
+  accent: string;
+  layout: Shop['layout_style'];
+  css?: string;
+}
+
+const PRESETS: Preset[] = [
+  {
+    id: 'midnight',
+    label: 'Midnight',
+    primary: '#0b0d17',
+    secondary: '#161a2c',
+    accent: '#a855f7',
+    layout: 'grid',
+    css: '',
+  },
+  {
+    id: 'paper',
+    label: 'Paper',
+    primary: '#fafaf7',
+    secondary: '#ffffff',
+    accent: '#1f2937',
+    layout: 'grid',
+    css: '.shop-card { border: 1px solid rgba(0,0,0,0.06); box-shadow: 0 1px 0 rgba(0,0,0,0.04); }',
+  },
+  {
+    id: 'neon',
+    label: 'Neon',
+    primary: '#0a0f1a',
+    secondary: '#101a30',
+    accent: '#22d3ee',
+    layout: 'masonry',
+    css: '.shop-card { box-shadow: 0 0 0 1px rgba(34,211,238,0.18), 0 8px 28px -10px rgba(34,211,238,0.35); } .shop-title { text-shadow: 0 0 18px rgba(34,211,238,0.45); }',
+  },
+  {
+    id: 'sand',
+    label: 'Sand',
+    primary: '#f5efe6',
+    secondary: '#ffffff',
+    accent: '#b45309',
+    layout: 'list',
+    css: '',
+  },
+  {
+    id: 'pitch',
+    label: 'Pitch',
+    primary: '#050505',
+    secondary: '#0e0e10',
+    accent: '#ef4444',
+    layout: 'grid',
+    css: '.shop-card { background: linear-gradient(180deg, #131316, #0e0e10); }',
+  },
+  {
+    id: 'mint',
+    label: 'Mint',
+    primary: '#f0fdf4',
+    secondary: '#ffffff',
+    accent: '#059669',
+    layout: 'grid',
+    css: '',
+  },
+];
+
+const isDark = (hex: string) => {
+  const m = hex.replace('#', '');
+  if (m.length < 6) return true;
+  const r = parseInt(m.slice(0, 2), 16);
+  const g = parseInt(m.slice(2, 4), 16);
+  const b = parseInt(m.slice(4, 6), 16);
+  return r * 0.299 + g * 0.587 + b * 0.114 < 140;
+};
+
 const UserShopPage: React.FC = () => {
   const { shopUrl } = useParams<{ shopUrl: string }>();
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const { user } = useAuthStore();
+  const { addToast } = useToastStore();
+  const { formatPrice } = useCurrencyStore();
+  const { addItem } = useCartStore();
+
   const [shop, setShop] = useState<Shop | null>(null);
   const [items, setItems] = useState<ShopItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewStyle, setViewStyle] = useState<'grid' | 'list'>('grid');
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
 
+  /* Editor state — shadow copy of the shop. Only persisted on Save. */
+  const editMode = params.get('edit') === '1';
+  const [draft, setDraft] = useState<Shop | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [showCSS, setShowCSS] = useState(false);
+
+  useDocumentMeta({
+    title: shop ? `${shop.shop_name} · Shop` : 'Shop',
+    description: shop?.description || 'A custom shop on Skinify.',
+  });
+
   useEffect(() => {
-    console.log('=== SHOP URL PARAM ===', shopUrl);
-    if (shopUrl) {
-      fetchShop();
-    } else {
-      console.error('No shop URL provided in route');
-      setLoading(false);
-      navigate('/marketplace');
-    }
+    if (shopUrl) fetchShop();
   }, [shopUrl]);
 
   useEffect(() => {
-    if (shop?.id) {
-      recordView();
-    }
+    if (shop?.id) recordView();
   }, [shop?.id]);
 
+  /* When entering edit mode, seed the draft from the live shop. */
+  useEffect(() => {
+    if (editMode && shop) setDraft({ ...shop });
+    if (!editMode) setDraft(null);
+  }, [editMode, shop?.id]);
+
+  const isOwner = useMemo(() => {
+    if (!user || !shop) return false;
+    // shop.user_id is the users.id (uuid); the authStore user.id is the
+    // same uuid issued by our auth function. Compare both directly and
+    // by steamId as a fallback.
+    return shop.user_id === user.id;
+  }, [user, shop]);
+
   const fetchShop = async () => {
-    console.log('=== FETCH SHOP STARTED ===');
-    console.log('Current timestamp:', new Date().toISOString());
-
     try {
-      console.log('=== FETCHING SHOP ===');
-      console.log('Shop URL:', shopUrl);
-      console.log('About to query user_shops table...');
-
-      const { data: shopData, error: shopError } = await supabase
+      const { data: shopData, error } = await supabase
         .from('user_shops')
         .select('*')
         .eq('shop_url', shopUrl)
-        .eq('is_active', true)
         .maybeSingle();
-
-      console.log('Query completed!');
-      console.log('Shop data:', shopData);
-      console.log('Shop error:', shopError);
-
-      if (shopError) {
-        console.error('Shop query error:', shopError);
-        throw shopError;
-      }
-
+      if (error) throw error;
       if (!shopData) {
-        console.error('Shop not found for URL:', shopUrl);
         navigate('/marketplace');
         return;
       }
-
-      console.log('Shop found! Setting shop state...');
-      setShop(shopData);
-      setViewStyle(shopData.layout_style === 'list' ? 'list' : 'grid');
-      console.log('Shop state set. Now fetching items...');
-
-      const { data: itemsData, error: itemsError } = await supabase
+      setShop(shopData as any);
+      const { data: itemsData } = await supabase
         .from('shop_items')
         .select('*, marketplace_listings(*)')
         .eq('shop_id', shopData.id)
         .order('is_featured', { ascending: false })
         .order('display_order', { ascending: true });
-
-      console.log('=== SHOP ITEMS DEBUG ===');
-      console.log('Shop ID:', shopData.id);
-      console.log('Items data:', itemsData);
-      console.log('Items error:', itemsError);
-      console.log('Item count:', itemsData?.length || 0);
-
-      if (itemsError) {
-        console.error('Error fetching shop items:', itemsError);
-        throw itemsError;
-      }
-
-      console.log('Setting items state...');
-      setItems(itemsData || []);
-      console.log('Items state set!');
-    } catch (error: any) {
-      console.error('=== ERROR IN FETCH SHOP ===');
-      console.error('Error type:', typeof error);
-      console.error('Error:', error);
-      console.error('Error message:', error?.message);
-      console.error('Error code:', error?.code);
-
-      if (error?.code === 'PGRST116') {
-        console.log('Shop not found, redirecting to marketplace...');
-        navigate('/marketplace');
-      }
+      setItems((itemsData as any) || []);
+    } catch (e) {
+      console.error('fetchShop', e);
     } finally {
-      console.log('=== FINALLY BLOCK ===');
-      console.log('Setting loading to false at:', new Date().toISOString());
       setLoading(false);
-      console.log('Loading set to false!');
     }
   };
 
   const recordView = async () => {
+    if (!shop) return;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-
-      await supabase.from('shop_views').insert({
-        shop_id: shop?.id,
-        viewer_id: user?.id || null,
-        ip_address: null,
-        user_agent: navigator.userAgent,
-        referrer: document.referrer || null
-      });
-
-      if (shop?.id) {
-        await supabase.rpc('increment_shop_views', { shop_uuid: shop.id });
-      }
-    } catch (error) {
-      console.error('Error recording view:', error);
+      await supabase.rpc('increment_shop_views', { shop_uuid: shop.id });
+    } catch {
+      /* non-critical */
     }
   };
 
-  const copyShopLink = () => {
-    const link = window.location.href;
-    navigator.clipboard.writeText(link);
-    alert('Shop link copied to clipboard!');
+  const startEdit = () => setParams({ edit: '1' });
+  const exitEdit = () => {
+    const next = new URLSearchParams(params);
+    next.delete('edit');
+    setParams(next);
   };
 
+  const applyPreset = (p: Preset) => {
+    if (!draft) return;
+    setDraft({
+      ...draft,
+      primary_color: p.primary,
+      secondary_color: p.secondary,
+      accent_color: p.accent,
+      layout_style: p.layout,
+      custom_css: p.css ?? draft.custom_css ?? '',
+    });
+    addToast({ type: 'info', title: `Preset · ${p.label}`, message: 'Click Save to publish.' });
+  };
+
+  const handleSave = async () => {
+    if (!draft) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from('user_shops')
+      .update({
+        shop_name: draft.shop_name,
+        description: draft.description,
+        logo_url: draft.logo_url,
+        banner_url: draft.banner_url,
+        primary_color: draft.primary_color,
+        secondary_color: draft.secondary_color,
+        accent_color: draft.accent_color,
+        layout_style: draft.layout_style,
+        email: draft.email,
+        discord_username: draft.discord_username,
+        twitter_url: draft.twitter_url,
+        instagram_url: draft.instagram_url,
+        youtube_url: draft.youtube_url,
+        custom_css: draft.custom_css,
+      })
+      .eq('id', draft.id);
+    setSaving(false);
+    if (error) {
+      addToast({ type: 'error', title: 'Save failed', message: error.message });
+      return;
+    }
+    setShop({ ...draft });
+    addToast({ type: 'success', title: 'Shop saved', message: 'Changes are live.' });
+  };
+
+  /* The values used to render the shop — draft while editing for live
+     preview, otherwise the persisted shop. */
+  const view = (editMode && draft) || shop;
+
+  const handleAddCart = (item: ShopItem) => {
+    const listing = item.marketplace_listings;
+    if (!listing) return;
+    addItem({
+      id: listing.id,
+      name: listing.item_name,
+      price: listing.price,
+      image: listing.image_url,
+      condition: listing.condition,
+      rarity: listing.rarity,
+      type: listing.item_type,
+      seller: { steamId: '', name: view?.shop_name || 'Shop' },
+    } as any);
+    addToast({ type: 'success', title: 'Added to cart', message: listing.item_name });
+  };
+
+  /* ─── Loading / 404 ───────────────────────────────────────────────── */
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500"></div>
+      <div className="min-h-screen bg-bg text-ink grid place-items-center">
+        <div className="text-[13.5px] text-ink-muted font-medium">Loading shop…</div>
       </div>
     );
   }
+  if (!view) return null;
 
-  if (!shop) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <Store className="w-16 h-16 text-gray-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-white mb-2">Shop Not Found</h2>
-          <p className="text-gray-400 mb-6">This shop doesn't exist or is not active.</p>
-          <button
-            onClick={() => navigate('/marketplace')}
-            className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg transition"
-          >
-            Go to Marketplace
-          </button>
-        </div>
-      </div>
-    );
-  }
+  /* ─── Styling derived from shop ───────────────────────────────────── */
+  const onPrimaryDark = isDark(view.primary_color);
+  const textPrimary = onPrimaryDark ? '#f4f4f5' : '#1a1a1f';
+  const textMuted = onPrimaryDark ? 'rgba(244,244,245,0.65)' : 'rgba(26,26,31,0.62)';
+  const lineColor = onPrimaryDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+
+  const layoutClass =
+    view.layout_style === 'list'
+      ? 'flex flex-col gap-3'
+      : view.layout_style === 'masonry'
+      ? 'columns-2 sm:columns-3 lg:columns-4 gap-3 space-y-3'
+      : 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3';
 
   return (
-    <>
-      {/* Header */}
-      <Header activeSection="Shop" />
-
-      {/* Inject Custom CSS */}
-      {shop.custom_css && (
-        <style dangerouslySetInnerHTML={{ __html: shop.custom_css }} />
+    <div
+      className="min-h-screen shop-root"
+      style={{
+        background: view.primary_color,
+        color: textPrimary,
+        // expose tokens to custom CSS / inline children
+        ['--shop-primary' as any]: view.primary_color,
+        ['--shop-secondary' as any]: view.secondary_color,
+        ['--shop-accent' as any]: view.accent_color,
+        ['--shop-text' as any]: textPrimary,
+        ['--shop-muted' as any]: textMuted,
+        ['--shop-line' as any]: lineColor,
+      }}
+    >
+      {/* The owner's CSS is scoped via the .shop-root wrapper above. We
+          don't sandbox style — it's the owner's own page after all — but
+          keep all selectors prefixed with .shop-root by convention in the
+          editor placeholder. */}
+      {view.custom_css && (
+        <style dangerouslySetInnerHTML={{ __html: view.custom_css }} />
       )}
 
-      {/* Main Content - With proper margins for header and sidebar */}
-      <div className="ml-16 pt-20 min-h-screen bg-gray-900">
-        <div className="shop-container" style={{ background: 'transparent' }}>
-        {/* Banner */}
-        {shop.banner_url && (
-          <div
-            className="h-64 bg-cover bg-center"
-            style={{ backgroundImage: `url(${shop.banner_url})` }}
-          />
-        )}
+      {/* Owner toolbar — fixed at the bottom, only when the signed-in user
+          owns this shop. NOT a navbar — just an editor handle. */}
+      {isOwner && !editMode && (
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={spring}
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50"
+        >
+          <button
+            onClick={startEdit}
+            className="h-12 px-5 rounded-full bg-black text-white text-[13px] font-bold inline-flex items-center gap-2 shadow-[0_18px_40px_-16px_rgba(0,0,0,0.6)]"
+          >
+            <Edit3 size={14} strokeWidth={2.4} />
+            Customize shop
+          </button>
+        </motion.div>
+      )}
 
-        {/* Shop Header Section */}
-        <div className="shop-header">
-          <div className="max-w-7xl mx-auto px-6 py-8">
+      {/* Editor panel (drawer style on the right) */}
+      <AnimatePresence>
+        {isOwner && editMode && draft && (
+          <motion.aside
+            initial={{ x: '110%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '110%' }}
+            transition={{ type: 'spring', stiffness: 280, damping: 32 }}
+            className="fixed right-3 top-3 bottom-3 z-50 w-[360px] max-w-[92vw] rounded-3xl bg-[rgb(20,20,24)] text-white overflow-y-auto"
+            style={{ boxShadow: '0 28px 60px -22px rgba(0,0,0,0.6)' }}
+          >
+            <div className="sticky top-0 z-10 bg-[rgb(20,20,24)] px-5 pt-5 pb-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-2xl bg-white/10 grid place-items-center">
+                  <Palette size={16} strokeWidth={2.4} />
+                </div>
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-white/55">
+                    Editor
+                  </div>
+                  <div className="text-[14.5px] font-bold leading-none mt-1">
+                    Customize your shop
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={exitEdit}
+                className="h-9 w-9 rounded-full bg-white/8 hover:bg-white/14 grid place-items-center"
+              >
+                <X size={15} strokeWidth={2.4} />
+              </button>
+            </div>
+
+            <div className="px-5 pb-28 space-y-6">
+              {/* Identity */}
+              <Group title="Identity">
+                <Field label="Shop name">
+                  <input
+                    value={draft.shop_name}
+                    onChange={(e) => setDraft({ ...draft, shop_name: e.target.value })}
+                    className="editor-input"
+                  />
+                </Field>
+                <Field label="Tagline / description">
+                  <textarea
+                    rows={3}
+                    value={draft.description || ''}
+                    onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+                    className="editor-input resize-none"
+                  />
+                </Field>
+                <Field label="Logo URL">
+                  <input
+                    value={draft.logo_url || ''}
+                    onChange={(e) => setDraft({ ...draft, logo_url: e.target.value })}
+                    placeholder="https://…"
+                    className="editor-input"
+                  />
+                </Field>
+                <Field label="Banner URL">
+                  <input
+                    value={draft.banner_url || ''}
+                    onChange={(e) => setDraft({ ...draft, banner_url: e.target.value })}
+                    placeholder="https://…"
+                    className="editor-input"
+                  />
+                </Field>
+              </Group>
+
+              {/* Presets */}
+              <Group title="Presets">
+                <div className="grid grid-cols-2 gap-2">
+                  {PRESETS.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => applyPreset(p)}
+                      className="rounded-2xl overflow-hidden text-left bg-white/5 hover:bg-white/10 transition-colors p-2"
+                    >
+                      <div
+                        className="h-10 rounded-xl mb-2 grid place-items-center"
+                        style={{
+                          background: `linear-gradient(135deg, ${p.primary} 0%, ${p.primary} 60%, ${p.secondary} 100%)`,
+                        }}
+                      >
+                        <span
+                          className="w-4 h-4 rounded-full ring-2 ring-white/30"
+                          style={{ background: p.accent }}
+                        />
+                      </div>
+                      <div className="text-[12px] font-bold">{p.label}</div>
+                      <div className="text-[10.5px] uppercase tracking-wider text-white/45 mt-0.5">
+                        {p.layout}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </Group>
+
+              {/* Colours */}
+              <Group title="Colours">
+                <ColorRow
+                  label="Background"
+                  value={draft.primary_color}
+                  onChange={(v) => setDraft({ ...draft, primary_color: v })}
+                />
+                <ColorRow
+                  label="Surface"
+                  value={draft.secondary_color}
+                  onChange={(v) => setDraft({ ...draft, secondary_color: v })}
+                />
+                <ColorRow
+                  label="Accent"
+                  value={draft.accent_color}
+                  onChange={(v) => setDraft({ ...draft, accent_color: v })}
+                />
+              </Group>
+
+              {/* Layout */}
+              <Group title="Layout">
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(['grid', 'list', 'masonry'] as const).map((l) => {
+                    const active = draft.layout_style === l;
+                    return (
+                      <button
+                        key={l}
+                        onClick={() => setDraft({ ...draft, layout_style: l })}
+                        className={`h-10 rounded-2xl text-[12px] font-bold transition-colors ${
+                          active ? 'bg-white text-black' : 'bg-white/8 text-white/80 hover:bg-white/14'
+                        }`}
+                      >
+                        {l}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Group>
+
+              {/* Social / contact */}
+              <Group title="Contact">
+                <Field label="Email" Icon={Mail}>
+                  <input
+                    value={draft.email || ''}
+                    onChange={(e) => setDraft({ ...draft, email: e.target.value })}
+                    className="editor-input"
+                  />
+                </Field>
+                <Field label="Discord" Icon={MessageCircle}>
+                  <input
+                    value={draft.discord_username || ''}
+                    onChange={(e) => setDraft({ ...draft, discord_username: e.target.value })}
+                    className="editor-input"
+                  />
+                </Field>
+                <Field label="Twitter URL" Icon={Twitter}>
+                  <input
+                    value={draft.twitter_url || ''}
+                    onChange={(e) => setDraft({ ...draft, twitter_url: e.target.value })}
+                    className="editor-input"
+                  />
+                </Field>
+                <Field label="Instagram URL" Icon={Instagram}>
+                  <input
+                    value={draft.instagram_url || ''}
+                    onChange={(e) => setDraft({ ...draft, instagram_url: e.target.value })}
+                    className="editor-input"
+                  />
+                </Field>
+                <Field label="YouTube URL" Icon={Youtube}>
+                  <input
+                    value={draft.youtube_url || ''}
+                    onChange={(e) => setDraft({ ...draft, youtube_url: e.target.value })}
+                    className="editor-input"
+                  />
+                </Field>
+              </Group>
+
+              {/* Custom CSS */}
+              <Group title="Custom CSS">
+                <button
+                  onClick={() => setShowCSS((v) => !v)}
+                  className="w-full h-10 px-3 rounded-2xl bg-white/8 hover:bg-white/14 text-[12.5px] font-semibold inline-flex items-center justify-between"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Code2 size={13} strokeWidth={2.4} />
+                    {showCSS ? 'Hide CSS' : 'Edit CSS'}
+                  </span>
+                  <span className="text-[11px] text-white/45">
+                    {(draft.custom_css || '').length} chars
+                  </span>
+                </button>
+                {showCSS && (
+                  <textarea
+                    rows={9}
+                    value={draft.custom_css || ''}
+                    onChange={(e) => setDraft({ ...draft, custom_css: e.target.value })}
+                    placeholder={`/* Scope your CSS under .shop-root */\n.shop-card { transform: rotate(-1deg); }`}
+                    className="editor-input font-mono text-[11.5px] resize-none mt-2"
+                  />
+                )}
+                <p className="text-[10.5px] text-white/45 mt-2 leading-relaxed">
+                  Scope rules under <code className="text-white/70">.shop-root</code> to avoid leaking styles to the
+                  rest of Skinify. Available CSS variables:{' '}
+                  <code className="text-white/70">--shop-primary</code>,{' '}
+                  <code className="text-white/70">--shop-secondary</code>,{' '}
+                  <code className="text-white/70">--shop-accent</code>.
+                </p>
+              </Group>
+            </div>
+
+            {/* Sticky save bar */}
+            <div className="sticky bottom-0 left-0 right-0 px-5 py-3 bg-[rgb(20,20,24)] border-t border-white/8 flex gap-2">
+              <button
+                onClick={exitEdit}
+                className="h-11 px-4 rounded-full bg-white/8 hover:bg-white/14 text-[13px] font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 h-11 rounded-full bg-white text-black font-bold text-[13.5px] inline-flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                <Save size={14} strokeWidth={2.4} />
+                {saving ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
+          </motion.aside>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Shop content ──────────────────────────────────────────── */}
+      <main
+        className="max-w-[1280px] mx-auto px-4 sm:px-8 pt-6 pb-32"
+        style={{ minHeight: '100vh' }}
+      >
+        {/* Back link — tiny, top-left. Not a navbar — just lets visitors
+            leave the storefront. Hidden in edit mode to keep focus. */}
+        {!editMode && (
           <button
             onClick={() => navigate('/marketplace')}
-            className="flex items-center gap-2 text-gray-400 hover:text-white mb-4 transition"
+            className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold mb-6 transition-opacity hover:opacity-80"
+            style={{ color: textMuted }}
           >
-            <ArrowLeft size={20} />
-            Back to Marketplace
+            <ArrowLeft size={13} strokeWidth={2.4} />
+            Back to Skinify
           </button>
+        )}
 
-          <div className="flex items-start gap-6 mb-8">
-            {shop.logo_url ? (
-              <img
-                src={shop.logo_url}
-                alt={shop.shop_name}
-                className="w-24 h-24 rounded-xl object-cover border-4 shadow-xl"
-                style={{ borderColor: shop.primary_color }}
-              />
-            ) : (
-              <div
-                className="w-24 h-24 rounded-xl flex items-center justify-center shadow-xl"
-                style={{ backgroundColor: shop.primary_color }}
-              >
-                <Store className="w-12 h-12 text-white" />
-              </div>
-            )}
-
-            <div className="flex-1">
-              <motion.h1
-                className="text-4xl font-bold text-white mb-2"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 }}
-              >
-                {shop.shop_name}
-              </motion.h1>
-              {shop.description && (
-                <motion.p
-                  className="text-gray-300 mb-4 max-w-3xl"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  {shop.description}
-                </motion.p>
-              )}
-
-              <div className="flex flex-wrap items-center gap-4">
-                <motion.div
-                  className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors group cursor-default"
-                  whileHover={{ scale: 1.05 }}
-                >
-                  <Eye size={18} className="group-hover:text-purple-400 transition-colors" />
-                  <span>{shop.total_views.toLocaleString()} views</span>
-                </motion.div>
-                <motion.div
-                  className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors group cursor-default"
-                  whileHover={{ scale: 1.05 }}
-                >
-                  <Store size={18} className="group-hover:text-purple-400 transition-colors" />
-                  <span>{shop.total_sales.toLocaleString()} sales</span>
-                </motion.div>
-
-                {shop.email && (
-                  <motion.a
-                    href={`mailto:${shop.email}`}
-                    className="flex items-center gap-2 hover:text-white transition-colors"
-                    style={{ color: shop.accent_color }}
-                    whileHover={{ scale: 1.05, x: 5 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <Mail size={18} />
-                    Contact
-                  </motion.a>
-                )}
-
-                {shop.discord_username && (
-                  <motion.div
-                    className="flex items-center gap-2"
-                    style={{ color: shop.accent_color }}
-                    whileHover={{ scale: 1.05 }}
-                  >
-                    <MessageCircle size={18} />
-                    {shop.discord_username}
-                  </motion.div>
-                )}
-
-                <motion.button
-                  onClick={copyShopLink}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg transition hover:bg-white/10"
-                  style={{ color: shop.secondary_color }}
-                  whileHover={{
-                    scale: 1.05,
-                    backgroundColor: `${shop.secondary_color}20`,
-                  }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Share2 size={18} />
-                  Share
-                </motion.button>
-              </div>
-            </div>
+        {/* Banner */}
+        {view.banner_url && (
+          <div
+            className="shop-banner relative w-full aspect-[5/1.4] sm:aspect-[6/1.2] rounded-3xl overflow-hidden mb-6"
+            style={{ background: view.secondary_color }}
+          >
+            <img
+              src={view.banner_url}
+              alt=""
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+              }}
+            />
           </div>
+        )}
 
-          {/* View Toggle */}
-          <div className="flex justify-end gap-2 mb-6">
-            <motion.button
-              onClick={() => setViewStyle('grid')}
-              className={`p-3 rounded-lg transition-all ${
-                viewStyle === 'grid'
-                  ? 'text-white shadow-lg'
-                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
-              }`}
-              style={{
-                backgroundColor: viewStyle === 'grid' ? shop.primary_color : undefined,
-              }}
-              whileHover={{
-                scale: 1.1,
-                boxShadow: viewStyle === 'grid'
-                  ? `0 0 20px ${shop.primary_color}80`
-                  : '0 4px 12px rgba(0,0,0,0.3)',
-              }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <Grid size={20} />
-            </motion.button>
-            <motion.button
-              onClick={() => setViewStyle('list')}
-              className={`p-3 rounded-lg transition-all ${
-                viewStyle === 'list'
-                  ? 'text-white shadow-lg'
-                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
-              }`}
-              style={{
-                backgroundColor: viewStyle === 'list' ? shop.primary_color : undefined,
-              }}
-              whileHover={{
-                scale: 1.1,
-                boxShadow: viewStyle === 'list'
-                  ? `0 0 20px ${shop.primary_color}80`
-                  : '0 4px 12px rgba(0,0,0,0.3)',
-              }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <List size={20} />
-            </motion.button>
-          </div>
-
-          {/* Items Grid */}
-          {items.length === 0 ? (
-            <div className="text-center py-20">
-              <Store className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-white mb-2">No Items Yet</h3>
-              <p className="text-gray-400">This shop hasn't listed any items yet. Check back soon!</p>
-            </div>
-          ) : (
+        {/* Identity row */}
+        <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5 mb-8">
+          <div className="flex items-center gap-4 min-w-0">
             <div
-              className={
-                viewStyle === 'grid'
-                  ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
-                  : 'space-y-4'
-              }
+              className="shop-logo w-20 h-20 sm:w-24 sm:h-24 rounded-3xl shrink-0 grid place-items-center overflow-hidden"
+              style={{
+                background: view.secondary_color,
+                color: view.accent_color,
+              }}
             >
-              {items.map((item) => {
-                const listing = item.marketplace_listings;
-                if (!listing || !listing.is_active) return null;
+              {view.logo_url ? (
+                <img
+                  src={view.logo_url}
+                  alt={view.shop_name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget.parentNode as HTMLElement).innerHTML =
+                      `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="${view.accent_color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7l2-3h16l2 3v3a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0V7zM4 12v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8"/></svg>`;
+                  }}
+                />
+              ) : (
+                <Store size={34} strokeWidth={2} style={{ color: view.accent_color }} />
+              )}
+            </div>
+            <div className="min-w-0">
+              <h1 className="shop-title text-[28px] sm:text-[36px] font-bold tracking-tight leading-none truncate">
+                {view.shop_name || 'Untitled shop'}
+              </h1>
+              {view.description && (
+                <p
+                  className="text-[13.5px] sm:text-[14.5px] mt-3 leading-relaxed max-w-[560px]"
+                  style={{ color: textMuted }}
+                >
+                  {view.description}
+                </p>
+              )}
+              <div className="mt-3 flex items-center gap-4 text-[12px]" style={{ color: textMuted }}>
+                <span className="inline-flex items-center gap-1.5">
+                  <Eye size={11} strokeWidth={2.4} />
+                  {(view.total_views || 0).toLocaleString()} views
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Sparkles size={11} strokeWidth={2.4} />
+                  {(view.total_sales || 0).toLocaleString()} sales
+                </span>
+              </div>
+            </div>
+          </div>
 
-                return (
-                  <motion.div
-                    key={item.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    whileHover={{
-                      y: -8,
-                      transition: { duration: 0.2 }
-                    }}
-                    onClick={() => setSelectedItemId(listing.id)}
-                    className={`item-card group relative bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden cursor-pointer transition-all ${
-                      viewStyle === 'list' ? 'flex gap-4' : ''
-                    }`}
-                    style={{
-                      borderColor: item.is_featured ? shop.accent_color : undefined,
-                    }}
+          {/* Socials + share */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {[
+              view.twitter_url && { Icon: Twitter, href: view.twitter_url, label: 'Twitter' },
+              view.instagram_url && { Icon: Instagram, href: view.instagram_url, label: 'Instagram' },
+              view.youtube_url && { Icon: Youtube, href: view.youtube_url, label: 'YouTube' },
+              view.email && { Icon: Mail, href: `mailto:${view.email}`, label: 'Email' },
+              view.discord_username && {
+                Icon: MessageCircle,
+                href: `https://discord.com/users/${view.discord_username}`,
+                label: 'Discord',
+              },
+            ]
+              .filter(Boolean)
+              .map((s: any) => (
+                <a
+                  key={s.label}
+                  href={s.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={s.label}
+                  className="h-10 w-10 rounded-full grid place-items-center transition-opacity hover:opacity-80"
+                  style={{ background: view.secondary_color, color: textPrimary }}
+                >
+                  <s.Icon size={15} strokeWidth={2.2} />
+                </a>
+              ))}
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(window.location.href);
+                addToast({ type: 'success', title: 'Link copied' });
+              }}
+              className="h-10 px-4 rounded-full text-[12.5px] font-bold inline-flex items-center gap-2 transition-opacity hover:opacity-90"
+              style={{ background: view.accent_color, color: isDark(view.accent_color) ? '#fff' : '#0b0d17' }}
+            >
+              <Globe size={13} strokeWidth={2.4} />
+              Share shop
+            </button>
+          </div>
+        </header>
+
+        {/* Items */}
+        {items.length === 0 ? (
+          <div
+            className="rounded-3xl p-12 text-center"
+            style={{ background: view.secondary_color, color: textMuted }}
+          >
+            <Store size={28} className="mx-auto mb-3 opacity-60" />
+            <div className="text-[16px] font-bold mb-1" style={{ color: textPrimary }}>
+              No items yet
+            </div>
+            <div className="text-[13px]">
+              {isOwner
+                ? 'Add items from your listings to fill this shop.'
+                : "This shop hasn't listed any items. Check back soon."}
+            </div>
+            {isOwner && !editMode && (
+              <button
+                onClick={() => navigate('/profile?tab=listings')}
+                className="mt-5 h-11 px-5 rounded-full text-[13px] font-bold inline-flex items-center gap-1.5 transition-opacity hover:opacity-90"
+                style={{ background: view.accent_color, color: isDark(view.accent_color) ? '#fff' : '#0b0d17' }}
+              >
+                Add items <ArrowRight size={13} strokeWidth={2.4} />
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className={layoutClass}>
+            {items.map((it) => {
+              const l = it.marketplace_listings;
+              if (!l) return null;
+              return (
+                <motion.button
+                  key={it.id}
+                  onClick={() => setSelectedItemId(l.id)}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={spring}
+                  whileHover={{ y: -3 }}
+                  className="shop-card text-left rounded-3xl overflow-hidden transition-shadow break-inside-avoid"
+                  style={{ background: view.secondary_color, color: textPrimary }}
+                >
+                  <div
+                    className="relative aspect-[5/3.6] grid place-items-center"
+                    style={{ background: view.primary_color }}
                   >
-                    {/* Hover Glow Effect */}
-                    <div
-                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-                      style={{
-                        background: `radial-gradient(circle at center, ${shop.primary_color}15 0%, transparent 70%)`
-                      }}
-                    />
-
-                    {/* Shine Effect */}
-                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
-                      <div
-                        className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"
+                    {it.is_featured && (
+                      <span
+                        className="absolute top-2 left-2 px-2 h-6 rounded-full text-[10.5px] font-bold uppercase tracking-wider inline-flex items-center gap-1"
                         style={{
-                          background: `linear-gradient(90deg, transparent, ${shop.primary_color}20, transparent)`
+                          background: view.accent_color,
+                          color: isDark(view.accent_color) ? '#fff' : '#0b0d17',
                         }}
-                      />
-                    </div>
-
-                    {item.is_featured && (
-                      <motion.div
-                        initial={{ scale: 0, rotate: -180 }}
-                        animate={{ scale: 1, rotate: 0 }}
-                        className="absolute top-2 right-2 px-2 py-1 rounded text-xs font-bold text-white z-10"
-                        style={{ backgroundColor: shop.accent_color }}
                       >
-                        <motion.span
-                          animate={{
-                            scale: [1, 1.1, 1],
-                          }}
-                          transition={{
-                            duration: 2,
-                            repeat: Infinity,
-                            repeatType: "reverse"
-                          }}
-                          className="inline-block"
-                        >
-                          ⭐ FEATURED
-                        </motion.span>
-                      </motion.div>
+                        <Sparkles size={10} strokeWidth={2.6} />
+                        Featured
+                      </span>
                     )}
-
-                    <div className={`relative ${viewStyle === 'list' ? 'w-48' : 'w-full h-48'} overflow-hidden`}>
-                      <motion.img
-                        src={listing.image_url}
-                        alt={listing.item_name}
-                        className={`${viewStyle === 'list' ? 'w-full h-full' : 'w-full h-full'} object-cover transition-transform duration-500 group-hover:scale-110`}
-                        whileHover={{ scale: 1.1 }}
-                        transition={{ duration: 0.3 }}
-                      />
-
-                      {/* Image Overlay on Hover */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    <img
+                      src={l.image_url}
+                      alt={l.item_name}
+                      loading="lazy"
+                      className="w-[80%] h-[80%] object-contain"
+                    />
+                  </div>
+                  <div className="p-3.5">
+                    <div className="text-[10.5px] uppercase tracking-wider font-bold" style={{ color: textMuted }}>
+                      {l.item_type}
                     </div>
-
-                    <div className={`relative p-4 ${viewStyle === 'list' ? 'flex-1' : ''}`}>
-                      <h3 className="text-white font-semibold mb-2 line-clamp-2">
-                        {listing.item_name}
-                      </h3>
-                      <div className="flex items-center justify-between">
-                        <motion.span
-                          className="item-price text-2xl font-bold transition-all duration-300"
-                          style={{ color: shop.primary_color }}
-                          whileHover={{
-                            scale: 1.1,
-                            transition: { duration: 0.2 }
-                          }}
-                        >
-                          {listing.price.toLocaleString()} Kč
-                        </motion.span>
-                        <motion.span
-                          className="text-gray-400 text-sm capitalize px-2 py-1 rounded-lg bg-gray-700/50 group-hover:bg-gray-700 transition-colors duration-300"
-                          whileHover={{ scale: 1.05 }}
-                        >
-                          {listing.condition}
-                        </motion.span>
+                    <div className="text-[13.5px] font-bold tracking-tight leading-tight truncate mt-1">
+                      {l.item_name}
+                    </div>
+                    <div className="text-[11.5px] mt-1" style={{ color: textMuted }}>
+                      {l.condition}
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <div className="text-[15px] font-bold tracking-tight tabular-nums">
+                        {formatPrice(l.price)}
                       </div>
-
-                      {/* Buy Button */}
-                      <motion.button
+                      <span
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedItemId(listing.id);
+                          handleAddCart(it);
                         }}
-                        className="mt-3 w-full py-2 rounded-lg font-semibold text-white transition-all duration-300"
+                        className="h-9 px-3 rounded-full text-[11.5px] font-bold inline-flex items-center gap-1 transition-opacity hover:opacity-90 cursor-pointer"
                         style={{
-                          backgroundColor: shop.primary_color,
+                          background: view.accent_color,
+                          color: isDark(view.accent_color) ? '#fff' : '#0b0d17',
                         }}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
                       >
-                        Buy Now
-                      </motion.button>
+                        Buy
+                      </span>
                     </div>
-
-                    {/* Border Glow on Hover */}
-                    <div
-                      className="absolute inset-0 rounded-xl border-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-                      style={{
-                        borderColor: shop.primary_color,
-                        boxShadow: `0 0 20px ${shop.primary_color}40`
-                      }}
-                    />
-                  </motion.div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Social Links */}
-          {(shop.twitter_url || shop.instagram_url) && (
-            <div className="mt-12 pt-8 border-t border-gray-700/50">
-              <h3 className="text-white font-semibold mb-4">Follow Us</h3>
-              <div className="flex gap-4">
-                {shop.twitter_url && (
-                  <a
-                    href={shop.twitter_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition text-white"
-                  >
-                    <ExternalLink size={18} />
-                    Twitter
-                  </a>
-                )}
-                {shop.instagram_url && (
-                  <a
-                    href={shop.instagram_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition text-white"
-                  >
-                    <ExternalLink size={18} />
-                    Instagram
-                  </a>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-        {/* Item Detail Modal */}
-        {selectedItemId && (
-          <ShopItemModal
-            itemId={selectedItemId}
-            onClose={() => setSelectedItemId(null)}
-          />
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
         )}
+
+        {/* Footnote — discreet credit */}
+        <div className="mt-16 text-center text-[11px]" style={{ color: textMuted }}>
+          <a
+            href="/"
+            className="inline-flex items-center gap-1 hover:opacity-80 transition-opacity"
+            style={{ color: textMuted }}
+          >
+            Powered by Skinify
+            <ExternalLink size={10} strokeWidth={2.4} />
+          </a>
         </div>
-      </div>
-    </>
+      </main>
+
+      {/* Item quick-view modal */}
+      {selectedItemId !== null && (
+        <ShopItemModal itemId={selectedItemId} onClose={() => setSelectedItemId(null)} />
+      )}
+
+      {/* Editor input styling — scoped via class names used inside the
+          editor drawer only. Lives here so we don't pollute the global
+          stylesheet. */}
+      <style>{`
+        .editor-input {
+          width: 100%;
+          background: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 12px;
+          padding: 10px 12px;
+          color: #fff;
+          font-size: 13px;
+          outline: none;
+          transition: border-color 0.15s ease;
+        }
+        .editor-input:focus {
+          border-color: rgba(255,255,255,0.4);
+        }
+      `}</style>
+    </div>
   );
 };
+
+/* ─── Editor sub-components ─────────────────────────────────────────── */
+
+const Group: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <section>
+    <div className="text-[10.5px] font-bold uppercase tracking-wider text-white/55 mb-2.5">
+      {title}
+    </div>
+    <div className="space-y-2.5">{children}</div>
+  </section>
+);
+
+const Field: React.FC<{
+  label: string;
+  Icon?: React.ComponentType<any>;
+  children: React.ReactNode;
+}> = ({ label, Icon, children }) => (
+  <div>
+    <div className="text-[11px] text-white/60 font-semibold mb-1.5 inline-flex items-center gap-1.5">
+      {Icon && <Icon size={11} strokeWidth={2.4} />}
+      {label}
+    </div>
+    {children}
+  </div>
+);
+
+const ColorRow: React.FC<{
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}> = ({ label, value, onChange }) => (
+  <div className="flex items-center gap-2.5">
+    <label className="relative h-10 w-10 rounded-2xl overflow-hidden cursor-pointer shrink-0 ring-1 ring-white/15">
+      <input
+        type="color"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="absolute inset-0 opacity-0 cursor-pointer"
+      />
+      <span className="absolute inset-0" style={{ background: value }} />
+    </label>
+    <div className="flex-1 min-w-0">
+      <div className="text-[11px] text-white/60 font-semibold">{label}</div>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-transparent text-[13px] font-mono text-white outline-none mt-0.5"
+      />
+    </div>
+  </div>
+);
 
 export default UserShopPage;

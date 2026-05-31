@@ -274,17 +274,11 @@ const MyShopTab: React.FC<{ onNavigateToListings: () => void }> = ({
             <motion.button
               whileTap={tap}
               whileHover={{ scale: 1.02 }}
-              onClick={() =>
-                addToast({
-                  type: 'info',
-                  title: 'Shop editor',
-                  message: 'Edit colors, banner, and layout from the legacy editor.',
-                })
-              }
-              className="h-11 px-4 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[13px] flex items-center gap-1.5 transition-colors"
+              onClick={() => navigate(`/shop/${shop.shop_url}?edit=1`)}
+              className="h-11 px-4 rounded-full bg-accent text-on-accent font-bold text-[13px] flex items-center gap-1.5 transition-opacity hover:opacity-95"
             >
-              <Edit3 size={14} strokeWidth={2.2} />
-              Edit
+              <Edit3 size={14} strokeWidth={2.4} />
+              Edit shop
             </motion.button>
           </div>
         </div>
