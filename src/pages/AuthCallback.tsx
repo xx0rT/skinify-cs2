@@ -1,146 +1,203 @@
-import { getSupabaseCredentials } from '../utils/supabaseHelpers';
 import React, { useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  Loader2,
+  RefreshCw,
+  ShieldOff,
+  Sparkles,
+  Wifi,
+} from 'lucide-react';
+import { getSupabaseCredentials } from '../utils/supabaseHelpers';
 import { useAuthStore } from '../store/authStore';
-import { motion } from 'framer-motion';
-import { CheckCircle, XCircle, Loader, AlertCircle } from 'lucide-react';
+import LandingNav from '../components/LandingNav';
+import { spring, tap } from '../lib/motion';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   AuthCallback — handles the Steam OpenID response
+
+   - Parses the openid params off the URL
+   - Calls our /functions/v1/auth edge function with them
+   - Stores the user, then routes:
+       new user (no onboard flag)  →  /onboarding
+       returning user              →  /
+
+   The error UX is the important part of this page: a real human is
+   sitting here when something went wrong, so the error screen needs to
+   tell them what to actually do — not just dump a stack trace.
+   ───────────────────────────────────────────────────────────────────────── */
 
 type AuthStatus = 'loading' | 'success' | 'error';
+
+type FailureKind = 'network' | 'cancelled' | 'noSteamData' | 'config' | 'server' | 'unknown';
+
+interface FailureInfo {
+  kind: FailureKind;
+  title: string;
+  message: string;
+  hint?: string;
+  details?: string;
+}
+
+const classifyError = (raw: unknown, response?: Response | null): FailureInfo => {
+  const message =
+    raw instanceof Error
+      ? raw.message
+      : typeof raw === 'string'
+      ? raw
+      : 'Unknown authentication error';
+
+  // Network-layer rejection — fetch never reached the edge function.
+  // Almost always a privacy extension, content blocker, VPN/DNS filter,
+  // or aggressive corporate network filtering *.supabase.co.
+  if (
+    /load failed|failed to fetch|network ?error|networkerror|aborted|timeout|err_/i.test(message) &&
+    !response
+  ) {
+    return {
+      kind: 'network',
+      title: 'Couldn\'t reach the sign-in service',
+      message:
+        'Your browser blocked the request before it left your device. The Skinify servers are online.',
+      hint:
+        'Disable ad-blockers, privacy extensions (uBlock, Brave Shields, Ghostery), VPNs, and DNS filters (NextDNS, Pi-hole) for skinify.gg and supabase.co, then try again.',
+      details: message,
+    };
+  }
+
+  if (/cancel/i.test(message)) {
+    return {
+      kind: 'cancelled',
+      title: 'Steam login cancelled',
+      message: 'You closed the Steam sign-in page before it finished.',
+      hint: 'Click "Try again" to retry — no data was saved.',
+      details: message,
+    };
+  }
+
+  if (/steam id not found|invalid steam openid|no authentication data/i.test(message)) {
+    return {
+      kind: 'noSteamData',
+      title: 'Steam didn\'t send us your ID',
+      message:
+        'The handoff from Steam was incomplete. This usually means the OpenID redirect was tampered with or expired.',
+      hint: 'Restart sign-in from the homepage — the link should work fresh.',
+      details: message,
+    };
+  }
+
+  if (/configuration missing|missing.*credentials/i.test(message)) {
+    return {
+      kind: 'config',
+      title: 'Service is misconfigured',
+      message: 'The site is missing the credentials it needs to talk to Supabase.',
+      hint:
+        'This is on our side — please email support@skinify.gg with this debug info.',
+      details: message,
+    };
+  }
+
+  if (response && response.status >= 500) {
+    return {
+      kind: 'server',
+      title: 'Sign-in service is having a moment',
+      message: `The auth server returned HTTP ${response.status} (${response.statusText || 'server error'}).`,
+      hint: 'Try again in a minute. If it persists, our status page will list it.',
+      details: message,
+    };
+  }
+
+  return {
+    kind: 'unknown',
+    title: 'Authentication failed',
+    message,
+    hint: 'Try again, or contact support if the issue persists.',
+    details: message,
+  };
+};
+
+const ICONS: Record<FailureKind, React.ComponentType<any>> = {
+  network: Wifi,
+  cancelled: ArrowRight,
+  noSteamData: ShieldOff,
+  config: AlertTriangle,
+  server: AlertTriangle,
+  unknown: AlertTriangle,
+};
 
 export default function AuthCallback() {
   const navigate = useNavigate();
   const { setUser } = useAuthStore();
   const [status, setStatus] = useState<AuthStatus>('loading');
-  const [error, setError] = useState<string>('');
-  const [debugInfo, setDebugInfo] = useState<string>('');
+  const [failure, setFailure] = useState<FailureInfo | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const handleAuth = async () => {
+      let response: Response | null = null;
       try {
         setStatus('loading');
-        
-        // Check if we have the required OpenID parameters
+        setFailure(null);
+
         const params = new URLSearchParams(window.location.search);
         const mode = params.get('openid.mode');
-        
-        console.log('=== AUTH DEBUG START ===');
-        console.log('Current URL:', window.location.href);
-        console.log('OpenID Mode:', mode);
-        console.log('All URL params:', Object.fromEntries(params.entries()));
-        
-        if (!mode) {
-          throw new Error('No authentication data received');
-        }
 
-        if (mode === 'cancel') {
-          throw new Error('Steam authentication was cancelled');
-        }
+        if (!mode) throw new Error('No authentication data received');
+        if (mode === 'cancel') throw new Error('Steam authentication was cancelled');
+        if (mode !== 'id_res') throw new Error('Invalid Steam OpenID response');
 
-        if (mode !== 'id_res') {
-          throw new Error('Invalid authentication response from Steam');
-        }
-
-        // Get the Steam ID from the callback URL
         const claimedId = params.get('openid.claimed_id');
-        if (!claimedId) {
-          throw new Error('Steam ID not found in response');
-        }
-        
-        console.log('Claimed ID:', claimedId);
+        if (!claimedId) throw new Error('Steam ID not found in response');
 
-        // Extract Steam ID from claimed_id
         const steamIdMatch = claimedId.match(/\/id\/(\d+)$/);
         const steamId = steamIdMatch ? steamIdMatch[1] : null;
-        console.log('Extracted Steam ID:', steamId);
-        
-        if (!steamId) {
-          throw new Error('Could not extract Steam ID from claimed_id');
-        }
+        if (!steamId) throw new Error('Could not extract Steam ID from claimed_id');
 
-        // Get environment variables
         const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
-
-        console.log('Environment check:', {
-          hasSupabaseUrl: !!supabaseUrl,
-          hasSupabaseKey: !!supabaseKey,
-          supabaseUrl: supabaseUrl || 'NOT SET',
-          actualSupabaseKey: supabaseKey ? 'SET (hidden)' : 'NOT SET',
-          keyPreview: supabaseKey ? supabaseKey.substring(0, 20) + '...' : 'NOT SET'
-        });
-
-        const finalSupabaseUrl = supabaseUrl;
-        const finalSupabaseKey = supabaseKey;
-        
-        if (!finalSupabaseUrl || !finalSupabaseKey) {
-          console.error('Supabase environment check:', {
-            hasUrl: !!supabaseUrl,
-            hasKey: !!finalSupabaseKey,
-            finalUrl: finalSupabaseUrl
-          });
-          throw new Error(`Supabase configuration missing. URL: ${!!finalSupabaseUrl}, Key: ${!!finalSupabaseKey}`);
+        if (!supabaseUrl || !supabaseKey) {
+          throw new Error(`Supabase configuration missing`);
         }
 
-        // Call our edge function with the authentication data
-        const authUrl = `${finalSupabaseUrl}/functions/v1/auth${window.location.search}`;
-        console.log('Calling auth endpoint:', authUrl);
-        setDebugInfo(`Calling: ${authUrl}`);
-        
-        // Try calling the edge function - first without auth header to test if function exists
-        let response;
+        const authUrl = `${supabaseUrl}/functions/v1/auth${window.location.search}`;
+
         try {
           response = await fetch(authUrl, {
             method: 'GET',
             headers: {
-              'Authorization': `Bearer ${finalSupabaseKey}`,
+              Authorization: `Bearer ${supabaseKey}`,
               'Content-Type': 'application/json',
             },
-            signal: AbortSignal.timeout(30000), // 30 second timeout
+            signal: AbortSignal.timeout(30000),
           });
         } catch (fetchError) {
-          console.error('Network error during auth:', fetchError);
-          throw new Error(`Network error: ${fetchError.message}. Please check if the edge function is deployed to Supabase.`);
+          throw new Error(
+            fetchError instanceof Error ? fetchError.message : 'Network error',
+          );
         }
 
         if (!response.ok) {
-          // Try to get error details
-          let errorData;
+          let errorData: { error?: string } = {};
           try {
             errorData = await response.json();
-          } catch (e) {
-            // If we can't parse JSON, get the text response
+          } catch {
             try {
-              const errorText = await response.text();
-              errorData = { error: errorText };
-            } catch (e2) {
-              errorData = { error: 'Unknown error' };
+              errorData = { error: await response.text() };
+            } catch {
+              errorData = { error: 'Unknown server error' };
             }
           }
-          console.error('Auth response error:', {
-            status: response.status,
-            statusText: response.statusText,
-            errorData,
-            url: authUrl
-          });
-          setDebugInfo(`HTTP ${response.status}: ${response.statusText} - ${JSON.stringify(errorData)}`);
-          throw new Error(errorData.error || `Authentication failed (${response.status}): ${response.statusText}`);
+          throw new Error(
+            errorData.error ||
+              `Authentication failed (${response.status}): ${response.statusText}`,
+          );
         }
 
         const userData = await response.json();
-        
-        if (userData.error) {
-          console.error('Auth response contained error:', userData);
-          throw new Error(userData.error);
-        }
-        
-        console.log('=== AUTH DEBUG END ===');
+        if (userData.error) throw new Error(userData.error);
 
-        console.log('Authentication successful:', userData);
-        
-        if (userData.usedFallback) {
-          console.warn('Steam API was not available, using fallback user data');
-        }
-
-        // Store user data in auth store
         setUser({
           id: userData.id,
           steamId: userData.steamId,
@@ -148,14 +205,12 @@ export default function AuthCallback() {
           avatarUrl: userData.avatarUrl,
           tradeLink: userData.tradeLink || null,
           referred_by: userData.referred_by,
-          referral_code: userData.referral_code
+          referral_code: userData.referral_code,
         });
 
         setStatus('success');
 
-        // Redirect after a short delay. NEW users go through the
-        // 3-step onboarding tour (unless they've already finished it
-        // in a previous session); returning users land on /.
+        // Redirect — new users go through onboarding (unless already done)
         setTimeout(() => {
           let onboarded = false;
           try {
@@ -167,117 +222,186 @@ export default function AuthCallback() {
           const destination = goToOnboarding ? '/onboarding' : '/';
           try {
             navigate(destination, { replace: true });
-          } catch (navError) {
-            console.error('Navigation error, fallback to window.location:', navError);
+          } catch {
             window.location.href = destination;
           }
-        }, 2000);
-
+        }, 1400);
       } catch (error) {
-        console.error('=== AUTH ERROR ===', error);
-        setError(error instanceof Error ? error.message : 'Unknown authentication error');
-        setDebugInfo(error instanceof Error ? error.stack || error.message : 'Unknown error');
+        const info = classifyError(error, response);
+        console.error('[AUTH ERROR]', info);
+        setFailure(info);
         setStatus('error');
-        
-        // Auto-redirect to home after showing error
-        setTimeout(() => {
-          try {
-            navigate('/?auth_error=true', { replace: true });
-          } catch (navError) {
-            console.error('Navigation error, fallback to window.location:', navError);
-            window.location.href = '/?auth_error=true';
-          }
-        }, 5000);
       }
     };
 
     handleAuth();
-  }, [navigate, setUser]);
+  }, [navigate, setUser, attempt]);
+
+  const retry = () => {
+    // Cancelled flow doesn't make sense to retry from this page — go home.
+    if (failure?.kind === 'cancelled' || failure?.kind === 'noSteamData') {
+      navigate('/', { replace: true });
+      return;
+    }
+    setAttempt((a) => a + 1);
+  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900">
-      <div className="text-center max-w-md mx-auto p-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
+    <div className="min-h-screen bg-bg text-ink flex flex-col">
+      <LandingNav />
+
+      <main className="flex-1 flex items-center justify-center px-4 sm:px-6 py-12">
+        <AnimatePresence mode="wait">
           {status === 'loading' && (
-            <>
+            <motion.div
+              key="loading"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={spring}
+              className="card p-8 sm:p-10 max-w-md w-full text-center"
+            >
               <motion.div
                 animate={{ rotate: 360 }}
-                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                className="mx-auto mb-6"
+                transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
+                className="mx-auto mb-5 w-14 h-14 rounded-3xl bg-accent-soft grid place-items-center"
               >
-                <Loader className="w-16 h-16 text-blue-500" />
+                <Loader2 size={26} className="text-accent" strokeWidth={2.2} />
               </motion.div>
-              <h2 className="text-2xl font-bold text-white mb-4">
-                Authenticating with Steam...
-              </h2>
-              <p className="text-gray-400">
-                Please wait while we verify your Steam account
+              <span className="label-eyebrow">Steam</span>
+              <h1 className="text-[22px] sm:text-[26px] font-bold tracking-tight mt-2 leading-tight">
+                Verifying your sign-in
+              </h1>
+              <p className="text-[13.5px] text-ink-muted font-medium mt-3 leading-relaxed">
+                Hang tight — talking to Steam, then dropping you back in.
               </p>
-            </>
+            </motion.div>
           )}
 
           {status === 'success' && (
-            <>
+            <motion.div
+              key="success"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={spring}
+              className="card p-8 sm:p-10 max-w-md w-full text-center"
+            >
               <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 200, damping: 10 }}
+                initial={{ scale: 0, rotate: -20 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: 'spring', stiffness: 320, damping: 18 }}
+                className="mx-auto mb-5 w-14 h-14 rounded-3xl bg-emerald-500/15 grid place-items-center"
               >
-                <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
+                <CheckCircle2 size={26} className="text-emerald-600 dark:text-emerald-400" strokeWidth={2.4} />
               </motion.div>
-              <h2 className="text-2xl font-bold text-white mb-4">
-                Authentication Successful!
-              </h2>
-              <p className="text-gray-400">
-                Welcome to CSMarket. Redirecting you now...
+              <span className="label-eyebrow">Welcome</span>
+              <h1 className="text-[22px] sm:text-[26px] font-bold tracking-tight mt-2 leading-tight">
+                You're signed in.
+              </h1>
+              <p className="text-[13.5px] text-ink-muted font-medium mt-3 leading-relaxed">
+                Redirecting you in just a second…
               </p>
-            </>
+            </motion.div>
           )}
 
-          {status === 'error' && (
-            <>
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 200, damping: 10 }}
-              >
-                <XCircle className="w-16 h-16 text-red-500 mx-auto mb-6" />
-              </motion.div>
-              <h2 className="text-2xl font-bold text-white mb-4">
-                Authentication Failed
-              </h2>
-              <p className="text-gray-400 mb-6">
-                {error || 'Something went wrong during authentication'}
+          {status === 'error' && failure && (
+            <motion.div
+              key="error"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={spring}
+              className="card p-7 sm:p-9 max-w-lg w-full"
+            >
+              <div className="flex items-start gap-4 mb-5">
+                <div className="w-12 h-12 rounded-2xl bg-rose-500/15 grid place-items-center shrink-0">
+                  {React.createElement(ICONS[failure.kind], {
+                    size: 22,
+                    strokeWidth: 2.4,
+                    className: 'text-rose-600 dark:text-rose-400',
+                  })}
+                </div>
+                <div className="min-w-0">
+                  <span className="label-eyebrow text-rose-700 dark:text-rose-300">
+                    {failure.kind === 'network'
+                      ? 'Blocked locally'
+                      : failure.kind === 'cancelled'
+                      ? 'Cancelled'
+                      : failure.kind === 'server'
+                      ? 'Server'
+                      : 'Sign-in error'}
+                  </span>
+                  <h1 className="text-[20px] sm:text-[22px] font-bold tracking-tight mt-1.5 leading-tight">
+                    {failure.title}
+                  </h1>
+                </div>
+              </div>
+
+              <p className="text-[13.5px] text-ink-muted font-medium leading-relaxed">
+                {failure.message}
               </p>
-              
-              {debugInfo && (
-                <div className="bg-gray-800/50 p-4 rounded-lg mb-6 text-left">
-                  <h3 className="text-sm font-semibold text-gray-300 mb-2 flex items-center">
-                    <AlertCircle className="w-4 h-4 mr-2" />
-                    Debug Information:
-                  </h3>
-                  <pre className="text-xs text-gray-400 overflow-auto max-h-32">
-                    {debugInfo}
-                  </pre>
+
+              {failure.hint && (
+                <div className="mt-4 card-flat p-3.5 flex items-start gap-2.5">
+                  <Sparkles size={14} strokeWidth={2.4} className="text-accent shrink-0 mt-0.5" />
+                  <p className="text-[12.5px] text-ink font-medium leading-relaxed">
+                    {failure.hint}
+                  </p>
                 </div>
               )}
-              
-              <motion.button
-                onClick={() => navigate('/')}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-lg transition-all duration-300"
-              >
-                Return Home
-              </motion.button>
-            </>
+
+              {failure.details && (
+                <details className="mt-4 group">
+                  <summary className="text-[11.5px] font-semibold text-ink-muted cursor-pointer hover:text-ink transition-colors select-none list-none inline-flex items-center gap-1">
+                    <span className="group-open:hidden">Show technical details</span>
+                    <span className="hidden group-open:inline">Hide technical details</span>
+                  </summary>
+                  <pre className="mt-2 p-3 rounded-2xl bg-subtle text-[11px] font-mono text-ink-muted leading-relaxed overflow-x-auto max-h-32 whitespace-pre-wrap break-all">
+                    {failure.details}
+                  </pre>
+                </details>
+              )}
+
+              <div className="mt-6 flex flex-wrap gap-2">
+                <motion.button
+                  whileTap={tap}
+                  whileHover={{ scale: 1.02 }}
+                  onClick={retry}
+                  className="h-11 px-5 rounded-full bg-accent text-on-accent font-bold text-[13.5px] inline-flex items-center gap-2"
+                  style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.6)' }}
+                >
+                  {failure.kind === 'cancelled' || failure.kind === 'noSteamData' ? (
+                    <>
+                      Back to home
+                      <ArrowRight size={14} strokeWidth={2.4} />
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw size={14} strokeWidth={2.4} />
+                      Try again
+                    </>
+                  )}
+                </motion.button>
+                <motion.button
+                  whileTap={tap}
+                  onClick={() => navigate('/', { replace: true })}
+                  className="h-11 px-4 rounded-full bg-subtle hover:bg-bg text-ink text-[13px] font-semibold transition-colors"
+                >
+                  Return home
+                </motion.button>
+                <motion.a
+                  whileTap={tap}
+                  href="mailto:support@skinify.gg"
+                  className="h-11 px-4 rounded-full bg-subtle hover:bg-bg text-ink text-[13px] font-semibold inline-flex items-center transition-colors"
+                >
+                  Email support
+                </motion.a>
+              </div>
+            </motion.div>
           )}
-        </motion.div>
-      </div>
+        </AnimatePresence>
+      </main>
     </div>
   );
 }
