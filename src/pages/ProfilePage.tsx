@@ -225,9 +225,11 @@ const ProfilePage: React.FC = () => {
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={spring}
-            /* Flows with the page — not sticky. Horizontal pill scroller
-               on <lg, vertical card on lg+. */
-            className="card lg:p-2 p-1.5 self-start lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto overflow-x-auto scrollbar-hide"
+            /* Sticky on every breakpoint so the user can jump tabs from
+               anywhere on the page. Horizontal pill scroller on <lg
+               (pins under the page top), vertical card on lg+ (pins
+               below the LandingNav). */
+            className="card lg:p-2 p-1.5 self-start sticky top-2 lg:top-24 z-20 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto overflow-x-auto scrollbar-hide"
           >
             <nav className="flex lg:flex-col gap-1 lg:gap-0.5">
               {TABS.map((t) => {
