@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -65,6 +65,22 @@ const ItemDetailPage: React.FC = () => {
   const [confirmBuyOpen, setConfirmBuyOpen] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  /* The mobile floating buy chip should only appear when the in-page
+     buy panel is NOT visible — sliding into view when the user scrolls
+     past it, and tucking back away when they scroll back to it. */
+  const buyPanelRef = useRef<HTMLDivElement | null>(null);
+  const [buyPanelVisible, setBuyPanelVisible] = useState(true);
+  useEffect(() => {
+    const target = buyPanelRef.current;
+    if (!target || typeof IntersectionObserver === 'undefined') return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setBuyPanelVisible(entry.isIntersecting),
+      { rootMargin: '-80px 0px -80px 0px', threshold: 0.05 },
+    );
+    obs.observe(target);
+    return () => obs.disconnect();
+  }, [item]);
 
   useEffect(() => {
     if (user?.steamId) {
@@ -494,7 +510,7 @@ const ItemDetailPage: React.FC = () => {
             transition={{ ...spring, delay: 0.08 }}
             className="lg:sticky lg:top-24 self-start space-y-4"
           >
-            <section className="card p-6 relative overflow-hidden">
+            <section ref={buyPanelRef} className="card p-6 relative overflow-hidden">
               <div className="relative">
                 <span className="label-eyebrow">Listed price</span>
                 <div className="text-[34px] sm:text-[40px] font-bold tracking-tight tabular-nums text-ink leading-none mt-2">
@@ -594,49 +610,64 @@ const ItemDetailPage: React.FC = () => {
         </div>
       </main>
 
-      {/* Mobile sticky buy bar — only renders below md. Always-visible price
-          + Buy now so users on phones don't have to scroll back to the rail
-          to convert. */}
-      {/* Sticky buy bar — sits ABOVE the mobile bottom tab bar (which is
-          fixed at bottom:0). The tab bar reserves ~80px of body padding via
-          a media query in index.css; we offset by 78px so this bar layers
-          right above it with the safe-area accounted for. */}
-      <div
-        className="md:hidden fixed left-0 right-0 z-30 p-3 bg-bg/95 backdrop-blur-md border-t border-line"
-        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 78px)' }}
-      >
-        <div className="flex items-center gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
-              Price
-            </div>
-            <div className="text-[20px] font-bold tracking-tight tabular-nums text-ink leading-none mt-0.5">
-              {formatPrice(item.price)}
-            </div>
-          </div>
-          <motion.button
-            whileTap={tap}
-            onClick={() => handleAddCart(item)}
-            aria-label="Add to cart"
-            className={`h-12 w-12 rounded-full grid place-items-center transition-colors ${
-              inCart
-                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                : 'bg-subtle text-ink'
-            }`}
+      {/* Mobile floating buy chip — only renders below lg AND only when the
+          in-page buy panel is off-screen. Floats with side margins,
+          rounded edges, and a soft shadow so it feels detached from the
+          viewport edges. Slides in from below with a spring; slides out
+          smoothly when you scroll back to the panel. Layered above the
+          MobileTabBar (which lives at bottom:0). */}
+      <AnimatePresence>
+        {!buyPanelVisible && (
+          <motion.div
+            key="floating-buy"
+            initial={{ opacity: 0, y: 80, scale: 0.94 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 60, scale: 0.94 }}
+            transition={{ type: 'spring', stiffness: 360, damping: 32, mass: 0.7 }}
+            className="lg:hidden fixed left-3 right-3 z-30 pointer-events-none"
+            style={{ bottom: 'calc(env(safe-area-inset-bottom) + 90px)' }}
           >
-            {inCart ? <CheckCircle2 size={18} strokeWidth={2.4} /> : <ShoppingBag size={18} strokeWidth={2.2} />}
-          </motion.button>
-          <motion.button
-            whileTap={tap}
-            onClick={handleBuy}
-            disabled={purchasing}
-            className="h-12 px-5 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center gap-2 disabled:opacity-60"
-          >
-            <Zap size={14} strokeWidth={2.4} />
-            Buy now
-          </motion.button>
-        </div>
-      </div>
+            <div
+              className="pointer-events-auto card-elevated rounded-full pl-4 pr-1.5 py-1.5 flex items-center gap-3"
+              style={{ boxShadow: '0 18px 40px -16px rgba(20,16,40,0.45)' }}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-ink-dim leading-none">
+                  Listed price
+                </div>
+                <div className="text-[16px] font-bold tracking-tight tabular-nums text-ink leading-none mt-1">
+                  {formatPrice(item.price)}
+                </div>
+              </div>
+              <motion.button
+                whileTap={tap}
+                onClick={() => handleAddCart(item)}
+                aria-label="Add to cart"
+                className={`h-10 w-10 rounded-full grid place-items-center shrink-0 transition-colors ${
+                  inCart
+                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-subtle text-ink'
+                }`}
+              >
+                {inCart ? (
+                  <CheckCircle2 size={16} strokeWidth={2.4} />
+                ) : (
+                  <ShoppingBag size={16} strokeWidth={2.2} />
+                )}
+              </motion.button>
+              <motion.button
+                whileTap={tap}
+                onClick={handleBuy}
+                disabled={purchasing}
+                className="h-10 px-4 rounded-full bg-accent text-on-accent font-bold text-[13px] inline-flex items-center gap-1.5 disabled:opacity-60 shrink-0"
+              >
+                <Zap size={13} strokeWidth={2.4} />
+                Buy now
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <Footer />
 

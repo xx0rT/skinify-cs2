@@ -82,7 +82,9 @@ export const LandingNav: React.FC = () => {
   return (
     <>
       <header
-        className={`sticky top-0 z-40 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+        /* Hidden on phones — MobileTabBar handles primary nav at the
+           bottom of the viewport on <lg screens. */
+        className={`hidden lg:block sticky top-0 z-40 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
           scrolled
             ? 'bg-bg/85 backdrop-blur-xl shadow-[0_4px_24px_-12px_rgba(20,16,40,0.18)]'
             : 'bg-transparent backdrop-blur-0'
