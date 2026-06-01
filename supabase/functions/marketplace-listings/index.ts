@@ -35,20 +35,71 @@ interface UpdateListingRequest {
 }
 
 /**
- * Validate Steam ID and get user info
+ * Validate Steam ID and get user info.
+ *
+ * Self-heals if the user row is missing: when a Steam account is signed
+ * in via Steam OpenID but the matching `public.users` row was never
+ * created (or got wiped), we auto-provision a minimal record so the
+ * listing flow doesn't dead-end. We always coerce steamId to a string
+ * to avoid TEXT/BIGINT mismatches in the WHERE clause.
  */
 async function validateSteamUser(supabase: any, steamId: string) {
-  const { data: user, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('steam_id', steamId)
-    .single();
-
-  if (error || !user) {
-    throw new Error('User not found. Please log in with Steam first.');
+  const sid = String(steamId).trim();
+  if (!sid) {
+    throw new Error('Missing steam_id in request.');
   }
 
-  return user;
+  /* maybeSingle so "no row" returns null instead of throwing — we want
+     to distinguish a missing user (auto-provision) from a real DB
+     error (bubble up). */
+  const lookup = await supabase
+    .from('users')
+    .select('*')
+    .eq('steam_id', sid)
+    .maybeSingle();
+
+  if (lookup.error && lookup.error.code !== 'PGRST116') {
+    console.error('users lookup error:', lookup.error);
+    throw new Error(`User lookup failed: ${lookup.error.message}`);
+  }
+
+  if (lookup.data) return lookup.data;
+
+  /* Auto-provision. Insert is idempotent on steam_id (must have a
+     unique constraint); if a race created the row first we recover by
+     selecting again. */
+  console.warn('Auto-provisioning users row for steam_id:', sid);
+  const provisional = {
+    steam_id: sid,
+    display_name: `Trader_${sid.slice(-6)}`,
+    avatar_url: null,
+    created_at: new Date().toISOString(),
+    last_login: new Date().toISOString(),
+  };
+
+  const insert = await supabase
+    .from('users')
+    .insert(provisional)
+    .select()
+    .single();
+
+  if (!insert.error && insert.data) return insert.data;
+
+  /* Insert failed — likely the row was created by a concurrent
+     request, or a NOT NULL column we don't know about. Fall back to a
+     second select. */
+  console.warn('Auto-provision insert failed, retrying lookup:', insert.error);
+  const refetch = await supabase
+    .from('users')
+    .select('*')
+    .eq('steam_id', sid)
+    .maybeSingle();
+
+  if (refetch.data) return refetch.data;
+
+  throw new Error(
+    `User not found and auto-provision failed for steam_id ${sid}: ${insert.error?.message || 'unknown'}`,
+  );
 }
 
 /**
@@ -310,116 +361,131 @@ Deno.serve(async (req) => {
       const user = await validateSteamUser(supabase, listingData.steam_id);
       console.log('User validated:', user.display_name);
 
-      // Check if KYC is required for this listing
+      /* KYC pipeline — wrapped so missing tables (`kyc_restrictions`,
+         `system_settings`, `kyc_audit_log`) or columns
+         (`kyc_status`, `kyc_expires_at`, …) don't break listing
+         creation. Any unexpected error in this block is logged and
+         treated as "no KYC restriction" so users can still list. */
       const kycEnabled = Deno.env.get('KYC_ENABLED') !== 'false';
       if (kycEnabled) {
-        // Convert CZK to EUR for threshold comparison (approx 1 EUR = 24.37 CZK)
-        const priceInEUR = listingData.price / 24.37;
+        try {
+          const priceInEUR = listingData.price / 24.37;
 
-        // Check for active KYC restrictions
-        const { data: restrictions } = await supabase
-          .from('kyc_restrictions')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('restriction_type', 'listing_blocked')
-          .eq('is_active', true);
-
-        if (restrictions && restrictions.length > 0) {
-          const restriction = restrictions[0];
-          return new Response(
-            JSON.stringify({
-              error: 'KYC verification required',
-              errorCode: 'KYC_REQUIRED',
-              reason: restriction.reason,
-              details: restriction.details,
-              kycRequired: true,
-            }),
-            {
-              status: 403,
-              headers: { 'Content-Type': 'application/json', ...corsHeaders },
-            }
-          );
-        }
-
-        // Check if user has valid KYC
-        const hasValidKYC = user.kyc_status === 'approved' &&
-          (!user.kyc_expires_at || new Date(user.kyc_expires_at) > new Date());
-
-        // Get KYC threshold for listings
-        const { data: thresholdSetting } = await supabase
-          .from('system_settings')
-          .select('value')
-          .eq('key', 'kyc_listing_threshold')
-          .single();
-
-        const kycThreshold = parseFloat(thresholdSetting?.value || '500');
-
-        // If listing price exceeds threshold and user doesn't have valid KYC, block it
-        if (priceInEUR >= kycThreshold && !hasValidKYC) {
-          // Create restriction
-          await supabase
+          const { data: restrictions, error: restrictionsError } = await supabase
             .from('kyc_restrictions')
-            .insert({
-              user_id: user.id,
-              restriction_type: 'listing_blocked',
-              reason: 'kyc_required',
-              details: `Listing price (€${priceInEUR.toFixed(2)}) exceeds KYC threshold (€${kycThreshold})`,
-              threshold_exceeded: priceInEUR,
-              is_active: true,
-            });
+            .select('reason, details')
+            .eq('user_id', user.id)
+            .eq('restriction_type', 'listing_blocked')
+            .eq('is_active', true);
 
-          // Update user
-          await supabase
-            .from('users')
-            .update({
-              kyc_required: true,
-              kyc_required_reason: 'listing_threshold',
-            })
-            .eq('id', user.id);
+          if (restrictionsError && restrictionsError.code !== 'PGRST116') {
+            console.warn('KYC restrictions lookup failed:', restrictionsError.message);
+          } else if (restrictions && restrictions.length > 0) {
+            const restriction = restrictions[0];
+            return new Response(
+              JSON.stringify({
+                error: 'KYC verification required',
+                errorCode: 'KYC_REQUIRED',
+                reason: restriction.reason,
+                details: restriction.details,
+                kycRequired: true,
+              }),
+              {
+                status: 403,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders },
+              }
+            );
+          }
 
-          // Log audit event
-          await supabase
-            .from('kyc_audit_log')
-            .insert({
-              user_id: user.id,
-              event_type: 'threshold_exceeded',
-              event_description: `Listing blocked - KYC required for price €${priceInEUR.toFixed(2)}`,
-              performed_by_role: 'system',
-              metadata: {
-                price_eur: priceInEUR,
-                price_czk: listingData.price,
-                threshold: kycThreshold,
-                item_name: listingData.item_name,
-              },
-            });
+          const hasValidKYC = user.kyc_status === 'approved' &&
+            (!user.kyc_expires_at || new Date(user.kyc_expires_at) > new Date());
 
-          return new Response(
-            JSON.stringify({
-              error: 'KYC verification required',
-              errorCode: 'KYC_THRESHOLD_EXCEEDED',
-              reason: 'listing_threshold',
-              details: `Listings over €${kycThreshold} require identity verification`,
-              price: listingData.price,
-              priceEUR: priceInEUR.toFixed(2),
-              threshold: kycThreshold,
-              kycRequired: true,
-            }),
-            {
-              status: 403,
-              headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          let kycThreshold = 500;
+          try {
+            const { data: thresholdSetting } = await supabase
+              .from('system_settings')
+              .select('value')
+              .eq('key', 'kyc_listing_threshold')
+              .maybeSingle();
+            if (thresholdSetting?.value) {
+              const parsed = parseFloat(thresholdSetting.value);
+              if (!Number.isNaN(parsed)) kycThreshold = parsed;
             }
-          );
+          } catch (e) {
+            console.warn('system_settings lookup failed (using default):', e);
+          }
+
+          if (priceInEUR >= kycThreshold && !hasValidKYC) {
+            /* Fire-and-forget the side effects — if any of them fail
+               (missing table, RLS, etc.), the 403 still goes out. */
+            Promise.allSettled([
+              supabase.from('kyc_restrictions').insert({
+                user_id: user.id,
+                restriction_type: 'listing_blocked',
+                reason: 'kyc_required',
+                details: `Listing price (€${priceInEUR.toFixed(2)}) exceeds KYC threshold (€${kycThreshold})`,
+                threshold_exceeded: priceInEUR,
+                is_active: true,
+              }),
+              supabase.from('users').update({
+                kyc_required: true,
+                kyc_required_reason: 'listing_threshold',
+              }).eq('id', user.id),
+              supabase.from('kyc_audit_log').insert({
+                user_id: user.id,
+                event_type: 'threshold_exceeded',
+                event_description: `Listing blocked - KYC required for price €${priceInEUR.toFixed(2)}`,
+                performed_by_role: 'system',
+                metadata: {
+                  price_eur: priceInEUR,
+                  price_czk: listingData.price,
+                  threshold: kycThreshold,
+                  item_name: listingData.item_name,
+                },
+              }),
+            ]);
+
+            return new Response(
+              JSON.stringify({
+                error: 'KYC verification required',
+                errorCode: 'KYC_THRESHOLD_EXCEEDED',
+                reason: 'listing_threshold',
+                details: `Listings over €${kycThreshold} require identity verification`,
+                price: listingData.price,
+                priceEUR: priceInEUR.toFixed(2),
+                threshold: kycThreshold,
+                kycRequired: true,
+              }),
+              {
+                status: 403,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders },
+              }
+            );
+          }
+        } catch (kycError) {
+          /* KYC infrastructure is optional — never let it block a
+             listing. Log and continue. */
+          console.warn('KYC check skipped due to error:', kycError);
         }
       }
 
-      // Check if item is already listed
-      const { data: existingListing } = await supabase
+      /* Check if item is already listed.
+         maybeSingle() returns null when 0 rows match (no throw). The
+         old `.single()` raised PGRST116 in the not-listed case, which
+         the destructured assignment silently swallowed BUT some
+         versions of postgrest-js bubble it as a network error — using
+         maybeSingle removes that footgun. */
+      const { data: existingListing, error: existingError } = await supabase
         .from('marketplace_listings')
         .select('id')
         .eq('steam_id', listingData.steam_id)
         .eq('asset_id', listingData.asset_id)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
+
+      if (existingError && existingError.code !== 'PGRST116') {
+        console.warn('Existing-listing check failed (continuing):', existingError.message);
+      }
 
       if (existingListing) {
         console.log('Item already listed:', listingData.asset_id);

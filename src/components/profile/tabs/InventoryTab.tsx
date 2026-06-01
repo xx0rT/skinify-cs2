@@ -189,6 +189,16 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
         try {
           const res = await postOnce(body, ctrl.signal);
           if (res.ok) return { ok: true, transient: false };
+          /* Log the server's actual error so we can fix the root cause
+             instead of guessing from 500s in the network panel. */
+          try {
+            const txt = await res.text();
+            console.error(
+              `[list ${item.name}] ${res.status}: ${txt.slice(0, 400)}`,
+            );
+          } catch {
+            /* ignore — non-text body */
+          }
           /* 5xx is worth retrying; 4xx (validation, KYC, conflict) is not. */
           return { ok: false, transient: res.status >= 500 };
         } catch {

@@ -8,7 +8,6 @@ import {
   Link as LinkIcon,
   Minus,
   Plus,
-  Sparkles,
   Tag,
   Timer,
   Trash2,
@@ -338,17 +337,9 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
               disabled={isSubmitting || groupedItems.length === 0}
               className="w-full h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity hover:opacity-95"
             >
-              {isSubmitting ? (
-                <>
-                  <Sparkles size={15} strokeWidth={2.4} className="animate-pulse" />
-                  Listing items…
-                </>
-              ) : (
-                <>
-                  <Sparkles size={15} strokeWidth={2.4} />
-                  List {totals.count} {totals.count === 1 ? 'item' : 'items'}
-                </>
-              )}
+              {isSubmitting
+                ? 'Listing items…'
+                : `List ${totals.count} ${totals.count === 1 ? 'item' : 'items'}`}
             </motion.button>
           </div>
         </motion.div>
@@ -525,17 +516,9 @@ const ConfirmListingDialog: React.FC<{
               className="sm:flex-[1.4] h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] inline-flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity"
               style={{ boxShadow: '0 12px 26px -12px rgb(var(--accent) / 0.55)' }}
             >
-              {isProcessing ? (
-                <>
-                  <Sparkles size={14} strokeWidth={2.6} className="animate-pulse" />
-                  Listing…
-                </>
-              ) : (
-                <>
-                  <Sparkles size={14} strokeWidth={2.6} />
-                  Publish {totals.count} {totals.count === 1 ? 'item' : 'items'}
-                </>
-              )}
+              {isProcessing
+                ? 'Listing…'
+                : `Publish ${totals.count} ${totals.count === 1 ? 'item' : 'items'}`}
             </motion.button>
           </div>
         </div>
