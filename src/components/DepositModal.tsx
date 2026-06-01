@@ -42,41 +42,33 @@ interface MethodTile {
   label: string;
   /** Single-line caption rendered under the label. */
   caption: string;
-  /** Solid brand color used for the tile body and footer bar. */
-  brand: string;
-  /** Ink color (light/dark) used on top of the brand. */
-  fg: 'light' | 'dark';
   /** Corner badge — TOP, +16%, NEW, etc. */
   badge?: { text: string; tone: 'top' | 'bonus' | 'neutral' };
   /** Stack of brand chips rendered inside the tile body. */
-  chips: { kind: 'text' | 'mono'; label: string; tone?: 'a' | 'b' }[];
+  chips: { kind: 'text' | 'mono'; label: string }[];
   /** Optional fee tag shown in the footer (free if omitted). */
   fee?: string;
 }
 
 /* 3x3 grid — order matches the reference layout: VISA · CRYPTO · VISA / SKINS
-   · KINGUIN · ENEBA / VOUCHERS · GIFTCARDS · PREMIUM. Brand colors stay
-   restrained so the tiles read as a payment grid, not a sticker sheet. */
+   · KINGUIN · ENEBA / VOUCHERS · GIFTCARDS · PREMIUM. Single neutral
+   surface for every tile; selection state is the only color. */
 const METHOD_TILES: MethodTile[] = [
   {
     id: 'cards-eu',
     label: 'Cards · V1',
     caption: '100+ more',
-    brand: '#1a1f44',
-    fg: 'light',
     badge: { text: 'TOP', tone: 'top' },
     chips: [
-      { kind: 'text', label: 'VISA', tone: 'a' },
-      { kind: 'text', label: 'Mastercard', tone: 'b' },
-      { kind: 'text', label: 'AMEX', tone: 'a' },
+      { kind: 'text', label: 'VISA' },
+      { kind: 'text', label: 'Mastercard' },
+      { kind: 'text', label: 'AMEX' },
     ],
   },
   {
     id: 'crypto',
     label: 'Crypto',
     caption: 'BTC · ETH · USDT · LTC',
-    brand: '#0f1729',
-    fg: 'light',
     badge: { text: '+16%', tone: 'bonus' },
     chips: [
       { kind: 'mono', label: '₿' },
@@ -90,8 +82,6 @@ const METHOD_TILES: MethodTile[] = [
     id: 'cards-us',
     label: 'Cards · V2',
     caption: 'US issuers',
-    brand: '#243b6b',
-    fg: 'light',
     chips: [
       { kind: 'text', label: 'VISA' },
       { kind: 'text', label: 'Discover' },
@@ -102,8 +92,6 @@ const METHOD_TILES: MethodTile[] = [
     id: 'skins',
     label: 'Pay by skins',
     caption: 'From your Steam inventory',
-    brand: '#11241c',
-    fg: 'light',
     chips: [
       { kind: 'text', label: 'CS2 inventory' },
       { kind: 'text', label: 'Instant quote' },
@@ -113,8 +101,6 @@ const METHOD_TILES: MethodTile[] = [
     id: 'kinguin',
     label: 'Kinguin',
     caption: 'Wallet card',
-    brand: '#2a1745',
-    fg: 'light',
     chips: [
       { kind: 'text', label: 'KINGUIN' },
       { kind: 'text', label: 'Prepaid' },
@@ -125,8 +111,6 @@ const METHOD_TILES: MethodTile[] = [
     id: 'eneba',
     label: 'eneba',
     caption: 'Wallet card',
-    brand: '#1c3520',
-    fg: 'light',
     chips: [
       { kind: 'text', label: 'eneba' },
       { kind: 'text', label: 'Prepaid' },
@@ -137,8 +121,6 @@ const METHOD_TILES: MethodTile[] = [
     id: 'vouchers',
     label: 'Vouchers',
     caption: '30+ more',
-    brand: '#26303f',
-    fg: 'light',
     chips: [
       { kind: 'text', label: 'paysafecard' },
       { kind: 'text', label: 'Revolut' },
@@ -151,8 +133,6 @@ const METHOD_TILES: MethodTile[] = [
     id: 'giftcards',
     label: 'Gift cards',
     caption: 'Digital codes',
-    brand: '#1a2f2e',
-    fg: 'light',
     chips: [
       { kind: 'text', label: 'PayPal' },
       { kind: 'text', label: 'Apple' },
@@ -164,8 +144,6 @@ const METHOD_TILES: MethodTile[] = [
     id: 'premium',
     label: 'Premium',
     caption: 'Priority support',
-    brand: '#3a2a0f',
-    fg: 'light',
     badge: { text: 'VIP', tone: 'neutral' },
     chips: [
       { kind: 'mono', label: '◆' },
@@ -516,19 +494,14 @@ const MethodCard: React.FC<{
   active: boolean;
   onSelect: () => void;
 }> = ({ tile, active, onSelect }) => {
-  const fgInk = tile.fg === 'light' ? '#ffffff' : '#0f1018';
-  const fgInkDim = tile.fg === 'light' ? 'rgba(255,255,255,0.65)' : 'rgba(15,16,24,0.65)';
-  const chipBg =
-    tile.fg === 'light' ? 'rgba(255,255,255,0.10)' : 'rgba(15,16,24,0.08)';
-  const chipRing =
-    tile.fg === 'light' ? 'rgba(255,255,255,0.18)' : 'rgba(15,16,24,0.15)';
-
+  /* Badge tone — accent-tinted by default, kept restrained so the
+     selection state is the strongest signal on the card. */
   const badgeTone =
     tile.badge?.tone === 'top'
-      ? 'bg-amber-300 text-amber-950'
+      ? 'bg-accent text-on-accent'
       : tile.badge?.tone === 'bonus'
-      ? 'bg-emerald-400 text-emerald-950'
-      : 'bg-white/95 text-zinc-900';
+      ? 'bg-accent-soft text-accent'
+      : 'bg-subtle text-ink-muted';
 
   return (
     <motion.button
@@ -536,13 +509,27 @@ const MethodCard: React.FC<{
       whileHover={{ y: -2 }}
       onClick={onSelect}
       aria-pressed={active}
-      className={`group relative text-left rounded-2xl overflow-hidden transition-shadow ${
-        active
-          ? 'ring-2 ring-accent shadow-[0_18px_36px_-18px_rgb(var(--accent)/0.55)]'
-          : 'ring-1 ring-line/70 hover:ring-line'
-      }`}
-      style={{ background: tile.brand }}
+      className="group relative text-left rounded-2xl overflow-hidden bg-surface ring-1 ring-line/80 hover:ring-line focus:outline-none"
     >
+      {/* Accent overlay — slides up from the bottom when this tile becomes
+          the selected one. Animated via layoutId so the highlight
+          smoothly transitions between cards instead of flashing. */}
+      <AnimatePresence>
+        {active && (
+          <motion.span
+            layoutId="method-card-active"
+            className="absolute inset-0 rounded-2xl pointer-events-none"
+            style={{
+              background:
+                'linear-gradient(180deg, rgb(var(--accent) / 0.10) 0%, rgb(var(--accent) / 0.18) 100%)',
+              boxShadow:
+                '0 0 0 2px rgb(var(--accent)), 0 16px 32px -16px rgb(var(--accent) / 0.55)',
+            }}
+            transition={{ type: 'spring', stiffness: 380, damping: 32, mass: 0.7 }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Body — chips area */}
       <div className="relative px-3 pt-3 pb-2 min-h-[112px] flex flex-col justify-between">
         {tile.badge && (
@@ -552,58 +539,61 @@ const MethodCard: React.FC<{
             {tile.badge.text}
           </span>
         )}
-        {active && (
-          <span className="absolute top-2 left-2 w-5 h-5 rounded-full bg-accent text-on-accent grid place-items-center shadow-[0_4px_10px_-2px_rgb(var(--accent)/0.6)]">
-            <Check size={11} strokeWidth={3.2} />
-          </span>
-        )}
 
-        <div className="flex flex-wrap items-start gap-1.5 mt-5">
+        {/* Check chip — scales/fades in. Absolutely positioned so its
+            entry doesn't push the chip row. */}
+        <AnimatePresence>
+          {active && (
+            <motion.span
+              key="check"
+              initial={{ scale: 0.4, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.4, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 520, damping: 28 }}
+              className="absolute top-2 left-2 w-5 h-5 rounded-full bg-accent text-on-accent grid place-items-center shadow-[0_4px_10px_-2px_rgb(var(--accent)/0.6)] z-10"
+            >
+              <Check size={11} strokeWidth={3.2} />
+            </motion.span>
+          )}
+        </AnimatePresence>
+
+        <div className="relative flex flex-wrap items-start gap-1.5 mt-5">
           {tile.chips.map((chip, i) => (
             <span
               key={`${chip.label}-${i}`}
-              className={`inline-flex items-center justify-center text-[10.5px] font-bold tracking-tight px-1.5 py-0.5 rounded-[6px] ${
-                chip.kind === 'mono' ? 'font-mono text-[14px] leading-none w-7 h-7' : ''
+              className={`inline-flex items-center justify-center text-[10.5px] font-bold tracking-tight px-1.5 py-0.5 rounded-[6px] bg-subtle text-ink ring-1 ring-line/60 ${
+                chip.kind === 'mono'
+                  ? 'font-mono text-[14px] leading-none w-7 h-7'
+                  : ''
               }`}
-              style={{
-                background: chipBg,
-                color: fgInk,
-                boxShadow: `inset 0 0 0 1px ${chipRing}`,
-              }}
             >
               {chip.label}
             </span>
           ))}
         </div>
 
-        <div>
-          <div
-            className="text-[13px] font-bold tracking-tight leading-tight mt-3"
-            style={{ color: fgInk }}
-          >
+        <div className="relative">
+          <div className="text-[13px] font-bold tracking-tight leading-tight mt-3 text-ink">
             {tile.label}
           </div>
-          <div
-            className="text-[10.5px] font-semibold mt-0.5 leading-tight truncate"
-            style={{ color: fgInkDim }}
-          >
+          <div className="text-[10.5px] font-semibold mt-0.5 leading-tight truncate text-ink-muted">
             {tile.caption}
           </div>
         </div>
       </div>
 
-      {/* Footer — fee tag */}
-      <div
-        className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider flex items-center justify-between"
-        style={{
-          background: tile.fg === 'light' ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.50)',
-          color: fgInkDim,
-        }}
-      >
+      {/* Footer — fee + state label */}
+      <div className="relative px-3 py-1.5 border-t border-line/70 text-[10px] font-bold uppercase tracking-wider flex items-center justify-between text-ink-dim bg-subtle/40">
         <span>{tile.fee ? `${tile.fee} fee` : 'No fee'}</span>
-        <span className={active ? 'text-accent' : ''} style={!active ? { color: fgInkDim } : undefined}>
+        <motion.span
+          key={active ? 'selected' : 'select'}
+          initial={{ opacity: 0, y: 2 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.18 }}
+          className={active ? 'text-accent' : 'text-ink-muted'}
+        >
           {active ? 'Selected' : 'Select'}
-        </span>
+        </motion.span>
       </div>
     </motion.button>
   );
