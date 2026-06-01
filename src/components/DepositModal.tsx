@@ -8,14 +8,18 @@ import { spring, tap } from '../lib/motion';
 /**
  * DepositModal — full-screen, two-pane "add funds" dialog.
  *
- * Left pane: payment methods grouped by family.
- * Right pane: amount input + quick-amount pills + summary + CTA.
- * Top of right pane: dismissible promo banner (deposit bonus).
+ * Layout rules:
+ *   - Outer is fixed-height (100vh / 100dvh).
+ *   - Right pane (amount + summary + CTA) NEVER scrolls — it's the action
+ *     surface; the user must always see the total and the Continue button.
+ *   - Left pane (method list) is the only scrollable region. We keep the
+ *     viewport in one screen by capping its height and letting the long
+ *     method list scroll internally.
+ *   - On <lg the panes stack; the page itself takes over scrolling.
  *
- * The previous version was a 520px-wide card with cheap rainbow icon chips.
- * This iteration removes every decorative icon and lets typography do the
- * work — methods are listed by name, optionally with a small pill for
- * provider details (No fee, 1%, etc.).
+ * Visual rules:
+ *   - No method-specific logos or rainbow icon chips. Methods are typed
+ *     rows with a small fee tag — typography does the work.
  */
 
 let _openSetter: ((open: boolean) => void) | null = null;
@@ -97,7 +101,7 @@ const MIN_AMOUNT = 100;
 const PROMO = {
   enabled: true,
   code: 'WELCOME10',
-  copy: '+10% bonus on your first deposit · auto-applied at checkout',
+  copy: '+10% bonus on your first deposit · auto-applied',
 };
 
 const calcFeeRate = (id: MethodId): number => {
@@ -161,6 +165,29 @@ export const DepositModal: React.FC = () => {
     return undefined;
   }, [method]);
 
+  /* Track whether the last change came from a preset click vs raw typing,
+     so we only run the rolling-digit animation on the big jumps (preset
+     swap) and let typed input update instantly. */
+  const [animatedAmount, setAnimatedAmount] = useState<number>(amount);
+  const lastSourceRef = useRef<'preset' | 'input'>('input');
+  useEffect(() => {
+    if (lastSourceRef.current === 'preset') {
+      setAnimatedAmount(amount);
+    } else {
+      setAnimatedAmount(amount);
+    }
+  }, [amount]);
+
+  const pickPreset = (v: number) => {
+    lastSourceRef.current = 'preset';
+    setAmount(v);
+  };
+  const typeAmount = (raw: string) => {
+    lastSourceRef.current = 'input';
+    const v = raw === '' ? NaN : Number(raw);
+    setAmount(v);
+  };
+
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
@@ -191,15 +218,18 @@ export const DepositModal: React.FC = () => {
           role="dialog"
           aria-modal="true"
           aria-label="Add funds"
-          className="fixed inset-0 z-[90] bg-bg text-ink overflow-hidden flex flex-col"
+          /* Use dvh on supporting browsers so iOS Safari's URL bar doesn't
+             push the bottom CTA off-screen. */
+          className="fixed inset-0 z-[90] bg-bg text-ink flex flex-col overflow-hidden"
+          style={{ height: '100dvh' }}
         >
           {/* Top bar */}
-          <header className="shrink-0 flex items-center justify-between px-5 sm:px-8 h-16 border-b border-line">
+          <header className="shrink-0 flex items-center justify-between px-5 sm:px-8 h-14 sm:h-16 border-b border-line">
             <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-ink-dim">
+              <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
                 Wallet
               </div>
-              <div className="text-[15px] sm:text-[16px] font-bold tracking-tight text-ink leading-none mt-1">
+              <div className="text-[14px] sm:text-[16px] font-bold tracking-tight text-ink leading-none mt-0.5">
                 Add funds to your Skinify balance
               </div>
             </div>
@@ -212,26 +242,22 @@ export const DepositModal: React.FC = () => {
             </button>
           </header>
 
-          {/* Split pane */}
-          <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1.05fr_1fr] overflow-hidden">
-            {/* LEFT — methods */}
-            <section className="overflow-y-auto px-5 sm:px-8 py-6 lg:border-r lg:border-line">
+          {/* Split pane — fills remaining height; only the left pane scrolls. */}
+          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1.05fr_1fr]">
+            {/* LEFT — method list (the only scroll surface) */}
+            <section className="min-h-0 overflow-y-auto px-5 sm:px-8 py-5 lg:border-r lg:border-line">
               <div className="max-w-[640px] mx-auto lg:mx-0">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-ink-dim">
+                <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
                   Payment method
                 </div>
-                <h2 className="text-[20px] sm:text-[24px] font-bold tracking-tight text-ink leading-tight mt-1">
+                <h2 className="text-[18px] sm:text-[20px] font-bold tracking-tight text-ink leading-tight mt-1">
                   Pick how you want to pay
                 </h2>
-                <p className="text-[13px] text-ink-muted font-medium mt-2 max-w-[420px] leading-relaxed">
-                  All methods deposit instantly except SEPA bank transfer, which
-                  settles in one business day. Fees apply to the provider, never to Skinify.
-                </p>
 
-                <div className="mt-6 space-y-6">
+                <div className="mt-4 space-y-4">
                   {METHOD_GROUPS.map((group) => (
                     <div key={group.title}>
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-ink-dim mb-2.5">
+                      <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim mb-1.5">
                         {group.title}
                       </div>
                       <div className="rounded-2xl overflow-hidden border border-line">
@@ -241,24 +267,24 @@ export const DepositModal: React.FC = () => {
                             <button
                               key={m.id}
                               onClick={() => setMethod(m.id)}
-                              className={`w-full text-left flex items-center gap-3 px-4 py-3.5 transition-colors ${
+                              className={`w-full text-left flex items-center gap-3 px-3.5 py-2.5 transition-colors ${
                                 i > 0 ? 'border-t border-line' : ''
                               } ${active ? 'bg-accent-soft' : 'hover:bg-subtle/60'}`}
                             >
                               <span
-                                className={`w-5 h-5 rounded-full grid place-items-center shrink-0 transition-colors ${
+                                className={`w-4 h-4 rounded-full grid place-items-center shrink-0 transition-colors ${
                                   active
                                     ? 'bg-accent text-on-accent'
                                     : 'bg-subtle ring-1 ring-line'
                                 }`}
                                 aria-hidden
                               >
-                                {active && <Check size={11} strokeWidth={3.2} />}
+                                {active && <Check size={9} strokeWidth={3.4} />}
                               </span>
 
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-[14px] font-bold text-ink tracking-tight">
+                                  <span className="text-[13.5px] font-bold text-ink tracking-tight">
                                     {m.label}
                                   </span>
                                   {m.recommended && (
@@ -268,7 +294,7 @@ export const DepositModal: React.FC = () => {
                                   )}
                                 </div>
                                 {m.hint && (
-                                  <div className="text-[12px] text-ink-muted font-medium mt-0.5 truncate">
+                                  <div className="text-[11.5px] text-ink-muted font-medium mt-0.5 truncate">
                                     {m.hint}
                                   </div>
                                 )}
@@ -276,8 +302,10 @@ export const DepositModal: React.FC = () => {
 
                               <div className="shrink-0 text-right">
                                 <div
-                                  className={`text-[11.5px] font-bold ${
-                                    m.fee ? 'text-ink-muted' : 'text-emerald-700 dark:text-emerald-400'
+                                  className={`text-[11px] font-bold ${
+                                    m.fee
+                                      ? 'text-ink-muted'
+                                      : 'text-emerald-700 dark:text-emerald-400'
                                   }`}
                                 >
                                   {m.fee ? `${m.fee} fee` : 'No fee'}
@@ -291,126 +319,69 @@ export const DepositModal: React.FC = () => {
                   ))}
                 </div>
 
-                <p className="text-[11.5px] text-ink-dim font-medium mt-6 leading-relaxed">
-                  We never see or store your card details. Card and Apple/Google Pay flow
-                  through Revolut Merchant; bank transfers settle via your bank;
-                  crypto deposits confirm on-chain.
+                <p className="text-[11px] text-ink-dim font-medium mt-4 leading-relaxed">
+                  Card and Apple/Google Pay flow through Revolut Merchant; bank
+                  transfers settle via your bank; crypto deposits confirm on-chain.
                 </p>
               </div>
             </section>
 
-            {/* RIGHT — amount + summary */}
-            <aside className="overflow-y-auto bg-surface/30 px-5 sm:px-8 py-6">
-              <div className="max-w-[480px] mx-auto lg:mx-0 space-y-5">
-                {/* Promo banner — sits at the top of the right pane */}
+            {/* RIGHT — rigid action surface, never scrolls. */}
+            <aside className="hidden lg:flex flex-col bg-surface/30 px-8 py-5 overflow-hidden">
+              <div className="max-w-[480px] mx-auto w-full flex-1 flex flex-col gap-4">
+                {/* Promo banner */}
                 {promoActive && (
-                  <div className="rounded-3xl bg-accent-soft p-4 sm:p-5 flex items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[10.5px] font-bold uppercase tracking-wider text-accent">
-                          Active
-                        </span>
-                        <span className="text-[11px] font-mono font-bold text-accent">
-                          {PROMO.code}
-                        </span>
-                      </div>
-                      <p className="text-[13px] font-semibold text-ink leading-snug">
-                        {PROMO.copy}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setPromoActive(false)}
-                      aria-label="Remove promo"
-                      className="shrink-0 h-7 w-7 rounded-full bg-bg/60 hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors"
-                    >
-                      <X size={12} strokeWidth={2.4} />
-                    </button>
-                  </div>
+                  <PromoBanner onDismiss={() => setPromoActive(false)} />
                 )}
 
-                {/* Amount input */}
-                <div>
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-ink-dim mb-2.5">
-                    Amount
-                  </div>
-                  <div
-                    className={`rounded-3xl bg-subtle px-5 py-4 transition-shadow ${
-                      belowMin ? 'ring-2 ring-rose-500/60' : ''
-                    }`}
-                  >
-                    <div className="flex items-baseline gap-3">
-                      <input
-                        ref={inputRef}
-                        type="number"
-                        inputMode="numeric"
-                        min={MIN_AMOUNT}
-                        value={Number.isFinite(amount) ? amount : ''}
-                        onChange={(e) => {
-                          const v = e.target.value === '' ? NaN : Number(e.target.value);
-                          setAmount(v);
-                        }}
-                        className="flex-1 bg-transparent outline-none text-[34px] sm:text-[40px] font-bold text-ink tracking-tight tabular-nums w-full min-w-0"
-                        placeholder="0"
-                      />
-                      <span className="text-[16px] font-bold text-ink-muted shrink-0">
-                        CZK
-                      </span>
-                    </div>
-                    {belowMin && (
-                      <div className="text-[11.5px] font-semibold text-rose-600 dark:text-rose-400 mt-1.5">
-                        Minimum deposit is {formatPrice(MIN_AMOUNT)}
-                      </div>
-                    )}
-                  </div>
+                {/* Amount */}
+                <AmountField
+                  amount={amount}
+                  animatedAmount={animatedAmount}
+                  belowMin={belowMin}
+                  inputRef={inputRef}
+                  onChange={typeAmount}
+                  source={lastSourceRef.current}
+                />
 
-                  {/* Quick amounts */}
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    {QUICK_AMOUNTS.map((v) => {
-                      const active = amount === v;
-                      return (
-                        <motion.button
-                          whileTap={tap}
-                          key={v}
-                          onClick={() => setAmount(v)}
-                          className={`h-11 rounded-2xl text-[13px] font-bold tabular-nums transition-colors ${
-                            active
-                              ? 'bg-accent text-on-accent'
-                              : 'bg-subtle text-ink-muted hover:bg-bg hover:text-ink'
-                          }`}
-                        >
-                          {formatPrice(v)}
-                        </motion.button>
-                      );
-                    })}
-                  </div>
+                {/* Quick amounts */}
+                <div className="grid grid-cols-3 gap-2">
+                  {QUICK_AMOUNTS.map((v) => {
+                    const active = amount === v;
+                    return (
+                      <motion.button
+                        whileTap={tap}
+                        key={v}
+                        onClick={() => pickPreset(v)}
+                        className={`h-10 rounded-2xl text-[13px] font-bold tabular-nums transition-colors ${
+                          active
+                            ? 'bg-accent text-on-accent'
+                            : 'bg-subtle text-ink-muted hover:bg-bg hover:text-ink'
+                        }`}
+                      >
+                        {formatPrice(v)}
+                      </motion.button>
+                    );
+                  })}
                 </div>
 
                 {/* Summary */}
-                <div>
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-ink-dim mb-2.5">
-                    Summary
-                  </div>
-                  <div className="rounded-3xl bg-subtle p-5 space-y-2.5">
-                    <Row label="You pay" value={formatPrice(safeAmount)} />
+                <div className="rounded-3xl bg-subtle p-4 space-y-2">
+                  <Row label="You pay" value={formatPrice(safeAmount)} />
+                  <Row
+                    label={`${selectedMethod?.label || 'Method'} fee`}
+                    value={fee > 0 ? `− ${formatPrice(fee)}` : 'No fee'}
+                    tone={fee > 0 ? 'muted' : 'positive'}
+                  />
+                  {promoActive && (
                     <Row
-                      label={`${selectedMethod?.label || 'Method'} fee`}
-                      value={
-                        fee > 0
-                          ? `− ${formatPrice(fee)}`
-                          : 'No fee'
-                      }
-                      tone={fee > 0 ? 'muted' : 'positive'}
+                      label={`Bonus · ${PROMO.code}`}
+                      value={`+ ${formatPrice(bonus)}`}
+                      tone="accent"
                     />
-                    {promoActive && (
-                      <Row
-                        label={`Bonus · ${PROMO.code}`}
-                        value={`+ ${formatPrice(bonus)}`}
-                        tone="accent"
-                      />
-                    )}
-                    <div className="h-px bg-line my-1.5" />
-                    <Row label="Credited to balance" value={formatPrice(credited)} bold />
-                  </div>
+                  )}
+                  <div className="h-px bg-line my-1" />
+                  <Row label="Credited" value={formatPrice(credited)} bold />
                 </div>
 
                 {/* CTA */}
@@ -419,7 +390,7 @@ export const DepositModal: React.FC = () => {
                   whileHover={canSubmit ? { scale: 1.005 } : undefined}
                   onClick={handleSubmit}
                   disabled={!canSubmit}
-                  className="w-full h-14 rounded-full bg-accent text-on-accent font-bold text-[15px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-opacity hover:opacity-95"
+                  className="w-full h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-opacity hover:opacity-95"
                 >
                   {submitting
                     ? 'Processing…'
@@ -428,16 +399,261 @@ export const DepositModal: React.FC = () => {
                     : 'Enter an amount'}
                 </motion.button>
 
-                <p className="text-[11.5px] text-ink-dim font-medium leading-relaxed text-center">
+                <p className="text-[10.5px] text-ink-dim font-medium leading-relaxed text-center mt-auto">
                   Skinify never sees your card details. Payments are encrypted
                   and processed by your provider.
                 </p>
+              </div>
+            </aside>
+
+            {/* MOBILE right pane — stacks below methods in the natural
+                scroll flow. We render this in addition to the desktop one
+                because the desktop version uses flex/overflow rules that
+                only make sense on large screens. */}
+            <aside className="lg:hidden bg-surface/30 px-5 py-5">
+              <div className="space-y-4">
+                {promoActive && (
+                  <PromoBanner onDismiss={() => setPromoActive(false)} />
+                )}
+                <AmountField
+                  amount={amount}
+                  animatedAmount={animatedAmount}
+                  belowMin={belowMin}
+                  inputRef={inputRef}
+                  onChange={typeAmount}
+                  source={lastSourceRef.current}
+                />
+                <div className="grid grid-cols-3 gap-2">
+                  {QUICK_AMOUNTS.map((v) => {
+                    const active = amount === v;
+                    return (
+                      <motion.button
+                        whileTap={tap}
+                        key={v}
+                        onClick={() => pickPreset(v)}
+                        className={`h-11 rounded-2xl text-[13px] font-bold tabular-nums transition-colors ${
+                          active
+                            ? 'bg-accent text-on-accent'
+                            : 'bg-subtle text-ink-muted hover:bg-bg hover:text-ink'
+                        }`}
+                      >
+                        {formatPrice(v)}
+                      </motion.button>
+                    );
+                  })}
+                </div>
+                <div className="rounded-3xl bg-subtle p-4 space-y-2">
+                  <Row label="You pay" value={formatPrice(safeAmount)} />
+                  <Row
+                    label={`${selectedMethod?.label || 'Method'} fee`}
+                    value={fee > 0 ? `− ${formatPrice(fee)}` : 'No fee'}
+                    tone={fee > 0 ? 'muted' : 'positive'}
+                  />
+                  {promoActive && (
+                    <Row
+                      label={`Bonus · ${PROMO.code}`}
+                      value={`+ ${formatPrice(bonus)}`}
+                      tone="accent"
+                    />
+                  )}
+                  <div className="h-px bg-line my-1" />
+                  <Row label="Credited" value={formatPrice(credited)} bold />
+                </div>
+                <motion.button
+                  whileTap={tap}
+                  onClick={handleSubmit}
+                  disabled={!canSubmit}
+                  className="w-full h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-opacity hover:opacity-95"
+                >
+                  {submitting
+                    ? 'Processing…'
+                    : safeAmount > 0
+                    ? `Continue · ${formatPrice(safeAmount)}`
+                    : 'Enter an amount'}
+                </motion.button>
               </div>
             </aside>
           </div>
         </motion.div>
       )}
     </AnimatePresence>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   PromoBanner — sits above the amount field on the right pane.
+   ───────────────────────────────────────────────────────────────────────── */
+const PromoBanner: React.FC<{ onDismiss: () => void }> = ({ onDismiss }) => (
+  <div className="rounded-2xl bg-accent-soft p-3 sm:p-3.5 flex items-start gap-3">
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center gap-2 mb-0.5">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-accent">
+          Active
+        </span>
+        <span className="text-[10.5px] font-mono font-bold text-accent">
+          {PROMO.code}
+        </span>
+      </div>
+      <p className="text-[12.5px] font-semibold text-ink leading-snug">
+        {PROMO.copy}
+      </p>
+    </div>
+    <button
+      onClick={onDismiss}
+      aria-label="Remove promo"
+      className="shrink-0 h-6 w-6 rounded-full bg-bg/60 hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors"
+    >
+      <X size={11} strokeWidth={2.4} />
+    </button>
+  </div>
+);
+
+/* ─────────────────────────────────────────────────────────────────────────
+   AmountField — input + rolling-digits overlay.
+
+   We render a transparent <input> that drives the actual numeric state,
+   and overlay it with an animated digit reel that shows the *displayed*
+   value. While the user types, the overlay is hidden so caret + native
+   keyboard behaviour is preserved. While the value is set from a preset
+   click, the overlay shows and animates each digit independently — digits
+   that go UP roll upward, digits that go DOWN roll downward, frozen
+   digits don't move.
+   ───────────────────────────────────────────────────────────────────────── */
+
+const AmountField: React.FC<{
+  amount: number;
+  animatedAmount: number;
+  belowMin: boolean;
+  inputRef: React.RefObject<HTMLInputElement>;
+  onChange: (raw: string) => void;
+  source: 'preset' | 'input';
+}> = ({ amount, belowMin, inputRef, onChange, source }) => {
+  const [focused, setFocused] = useState(false);
+  /* Show the reel when the user isn't typing AND the value isn't NaN.
+     Hiding it on focus keeps the input usable for raw typing. */
+  const showReel = !focused && Number.isFinite(amount) && amount > 0 && source === 'preset';
+
+  return (
+    <div>
+      <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim mb-1.5">
+        Amount
+      </div>
+      <div
+        className={`relative rounded-3xl bg-subtle px-5 py-3.5 transition-shadow ${
+          belowMin ? 'ring-2 ring-rose-500/60' : ''
+        }`}
+      >
+        <div className="flex items-baseline gap-3">
+          {/* The input is always present and owns state. When the reel is
+              showing it's visually masked (text-transparent caret-color
+              still works) so the user can refocus and type seamlessly. */}
+          <input
+            ref={inputRef}
+            type="number"
+            inputMode="numeric"
+            min={MIN_AMOUNT}
+            value={Number.isFinite(amount) ? amount : ''}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            onChange={(e) => onChange(e.target.value)}
+            className={`flex-1 bg-transparent outline-none text-[34px] sm:text-[38px] font-bold tracking-tight tabular-nums w-full min-w-0 caret-accent ${
+              showReel ? 'text-transparent' : 'text-ink'
+            }`}
+            placeholder="0"
+            aria-label="Deposit amount"
+          />
+          <span className="text-[14px] font-bold text-ink-muted shrink-0">CZK</span>
+        </div>
+
+        {/* Reel overlay — sits over the input. pointer-events-none so the
+            user can click to focus the input underneath. */}
+        {showReel && (
+          <div
+            className="absolute inset-0 px-5 py-3.5 flex items-baseline gap-3 pointer-events-none"
+            aria-hidden
+          >
+            <DigitReel value={Number.isFinite(amount) ? amount : 0} />
+            <span className="text-[14px] font-bold text-transparent shrink-0">CZK</span>
+          </div>
+        )}
+
+        {belowMin && (
+          <div className="text-[11.5px] font-semibold text-rose-600 dark:text-rose-400 mt-1.5">
+            Minimum deposit is {MIN_AMOUNT} CZK
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   DigitReel — per-digit rolling number animation.
+
+   Each digit lives in its own 1-character-tall window. The strip inside
+   is a stack of 0–9 plus a leading 9 and trailing 0 for wrap continuity.
+   Translating the strip by ±10% per digit lands on the new value;
+   framer-motion springs to the target so the digits feel mechanical
+   (like a flipper / odometer).
+
+   When a digit goes 5 → 0 (down) we translate downward to roll through
+   4, 3, 2, 1, 0. When it goes 1 → 2 (up) we translate upward by 10%.
+   Padding the new value with zeros against the previous-width keeps
+   digit positions stable mid-animation.
+   ───────────────────────────────────────────────────────────────────────── */
+
+const DigitReel: React.FC<{ value: number }> = ({ value }) => {
+  const str = String(Math.max(0, Math.floor(value)));
+  /* The string of digits drives one <Digit> per character. React keys by
+     position from the RIGHT so the rightmost digit stays "ones" even as
+     length changes — a 500 → 2000 transition keeps the trailing 0s in
+     place and only animates the leading digit. */
+  const padded = str;
+  return (
+    <div className="flex items-baseline overflow-hidden text-[34px] sm:text-[38px] font-bold tracking-tight tabular-nums text-ink">
+      {padded.split('').map((d, i) => {
+        const posFromRight = padded.length - i;
+        return <Digit key={`pos-${posFromRight}`} digit={d} />;
+      })}
+    </div>
+  );
+};
+
+const Digit: React.FC<{ digit: string }> = ({ digit }) => {
+  const target = parseInt(digit, 10);
+  if (Number.isNaN(target)) {
+    // non-numeric character (separator, etc.) — render as-is
+    return <span>{digit}</span>;
+  }
+  /* Strip is 0–9. Translate the strip by -target * 100% / 10 so the
+     `target` row lands in the visible window. line-height: 1 to make
+     each row exactly one character tall. */
+  return (
+    <span
+      className="relative inline-block overflow-hidden"
+      style={{
+        height: '1em',
+        width: '0.62em', // matches tabular-nums digit width
+        lineHeight: 1,
+      }}
+    >
+      <motion.span
+        className="absolute left-0 top-0 flex flex-col"
+        animate={{ y: `-${target * 10}%` }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30, mass: 0.8 }}
+        style={{ lineHeight: 1 }}
+      >
+        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+          <span
+            key={n}
+            style={{ height: '1em', lineHeight: 1 }}
+            className="flex items-baseline justify-center"
+          >
+            {n}
+          </span>
+        ))}
+      </motion.span>
+    </span>
   );
 };
 
@@ -457,8 +673,8 @@ const Row: React.FC<{
     : 'text-ink font-semibold';
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className={`text-[13px] ${labelClass}`}>{label}</span>
-      <span className={`text-[13.5px] tabular-nums ${valueClass}`}>{value}</span>
+      <span className={`text-[12.5px] ${labelClass}`}>{label}</span>
+      <span className={`text-[13px] tabular-nums ${valueClass}`}>{value}</span>
     </div>
   );
 };
