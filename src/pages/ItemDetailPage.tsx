@@ -361,20 +361,7 @@ const ItemDetailPage: React.FC = () => {
                 aria-hidden
               />
 
-              <div className="relative aspect-[5/3] grid place-items-center">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.94, y: 8 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ ...spring, delay: 0.05 }}
-                  className="max-h-full max-w-full"
-                >
-                  <CachedImage
-                    src={item.image}
-                    alt={name}
-                    className="max-h-full max-w-full object-contain drop-shadow-[0_30px_60px_rgba(20,16,40,0.18)]"
-                  />
-                </motion.div>
-              </div>
+              <HeroImage src={item.image} alt={name} />
 
               <div className="relative mt-6 flex flex-wrap items-end justify-between gap-4">
                 <div className="min-w-0">
@@ -1237,6 +1224,61 @@ function inferBaseName(name: string): string | null {
   if (parts.length < 2) return name;
   return parts.slice(1).join('|').replace(/\(.*?\)/, '').trim();
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   HeroImage — pointer-tracking zoom on the product hero.
+
+   Hovering the frame eases the image to ~1.6x; the transform-origin
+   follows the cursor, so it feels like the user is moving a magnifier
+   over the skin. CSS transitions handle the spring (cheaper than a JS
+   loop on every mousemove). Touch devices skip the zoom — the entry
+   animation still plays.
+   ───────────────────────────────────────────────────────────────────────── */
+const HeroImage: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const [origin, setOrigin] = useState({ x: 50, y: 50 });
+  const [zoomed, setZoomed] = useState(false);
+
+  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const node = frameRef.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setOrigin({
+      x: Math.max(0, Math.min(100, x)),
+      y: Math.max(0, Math.min(100, y)),
+    });
+  };
+
+  return (
+    <div
+      ref={frameRef}
+      onMouseEnter={() => setZoomed(true)}
+      onMouseLeave={() => setZoomed(false)}
+      onMouseMove={onMove}
+      className="relative aspect-[5/3] grid place-items-center overflow-hidden cursor-zoom-in"
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ ...spring, delay: 0.05 }}
+        className="max-h-full max-w-full will-change-transform"
+        style={{
+          transformOrigin: `${origin.x}% ${origin.y}%`,
+          transform: `scale(${zoomed ? 1.6 : 1})`,
+          transition: 'transform 420ms cubic-bezier(0.22, 1, 0.36, 1), transform-origin 180ms ease-out',
+        }}
+      >
+        <CachedImage
+          src={src}
+          alt={alt}
+          className="max-h-full max-w-full object-contain drop-shadow-[0_30px_60px_rgba(20,16,40,0.18)] select-none pointer-events-none"
+        />
+      </motion.div>
+    </div>
+  );
+};
 
 
 const DetailsPanel: React.FC<{ item: any }> = ({ item }) => (
