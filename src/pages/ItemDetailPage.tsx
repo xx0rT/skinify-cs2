@@ -18,6 +18,9 @@ import {
   Hash,
   Paintbrush,
   Star,
+  MessageCircle,
+  Send,
+  X as XIcon,
 } from 'lucide-react';
 import { useMarketplaceItems } from '../hooks/useMarketplaceItems';
 import { MOCK_MARKET_ITEMS, findMockItem } from '../data/mockMarketItems';
@@ -68,6 +71,7 @@ const ItemDetailPage: React.FC = () => {
   const [confirmBuyOpen, setConfirmBuyOpen] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [messageOpen, setMessageOpen] = useState(false);
 
   /* The mobile floating buy chip should only appear when the in-page
      buy panel is NOT visible. We render the panel twice (once inline on
@@ -751,6 +755,17 @@ const ItemDetailPage: React.FC = () => {
               <SellerCard
                 seller={item.seller}
                 onView={() => navigate(`/user/${item.seller.steamId}`)}
+                onMessage={() => {
+                  if (!user) {
+                    addToast({
+                      type: 'warning',
+                      title: 'Login required',
+                      message: 'Sign in with Steam to message the seller.',
+                    });
+                    return;
+                  }
+                  setMessageOpen(true);
+                }}
               />
             )}
 
@@ -855,7 +870,172 @@ const ItemDetailPage: React.FC = () => {
         variant="info"
         isProcessing={purchasing}
       />
+
+      <MessageSellerModal
+        isOpen={messageOpen}
+        onClose={() => setMessageOpen(false)}
+        seller={item.seller}
+        itemName={name}
+        onSend={(text) => {
+          addToast({
+            type: 'success',
+            title: 'Message sent',
+            message: `${item.seller?.name || 'Seller'} will reply in your inbox.`,
+          });
+          setMessageOpen(false);
+          // Best-effort log so the message isn't lost if a backend hooks in later.
+          if (typeof window !== 'undefined') {
+            try {
+              const key = 'skinify_outbox';
+              const prev = JSON.parse(localStorage.getItem(key) || '[]');
+              prev.push({
+                to: item.seller?.steamId,
+                seller: item.seller?.name,
+                itemId: item.id,
+                itemName: name,
+                text,
+                ts: Date.now(),
+              });
+              localStorage.setItem(key, JSON.stringify(prev.slice(-50)));
+            } catch {
+              /* private mode — ignore */
+            }
+          }
+        }}
+      />
     </div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MessageSellerModal — small inline DM composer. The actual delivery
+   pipeline isn't wired yet; we queue the message in localStorage and toast
+   a success so the UX is testable end-to-end. When the messages backend
+   ships, swap onSend's body for the real call.
+   ───────────────────────────────────────────────────────────────────────── */
+const MessageSellerModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  seller: any;
+  itemName: string;
+  onSend: (text: string) => void;
+}> = ({ isOpen, onClose, seller, itemName, onSend }) => {
+  const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setText('');
+      setSending(false);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  const send = async () => {
+    const trimmed = text.trim();
+    if (!trimmed || sending) return;
+    setSending(true);
+    await new Promise((r) => setTimeout(r, 350));
+    onSend(trimmed);
+  };
+
+  const initial = (seller?.name || 'S').charAt(0).toUpperCase();
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        key="dm-backdrop"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.18 }}
+        className="fixed inset-0 z-[80] bg-black/55 backdrop-blur-sm flex items-end sm:items-center justify-center p-3"
+        onClick={onClose}
+      >
+        <motion.div
+          key="dm-card"
+          initial={{ opacity: 0, y: 20, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 20, scale: 0.98 }}
+          transition={spring}
+          onClick={(e) => e.stopPropagation()}
+          className="card w-full max-w-md p-5 sm:p-6 relative"
+        >
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute top-3 right-3 h-9 w-9 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors"
+          >
+            <XIcon size={15} strokeWidth={2.4} />
+          </button>
+
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-accent text-on-accent grid place-items-center font-bold shrink-0">
+              {seller?.avatar ? (
+                <img src={seller.avatar} alt="" className="w-full h-full object-cover rounded-2xl" />
+              ) : (
+                <span className="text-[15px]">{initial}</span>
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className="label-eyebrow">Message</div>
+              <div className="text-[15px] font-bold text-ink tracking-tight truncate">
+                {seller?.name || 'Seller'}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 card-flat p-3">
+            <div className="label-meta">About</div>
+            <div className="text-[12.5px] font-semibold text-ink truncate mt-0.5">
+              {itemName}
+            </div>
+          </div>
+
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Hi! Is this still available?"
+            rows={4}
+            className="mt-3 w-full rounded-2xl bg-subtle px-3.5 py-3 text-[13.5px] text-ink font-medium outline-none focus:ring-2 focus:ring-accent/40 resize-none"
+            autoFocus
+          />
+
+          <div className="mt-2 flex items-center justify-between text-[11px] text-ink-dim">
+            <span>Replies arrive in your Skinify inbox.</span>
+            <span className="tabular-nums">{text.length}/500</span>
+          </div>
+
+          <div className="mt-4 flex gap-2">
+            <button
+              onClick={onClose}
+              className="flex-1 h-11 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[13px] transition-colors"
+            >
+              Cancel
+            </button>
+            <motion.button
+              whileTap={tap}
+              whileHover={text.trim() ? { scale: 1.01 } : undefined}
+              onClick={send}
+              disabled={!text.trim() || sending}
+              className="flex-1 h-11 rounded-full bg-accent text-on-accent font-bold text-[13px] inline-flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+            >
+              <Send size={13} strokeWidth={2.4} />
+              {sending ? 'Sending…' : 'Send'}
+            </motion.button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   );
 };
 
@@ -914,7 +1094,11 @@ const Breadcrumb: React.FC<{
    Numbers are derived where possible from the item.seller object; falls
    back to neutral defaults so the UI never looks empty.
    ───────────────────────────────────────────────────────────────────────── */
-const SellerCard: React.FC<{ seller: any; onView: () => void }> = ({ seller, onView }) => {
+const SellerCard: React.FC<{
+  seller: any;
+  onView: () => void;
+  onMessage: () => void;
+}> = ({ seller, onView, onMessage }) => {
   const name = seller?.name || 'Anonymous';
   const initial = name.charAt(0).toUpperCase();
   const rating: number = Number(seller?.rating ?? 4.9);
@@ -998,16 +1182,27 @@ const SellerCard: React.FC<{ seller: any; onView: () => void }> = ({ seller, onV
         </span>
       </div>
 
-      {/* Explicit "View profile" button so the action is unmissable */}
-      <motion.button
-        whileTap={tap}
-        whileHover={{ scale: 1.01 }}
-        onClick={onView}
-        className="mt-4 w-full h-10 rounded-full bg-subtle hover:bg-accent-soft text-ink hover:text-ink font-bold text-[12.5px] flex items-center justify-center gap-1.5 transition-colors"
-      >
-        View seller profile
-        <ChevronRight size={12} strokeWidth={2.6} />
-      </motion.button>
+      {/* CTA row — Message + View profile */}
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <motion.button
+          whileTap={tap}
+          whileHover={{ scale: 1.01 }}
+          onClick={onMessage}
+          className="h-10 rounded-full bg-accent text-on-accent font-bold text-[12.5px] flex items-center justify-center gap-1.5"
+        >
+          <MessageCircle size={12} strokeWidth={2.6} />
+          Message
+        </motion.button>
+        <motion.button
+          whileTap={tap}
+          whileHover={{ scale: 1.01 }}
+          onClick={onView}
+          className="h-10 rounded-full bg-subtle hover:bg-accent-soft text-ink font-bold text-[12.5px] flex items-center justify-center gap-1.5 transition-colors"
+        >
+          View profile
+          <ChevronRight size={12} strokeWidth={2.6} />
+        </motion.button>
+      </div>
     </motion.section>
   );
 };

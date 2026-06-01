@@ -27,70 +27,149 @@ export const openDepositModal = () => _openSetter?.(true);
 export const closeDepositModal = () => _openSetter?.(false);
 
 type MethodId =
-  | 'card-eu'
-  | 'card-us'
-  | 'apple-pay'
-  | 'google-pay'
-  | 'sepa'
-  | 'paypal'
-  | 'crypto-btc'
-  | 'crypto-eth'
-  | 'crypto-usdt'
-  | 'paysafecard'
-  | 'skinpay'
+  | 'cards-eu'
+  | 'crypto'
+  | 'cards-us'
+  | 'skins'
   | 'kinguin'
-  | 'eneba';
+  | 'eneba'
+  | 'vouchers'
+  | 'giftcards'
+  | 'premium';
 
-interface MethodDef {
+interface MethodTile {
   id: MethodId;
   label: string;
-  hint?: string;
+  /** Single-line caption rendered under the label. */
+  caption: string;
+  /** Solid brand color used for the tile body and footer bar. */
+  brand: string;
+  /** Ink color (light/dark) used on top of the brand. */
+  fg: 'light' | 'dark';
+  /** Corner badge — TOP, +16%, NEW, etc. */
+  badge?: { text: string; tone: 'top' | 'bonus' | 'neutral' };
+  /** Stack of brand chips rendered inside the tile body. */
+  chips: { kind: 'text' | 'mono'; label: string; tone?: 'a' | 'b' }[];
+  /** Optional fee tag shown in the footer (free if omitted). */
   fee?: string;
-  recommended?: boolean;
 }
 
-interface MethodGroup {
-  title: string;
-  methods: MethodDef[];
-}
-
-const METHOD_GROUPS: MethodGroup[] = [
+/* 3x3 grid — order matches the reference layout: VISA · CRYPTO · VISA / SKINS
+   · KINGUIN · ENEBA / VOUCHERS · GIFTCARDS · PREMIUM. Brand colors stay
+   restrained so the tiles read as a payment grid, not a sticker sheet. */
+const METHOD_TILES: MethodTile[] = [
   {
-    title: 'Cards & wallets',
-    methods: [
-      { id: 'card-eu', label: 'Visa & MasterCard', hint: 'EU issuers', recommended: true },
-      { id: 'card-us', label: 'Visa & MasterCard', hint: 'US issuers' },
-      { id: 'apple-pay', label: 'Apple Pay' },
-      { id: 'google-pay', label: 'Google Pay' },
-      { id: 'paypal', label: 'PayPal', fee: '2.5%' },
+    id: 'cards-eu',
+    label: 'Cards · V1',
+    caption: '100+ more',
+    brand: '#1a1f44',
+    fg: 'light',
+    badge: { text: 'TOP', tone: 'top' },
+    chips: [
+      { kind: 'text', label: 'VISA', tone: 'a' },
+      { kind: 'text', label: 'Mastercard', tone: 'b' },
+      { kind: 'text', label: 'AMEX', tone: 'a' },
     ],
   },
   {
-    title: 'Bank',
-    methods: [
-      { id: 'sepa', label: 'SEPA bank transfer', hint: 'Settles in 1 business day' },
+    id: 'crypto',
+    label: 'Crypto',
+    caption: 'BTC · ETH · USDT · LTC',
+    brand: '#0f1729',
+    fg: 'light',
+    badge: { text: '+16%', tone: 'bonus' },
+    chips: [
+      { kind: 'mono', label: '₿' },
+      { kind: 'mono', label: 'Ξ' },
+      { kind: 'mono', label: '◎' },
+      { kind: 'mono', label: '₮' },
+    ],
+    fee: '1%',
+  },
+  {
+    id: 'cards-us',
+    label: 'Cards · V2',
+    caption: 'US issuers',
+    brand: '#243b6b',
+    fg: 'light',
+    chips: [
+      { kind: 'text', label: 'VISA' },
+      { kind: 'text', label: 'Discover' },
+      { kind: 'text', label: 'JCB' },
     ],
   },
   {
-    title: 'Crypto',
-    methods: [
-      { id: 'crypto-btc', label: 'Bitcoin', fee: '1%' },
-      { id: 'crypto-eth', label: 'Ethereum', fee: '1%' },
-      { id: 'crypto-usdt', label: 'USDT', hint: 'ERC-20 · TRC-20', fee: '1%' },
+    id: 'skins',
+    label: 'Pay by skins',
+    caption: 'From your Steam inventory',
+    brand: '#11241c',
+    fg: 'light',
+    chips: [
+      { kind: 'text', label: 'CS2 inventory' },
+      { kind: 'text', label: 'Instant quote' },
     ],
   },
   {
-    title: 'Vouchers & gift cards',
-    methods: [
-      { id: 'paysafecard', label: 'Paysafecard', fee: '4%' },
-      { id: 'kinguin', label: 'Kinguin wallet', fee: '3%' },
-      { id: 'eneba', label: 'Eneba wallet', fee: '3%' },
+    id: 'kinguin',
+    label: 'Kinguin',
+    caption: 'Wallet card',
+    brand: '#2a1745',
+    fg: 'light',
+    chips: [
+      { kind: 'text', label: 'KINGUIN' },
+      { kind: 'text', label: 'Prepaid' },
     ],
+    fee: '3%',
   },
   {
-    title: 'Skins',
-    methods: [
-      { id: 'skinpay', label: 'Pay with CS2 skins', hint: 'From your Steam inventory' },
+    id: 'eneba',
+    label: 'eneba',
+    caption: 'Wallet card',
+    brand: '#1c3520',
+    fg: 'light',
+    chips: [
+      { kind: 'text', label: 'eneba' },
+      { kind: 'text', label: 'Prepaid' },
+    ],
+    fee: '3%',
+  },
+  {
+    id: 'vouchers',
+    label: 'Vouchers',
+    caption: '30+ more',
+    brand: '#26303f',
+    fg: 'light',
+    chips: [
+      { kind: 'text', label: 'paysafecard' },
+      { kind: 'text', label: 'Revolut' },
+      { kind: 'text', label: 'Papara' },
+      { kind: 'text', label: 'Havale' },
+    ],
+    fee: '4%',
+  },
+  {
+    id: 'giftcards',
+    label: 'Gift cards',
+    caption: 'Digital codes',
+    brand: '#1a2f2e',
+    fg: 'light',
+    chips: [
+      { kind: 'text', label: 'PayPal' },
+      { kind: 'text', label: 'Apple' },
+      { kind: 'text', label: 'Google' },
+    ],
+    fee: '2%',
+  },
+  {
+    id: 'premium',
+    label: 'Premium',
+    caption: 'Priority support',
+    brand: '#3a2a0f',
+    fg: 'light',
+    badge: { text: 'VIP', tone: 'neutral' },
+    chips: [
+      { kind: 'mono', label: '◆' },
+      { kind: 'text', label: 'White-glove' },
     ],
   },
 ];
@@ -105,9 +184,9 @@ const PROMO = {
 };
 
 const calcFeeRate = (id: MethodId): number => {
-  if (id === 'paypal') return 0.025;
-  if (id.startsWith('crypto-')) return 0.01;
-  if (id === 'paysafecard') return 0.04;
+  if (id === 'crypto') return 0.01;
+  if (id === 'vouchers') return 0.04;
+  if (id === 'giftcards') return 0.02;
   if (id === 'kinguin' || id === 'eneba') return 0.03;
   return 0;
 };
@@ -115,7 +194,7 @@ const calcFeeRate = (id: MethodId): number => {
 export const DepositModal: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState<number>(500);
-  const [method, setMethod] = useState<MethodId>('card-eu');
+  const [method, setMethod] = useState<MethodId>('cards-eu');
   const [submitting, setSubmitting] = useState(false);
   const [promoActive, setPromoActive] = useState(PROMO.enabled);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -157,13 +236,10 @@ export const DepositModal: React.FC = () => {
   const belowMin = safeAmount > 0 && safeAmount < MIN_AMOUNT;
   const canSubmit = safeAmount >= MIN_AMOUNT && !submitting;
 
-  const selectedMethod = useMemo(() => {
-    for (const g of METHOD_GROUPS) {
-      const m = g.methods.find((x) => x.id === method);
-      if (m) return m;
-    }
-    return undefined;
-  }, [method]);
+  const selectedMethod = useMemo(
+    () => METHOD_TILES.find((x) => x.id === method),
+    [method],
+  );
 
   /* Track whether the last change came from a preset click vs raw typing,
      so we only run the rolling-digit animation on the big jumps (preset
@@ -254,74 +330,20 @@ export const DepositModal: React.FC = () => {
                   Pick how you want to pay
                 </h2>
 
-                <div className="mt-4 space-y-4">
-                  {METHOD_GROUPS.map((group) => (
-                    <div key={group.title}>
-                      <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim mb-1.5">
-                        {group.title}
-                      </div>
-                      <div className="rounded-2xl overflow-hidden border border-line">
-                        {group.methods.map((m, i) => {
-                          const active = method === m.id;
-                          return (
-                            <button
-                              key={m.id}
-                              onClick={() => setMethod(m.id)}
-                              className={`w-full text-left flex items-center gap-3 px-3.5 py-2.5 transition-colors ${
-                                i > 0 ? 'border-t border-line' : ''
-                              } ${active ? 'bg-accent-soft' : 'hover:bg-subtle/60'}`}
-                            >
-                              <span
-                                className={`w-4 h-4 rounded-full grid place-items-center shrink-0 transition-colors ${
-                                  active
-                                    ? 'bg-accent text-on-accent'
-                                    : 'bg-subtle ring-1 ring-line'
-                                }`}
-                                aria-hidden
-                              >
-                                {active && <Check size={9} strokeWidth={3.4} />}
-                              </span>
-
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-[13.5px] font-bold text-ink tracking-tight">
-                                    {m.label}
-                                  </span>
-                                  {m.recommended && (
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-accent">
-                                      Recommended
-                                    </span>
-                                  )}
-                                </div>
-                                {m.hint && (
-                                  <div className="text-[11.5px] text-ink-muted font-medium mt-0.5 truncate">
-                                    {m.hint}
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className="shrink-0 text-right">
-                                <div
-                                  className={`text-[11px] font-bold ${
-                                    m.fee
-                                      ? 'text-ink-muted'
-                                      : 'text-emerald-700 dark:text-emerald-400'
-                                  }`}
-                                >
-                                  {m.fee ? `${m.fee} fee` : 'No fee'}
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {METHOD_TILES.map((tile) => (
+                    <MethodCard
+                      key={tile.id}
+                      tile={tile}
+                      active={method === tile.id}
+                      onSelect={() => setMethod(tile.id)}
+                    />
                   ))}
                 </div>
 
                 <p className="text-[11px] text-ink-dim font-medium mt-4 leading-relaxed">
-                  Card and Apple/Google Pay flow through Revolut Merchant; bank
-                  transfers settle via your bank; crypto deposits confirm on-chain.
+                  Cards flow through our acquirer; crypto deposits confirm
+                  on-chain; vouchers and gift cards settle instantly.
                 </p>
               </div>
             </section>
@@ -477,6 +499,113 @@ export const DepositModal: React.FC = () => {
         </motion.div>
       )}
     </AnimatePresence>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MethodCard — one of nine large tiles in the payment-method grid.
+
+   Visually a solid brand-colored card (no flashy gradients or emoji-style
+   icons). Brand chips inside the body do the work — three or four wordmark-
+   style pills + a small corner badge for promotions. The footer carries
+   the wallet name and fee tag. Selecting a card swaps the outer ring to
+   the accent color and lifts it slightly.
+   ───────────────────────────────────────────────────────────────────────── */
+const MethodCard: React.FC<{
+  tile: MethodTile;
+  active: boolean;
+  onSelect: () => void;
+}> = ({ tile, active, onSelect }) => {
+  const fgInk = tile.fg === 'light' ? '#ffffff' : '#0f1018';
+  const fgInkDim = tile.fg === 'light' ? 'rgba(255,255,255,0.65)' : 'rgba(15,16,24,0.65)';
+  const chipBg =
+    tile.fg === 'light' ? 'rgba(255,255,255,0.10)' : 'rgba(15,16,24,0.08)';
+  const chipRing =
+    tile.fg === 'light' ? 'rgba(255,255,255,0.18)' : 'rgba(15,16,24,0.15)';
+
+  const badgeTone =
+    tile.badge?.tone === 'top'
+      ? 'bg-amber-300 text-amber-950'
+      : tile.badge?.tone === 'bonus'
+      ? 'bg-emerald-400 text-emerald-950'
+      : 'bg-white/95 text-zinc-900';
+
+  return (
+    <motion.button
+      whileTap={tap}
+      whileHover={{ y: -2 }}
+      onClick={onSelect}
+      aria-pressed={active}
+      className={`group relative text-left rounded-2xl overflow-hidden transition-shadow ${
+        active
+          ? 'ring-2 ring-accent shadow-[0_18px_36px_-18px_rgb(var(--accent)/0.55)]'
+          : 'ring-1 ring-line/70 hover:ring-line'
+      }`}
+      style={{ background: tile.brand }}
+    >
+      {/* Body — chips area */}
+      <div className="relative px-3 pt-3 pb-2 min-h-[112px] flex flex-col justify-between">
+        {tile.badge && (
+          <span
+            className={`absolute top-2 right-2 text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md ${badgeTone}`}
+          >
+            {tile.badge.text}
+          </span>
+        )}
+        {active && (
+          <span className="absolute top-2 left-2 w-5 h-5 rounded-full bg-accent text-on-accent grid place-items-center shadow-[0_4px_10px_-2px_rgb(var(--accent)/0.6)]">
+            <Check size={11} strokeWidth={3.2} />
+          </span>
+        )}
+
+        <div className="flex flex-wrap items-start gap-1.5 mt-5">
+          {tile.chips.map((chip, i) => (
+            <span
+              key={`${chip.label}-${i}`}
+              className={`inline-flex items-center justify-center text-[10.5px] font-bold tracking-tight px-1.5 py-0.5 rounded-[6px] ${
+                chip.kind === 'mono' ? 'font-mono text-[14px] leading-none w-7 h-7' : ''
+              }`}
+              style={{
+                background: chipBg,
+                color: fgInk,
+                boxShadow: `inset 0 0 0 1px ${chipRing}`,
+              }}
+            >
+              {chip.label}
+            </span>
+          ))}
+        </div>
+
+        <div>
+          <div
+            className="text-[13px] font-bold tracking-tight leading-tight mt-3"
+            style={{ color: fgInk }}
+          >
+            {tile.label}
+          </div>
+          <div
+            className="text-[10.5px] font-semibold mt-0.5 leading-tight truncate"
+            style={{ color: fgInkDim }}
+          >
+            {tile.caption}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer — fee tag */}
+      <div
+        className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider flex items-center justify-between"
+        style={{
+          background: tile.fg === 'light' ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.50)',
+          color: fgInkDim,
+        }}
+      >
+        <span>{tile.fee ? `${tile.fee} fee` : 'No fee'}</span>
+        <span className={active ? 'text-accent' : ''} style={!active ? { color: fgInkDim } : undefined}>
+          {active ? 'Selected' : 'Select'}
+        </span>
+      </div>
+    </motion.button>
   );
 };
 
