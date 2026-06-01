@@ -47,7 +47,14 @@ const STEPS = [
   },
 ] as const;
 
+import useDocumentMeta from '../hooks/useDocumentMeta';
+
 const OnboardingPage: React.FC = () => {
+  useDocumentMeta({
+    title: 'Welcome · Skinify',
+    description: 'Get started on Skinify.',
+    noindex: true,
+  });
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { addToast } = useToastStore();

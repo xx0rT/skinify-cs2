@@ -48,6 +48,41 @@
   <url><loc>https://skinify.gg/weapons/SMGs/MAC-10</loc>           <changefreq>daily</changefreq><priority>0.65</priority></url>
   <url><loc>https://skinify.gg/weapons/SMGs/P90</loc>              <changefreq>daily</changefreq><priority>0.65</priority></url>
 
+  <!-- High-volume head-term skin search queries. These map to filtered
+       marketplace views; each one gets its own canonical URL the
+       crawler can index separately. -->
+  <url><loc>https://skinify.gg/marketplace?q=Dragon%20Lore</loc>     <changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Howl</loc>              <changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Fire%20Serpent</loc>    <changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Wild%20Lotus</loc>      <changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Gungnir</loc>           <changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Medusa</loc>            <changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Doppler</loc>           <changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Case%20Hardened</loc>   <changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Fade</loc>              <changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Asiimov</loc>           <changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Hyper%20Beast</loc>     <changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Neo-Noir</loc>          <changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Hyper%20Beast</loc>     <changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Kill%20Confirmed</loc>  <changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Lightning%20Strike</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Blaze</loc>             <changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Sandstorm</loc>         <changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Crimson%20Web</loc>     <changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Slaughter</loc>         <changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Tiger%20Tooth</loc>     <changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Marble%20Fade</loc>     <changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Pandora%27s%20Box</loc> <changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=Vice</loc>              <changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://skinify.gg/marketplace?q=King%20Snake</loc>      <changefreq>daily</changefreq><priority>0.7</priority></url>
+
+  <!-- Wear-bucket pivots — let Google rank us for "Factory New", etc. -->
+  <url><loc>https://skinify.gg/marketplace?wear=Factory%20New</loc>     <changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://skinify.gg/marketplace?wear=Minimal%20Wear</loc>    <changefreq>daily</changefreq><priority>0.65</priority></url>
+  <url><loc>https://skinify.gg/marketplace?wear=Field-Tested</loc>      <changefreq>daily</changefreq><priority>0.65</priority></url>
+  <url><loc>https://skinify.gg/marketplace?wear=Well-Worn</loc>         <changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://skinify.gg/marketplace?wear=Battle-Scarred</loc>    <changefreq>daily</changefreq><priority>0.6</priority></url>
+
   <!-- Account / rewards -->
   <url><loc>https://skinify.gg/rewards</loc>   <changefreq>weekly</changefreq><priority>0.7</priority></url>
   <url><loc>https://skinify.gg/bonuses</loc>   <changefreq>weekly</changefreq><priority>0.7</priority></url>

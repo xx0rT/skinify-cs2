@@ -15,6 +15,10 @@ import {
 import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import { spring, tap } from '../lib/motion';
+import useDocumentMeta, {
+  breadcrumbJsonLd,
+  faqJsonLd,
+} from '../hooks/useDocumentMeta';
 
 /* ─────────────────────────────────────────────────────────────────────────
    /faq — full-page FAQ
@@ -97,6 +101,25 @@ const FAQPage: React.FC = () => {
   const navigate = useNavigate();
   const [activeCategory, setActiveCategory] = useState<Category | 'All'>('All');
   const [query, setQuery] = useState('');
+
+  useDocumentMeta({
+    title: 'CS2 Marketplace FAQ · Skinify',
+    description:
+      'Answers to the most common questions about buying, selling, and trading CS2 skins on Skinify. Fees, escrow, payouts, security and more.',
+    canonical: 'https://skinify.gg/faq',
+    keywords:
+      'cs2 marketplace faq, skinify faq, cs2 trading help, cs2 escrow, cs2 trade fees, how to buy cs2 skins, how to sell cs2 skins',
+    jsonLd: [
+      faqJsonLd(
+        FAQ.map((f) => ({ question: f.question, answer: f.answer })),
+      ),
+      breadcrumbJsonLd([
+        { name: 'Home', url: 'https://skinify.gg/' },
+        { name: 'Help', url: 'https://skinify.gg/support' },
+        { name: 'FAQ', url: 'https://skinify.gg/faq' },
+      ]),
+    ],
+  });
   const [openId, setOpenId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {

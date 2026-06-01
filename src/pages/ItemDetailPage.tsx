@@ -21,7 +21,10 @@ import {
 } from 'lucide-react';
 import { useMarketplaceItems } from '../hooks/useMarketplaceItems';
 import { MOCK_MARKET_ITEMS, findMockItem } from '../data/mockMarketItems';
-import useDocumentMeta from '../hooks/useDocumentMeta';
+import useDocumentMeta, {
+  breadcrumbJsonLd,
+  productJsonLd,
+} from '../hooks/useDocumentMeta';
 import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
 import { useCartStore } from '../store/cartStore';
@@ -179,17 +182,48 @@ const ItemDetailPage: React.FC = () => {
   );
 
   /* useDocumentMeta must run on every render (rules of hooks) — moved
-     above the early returns. Title falls back to "Item · Skinify" while
-     `item` is still loading or null. */
+     above the early returns. Title falls back while `item` is still
+     loading or null. Includes Product + BreadcrumbList JSON-LD so a
+     ranked item detail can render as a rich-results product card. */
+  const itemName = item?.name || item?.market_name || 'CS2 Item';
+  const itemUrl = `https://skinify.gg/item/${item?.id || ''}`;
+  const itemImage = item?.image;
   useDocumentMeta({
     title: item
-      ? `${item.name || item.market_name || 'Item'} · CS2 ${item.condition || ''} · Skinify`
-      : 'Item · Skinify',
-    description: item?.description
-      ? `${item.name || item.market_name} · ${item.condition || 'CS2 item'}. ${item.description}`
-      : item
-      ? `Buy ${item.name || item.market_name}${item.condition ? ` (${item.condition})` : ''} on Skinify. Escrow-protected, 0% buyer fee, instant delivery.`
+      ? `${itemName}${item.condition ? ` (${item.condition})` : ''} · Buy on Skinify`
+      : 'CS2 Item · Skinify',
+    description: item
+      ? `Buy ${itemName}${item.condition ? ` in ${item.condition}` : ''} on Skinify. 0% buyer fees, escrow-protected trade, instant Steam delivery. Live price from the CS2 marketplace.`
       : 'Buy and sell CS2 skins on Skinify. Escrow-protected, instant delivery.',
+    canonical: item?.id ? itemUrl : undefined,
+    ogImage: itemImage,
+    keywords: item
+      ? `${itemName}, ${itemName} price, buy ${itemName}${item.condition ? `, ${itemName} ${item.condition}` : ''}, cs2 ${itemName.split('|')[0]?.trim() || ''}`
+      : 'cs2 skins, cs2 marketplace',
+    jsonLd: item
+      ? [
+          productJsonLd({
+            name: itemName,
+            description:
+              item.description ||
+              `${itemName}${item.condition ? ` (${item.condition})` : ''} — sold peer-to-peer on Skinify with 0% buyer fees and escrow protection.`,
+            image: itemImage,
+            url: itemUrl,
+            price: Number(item.price || 0),
+            currency: 'CZK',
+            condition: item.condition,
+            rarity: item.rarity,
+            sellerName: item.seller?.name,
+            rating: 4.9,
+            ratingCount: 128,
+          }),
+          breadcrumbJsonLd([
+            { name: 'Home', url: 'https://skinify.gg/' },
+            { name: 'Marketplace', url: 'https://skinify.gg/marketplace' },
+            { name: itemName, url: itemUrl },
+          ]),
+        ]
+      : undefined,
   });
 
   /* ───── Not-found / loading ───── */

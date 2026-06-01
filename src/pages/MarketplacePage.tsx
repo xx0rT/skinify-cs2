@@ -61,14 +61,13 @@ const staggerChild = {
   shown: { opacity: 1, y: 0, transition: spring },
 };
 
-import useDocumentMeta from '../hooks/useDocumentMeta';
+import useDocumentMeta, {
+  breadcrumbJsonLd,
+  collectionPageJsonLd,
+  itemListJsonLd,
+} from '../hooks/useDocumentMeta';
 
 const MarketplacePage: React.FC = () => {
-  useDocumentMeta({
-    title: 'CS2 marketplace — browse all skins, knives & gloves',
-    description:
-      'Browse thousands of CS2 listings. Filter by weapon, rarity, float, and stickers. Secure peer-to-peer trading with escrow protection.',
-  });
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -246,6 +245,41 @@ const MarketplacePage: React.FC = () => {
     setSpecial({ stattrak: false, souvenir: false });
   };
 
+  /* Per-page SEO. Emits CollectionPage + BreadcrumbList + ItemList of
+     the first 30 visible listings. Crawl-friendly without ballooning
+     the JSON payload. */
+  useDocumentMeta({
+    title: 'Browse CS2 Skins — Marketplace · Skinify',
+    description:
+      'Browse live CS2 skin listings. Filter by weapon, rarity, float, stickers and condition. 0% buyer fees, escrow-protected trades, instant Steam delivery.',
+    canonical: 'https://skinify.gg/marketplace',
+    keywords:
+      'cs2 marketplace, browse cs2 skins, cs2 skin prices, ak-47 skins, awp skins, karambit, m4a4 skins, m4a1-s skins, p2p cs2 marketplace',
+    jsonLd: [
+      collectionPageJsonLd({
+        name: 'CS2 Marketplace',
+        url: 'https://skinify.gg/marketplace',
+        description:
+          'Browse live CS2 skin listings on Skinify. AK-47, AWP, M4A4, Karambit, M9 Bayonet, gloves and cases.',
+      }),
+      breadcrumbJsonLd([
+        { name: 'Home', url: 'https://skinify.gg/' },
+        { name: 'Marketplace', url: 'https://skinify.gg/marketplace' },
+      ]),
+      itemListJsonLd({
+        name: 'CS2 Listings',
+        url: 'https://skinify.gg/marketplace',
+        items: filtered.slice(0, 30).map((it: any) => ({
+          name: it.name || it.market_name || 'CS2 item',
+          url: `https://skinify.gg/item/${it.id}`,
+          image: it.image,
+          price: Number(it.price || 0),
+          currency: 'CZK',
+        })),
+      }),
+    ],
+  });
+
   return (
     <div className="min-h-screen bg-bg text-ink">
       <LandingNav />
@@ -261,7 +295,7 @@ const MarketplacePage: React.FC = () => {
           <div>
             <span className="label-eyebrow">Marketplace</span>
             <h1 className="text-[26px] sm:text-[32px] font-bold text-ink tracking-tight leading-none mt-2">
-              Browse listings
+              CS2 Skin Marketplace
             </h1>
             <p className="text-[13px] sm:text-[14px] text-ink-muted mt-1.5 font-medium">
               {loading

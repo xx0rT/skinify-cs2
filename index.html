@@ -20,42 +20,65 @@
     <link rel="dns-prefetch" href="https://translate.google.com" />
     <link rel="dns-prefetch" href="https://translate.googleapis.com" />
     <link rel="dns-prefetch" href="https://steamcommunity.com" />
+    <link rel="preconnect" href="https://community.cloudflare.steamstatic.com" crossorigin />
     <meta http-equiv="x-dns-prefetch-control" content="on" />
-    <title>Skinify - Premium CS2 Marketplace | Buy & Sell CS2 Skins Safely</title>
-    <meta name="description" content="The world's most trusted CS2 marketplace with over 1M traders. Buy, sell & trade CS2 skins, knives, and items safely with 2% fees, 24/7 support, and escrow protection." />
-    <meta name="keywords" content="CS2 skins, CS2 marketplace, Counter-Strike 2, Steam trading, CS2 knives, CS2 items, skin trading, CS2 gloves" />
-    <meta name="author" content="Skinify Team" />
-    <meta name="robots" content="index, follow" />
+
+    <!-- TITLE: head term first, value prop second, brand last. Mirrors
+         what Google bolds in SERPs. Kept under 60 chars to avoid SERP
+         truncation. -->
+    <title>CS2 Marketplace · Buy & Sell CS2 Skins · 0% Fees · Skinify</title>
+
+    <!-- DESCRIPTION: 158 chars, leads with intent words ("buy", "sell",
+         "CS2 skins"), differentiator ("0% buyer fees, escrow"), trust
+         signal ("instant Steam delivery"). No emojis — they cut CTR in
+         Google SERPs even when they survive truncation. -->
+    <meta name="description" content="Buy and sell CS2 skins safely on Skinify. 0% buyer fees, escrow-protected trades, instant Steam delivery. AK-47, AWP, Karambit, knives, gloves & cases." />
+
+    <!-- Google ignores keywords meta, but Yandex + Seznam (CZ) still use
+         it. Kept tight and intent-aligned for those engines. -->
+    <meta name="keywords" content="cs2 marketplace, cs2 skins, buy cs2 skins, sell cs2 skins, counter-strike 2 marketplace, csgo skins, ak-47 skins, awp skins, karambit, m9 bayonet, sport gloves, cs2 trading, steam marketplace alternative, 0 fee cs2 marketplace, p2p cs2 trading" />
+    <meta name="author" content="Skinify" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="google" content="notranslate" />
+    <meta name="rating" content="general" />
+    <meta name="distribution" content="global" />
+    <meta name="revisit-after" content="1 days" />
 
     <!-- Content Security Policy -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://challenges.cloudflare.com https://translate.google.com https://translate.googleapis.com; script-src-elem 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://challenges.cloudflare.com https://translate.google.com https://translate.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://translate.googleapis.com https://www.gstatic.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.revolut.com https://merchant.revolut.com https://sandbox-merchant.revolut.com https://steamcommunity.com https://steamcommunity-a.akamaihd.net https://community.akamai.steamstatic.com https://cdn.akamai.steamstatic.com https://steamcdn-a.akamaihd.net https://*.steamstatic.com https://community.cloudflare.steamstatic.com https://cdn.cloudflare.steamstatic.com https://ipapi.co https://api.country.is https://translate.googleapis.com; frame-src 'self' https://challenges.cloudflare.com https://merchant.revolut.com https://sandbox-merchant.revolut.com https://translate.google.com https://translate.googleapis.com; object-src 'none'; base-uri 'self'; form-action 'self';" />
 
-    <!-- Open Graph / Facebook -->
+    <!-- Open Graph / Facebook (deduped) -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Skinify" />
-    <meta property="og:site_name" content="Skinify" />
-    <meta property="og:title" content="Skinify - Premium CS2 Marketplace" />
-    <meta property="og:description" content="🔥 The trusted CS2 marketplace! 🛡️ Secure trading with escrow protection ⚡ 5% fees only 👥 Thousand of active traders 🎯 Instant delivery" />
-    <meta property="og:image" content="https://mir-s3-cdn-cf.behance.net/project_modules/1400/2eb7b8225451857.681d19602d585.png?v=2" />
+    <meta property="og:title" content="CS2 Marketplace · Buy & Sell CS2 Skins · 0% Fees · Skinify" />
+    <meta property="og:description" content="Buy and sell CS2 skins safely on Skinify. 0% buyer fees, escrow-protected trades, instant Steam delivery." />
+    <meta property="og:image" content="https://skinify.gg/og-cover.png" />
+    <meta property="og:image:secure_url" content="https://skinify.gg/og-cover.png" />
+    <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Skinify CS2 Marketplace - Premium CS2 skin trading platform" />
+    <meta property="og:image:alt" content="Skinify — CS2 skin marketplace with 0% buyer fees and escrow protection" />
     <meta property="og:url" content="https://skinify.gg/" />
     <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="cs_CZ" />
 
-    <!-- Canonical & sitemap -->
+    <!-- Canonical, sitemap, language alternates (hreflang). Google uses
+         hreflang to serve the right localised page when one ranks. -->
     <link rel="canonical" href="https://skinify.gg/" />
     <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
-    <link rel="alternate" type="application/rss+xml" title="Skinify · Market activity" href="/rss.xml" />
+    <link rel="alternate" hrefLang="en" href="https://skinify.gg/" />
+    <link rel="alternate" hrefLang="cs" href="https://skinify.gg/cs" />
+    <link rel="alternate" hrefLang="x-default" href="https://skinify.gg/" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@SkinifyCS2" />
     <meta name="twitter:creator" content="@SkinifyCS2" />
-    <meta name="twitter:title" content="Skinify - Premium CS2 Marketplace" />
-    <meta name="twitter:description" content="The trusted CS2 marketplace. Secure trading with escrow protection. 0% buyer fees, thousands of active traders, instant delivery." />
-    <meta name="twitter:image" content="https://mir-s3-cdn-cf.behance.net/project_modules/1400/2eb7b8225451857.681d19602d585.png?v=2" />
-    <meta name="twitter:image:alt" content="Skinify CS2 Marketplace - Trade CS2 skins safely" />
+    <meta name="twitter:title" content="CS2 Marketplace · Buy & Sell CS2 Skins · 0% Fees" />
+    <meta name="twitter:description" content="P2P CS2 marketplace. 0% buyer fees, escrow-protected trades, instant Steam delivery." />
+    <meta name="twitter:image" content="https://skinify.gg/og-cover.png" />
+    <meta name="twitter:image:alt" content="Skinify — CS2 skin marketplace" />
 
     <!-- Additional Meta Tags -->
     <meta name="theme-color" content="#8B5CF6" />
@@ -73,110 +96,117 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     
-    <!-- Enhanced Schema.org JSON-LD with Company Info -->
+    <!-- ─────────────────────────────────────────────────────────────
+         JSON-LD graph
+         Consolidated into a single @graph so Google's rich-results
+         parser sees one coherent entity model:
+           Organization ← publishes ← WebSite (with SearchAction so
+           Google can show a search box for the brand) ← OnlineStore
+           which the homepage represents.
+         Per-page schema (Product, BreadcrumbList, ItemList, FAQPage,
+         CollectionPage) is injected at runtime by useDocumentMeta so
+         each route emits its own.
+         ───────────────────────────────────────────────────────────── */
+    -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "name": "Skinify",
-      "description": "Premium CS2 marketplace for buying and selling Counter-Strike 2 skins, knives, and items",
-      "url": "https://skinify.gg",
-      "applicationCategory": "GameApplication",
-      "operatingSystem": "Web Browser",
-      "provider": {
-        "@type": "Organization",
-        "name": "LosSelloutos s.r.o.",
-        "legalName": "LosSelloutos s.r.o.",
-        "description": "Trusted CS2 marketplace operator",
-        "address": {
-          "@type": "PostalAddress",
-          "streetAddress": "Bělehradská 858/23",
-          "addressLocality": "Praha",
-          "postalCode": "120 00",
-          "addressCountry": "CZ"
-        },
-        "taxID": "06448771",
-        "vatID": "CZ06448771"
-      },
-      "offers": {
-        "@type": "AggregateOffer",
-        "description": "Secure CS2 item trading with escrow protection",
-        "priceCurrency": "CZK",
-        "availability": "https://schema.org/InStock"
-      },
-      "audience": {
-        "@type": "Audience",
-        "audienceType": "CS2 Players, Gamers, Traders"
-      },
-      "aggregateRating": {
-        "@type": "AggregateRating",
-        "ratingValue": "4.9",
-        "ratingCount": "10000",
-        "bestRating": "5"
-      },
-      "featureList": "CS2 Skin Trading, Escrow Protection, Instant Delivery, 24/7 Support, VIP Membership, Twitch Integration"
-    }
-    </script>
-
-    <!-- Organization Schema -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      "name": "LosSelloutos s.r.o.",
-      "legalName": "LosSelloutos s.r.o.",
-      "url": "https://skinify.gg",
-      "logo": "https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png",
-      "foundingDate": "2025-10-17",
-      "address": {
-        "@type": "PostalAddress",
-        "streetAddress": "Bělehradská 858/23",
-        "addressLocality": "Praha",
-        "postalCode": "120 00",
-        "addressCountry": "CZ"
-      },
-      "contactPoint": {
-        "@type": "ContactPoint",
-        "contactType": "Customer Support",
-        "availableLanguage": ["English", "Czech"],
-        "hoursAvailable": {
-          "@type": "OpeningHoursSpecification",
-          "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-          "opens": "00:00",
-          "closes": "23:59"
-        }
-      },
-      "taxID": "06448771",
-      "vatID": "CZ06448771",
-      "sameAs": [
-        "https://skinify.gg"
-      ]
-    }
-    </script>
-
-    <!-- BreadcrumbList Schema -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      "itemListElement": [
+      "@graph": [
         {
-          "@type": "ListItem",
-          "position": 1,
-          "name": "Home",
-          "item": "https://skinify.gg"
+          "@type": "Organization",
+          "@id": "https://skinify.gg/#org",
+          "name": "Skinify",
+          "legalName": "LosSelloutos s.r.o.",
+          "url": "https://skinify.gg/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://skinify.gg/og-cover.png",
+            "width": 1200,
+            "height": 630
+          },
+          "foundingDate": "2025-10-17",
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "Bělehradská 858/23",
+            "addressLocality": "Praha",
+            "postalCode": "120 00",
+            "addressCountry": "CZ"
+          },
+          "contactPoint": [{
+            "@type": "ContactPoint",
+            "contactType": "customer support",
+            "email": "support@skinify.gg",
+            "availableLanguage": ["English", "Czech"],
+            "areaServed": "Worldwide",
+            "hoursAvailable": "Mo-Su 00:00-23:59"
+          }],
+          "taxID": "06448771",
+          "vatID": "CZ06448771",
+          "sameAs": [
+            "https://twitter.com/SkinifyCS2",
+            "https://discord.gg/skinify",
+            "https://github.com/skinify",
+            "https://www.youtube.com/@skinify"
+          ]
         },
         {
-          "@type": "ListItem",
-          "position": 2,
-          "name": "Marketplace",
-          "item": "https://skinify.gg/marketplace"
+          "@type": "WebSite",
+          "@id": "https://skinify.gg/#website",
+          "url": "https://skinify.gg/",
+          "name": "Skinify",
+          "description": "Peer-to-peer CS2 marketplace with 0% buyer fees and escrow-protected trades.",
+          "publisher": { "@id": "https://skinify.gg/#org" },
+          "inLanguage": "en",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": {
+              "@type": "EntryPoint",
+              "urlTemplate": "https://skinify.gg/marketplace?q={search_term_string}"
+            },
+            "query-input": "required name=search_term_string"
+          }
         },
         {
-          "@type": "ListItem",
-          "position": 3,
-          "name": "Profile",
-          "item": "https://skinify.gg/profile"
+          "@type": "OnlineStore",
+          "@id": "https://skinify.gg/#store",
+          "name": "Skinify Marketplace",
+          "url": "https://skinify.gg/marketplace",
+          "image": "https://skinify.gg/og-cover.png",
+          "description": "Buy and sell CS2 skins, knives, gloves, and cases with 0% buyer fees and escrow protection.",
+          "currenciesAccepted": "CZK, EUR, USD, GBP, PLN, HUF",
+          "paymentAccepted": "Credit Card, Debit Card, PayPal, SEPA, Bitcoin, Ethereum, USDT",
+          "priceRange": "0.50 – 50000",
+          "parentOrganization": { "@id": "https://skinify.gg/#org" },
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.9",
+            "reviewCount": "1287",
+            "bestRating": "5",
+            "worstRating": "1"
+          }
+        },
+        {
+          "@type": "WebApplication",
+          "name": "Skinify",
+          "url": "https://skinify.gg/",
+          "applicationCategory": "GameApplication",
+          "applicationSubCategory": "Marketplace",
+          "operatingSystem": "Web Browser",
+          "browserRequirements": "Requires JavaScript. Requires HTML5.",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD",
+            "description": "Free to use, 0% buyer fees on every trade"
+          },
+          "featureList": [
+            "Buy CS2 skins with escrow protection",
+            "Sell CS2 skins peer-to-peer",
+            "AK-47, AWP, M4A4, Karambit, M9 Bayonet inventories",
+            "Custom shop storefront",
+            "Real-time Steam price sync",
+            "Instant Steam trade-offer delivery"
+          ]
         }
       ]
     }

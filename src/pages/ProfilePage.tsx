@@ -94,7 +94,14 @@ const staggerChild = {
   shown:  { opacity: 1, y: 0, transition: spring },
 };
 
+import useDocumentMeta from '../hooks/useDocumentMeta';
+
 const ProfilePage: React.FC = () => {
+  useDocumentMeta({
+    title: 'Profile · Skinify',
+    description: 'Manage your Skinify account, listings, balance and trades.',
+    noindex: true,
+  });
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuthStore();
   const { balance, pendingBalance, totalDeposited, totalSpent, fetchBalance, fetchTransactions } =

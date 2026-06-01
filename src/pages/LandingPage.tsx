@@ -60,14 +60,48 @@ const staggerChild = {
    Page
    ───────────────────────────────────────────────────────────────────────── */
 
-import useDocumentMeta from '../hooks/useDocumentMeta';
+import useDocumentMeta, { faqJsonLd } from '../hooks/useDocumentMeta';
+
+/* Pre-built short FAQ surfaced on the landing page — also injected as
+   FAQPage JSON-LD so Google can render the rich result and pull traffic
+   off long-tail "is cs2 marketplace safe", "cs2 trading fees" queries. */
+const LANDING_FAQ = [
+  {
+    question: 'What is the cheapest way to buy CS2 skins?',
+    answer:
+      'Skinify charges 0% buyer fees, so the price you see is the price you pay. Sellers list peer-to-peer at or near the live Steam market median, which usually undercuts third-party marketplaces that add 5–15% spreads.',
+  },
+  {
+    question: 'Is Skinify safe for trading CS2 skins?',
+    answer:
+      'Every purchase is held in escrow until you confirm the Steam trade offer was received. If the seller fails to deliver within 60 minutes you are automatically refunded. Funds release to sellers 8 days after delivery to cover Steam\'s trade-back window.',
+  },
+  {
+    question: 'How long does a CS2 skin trade take on Skinify?',
+    answer:
+      'Median delivery is under 60 seconds when the seller is online. After accepting the Steam trade offer in your mobile app the item lands in your inventory immediately.',
+  },
+  {
+    question: 'Do I need Steam Mobile Authenticator to trade?',
+    answer:
+      'Yes. Without it Steam itself holds every trade offer for 15 days regardless of which marketplace you use. Enable Steam Guard Mobile for instant trades.',
+  },
+  {
+    question: 'Can I sell my CS2 inventory on Skinify?',
+    answer:
+      'Yes. Connect your Steam account, open the Inventory tab, pick items, set a price (or use the recommended Steam median), and your listing goes live. Skinify charges a 2% seller fee — VIP members pay less.',
+  },
+];
 
 const LandingPage: React.FC = () => {
   useDocumentMeta({
-    title: 'Skinify — Buy & sell CS2 skins with escrow protection',
+    title: 'CS2 Marketplace · Buy & Sell CS2 Skins · 0% Fees · Skinify',
     description:
-      'Premium peer-to-peer CS2 marketplace. 0% buyer fees, escrow protection, instant payouts. Trade AK-47, AWP, Karambit, Butterfly Knife and more.',
+      'Buy and sell CS2 skins on Skinify. 0% buyer fees, escrow-protected trades, instant Steam delivery. AK-47, AWP, Karambit, knives, gloves & cases.',
     canonical: 'https://skinify.gg/',
+    keywords:
+      'cs2 marketplace, cs2 skins, buy cs2 skins, sell cs2 skins, counter-strike 2 marketplace, ak-47 skins, awp skins, karambit, p2p cs2 trading, 0 fee cs2 marketplace',
+    jsonLd: faqJsonLd(LANDING_FAQ),
   });
 
   const navigate = useNavigate();
@@ -169,6 +203,16 @@ const LandingPage: React.FC = () => {
       <LandingNav />
 
       <main className="max-w-[1480px] mx-auto px-4 sm:px-6 pt-3 pb-12 sm:pb-16">
+        {/*
+          Screen-reader-only H1 — Google reads this and uses it as the
+          page's primary heading. The visual hero uses display headings
+          inside cards that aren't `<h1>`, so we lift the head term up
+          where crawlers expect it without disrupting the layout.
+        */}
+        <h1 className="sr-only">
+          CS2 Marketplace — Buy and Sell CS2 Skins on Skinify
+        </h1>
+
         {/* ===== HERO ===== */}
         <section className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-3 mb-3">
           {/* Headline card — animates in on mount with a calm fade-up */}
@@ -507,6 +551,111 @@ const LandingPage: React.FC = () => {
               </motion.button>
             </div>
           </div>
+        </Reveal>
+
+        {/*
+          Long-tail SEO copy block — visible to crawlers (and humans
+          scrolling to the very bottom). Targets head-term phrasing
+          ("CS2 marketplace", "buy CS2 skins"), high-volume entity names
+          (AK-47, AWP, Karambit), and competitor-alternative queries
+          ("0% buyer fees", "escrow protection"). Internal links push
+          PageRank into deep category and weapon pages.
+        */}
+        <Reveal className="mt-12">
+          <section className="card p-6 sm:p-10">
+            <h2 className="text-[20px] sm:text-[24px] font-bold text-ink tracking-tight">
+              The CS2 marketplace built for traders, not middlemen
+            </h2>
+            <div className="mt-4 max-w-[820px] text-[14px] sm:text-[15px] text-ink-muted font-medium leading-relaxed space-y-4">
+              <p>
+                Skinify is a peer-to-peer{' '}
+                <a href="/marketplace" className="text-accent hover:underline">
+                  CS2 marketplace
+                </a>{' '}
+                where you buy and sell Counter-Strike 2 skins directly with other
+                players. Every trade is escrow-protected, fees are zero on the
+                buyer side, and items deliver to your Steam inventory the moment
+                you accept the trade offer — typically in under a minute.
+              </p>
+              <p>
+                Looking for a specific weapon? Browse{' '}
+                <a href="/weapons/Rifles/AK-47" className="text-accent hover:underline">
+                  AK-47 skins
+                </a>
+                ,{' '}
+                <a href="/weapons/Rifles/AWP" className="text-accent hover:underline">
+                  AWP skins
+                </a>
+                ,{' '}
+                <a href="/weapons/Rifles/M4A4" className="text-accent hover:underline">
+                  M4A4
+                </a>
+                , and{' '}
+                <a href="/weapons/Rifles/M4A1-S" className="text-accent hover:underline">
+                  M4A1-S
+                </a>{' '}
+                from the rifle category. For pistols, the{' '}
+                <a href="/weapons/Pistols/Desert%20Eagle" className="text-accent hover:underline">
+                  Desert Eagle
+                </a>
+                ,{' '}
+                <a href="/weapons/Pistols/USP-S" className="text-accent hover:underline">
+                  USP-S
+                </a>{' '}
+                and{' '}
+                <a href="/weapons/Pistols/Glock-18" className="text-accent hover:underline">
+                  Glock-18
+                </a>{' '}
+                are the most-listed. Knives and gloves —{' '}
+                <a href="/weapons/Knives/Karambit" className="text-accent hover:underline">
+                  Karambit
+                </a>
+                ,{' '}
+                <a href="/weapons/Knives/M9%20Bayonet" className="text-accent hover:underline">
+                  M9 Bayonet
+                </a>
+                ,{' '}
+                <a href="/weapons/Knives/Butterfly%20Knife" className="text-accent hover:underline">
+                  Butterfly Knife
+                </a>
+                ,{' '}
+                <a href="/weapons/Gloves/Sport%20Gloves" className="text-accent hover:underline">
+                  Sport Gloves
+                </a>{' '}
+                — sit in their own categories with float, pattern and sticker
+                filters built in.
+              </p>
+              <p>
+                Compared to in-game Steam Market trading, Skinify cuts the 15% Valve
+                fee entirely for buyers and pays sellers in real money instead of
+                Steam Wallet credit you can&apos;t cash out. Compared to third-party
+                marketplaces, we keep buyer fees at zero and run a smaller 2% seller
+                fee that drops further with{' '}
+                <a href="/vip" className="text-accent hover:underline">
+                  VIP membership
+                </a>
+                . First-time deposits get a 10% top-up bonus — see the{' '}
+                <a href="/bonuses" className="text-accent hover:underline">
+                  Bonuses
+                </a>{' '}
+                page for details.
+              </p>
+              <p>
+                Every trade is held in escrow for 8 days to cover Steam&apos;s 7-day
+                trade-back window plus a one-day safety margin. If the seller never
+                sends, you&apos;re refunded automatically. If something else goes
+                wrong, our team resolves disputes in under 24 hours. Read the{' '}
+                <a href="/trading-guide" className="text-accent hover:underline">
+                  full trading guide
+                </a>{' '}
+                or jump straight to the{' '}
+                <a href="/faq" className="text-accent hover:underline">
+                  FAQ
+                </a>
+                .
+              </p>
+            </div>
+          </section>
         </Reveal>
       </main>
 

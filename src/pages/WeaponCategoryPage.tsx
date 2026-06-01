@@ -39,7 +39,11 @@ const SORT_LABELS: Record<SortKey, string> = {
   'name': 'Name (A–Z)',
 };
 
-import useDocumentMeta from '../hooks/useDocumentMeta';
+import useDocumentMeta, {
+  breadcrumbJsonLd,
+  collectionPageJsonLd,
+  itemListJsonLd,
+} from '../hooks/useDocumentMeta';
 
 const WeaponCategoryPage: React.FC = () => {
   const { category, weapon } = useParams<{ category: string; weapon?: string }>();
@@ -157,18 +161,84 @@ const WeaponCategoryPage: React.FC = () => {
   };
 
   /* useDocumentMeta must run on every render — placed BEFORE any early
-     returns to obey the rules of hooks. */
+     returns to obey the rules of hooks.
+
+     SEO strategy for this page:
+       - Title leads with the *weapon/category* keyword (highest-intent
+         token first), value-prop in the middle, brand last.
+       - Description targets long-tail "buy [weapon] cheap", "[weapon]
+         price" queries with the price floor inline.
+       - JSON-LD includes CollectionPage + BreadcrumbList (helps Google
+         show a Categories → Weapon trail) + ItemList of the visible
+         listings so the SERP can render a rich-results product list. */
+  const pageTitle = resolvedCategory
+    ? resolvedWeapon
+      ? `${resolvedWeapon} Skins · Buy & Sell · CS2 · Skinify`
+      : `${resolvedCategory.name} · CS2 Skin Marketplace · Skinify`
+    : 'Browse CS2 Weapons · Skinify';
+  const pageDescription = resolvedCategory
+    ? resolvedWeapon
+      ? `Buy ${resolvedWeapon} CS2 skins on Skinify. 0% buyer fees, escrow-protected trades, instant Steam delivery. Browse every wear and float.`
+      : `Browse ${resolvedCategory.name} CS2 skins on Skinify. 0% buyer fees, escrow protection, instant delivery. ${resolvedCategory.description}`
+    : 'Browse every CS2 weapon category on Skinify with 0% buyer fees and escrow protection.';
+  const pageCanonical = resolvedCategory
+    ? resolvedWeapon
+      ? `https://skinify.gg/weapons/${encodeURIComponent(resolvedCategory.name)}/${encodeURIComponent(resolvedWeapon)}`
+      : `https://skinify.gg/weapons/${encodeURIComponent(resolvedCategory.name)}`
+    : 'https://skinify.gg/weapons';
+  const pageKeywords = resolvedCategory
+    ? resolvedWeapon
+      ? `${resolvedWeapon} skins, ${resolvedWeapon} price, buy ${resolvedWeapon}, ${resolvedWeapon} cs2, ${resolvedCategory.name.toLowerCase()} cs2`
+      : `${resolvedCategory.name.toLowerCase()} cs2, cs2 ${resolvedCategory.name.toLowerCase()}, buy cs2 ${resolvedCategory.name.toLowerCase()}, ${resolvedCategory.weapons.slice(0, 5).map((w) => w.toLowerCase()).join(', ')}`
+    : 'cs2 weapons, cs2 weapon categories, browse cs2';
+
+  const trail = resolvedCategory
+    ? resolvedWeapon
+      ? [
+          { name: 'Home', url: 'https://skinify.gg/' },
+          { name: 'Categories', url: 'https://skinify.gg/weapons' },
+          {
+            name: resolvedCategory.name,
+            url: `https://skinify.gg/weapons/${encodeURIComponent(resolvedCategory.name)}`,
+          },
+          { name: resolvedWeapon, url: pageCanonical },
+        ]
+      : [
+          { name: 'Home', url: 'https://skinify.gg/' },
+          { name: 'Categories', url: 'https://skinify.gg/weapons' },
+          { name: resolvedCategory.name, url: pageCanonical },
+        ]
+    : [
+        { name: 'Home', url: 'https://skinify.gg/' },
+        { name: 'Categories', url: 'https://skinify.gg/weapons' },
+      ];
+
   useDocumentMeta({
-    title: resolvedCategory
-      ? resolvedWeapon
-        ? `${resolvedWeapon} skins · ${resolvedCategory.name} · Skinify`
-        : `${resolvedCategory.name} · CS2 marketplace · Skinify`
-      : 'Browse CS2 weapons · Skinify',
-    description: resolvedCategory
-      ? resolvedWeapon
-        ? `Buy and sell ${resolvedWeapon} CS2 skins safely on Skinify. Browse all wears, floats and patterns with escrow-protected trades.`
-        : `Browse all CS2 ${resolvedCategory.name.toLowerCase()} on Skinify. ${resolvedCategory.description}`
-      : 'Browse every CS2 weapon category on Skinify.',
+    title: pageTitle,
+    description: pageDescription,
+    canonical: pageCanonical,
+    keywords: pageKeywords,
+    jsonLd: [
+      collectionPageJsonLd({
+        name: resolvedWeapon || resolvedCategory?.name || 'CS2 weapons',
+        url: pageCanonical,
+        description: pageDescription,
+      }),
+      breadcrumbJsonLd(trail),
+      itemListJsonLd({
+        name: resolvedWeapon
+          ? `${resolvedWeapon} listings`
+          : `${resolvedCategory?.name || 'CS2'} listings`,
+        url: pageCanonical,
+        items: filtered.slice(0, 30).map((it: any) => ({
+          name: it.name || it.market_name || 'CS2 item',
+          url: `https://skinify.gg/item/${it.id}`,
+          image: it.image,
+          price: Number(it.price || 0),
+          currency: 'CZK',
+        })),
+      }),
+    ],
   });
 
   if (!resolvedCategory) {

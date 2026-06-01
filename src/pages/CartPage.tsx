@@ -35,7 +35,14 @@ import { spring, tap } from '../lib/motion';
    - Empty-state with marketplace CTA
    ───────────────────────────────────────────────────────────────────────── */
 
+import useDocumentMeta from '../hooks/useDocumentMeta';
+
 const CartPage: React.FC = () => {
+  useDocumentMeta({
+    title: 'Cart · Skinify',
+    description: 'Review and check out the CS2 skins in your cart.',
+    noindex: true,
+  });
   const navigate = useNavigate();
   const { items, removeItem, clearCart, getTotalPrice } = useCartStore();
   const { user } = useAuthStore();
