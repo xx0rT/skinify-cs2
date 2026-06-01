@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion';
 import {
   ArrowRight,
+  ChevronRight,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -562,11 +563,12 @@ const LandingPage: React.FC = () => {
           PageRank into deep category and weapon pages.
         */}
         <Reveal className="mt-12">
-          <section className="card p-6 sm:p-10">
+          <section className="card p-6 sm:p-10 grid lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-8 lg:gap-12">
+            <div className="min-w-0">
             <h2 className="text-[20px] sm:text-[24px] font-bold text-ink tracking-tight">
               The CS2 marketplace built for traders, not middlemen
             </h2>
-            <div className="mt-4 max-w-[820px] text-[14px] sm:text-[15px] text-ink-muted font-medium leading-relaxed space-y-4">
+            <div className="mt-4 text-[14px] sm:text-[15px] text-ink-muted font-medium leading-relaxed space-y-4">
               <p>
                 Skinify is a peer-to-peer{' '}
                 <a href="/marketplace" className="text-accent hover:underline">
@@ -655,6 +657,36 @@ const LandingPage: React.FC = () => {
                 .
               </p>
             </div>
+            </div>
+
+            {/* Right rail — fills what used to be empty whitespace with
+                quick-look stats and one CTA. Sticks on tall viewports so
+                it stays in view while the user reads. */}
+            <aside className="lg:sticky lg:top-24 self-start space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Stat label="Buyer fees" value="0%" sub="Always" />
+                <Stat label="Seller fee" value="2%" sub="Drops with VIP" />
+                <Stat label="Escrow window" value="8 days" sub="Steam-safe" />
+                <Stat label="Avg delivery" value="<1 min" sub="Trade offer" />
+              </div>
+
+              <div className="card-flat p-5">
+                <div className="label-eyebrow">How buyers save</div>
+                <p className="text-[13px] text-ink-muted font-medium leading-relaxed mt-2">
+                  Steam Market charges a <strong className="text-ink">15% fee</strong>{' '}
+                  and pays in non-cashable Wallet credit. Skinify charges{' '}
+                  <strong className="text-ink">0% to buyers</strong> and pays sellers
+                  in real money.
+                </p>
+                <a
+                  href="/marketplace"
+                  className="mt-4 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-accent hover:opacity-80 transition-opacity"
+                >
+                  Browse the marketplace
+                  <ChevronRight size={13} strokeWidth={2.6} />
+                </a>
+              </div>
+            </aside>
           </section>
         </Reveal>
       </main>
@@ -663,5 +695,19 @@ const LandingPage: React.FC = () => {
     </div>
   );
 };
+
+const Stat: React.FC<{ label: string; value: string; sub: string }> = ({
+  label,
+  value,
+  sub,
+}) => (
+  <div className="card-flat p-4">
+    <div className="label-meta">{label}</div>
+    <div className="text-[20px] sm:text-[22px] font-bold text-ink tracking-tight tabular-nums leading-none mt-1.5">
+      {value}
+    </div>
+    <div className="text-[11px] text-ink-muted font-medium mt-1 truncate">{sub}</div>
+  </div>
+);
 
 export default LandingPage;
