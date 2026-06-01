@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
+  Check,
   ChevronDown,
   Globe,
   Link as LinkIcon,
@@ -19,7 +20,6 @@ import { useCurrencyStore } from '../../store/currencyStore';
 import { useToastStore } from '../../store/toastStore';
 import { useAuthStore } from '../../store/authStore';
 import { initializeWebPush, checkPushSubscription } from '../../utils/webPushNotifications';
-import ConfirmationModal from '../ui/ConfirmationModal';
 import { spring, tap } from '../../lib/motion';
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -354,20 +354,223 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
         </motion.div>
       </motion.div>
 
-      <ConfirmationModal
+      <ConfirmListingDialog
         isOpen={showConfirmation}
         onClose={() => setShowConfirmation(false)}
         onConfirm={handleSubmit}
-        title="Confirm listing"
-        message={`Publish ${totals.count} ${totals.count === 1 ? 'item' : 'items'} to the marketplace?`}
-        confirmText="List items"
-        cancelText="Cancel"
-        variant="info"
         isProcessing={isSubmitting}
+        items={groupedItems}
+        totals={totals}
+        feePct={SALE_FEE_PERCENTAGE}
+        formatPrice={formatPrice}
       />
     </AnimatePresence>
   );
 };
+
+/* ─────────────────────────────────────────────────────────────────────────
+   ConfirmListingDialog — preview of what's about to publish.
+
+   Replaces the generic ConfirmationModal. Shows:
+     - The first few item thumbnails with a "+N more" chip
+     - Subtotal · fee · earnings breakdown
+     - A short reassurance line (escrow-protected, instant Steam delivery)
+     - A small "anything wrong? go back" hint linking to Cancel
+   ───────────────────────────────────────────────────────────────────────── */
+const ConfirmListingDialog: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  isProcessing: boolean;
+  items: GroupedItem[];
+  totals: { subtotal: number; fee: number; earnings: number; count: number };
+  feePct: number;
+  formatPrice: (n: number) => string;
+}> = ({ isOpen, onClose, onConfirm, isProcessing, items, totals, feePct, formatPrice }) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isProcessing) onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, isProcessing, onClose]);
+
+  if (!isOpen) return null;
+
+  const preview = items.slice(0, 4);
+  const remaining = Math.max(0, items.length - preview.length);
+
+  return (
+    <motion.div
+      key="confirm-listing-backdrop"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
+      className="fixed inset-0 z-[60] bg-black/55 backdrop-blur-md flex items-end sm:items-center justify-center p-3"
+      onClick={() => !isProcessing && onClose()}
+    >
+      <motion.div
+        key="confirm-listing-card"
+        initial={{ opacity: 0, y: 20, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 16, scale: 0.97 }}
+        transition={spring}
+        onClick={(e) => e.stopPropagation()}
+        className="card w-full max-w-md relative overflow-hidden"
+      >
+        <div
+          className="absolute top-0 left-0 right-0 h-[3px]"
+          style={{
+            background:
+              'linear-gradient(90deg, rgb(var(--accent)), rgb(var(--accent) / 0.55) 60%, transparent)',
+          }}
+          aria-hidden
+        />
+
+        <div className="p-6">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-3 mb-5">
+            <div className="min-w-0">
+              <span className="label-eyebrow">Confirm listing</span>
+              <h2 className="text-[20px] font-bold text-ink tracking-tight leading-tight mt-1">
+                Publish {totals.count} {totals.count === 1 ? 'item' : 'items'} to the marketplace?
+              </h2>
+            </div>
+            <button
+              onClick={() => !isProcessing && onClose()}
+              aria-label="Close"
+              className="h-9 w-9 shrink-0 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors"
+            >
+              <X size={15} strokeWidth={2.4} />
+            </button>
+          </div>
+
+          {/* Item preview row */}
+          <div className="flex items-center gap-2 mb-5">
+            {preview.map((g) => (
+              <div
+                key={g.key}
+                className="relative w-14 h-14 rounded-2xl bg-subtle grid place-items-center overflow-hidden shrink-0"
+                title={g.name}
+              >
+                <img
+                  src={g.image}
+                  alt={g.name}
+                  className="w-[88%] h-[88%] object-contain"
+                />
+                {g.selectedQuantity > 1 && (
+                  <span className="absolute -top-1 -right-1 bg-accent text-on-accent text-[10px] font-bold rounded-full px-1.5 py-0.5 tabular-nums">
+                    ×{g.selectedQuantity}
+                  </span>
+                )}
+              </div>
+            ))}
+            {remaining > 0 && (
+              <div className="w-14 h-14 rounded-2xl bg-subtle grid place-items-center text-[12px] font-bold text-ink-muted tabular-nums shrink-0">
+                +{remaining}
+              </div>
+            )}
+          </div>
+
+          {/* Money breakdown */}
+          <div className="rounded-3xl bg-subtle p-4 space-y-2">
+            <Row label="Subtotal" value={formatPrice(totals.subtotal)} />
+            <Row
+              label={`Skinify fee · ${feePct}%`}
+              value={`− ${formatPrice(totals.fee)}`}
+              tone="muted"
+            />
+            <div className="h-px bg-line my-1" />
+            <Row label="You receive" value={formatPrice(totals.earnings)} tone="accent" bold />
+          </div>
+
+          {/* Reassurance bullets */}
+          <ul className="mt-5 space-y-2">
+            {[
+              'Items stay in your Steam inventory until they sell',
+              'Escrow-protected — funds release 8 days after delivery',
+              'Cancel any listing anytime from the Listings tab',
+            ].map((line) => (
+              <li
+                key={line}
+                className="flex items-start gap-2 text-[12.5px] text-ink-muted font-medium"
+              >
+                <Check
+                  size={12}
+                  strokeWidth={2.6}
+                  className="text-accent shrink-0 mt-0.5"
+                />
+                {line}
+              </li>
+            ))}
+          </ul>
+
+          {/* CTAs */}
+          <div className="mt-6 flex flex-col-reverse sm:flex-row gap-2">
+            <motion.button
+              whileTap={tap}
+              onClick={onClose}
+              disabled={isProcessing}
+              className="sm:flex-1 h-12 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[13.5px] transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </motion.button>
+            <motion.button
+              whileTap={tap}
+              whileHover={!isProcessing ? { scale: 1.01 } : undefined}
+              onClick={onConfirm}
+              disabled={isProcessing}
+              className="sm:flex-[1.4] h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] inline-flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity"
+              style={{ boxShadow: '0 12px 26px -12px rgb(var(--accent) / 0.55)' }}
+            >
+              {isProcessing ? (
+                <>
+                  <Sparkles size={14} strokeWidth={2.6} className="animate-pulse" />
+                  Listing…
+                </>
+              ) : (
+                <>
+                  <Sparkles size={14} strokeWidth={2.6} />
+                  Publish {totals.count} {totals.count === 1 ? 'item' : 'items'}
+                </>
+              )}
+            </motion.button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+const Row: React.FC<{
+  label: string;
+  value: string;
+  tone?: 'muted' | 'accent';
+  bold?: boolean;
+}> = ({ label, value, tone, bold }) => (
+  <div className="flex items-center justify-between gap-3">
+    <span
+      className={`text-[12.5px] ${
+        bold ? 'text-ink font-bold' : 'text-ink-muted font-medium'
+      }`}
+    >
+      {label}
+    </span>
+    <span
+      className={`text-[13px] tabular-nums ${
+        tone === 'accent'
+          ? 'text-accent font-bold'
+          : bold
+          ? 'text-ink font-bold tracking-tight'
+          : 'text-ink font-semibold'
+      }`}
+    >
+      {value}
+    </span>
+  </div>
+);
 
 /* ─────────────────────────────────────────────────────────────────────────
    ItemCard — one card per stack of identical items.

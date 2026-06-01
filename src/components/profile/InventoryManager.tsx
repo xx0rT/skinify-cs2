@@ -166,18 +166,33 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({ steamId }) => {
     let failCount = 0;
     const errors: string[] = [];
 
-    for (const listing of listings) {
-      const item = inventory.find(inv => inv.id === listing.itemId);
-      if (item) {
+    /* Parallel fan-out (cap 2) — sequential awaiting felt broken under
+       slow requests, but going higher hammered the edge function and
+       triggered 500s under DB pool contention. Two-at-a-time is the
+       sweet spot for 40+ item batches. */
+    const CONCURRENCY = 2;
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < listings.length) {
+        const idx = cursor++;
+        const listing = listings[idx];
+        const item = inventory.find((inv) => inv.id === listing.itemId);
+        if (!item) {
+          failCount++;
+          continue;
+        }
         try {
           await handleListItem(item, listing, true);
           successCount++;
-        } catch (error) {
+        } catch {
           failCount++;
           errors.push(item.name);
         }
       }
-    }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, listings.length) }, worker),
+    );
 
     if (successCount > 0 && failCount === 0) {
       addToast(`Successfully listed ${successCount} item${successCount > 1 ? 's' : ''} for sale!`, 'success');

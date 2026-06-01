@@ -34,6 +34,7 @@ import { useCartStore } from '../store/cartStore';
 import { useWishlistStore } from '../store/wishlistStore';
 import { useCurrencyStore } from '../store/currencyStore';
 import { useBalanceStore } from '../store/balanceStore';
+import { useDMStore } from '../store/dmStore';
 import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import { CachedImage } from '../components/ui/CachedImage';
@@ -862,60 +863,68 @@ const ItemDetailPage: React.FC = () => {
         isOpen={messageOpen}
         onClose={() => setMessageOpen(false)}
         seller={item.seller}
-        itemName={name}
-        onSend={(text) => {
-          addToast({
-            type: 'success',
-            title: 'Message sent',
-            message: `${item.seller?.name || 'Seller'} will reply in your inbox.`,
-          });
-          setMessageOpen(false);
-          // Best-effort log so the message isn't lost if a backend hooks in later.
-          if (typeof window !== 'undefined') {
-            try {
-              const key = 'skinify_outbox';
-              const prev = JSON.parse(localStorage.getItem(key) || '[]');
-              prev.push({
-                to: item.seller?.steamId,
-                seller: item.seller?.name,
-                itemId: item.id,
-                itemName: name,
-                text,
-                ts: Date.now(),
-              });
-              localStorage.setItem(key, JSON.stringify(prev.slice(-50)));
-            } catch {
-              /* private mode — ignore */
-            }
-          }
-        }}
+        item={item}
       />
     </div>
   );
 };
 
 /* ─────────────────────────────────────────────────────────────────────────
-   MessageSellerModal — small inline DM composer. The actual delivery
-   pipeline isn't wired yet; we queue the message in localStorage and toast
-   a success so the UX is testable end-to-end. When the messages backend
-   ships, swap onSend's body for the real call.
+   MessageSellerModal — real chat panel backed by the local DM store.
+
+   The thread is persisted in localStorage per seller steamId, so the
+   conversation survives reloads and shows up consistently any time the
+   buyer messages the same seller. Bubbles, timestamps, item context pill
+   for the first message, auto-scroll-to-bottom, enter-to-send (shift+enter
+   for newline). The transport is local-only for now (see dmStore); when
+   a backend lands, the send hook is the only thing that changes.
    ───────────────────────────────────────────────────────────────────────── */
 const MessageSellerModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
   seller: any;
-  itemName: string;
-  onSend: (text: string) => void;
-}> = ({ isOpen, onClose, seller, itemName, onSend }) => {
+  item: any;
+}> = ({ isOpen, onClose, seller, item }) => {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
+  const peerSteamId = String(seller?.steamId || seller?.name || 'unknown');
+  const ensureThread = useDMStore((s) => s.ensureThread);
+  const sendMessage = useDMStore((s) => s.sendMessage);
+  const markThreadRead = useDMStore((s) => s.markThreadRead);
+  const thread = useDMStore((s) => s.threads[peerSteamId]);
+  const messages = thread?.messages || [];
+
+  /* Ensure the thread exists the moment the panel opens so the user sees
+     an empty conversation rather than a "no thread" empty state. */
+  useEffect(() => {
+    if (isOpen) {
+      ensureThread(peerSteamId, seller?.name || 'Seller', seller?.avatar);
+      markThreadRead(peerSteamId);
+    }
+  }, [isOpen, peerSteamId, seller?.name, seller?.avatar, ensureThread, markThreadRead]);
+
+  /* Reset composer when closed, autofocus when opened. */
   useEffect(() => {
     if (!isOpen) {
       setText('');
       setSending(false);
+    } else {
+      setTimeout(() => inputRef.current?.focus(), 60);
     }
   }, [isOpen]);
+
+  /* Auto-scroll to the latest message after the layout settles. */
+  useEffect(() => {
+    if (!isOpen) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+  }, [isOpen, messages.length]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -931,8 +940,33 @@ const MessageSellerModal: React.FC<{
     const trimmed = text.trim();
     if (!trimmed || sending) return;
     setSending(true);
-    await new Promise((r) => setTimeout(r, 350));
-    onSend(trimmed);
+    setText('');
+    /* Attach item context to the FIRST message only — keeps the bubble
+       cleaner for follow-ups in the same thread. */
+    const isFirst = messages.length === 0;
+    sendMessage(
+      peerSteamId,
+      trimmed,
+      isFirst
+        ? {
+            itemId: String(item?.id || ''),
+            itemName: item?.name || item?.market_name,
+            itemImage: item?.image,
+          }
+        : undefined,
+    );
+    /* Give the optimistic write a moment to settle so the chevron animation
+       doesn't flicker. The store updates synchronously so this is cheap. */
+    await new Promise((r) => setTimeout(r, 60));
+    setSending(false);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
   };
 
   const initial = (seller?.name || 'S').charAt(0).toUpperCase();
@@ -945,7 +979,7 @@ const MessageSellerModal: React.FC<{
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.18 }}
-        className="fixed inset-0 z-[80] bg-black/55 backdrop-blur-sm flex items-end sm:items-center justify-center p-3"
+        className="fixed inset-0 z-[80] bg-black/55 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-3"
         onClick={onClose}
       >
         <motion.div
@@ -955,74 +989,134 @@ const MessageSellerModal: React.FC<{
           exit={{ opacity: 0, y: 20, scale: 0.98 }}
           transition={spring}
           onClick={(e) => e.stopPropagation()}
-          className="card w-full max-w-md p-5 sm:p-6 relative"
+          className="card w-full sm:max-w-md relative flex flex-col"
+          style={{ height: 'min(640px, 92dvh)' }}
         >
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="absolute top-3 right-3 h-9 w-9 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors"
-          >
-            <XIcon size={15} strokeWidth={2.4} />
-          </button>
-
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-accent text-on-accent grid place-items-center font-bold shrink-0">
+          {/* Header */}
+          <div className="shrink-0 px-4 sm:px-5 py-3.5 border-b border-line flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-accent text-on-accent grid place-items-center font-bold shrink-0">
               {seller?.avatar ? (
                 <img src={seller.avatar} alt="" className="w-full h-full object-cover rounded-2xl" />
               ) : (
-                <span className="text-[15px]">{initial}</span>
+                <span className="text-[14px]">{initial}</span>
               )}
             </div>
-            <div className="min-w-0">
-              <div className="label-eyebrow">Message</div>
-              <div className="text-[15px] font-bold text-ink tracking-tight truncate">
+            <div className="min-w-0 flex-1">
+              <div className="text-[14px] font-bold text-ink tracking-tight truncate leading-none">
                 {seller?.name || 'Seller'}
               </div>
+              <div className="text-[11px] text-ink-muted font-medium mt-1 leading-none">
+                Direct message
+              </div>
             </div>
-          </div>
-
-          <div className="mt-3 card-flat p-3">
-            <div className="label-meta">About</div>
-            <div className="text-[12.5px] font-semibold text-ink truncate mt-0.5">
-              {itemName}
-            </div>
-          </div>
-
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Hi! Is this still available?"
-            rows={4}
-            className="mt-3 w-full rounded-2xl bg-subtle px-3.5 py-3 text-[13.5px] text-ink font-medium outline-none focus:ring-2 focus:ring-accent/40 resize-none"
-            autoFocus
-          />
-
-          <div className="mt-2 flex items-center justify-between text-[11px] text-ink-dim">
-            <span>Replies arrive in your Skinify inbox.</span>
-            <span className="tabular-nums">{text.length}/500</span>
-          </div>
-
-          <div className="mt-4 flex gap-2">
             <button
               onClick={onClose}
-              className="flex-1 h-11 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[13px] transition-colors"
+              aria-label="Close"
+              className="h-9 w-9 shrink-0 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors"
             >
-              Cancel
+              <XIcon size={15} strokeWidth={2.4} />
             </button>
-            <motion.button
-              whileTap={tap}
-              whileHover={text.trim() ? { scale: 1.01 } : undefined}
-              onClick={send}
-              disabled={!text.trim() || sending}
-              className="flex-1 h-11 rounded-full bg-accent text-on-accent font-bold text-[13px] inline-flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-            >
-              <Send size={13} strokeWidth={2.4} />
-              {sending ? 'Sending…' : 'Send'}
-            </motion.button>
+          </div>
+
+          {/* Messages */}
+          <div
+            ref={scrollRef}
+            className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-5 py-4 space-y-2.5"
+          >
+            {messages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center px-6">
+                <div className="w-12 h-12 rounded-2xl bg-accent-soft grid place-items-center mb-3">
+                  <MessageCircle size={20} strokeWidth={2.2} className="text-accent" />
+                </div>
+                <p className="text-[13.5px] font-bold text-ink tracking-tight">
+                  Start the conversation
+                </p>
+                <p className="text-[12px] text-ink-muted font-medium mt-1 leading-relaxed">
+                  Ask about float, stickers, or price. Replies arrive in your
+                  Skinify inbox.
+                </p>
+              </div>
+            ) : (
+              messages.map((m) => <MessageBubble key={m.id} message={m} />)
+            )}
+          </div>
+
+          {/* Composer */}
+          <div className="shrink-0 border-t border-line px-3 sm:px-4 py-3">
+            <div className="flex items-end gap-2">
+              <textarea
+                ref={inputRef}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder="Type a message…"
+                rows={1}
+                maxLength={500}
+                className="flex-1 min-h-[40px] max-h-[120px] rounded-2xl bg-subtle px-3.5 py-2.5 text-[13.5px] text-ink font-medium outline-none focus:ring-2 focus:ring-accent/40 resize-none"
+              />
+              <motion.button
+                whileTap={tap}
+                whileHover={text.trim() ? { scale: 1.04 } : undefined}
+                onClick={send}
+                disabled={!text.trim() || sending}
+                aria-label="Send"
+                className="h-10 w-10 rounded-full bg-accent text-on-accent grid place-items-center disabled:opacity-40 disabled:cursor-not-allowed transition-opacity shrink-0"
+              >
+                <Send size={15} strokeWidth={2.4} />
+              </motion.button>
+            </div>
+            <div className="mt-1.5 flex items-center justify-between text-[10.5px] text-ink-dim font-medium">
+              <span>Enter to send · Shift+Enter for newline</span>
+              <span className="tabular-nums">{text.length}/500</span>
+            </div>
           </div>
         </motion.div>
       </motion.div>
     </AnimatePresence>
+  );
+};
+
+const MessageBubble: React.FC<{ message: any }> = ({ message }) => {
+  const mine = message.fromSteamId === 'me';
+  const time = new Date(message.ts).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ ...spring, mass: 0.5 }}
+      className={`flex ${mine ? 'justify-end' : 'justify-start'}`}
+    >
+      <div className={`max-w-[78%] ${mine ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
+        {message.itemImage && (
+          <div className="card-flat p-2 flex items-center gap-2 text-left">
+            <div className="w-8 h-8 rounded-md bg-subtle grid place-items-center overflow-hidden shrink-0">
+              <img
+                src={message.itemImage}
+                alt=""
+                className="w-[88%] h-[88%] object-contain"
+              />
+            </div>
+            <div className="text-[11.5px] font-semibold text-ink truncate max-w-[180px]">
+              {message.itemName || 'Listed item'}
+            </div>
+          </div>
+        )}
+        <div
+          className={`px-3.5 py-2 rounded-2xl text-[13.5px] font-medium leading-snug whitespace-pre-wrap break-words ${
+            mine
+              ? 'bg-accent text-on-accent rounded-br-md'
+              : 'bg-subtle text-ink rounded-bl-md'
+          }`}
+        >
+          {message.text}
+        </div>
+        <div className="text-[10px] text-ink-dim font-medium tabular-nums px-1">{time}</div>
+      </div>
+    </motion.div>
   );
 };
 

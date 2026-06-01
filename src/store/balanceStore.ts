@@ -33,6 +33,19 @@ interface BalanceState {
   reset: () => void;
 }
 
+/* ─── Single-flight + rate-limit for the /balance endpoint ──────────
+   The balance fetch is called by many components on mount. Without
+   coalescing, a single page render can fire 6-10 identical requests in
+   parallel, and during batch operations the endpoint started returning
+   500s under the load. We:
+     - share a single in-flight promise per steamId,
+     - skip calls within 3s of the last successful fetch,
+   so even if every component calls fetchBalance on mount, at most one
+   network request actually goes out. */
+const balanceInFlight = new Map<string, Promise<void>>();
+const balanceLastFetch = new Map<string, number>();
+const BALANCE_RATE_LIMIT_MS = 3000;
+
 export const useBalanceStore = create<BalanceState>((set, get) => ({
   balance: 0,
   pendingBalance: 0,
@@ -44,50 +57,66 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
   error: null,
 
   fetchBalance: async (steamId: string) => {
+    const now = Date.now();
+    const last = balanceLastFetch.get(steamId) || 0;
+    if (now - last < BALANCE_RATE_LIMIT_MS) return;
+
+    const existing = balanceInFlight.get(steamId);
+    if (existing) return existing;
+
     set({ loading: true, error: null });
-    
-    try {
-      const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
-      
-      const response = await fetch(`${supabaseUrl}/functions/v1/balance?steam_id=${steamId}`, {
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
+
+    const run = (async () => {
+      try {
+        const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+        const response = await fetch(`${supabaseUrl}/functions/v1/balance?steam_id=${steamId}`, {
+          headers: {
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json',
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          set({
+            balance: data.balance || 0,
+            totalDeposited: data.total_deposited || 0,
+            totalSpent: data.total_spent || 0,
+            transactions: data.transactions || [],
+            loading: false,
+            error: null
+          });
+        } else {
+          /* 4xx/5xx — leave existing balance intact (don't reset to 0 on
+             a transient 500 mid-batch). Only initialize to zero on the
+             very first fetch when we still have no data. */
+          if (get().balance === 0 && get().transactions.length === 0) {
+            set({
+              balance: 0,
+              totalDeposited: 0,
+              totalSpent: 0,
+              transactions: [],
+              loading: false,
+              error: null
+            });
+          } else {
+            set({ loading: false });
+          }
         }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
+        balanceLastFetch.set(steamId, Date.now());
+      } catch (error) {
+        console.error('Failed to fetch balance:', error);
         set({
-          balance: data.balance || 0,
-          // pendingBalance: data.pending_balance || 0,
-          totalDeposited: data.total_deposited || 0,
-          totalSpent: data.total_spent || 0,
-          // totalEarned: data.total_earned || 0,
-          transactions: data.transactions || [],
           loading: false,
-          error: null
+          error: error instanceof Error ? error.message : 'Failed to fetch balance'
         });
-      } else {
-        // Initialize with default values if user doesn't exist yet
-        set({
-          balance: 0,
-          // pendingBalance: 0,
-          totalDeposited: 0,
-          totalSpent: 0,
-          // totalEarned: 0,
-          transactions: [],
-          loading: false,
-          error: null
-        });
+      } finally {
+        balanceInFlight.delete(steamId);
       }
-    } catch (error) {
-      console.error('Failed to fetch balance:', error);
-      set({
-        loading: false,
-        error: error instanceof Error ? error.message : 'Failed to fetch balance'
-      });
-    }
+    })();
+
+    balanceInFlight.set(steamId, run);
+    return run;
   },
 
   fetchTransactions: async (steamId: string) => {

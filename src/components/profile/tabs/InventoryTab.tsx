@@ -143,46 +143,93 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
 
   const handleConfirmListing = async (listings: ListingData[]) => {
     const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
-    let ok = 0;
-    let fail = 0;
-    for (const info of listings) {
+
+    /* Submit listings with a small concurrency window so we don't open
+       dozens of HTTP streams (Supabase edge functions cap throughput per
+       origin and the database connection pool gets contention with
+       concurrent INSERTs into the same table — 40+ parallel POSTs were
+       returning 500s).
+
+       Each POST has a 15s timeout and a one-shot retry with jittered
+       backoff on 5xx / network errors, since most failures under load
+       are transient. */
+    const CONCURRENCY = 2;
+    const TIMEOUT_MS = 15000;
+    const RETRY_BACKOFF_MS = 600;
+
+    const postOnce = async (body: any, signal: AbortSignal) =>
+      fetch(`${supabaseUrl}/functions/v1/marketplace-listings`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal,
+      });
+
+    const submitOne = async (info: ListingData): Promise<'ok' | 'fail'> => {
       const item = items.find((it) => it.id === info.itemId);
-      if (!item) {
-        fail++;
-        continue;
-      }
-      try {
-        const body: any = {
-          steam_id: steamId,
-          asset_id: item.asset_id,
-          market_hash_name: item.market_name,
-          item_name: item.name,
-          item_type: item.type,
-          rarity: item.rarity,
-          condition: item.condition,
-          price: info.price,
-          image_url: item.image,
-          description: info.description || `${item.condition} ${item.name}`,
-          listing_type: info.listingType === 'auction' ? 'auction' : 'standard',
-        };
-        if (info.visibility === 'private') body.listing_type = 'private';
-        const res = await fetch(`${supabaseUrl}/functions/v1/marketplace-listings`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        if (res.ok) {
-          ok++;
-          setItems((prev) =>
-            prev.map((p) => (p.id === item.id ? { ...p, listed_for_sale: true } : p)),
-          );
-        } else {
-          fail++;
+      if (!item) return 'fail';
+      const body: any = {
+        steam_id: steamId,
+        asset_id: item.asset_id,
+        market_hash_name: item.market_name,
+        item_name: item.name,
+        item_type: item.type,
+        rarity: item.rarity,
+        condition: item.condition,
+        price: info.price,
+        image_url: item.image,
+        description: info.description || `${item.condition} ${item.name}`,
+        listing_type: info.listingType === 'auction' ? 'auction' : 'standard',
+      };
+      if (info.visibility === 'private') body.listing_type = 'private';
+
+      const attempt = async (): Promise<{ ok: boolean; transient: boolean }> => {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+        try {
+          const res = await postOnce(body, ctrl.signal);
+          if (res.ok) return { ok: true, transient: false };
+          /* 5xx is worth retrying; 4xx (validation, KYC, conflict) is not. */
+          return { ok: false, transient: res.status >= 500 };
+        } catch {
+          /* Network / abort — treat as transient. */
+          return { ok: false, transient: true };
+        } finally {
+          clearTimeout(timer);
         }
-      } catch {
-        fail++;
+      };
+
+      let r = await attempt();
+      if (!r.ok && r.transient) {
+        await new Promise((res) =>
+          setTimeout(res, RETRY_BACKOFF_MS + Math.random() * 400),
+        );
+        r = await attempt();
       }
-    }
+      if (!r.ok) return 'fail';
+
+      setItems((prev) =>
+        prev.map((p) => (p.id === item.id ? { ...p, listed_for_sale: true } : p)),
+      );
+      return 'ok';
+    };
+
+    /* Concurrency-limited fan-out: workers pull from a shared queue. */
+    let cursor = 0;
+    const results: ('ok' | 'fail')[] = [];
+    const worker = async () => {
+      while (cursor < listings.length) {
+        const idx = cursor++;
+        results[idx] = await submitOne(listings[idx]);
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, listings.length) }, worker),
+    );
+
+    const ok = results.filter((r) => r === 'ok').length;
+    const fail = results.filter((r) => r === 'fail').length;
+
     if (ok > 0) {
       addToast({
         type: 'success',
