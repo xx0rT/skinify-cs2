@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import useDocumentMeta from '../hooks/useDocumentMeta';
 import {
   Gift,
   Crown,
@@ -62,6 +63,12 @@ const DEPOSIT_TIERS = [
 ];
 
 const BonusesPage: React.FC = () => {
+  useDocumentMeta({
+    title: 'Bonuses & Sign-up Promo · Skinify',
+    description:
+      'Get a 10% bonus on your first Skinify deposit, plus daily login rewards, referral payouts, and VIP perks. Live promo offers on every top-up.',
+    canonical: 'https://skinify.gg/bonuses',
+  });
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { addToast } = useToastStore();

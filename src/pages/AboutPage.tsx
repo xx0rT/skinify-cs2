@@ -30,8 +30,15 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 import SteamLogin from '../components/auth/SteamLogin';
 import UserProfile from '../components/auth/UserProfile';
+import useDocumentMeta from '../hooks/useDocumentMeta';
 
 const AboutPage: React.FC = () => {
+  useDocumentMeta({
+    title: 'About Skinify — The Peer-to-Peer CS2 Marketplace',
+    description:
+      'Learn about Skinify, the CS2 marketplace with 0% buyer fees, escrow-protected trades, and instant Steam delivery. Built for collectors and traders.',
+    canonical: 'https://skinify.gg/about',
+  });
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { addToast } = useToastStore();

@@ -7,6 +7,7 @@ import { autoDetectAndSetCurrency } from './utils/geolocation';
 import { memoryOptimizer } from './utils/memoryOptimizer';
 import ToastContainer from './components/ui/ToastContainer';
 import ScrollToTop from './components/ScrollToTop';
+import MetaResetter from './components/MetaResetter';
 import AgeVerificationModal from './components/AgeVerificationModal';
 import SearchPalette from './components/SearchPalette';
 import DepositModal from './components/DepositModal';
@@ -103,6 +104,7 @@ const OnboardingPage = lazyWithRetry(() => import('./pages/OnboardingPage'));
 const SignInPage = lazyWithRetry(() => import('./pages/SignInPage'));
 const SignUpPage = lazyWithRetry(() => import('./pages/SignUpPage'));
 const MessagesPage = lazyWithRetry(() => import('./pages/MessagesPage'));
+const PressPage = lazyWithRetry(() => import('./pages/PressPage'));
 
 // All supported language codes for routing
 const LANG_PATTERN = "en|es|cs|de|ru|fr|it|pt|pl|tr|ar|zh|ja|ko|nl|sv|no|da|fi|hu|ro|uk|el|th|vi|id|hi";
@@ -196,6 +198,7 @@ export default function App() {
       <BrowserRouter>
         <LanguageDetector />
         <ScrollToTop />
+        <MetaResetter />
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             {/* Main routes - always use mobile version for small screens */}
@@ -235,6 +238,9 @@ export default function App() {
             <Route path="/register" element={<SignUpPage />} />
             <Route path="/messages" element={<MessagesPage />} />
             <Route path="/inbox" element={<MessagesPage />} />
+            <Route path="/press" element={<PressPage />} />
+            <Route path="/press-kit" element={<PressPage />} />
+            <Route path="/media" element={<PressPage />} />
 
             <Route path="/marketplace" element={<MarketplacePage />} />
             <Route path={`/:lang(${LANG_PATTERN})/marketplace`} element={<MarketplacePage />} />

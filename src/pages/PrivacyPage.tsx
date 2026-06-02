@@ -1,6 +1,7 @@
 import React from 'react';
 import { Shield } from 'lucide-react';
 import LegalShell, { LegalSection } from '../components/legal/LegalShell';
+import useDocumentMeta from '../hooks/useDocumentMeta';
 
 const sections: LegalSection[] = [
   {
@@ -147,7 +148,14 @@ const sections: LegalSection[] = [
   },
 ];
 
-const PrivacyPage: React.FC = () => (
+const PrivacyPage: React.FC = () => {
+  useDocumentMeta({
+    title: 'Privacy Policy · Skinify',
+    description:
+      'How Skinify collects, stores, and processes your data. GDPR-compliant practices for Steam OpenID, payment processing, and cookies.',
+    canonical: 'https://skinify.gg/privacy',
+  });
+  return (
   <LegalShell
     Icon={Shield}
     eyebrow="Legal"
@@ -165,6 +173,7 @@ const PrivacyPage: React.FC = () => (
     }}
     sections={sections}
   />
-);
+  );
+};
 
 export default PrivacyPage;

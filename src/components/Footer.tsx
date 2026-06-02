@@ -102,6 +102,14 @@ const footerColumns = [
       { label: 'Dispute resolution', to: '/dispute-resolution' },
     ],
   },
+  {
+    title: 'Company',
+    links: [
+      { label: 'About Skinify', to: '/about' },
+      { label: 'Press kit', to: '/press' },
+      { label: 'Changelog', to: '/changelog' },
+    ],
+  },
 ];
 
 /* Discovery / SEO link clusters. Rendered below the main column grid so

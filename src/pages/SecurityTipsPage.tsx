@@ -4,8 +4,15 @@ import { ArrowLeft, Shield, AlertTriangle, CheckCircle, Lock, Eye, UserX, Smartp
 import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import useDocumentMeta from '../hooks/useDocumentMeta';
 
 const SecurityTipsPage: React.FC = () => {
+  useDocumentMeta({
+    title: 'CS2 Trading Security Tips · Skinify',
+    description:
+      'Protect your CS2 inventory from scams. Spot fake API sites, sticker swaps, Steam impersonation, and trade-hold tricks. Trade safely on Skinify.',
+    canonical: 'https://skinify.gg/security-tips',
+  });
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white">
       <Header />

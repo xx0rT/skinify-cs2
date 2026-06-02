@@ -1,6 +1,7 @@
 import React from 'react';
 import { RefreshCcw } from 'lucide-react';
 import LegalShell, { LegalSection } from '../components/legal/LegalShell';
+import useDocumentMeta from '../hooks/useDocumentMeta';
 
 const sections: LegalSection[] = [
   {
@@ -101,7 +102,14 @@ const sections: LegalSection[] = [
   },
 ];
 
-const RefundPolicyPage: React.FC = () => (
+const RefundPolicyPage: React.FC = () => {
+  useDocumentMeta({
+    title: 'Refund Policy · Skinify',
+    description:
+      'Refund eligibility, escrow timelines, and chargeback handling for CS2 marketplace trades on Skinify. What to do if a trade goes wrong.',
+    canonical: 'https://skinify.gg/refund-policy',
+  });
+  return (
   <LegalShell
     Icon={RefreshCcw}
     eyebrow="Legal"
@@ -110,6 +118,7 @@ const RefundPolicyPage: React.FC = () => (
     lastUpdated="January 15, 2026"
     sections={sections}
   />
-);
+  );
+};
 
 export default RefundPolicyPage;

@@ -4,8 +4,15 @@ import { ArrowLeft, Scale, Users, MessageSquare, FileText, CheckCircle2, Clock, 
 import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import useDocumentMeta from '../hooks/useDocumentMeta';
 
 const DisputeResolutionPage: React.FC = () => {
+  useDocumentMeta({
+    title: 'Dispute Resolution & Escrow · Skinify',
+    description:
+      'How Skinify handles disputed CS2 trades. 8-day escrow window, evidence rules, refund timelines, and the appeals process explained.',
+    canonical: 'https://skinify.gg/dispute-resolution',
+  });
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white">
       <Header />

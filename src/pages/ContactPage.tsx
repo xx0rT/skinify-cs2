@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import useDocumentMeta from '../hooks/useDocumentMeta';
 import {
   ChevronLeft,
   Mail,
@@ -53,6 +54,12 @@ const REASONS = [
 type Reason = typeof REASONS[number]['id'];
 
 const ContactPage: React.FC = () => {
+  useDocumentMeta({
+    title: 'Contact Skinify Support',
+    description:
+      'Reach the Skinify team for support, partnerships, press, or VIP enquiries. Replies usually within a few hours, every day of the week.',
+    canonical: 'https://skinify.gg/contact',
+  });
   const navigate = useNavigate();
   const { addToast } = useToastStore();
   const [reason, setReason] = useState<Reason>('general');

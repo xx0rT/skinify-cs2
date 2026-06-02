@@ -1,6 +1,7 @@
 import React from 'react';
 import { Scale } from 'lucide-react';
 import LegalShell, { LegalSection } from '../components/legal/LegalShell';
+import useDocumentMeta from '../hooks/useDocumentMeta';
 
 const sections: LegalSection[] = [
   {
@@ -143,7 +144,14 @@ const sections: LegalSection[] = [
   },
 ];
 
-const TermsPage: React.FC = () => (
+const TermsPage: React.FC = () => {
+  useDocumentMeta({
+    title: 'Terms of Service · Skinify',
+    description:
+      'Skinify Terms of Service. Account rules, marketplace conduct, dispute handling, payment processing, and the platform agreement.',
+    canonical: 'https://skinify.gg/terms',
+  });
+  return (
   <LegalShell
     Icon={Scale}
     eyebrow="Legal"
@@ -163,6 +171,7 @@ const TermsPage: React.FC = () => (
     }}
     sections={sections}
   />
-);
+  );
+};
 
 export default TermsPage;

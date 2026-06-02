@@ -132,4 +132,7 @@
   <!-- About / news -->
   <url><loc>https://skinify.gg/about</loc>      <lastmod>2026-06-02</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://skinify.gg/changelog</loc>  <lastmod>2026-06-02</lastmod><changefreq>weekly</changefreq><priority>0.5</priority></url>
+
+  <!-- Press / brand assets — high-leverage for earned backlinks -->
+  <url><loc>https://skinify.gg/press</loc>      <lastmod>2026-06-02</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import useDocumentMeta from '../hooks/useDocumentMeta';
 import {
   ChevronLeft,
   ChevronDown,
@@ -116,6 +117,12 @@ const GLOSSARY = [
 ];
 
 const TradingGuidePage: React.FC = () => {
+  useDocumentMeta({
+    title: 'CS2 Trading Guide — Buy & Sell Skins Safely · Skinify',
+    description:
+      'How to buy, sell, and trade CS2 skins safely. Step-by-step walkthrough of Steam trade offers, escrow, pricing, sticker scams, and float values.',
+    canonical: 'https://skinify.gg/trading-guide',
+  });
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const [openTipIdx, setOpenTipIdx] = useState<number | null>(0);
