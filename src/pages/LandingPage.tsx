@@ -214,6 +214,13 @@ const LandingPage: React.FC = () => {
           CS2 Marketplace — Buy and Sell CS2 Skins on Skinify
         </h1>
 
+        {/* ===== PROMO BANNER =====
+            Full-bleed marketing banner. The image carries the visual
+            weight (skins + smoke + skinify.gg tape); we overlay only
+            short, intent-driven copy in the left dark zone so the
+            artwork stays the hero. */}
+        <PromoBanner />
+
         {/* ===== HERO ===== */}
         <section className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-3 mb-3">
           {/* Headline card — animates in on mount with a calm fade-up */}
@@ -693,6 +700,101 @@ const LandingPage: React.FC = () => {
 
       <Footer />
     </div>
+  );
+};
+
+/* PromoBanner — landing-page hero banner. Image lives in /public; the
+   left-side dark zone of the artwork carries our promotional copy. The
+   text fades up on mount and the CTA spring-pulses on hover. */
+const PromoBanner: React.FC = () => {
+  const navigate = useNavigate();
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={spring}
+      className="relative overflow-hidden rounded-3xl mb-3 isolate"
+      style={{ aspectRatio: '1218 / 580' }}
+    >
+      <img
+        src="/3586ae5d-05bb-4fcb-8a4e-9948fd62b17b.png"
+        alt="Skinify · upgrade your CS2 skins"
+        className="absolute inset-0 w-full h-full object-cover"
+        loading="eager"
+      />
+      {/* Subtle left-side gradient to keep the copy legible on the dark zone */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            'linear-gradient(90deg, rgba(8,5,20,0.78) 0%, rgba(8,5,20,0.55) 30%, rgba(8,5,20,0) 60%)',
+        }}
+        aria-hidden
+      />
+
+      <div className="relative h-full grid grid-cols-1 lg:grid-cols-2">
+        <div className="flex flex-col justify-center px-6 sm:px-10 lg:px-14 py-8 lg:py-0 max-w-[560px]">
+          <motion.span
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring, delay: 0.08 }}
+            className="inline-flex items-center gap-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.22em] text-purple-300/90 mb-3"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-pulse" />
+            Welcome promo · live now
+          </motion.span>
+
+          <motion.h2
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring, delay: 0.14 }}
+            className="text-[26px] sm:text-[36px] lg:text-[44px] font-bold text-white leading-[1.05] tracking-tight"
+          >
+            Upgrade your skins.
+            <br />
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-300 via-fuchsia-300 to-purple-400">
+              +10% on your first top-up.
+            </span>
+          </motion.h2>
+
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring, delay: 0.2 }}
+            className="text-[13px] sm:text-[14.5px] text-zinc-200/90 font-medium mt-3 leading-relaxed max-w-[440px]"
+          >
+            Buy AK-47, AWP, Karambit and more on Skinify — 0% buyer fees,
+            escrow-protected trades, instant Steam delivery.
+          </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring, delay: 0.26 }}
+            className="mt-5 flex flex-wrap gap-2.5"
+          >
+            <motion.button
+              whileTap={tap}
+              whileHover={{ scale: 1.03 }}
+              onClick={() => navigate('/marketplace')}
+              className="h-11 px-5 rounded-full bg-white text-[#0f1018] text-[13px] font-bold inline-flex items-center gap-1.5"
+              style={{ boxShadow: '0 14px 30px -12px rgba(168, 85, 247, 0.55)' }}
+            >
+              Browse the marketplace
+              <ArrowRight size={14} strokeWidth={2.6} />
+            </motion.button>
+            <motion.button
+              whileTap={tap}
+              whileHover={{ scale: 1.03 }}
+              onClick={() => navigate('/bonuses')}
+              className="h-11 px-5 rounded-full bg-purple-500/30 hover:bg-purple-500/40 text-white text-[13px] font-bold inline-flex items-center gap-1.5 backdrop-blur-sm ring-1 ring-purple-300/40 transition-colors"
+            >
+              See bonuses
+            </motion.button>
+          </motion.div>
+        </div>
+      </div>
+    </motion.section>
   );
 };
 

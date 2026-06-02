@@ -11,6 +11,7 @@ import {
 import { CachedImage } from './CachedImage';
 import { tap } from '../../lib/motion';
 import { useToastStore } from '../../store/toastStore';
+import { useSkinFloat } from '../../hooks/useSkinFloat';
 
 /**
  * SkinCard — neutral, no-glow card for a CS2 listing.
@@ -118,16 +119,34 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
   const color = rarityColor(item.rarity);
   const name = item.name || item.market_name || '';
 
+  /* Lazy-fetch float + paint seed from /functions/v1/skin-float when
+     the listing row didn't ship them. The hook short-circuits when
+     both values are already present. */
+  const skinFloat = useSkinFloat({
+    enabled: variant === 'tile',
+    initialFloat: item.float as any,
+    initialPaintSeed: item.paintSeed as any,
+    inspectLink: (item as any).inspect_link ?? (item as any).inspectLink ?? null,
+  });
+
   /* Shared derived values used by grid + tile variants. Hoisted here so
      the two branches don't redeclare them. */
-  const floatNum = item.float != null ? Number(item.float) : null;
+  const floatNum =
+    skinFloat.data?.float != null
+      ? Number(skinFloat.data.float)
+      : item.float != null
+      ? Number(item.float)
+      : null;
   const floatPct =
     floatNum != null && Number.isFinite(floatNum)
       ? Math.max(0, Math.min(1, floatNum)) * 100
       : null;
-  const seed = item.paintSeed ?? item.patternTemplate;
+  const seed =
+    skinFloat.data?.paint_seed ?? item.paintSeed ?? item.patternTemplate;
   const online = item.seller?.online ?? false;
-  const stickers = Array.isArray(item.stickers) ? item.stickers : [];
+  const stickers = Array.isArray(item.stickers)
+    ? item.stickers
+    : (skinFloat.data?.stickers as any[]) || [];
 
   if (variant === 'list') {
     return (

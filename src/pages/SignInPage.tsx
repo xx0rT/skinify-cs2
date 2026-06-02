@@ -1,8 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Mail, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
-import LandingNav from '../components/LandingNav';
+import {
+  Mail,
+  Lock,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  Gift,
+  Sparkles,
+  ArrowLeft,
+} from 'lucide-react';
 import SteamLogin from '../components/auth/SteamLogin';
 import { useToastStore } from '../store/toastStore';
 import { useAuthStore } from '../store/authStore';
@@ -11,15 +19,15 @@ import useDocumentMeta from '../hooks/useDocumentMeta';
 import { spring, tap } from '../lib/motion';
 
 /* ─────────────────────────────────────────────────────────────────────────
-   SignInPage
+   SignInPage — full-screen split layout
 
-   Two sign-in paths side-by-side:
-     1. Email + password (Supabase Auth) — primary, top of the form
-     2. Steam OpenID — secondary, "Or continue with"
+   Left:  brand artwork (Skinify banner) with promo copy overlay
+   Right: sign-in form — email/password + Steam + optional referral/promo
+          codes captured during sign-in and persisted to localStorage so
+          the post-onboarding flow can credit them.
 
-   Users created via email/password do NOT have a Steam linkage yet, so
-   they can browse and buy, but listing items is gated behind a "Link
-   your Steam account" flow on the profile page.
+   No LandingNav. The only nav is a small "Back to home" chip top-left
+   over the artwork so the page stays a single-purpose surface.
    ───────────────────────────────────────────────────────────────────────── */
 const SignInPage: React.FC = () => {
   useDocumentMeta({
@@ -38,6 +46,9 @@ const SignInPage: React.FC = () => {
   const [showPw, setShowPw] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [extrasOpen, setExtrasOpen] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [referralCode, setReferralCode] = useState('');
 
   const redirectTo = (location.state as any)?.from || '/marketplace';
 
@@ -55,6 +66,15 @@ const SignInPage: React.FC = () => {
         setError(result.error || 'Sign in failed.');
         return;
       }
+      /* Stash any codes so the next backend pass can apply them. We
+         deliberately stash *before* the redirect so even an
+         immediately-applied bonus call sees them. */
+      try {
+        if (promoCode.trim()) localStorage.setItem('skinify_promo_code', promoCode.trim());
+        if (referralCode.trim()) localStorage.setItem('skinify_referral_code', referralCode.trim());
+      } catch {
+        /* private mode */
+      }
       setUser(result.user);
       addToast({
         type: 'success',
@@ -68,22 +88,118 @@ const SignInPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-bg text-ink">
-      <LandingNav />
-      <main className="max-w-[440px] mx-auto px-4 sm:px-6 pt-8 pb-16">
+    <div className="min-h-screen bg-bg text-ink flex">
+      {/* ─── LEFT — artwork + overlay copy ─── */}
+      <aside
+        className="relative hidden lg:block lg:w-1/2 overflow-hidden"
+        style={{ background: '#08020e' }}
+      >
+        <img
+          src="/3586ae5d-05bb-4fcb-8a4e-9948fd62b17b.png"
+          alt="Skinify — Upgrade your CS2 skins"
+          className="absolute inset-0 w-full h-full object-cover"
+          loading="eager"
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(140deg, rgba(8,2,14,0.85) 0%, rgba(8,2,14,0.55) 35%, rgba(8,2,14,0.20) 65%, rgba(8,2,14,0.0) 100%)',
+          }}
+          aria-hidden
+        />
+
+        <motion.button
+          whileTap={tap}
+          whileHover={{ x: -2 }}
+          onClick={() => navigate('/')}
+          className="absolute top-6 left-6 z-10 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-white/90 hover:text-white px-3 h-9 rounded-full bg-black/30 backdrop-blur-sm ring-1 ring-white/15 transition-colors"
+        >
+          <ArrowLeft size={13} strokeWidth={2.4} />
+          Back to home
+        </motion.button>
+
+        <div className="relative h-full flex flex-col justify-end px-10 lg:px-14 py-14 max-w-[600px]">
+          <motion.span
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring, delay: 0.08 }}
+            className="inline-flex items-center gap-2 text-[10.5px] font-bold uppercase tracking-[0.22em] text-purple-300/90 mb-4"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-pulse" />
+            CS2 Marketplace
+          </motion.span>
+
+          <motion.h2
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring, delay: 0.14 }}
+            className="text-[32px] lg:text-[40px] font-bold text-white leading-[1.05] tracking-tight"
+          >
+            Upgrade your skins.
+            <br />
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-300 via-fuchsia-300 to-purple-400">
+              0% buyer fees, every trade.
+            </span>
+          </motion.h2>
+
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring, delay: 0.2 }}
+            className="text-[14px] text-zinc-200/90 font-medium mt-3 leading-relaxed max-w-[440px]"
+          >
+            Sign in to track your inventory, list skins for sale, and unlock
+            a 10% bonus on your first deposit.
+          </motion.p>
+
+          {/* Brag bar — three small stats */}
+          <div className="mt-7 grid grid-cols-3 gap-3 max-w-[440px]">
+            {[
+              { v: '0%', l: 'Buyer fees' },
+              { v: '8 days', l: 'Escrow window' },
+              { v: '<1 min', l: 'Avg delivery' },
+            ].map((s) => (
+              <div
+                key={s.l}
+                className="rounded-2xl bg-white/5 ring-1 ring-white/10 backdrop-blur-sm px-3 py-2.5 text-center"
+              >
+                <div className="text-[16px] font-bold text-white tabular-nums tracking-tight leading-none">
+                  {s.v}
+                </div>
+                <div className="text-[10.5px] text-zinc-300/80 font-semibold mt-1.5 truncate">
+                  {s.l}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </aside>
+
+      {/* ─── RIGHT — form column ─── */}
+      <main className="flex-1 flex items-center justify-center px-5 sm:px-8 py-10 sm:py-14 min-h-screen overflow-y-auto">
         <motion.div
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={spring}
-          className="card p-7 sm:p-8"
+          className="w-full max-w-[420px]"
         >
+          {/* Mobile back link — only on screens where the left aside is hidden */}
+          <motion.button
+            whileTap={tap}
+            onClick={() => navigate('/')}
+            className="lg:hidden inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-ink-muted hover:text-ink mb-4"
+          >
+            <ArrowLeft size={13} strokeWidth={2.4} />
+            Back to home
+          </motion.button>
+
           <span className="label-eyebrow">Sign in</span>
-          <h1 className="text-[24px] sm:text-[28px] font-bold tracking-tight text-ink leading-tight mt-1.5">
-            Welcome back to Skinify
+          <h1 className="text-[26px] sm:text-[30px] font-bold tracking-tight text-ink leading-tight mt-1.5">
+            Welcome back
           </h1>
           <p className="text-[13.5px] text-ink-muted font-medium mt-2 leading-relaxed">
-            Use the email and password you signed up with, or continue with
-            Steam.
+            Use the email and password you signed up with, or continue with Steam.
           </p>
 
           <form onSubmit={submit} className="mt-6 space-y-3">
@@ -122,6 +238,45 @@ const SignInPage: React.FC = () => {
                 </button>
               }
             />
+
+            {/* Promo / referral expander — collapsed by default so the
+                primary form stays compact for returning users. */}
+            <button
+              type="button"
+              onClick={() => setExtrasOpen((v) => !v)}
+              className="text-[12px] font-semibold text-ink-muted hover:text-ink inline-flex items-center gap-1.5 transition-colors"
+            >
+              <Gift size={12} strokeWidth={2.4} />
+              {extrasOpen ? 'Hide promo / referral' : 'Have a promo or referral code?'}
+            </button>
+
+            {extrasOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -4, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: 'auto' }}
+                transition={spring}
+                className="space-y-2 pt-1 overflow-hidden"
+              >
+                <Field
+                  Icon={Sparkles}
+                  type="text"
+                  placeholder="Promo code (optional)"
+                  value={promoCode}
+                  onChange={setPromoCode}
+                />
+                <Field
+                  Icon={Gift}
+                  type="text"
+                  placeholder="Referral code (optional)"
+                  value={referralCode}
+                  onChange={setReferralCode}
+                />
+                <p className="text-[10.5px] text-ink-dim font-medium leading-relaxed">
+                  Promo codes apply credits to your next deposit. Referral
+                  codes link you to the trader who invited you.
+                </p>
+              </motion.div>
+            )}
 
             <motion.button
               whileTap={tap}

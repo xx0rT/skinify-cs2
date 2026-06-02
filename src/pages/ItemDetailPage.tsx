@@ -42,6 +42,15 @@ import ConfirmationModal from '../components/ui/ConfirmationModal';
 import { SkinCard, SkinCardSkeleton, rarityColor } from '../components/ui/SkinCard';
 import { spring, tap } from '../lib/motion';
 import { openDepositModal } from '../components/DepositModal';
+import {
+  ItemActionsRow,
+  RatingWidget,
+  SalesHistoryCard,
+  TagsRow,
+  StickersRow,
+  SimilarItemsRow,
+  buildItemTags,
+} from '../components/item/ItemDetailExtras';
 
 /* ─────────────────────────────────────────────────────────────────────────
    ItemDetailPage
@@ -73,6 +82,9 @@ const ItemDetailPage: React.FC = () => {
   const [purchasing, setPurchasing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
+  /* Local-only follow state — persists per seller in localStorage so
+     the badge survives reload. Real backend hook can replace this. */
+  const [isFollowing, setIsFollowing] = useState(false);
 
   /* The mobile floating buy chip should only appear when the in-page
      buy panel is NOT visible. We render the panel twice (once inline on
@@ -91,6 +103,7 @@ const ItemDetailPage: React.FC = () => {
       fetchBalance(user.steamId);
     }
   }, [user?.steamId]);
+
 
   /* Live items first, then mock fallback. Lets `/item/mock-1` deep-link
      work when the marketplace is showing the demo dataset. */
@@ -185,6 +198,46 @@ const ItemDetailPage: React.FC = () => {
     },
     [user, toggleItem, addToast],
   );
+
+  /* Follow-state per seller, persisted in localStorage. */
+  const sellerKey = item?.seller?.steamId || item?.seller?.name || '';
+  useEffect(() => {
+    if (!sellerKey) {
+      setIsFollowing(false);
+      return;
+    }
+    try {
+      const raw = localStorage.getItem('skinify_following');
+      const set = new Set<string>(raw ? JSON.parse(raw) : []);
+      setIsFollowing(set.has(sellerKey));
+    } catch {
+      /* private window */
+    }
+  }, [sellerKey]);
+
+  const toggleFollow = useCallback(() => {
+    if (!sellerKey) return;
+    try {
+      const raw = localStorage.getItem('skinify_following');
+      const set = new Set<string>(raw ? JSON.parse(raw) : []);
+      if (set.has(sellerKey)) {
+        set.delete(sellerKey);
+        setIsFollowing(false);
+        addToast({ type: 'info', title: 'Unfollowed seller' });
+      } else {
+        set.add(sellerKey);
+        setIsFollowing(true);
+        addToast({
+          type: 'success',
+          title: 'Following seller',
+          message: `You'll be notified when ${item?.seller?.name || 'this seller'} lists new items.`,
+        });
+      }
+      localStorage.setItem('skinify_following', JSON.stringify(Array.from(set)));
+    } catch {
+      /* ignore */
+    }
+  }, [sellerKey, addToast, item?.seller?.name]);
 
   /* useDocumentMeta must run on every render (rules of hooks) — moved
      above the early returns. Title falls back while `item` is still
@@ -559,6 +612,53 @@ const ItemDetailPage: React.FC = () => {
                 </dl>
               </section>
             </motion.div>
+
+            {/* Actions: Follow seller · Compare on Steam · Share */}
+            <ItemActionsRow
+              item={item}
+              isFollowing={isFollowing}
+              onToggleFollow={toggleFollow}
+            />
+
+            {/* Tags row */}
+            <TagsRow tags={buildItemTags(item)} />
+
+            {/* Sales history chart */}
+            <SalesHistoryCard
+              currentPrice={Number(item.price || 0)}
+              itemId={String(item.id)}
+              formatPrice={formatPrice}
+            />
+
+            {/* User rating */}
+            <RatingWidget itemId={String(item.id)} />
+
+            {/* Recommended stickers slider */}
+            <StickersRow
+              stickers={
+                Array.isArray(item.recommended_stickers) && item.recommended_stickers.length > 0
+                  ? item.recommended_stickers
+                  : [
+                      { name: 'Howling Dawn', price: 250 },
+                      { name: 'Crown (Foil)', price: 1200 },
+                      { name: 'Katowice 2014 Titan', price: 4200 },
+                      { name: 'iBUYPOWER (Holo)', price: 8500 },
+                      { name: 'Reason Gaming', price: 95 },
+                      { name: 'Cloud9 (Holo) Boston 2018', price: 320 },
+                    ]
+              }
+              formatPrice={formatPrice}
+            />
+
+            {/* Similar items slider (visual) — separate from the
+                table view below. */}
+            {related.length > 0 && (
+              <SimilarItemsRow
+                items={related}
+                onView={(id) => navigate(`/item/${id}`)}
+                formatPrice={formatPrice}
+              />
+            )}
 
             {/* Tab bar */}
             <motion.div

@@ -175,78 +175,11 @@ interface FooterProps {
 
 const Footer: React.FC<FooterProps> = ({ slim = false }) => {
   const currentYear = new Date().getFullYear();
-  const [openFAQ, setOpenFAQ] = useState<number | null>(0);
 
   return (
     <footer className="max-w-[1480px] mx-auto px-4 sm:px-6 pb-8 space-y-3">
-      {/* ===== FAQ =====
-          Single-column list style — Linear/Stripe/Apple-support feel. Items
-          are flat with a hairline separator; only the expanded answer reveals
-          on click. No per-item backgrounds or emoji icons; the eye scans
-          questions vertically without color noise.
-          Hidden in slim mode (Profile). */}
-      {!slim && (
-      <section className="card p-6 md:p-10">
-        <div className="flex items-end justify-between mb-7 flex-wrap gap-3">
-          <div>
-            <span className="label-eyebrow">Help</span>
-            <h2 className="text-[22px] sm:text-[26px] font-bold tracking-tight text-ink mt-1.5 leading-none">
-              Frequently asked
-            </h2>
-          </div>
-          <Link
-            to="/faq"
-            className="h-10 px-4 rounded-full bg-subtle text-ink text-[13px] font-semibold hover:bg-subtle/70 transition-colors flex items-center"
-          >
-            See all
-          </Link>
-        </div>
-
-        <ul className="divide-y divide-line">
-          {faqItems.map((item, i) => {
-            const open = openFAQ === i;
-            return (
-              <li key={i}>
-                <button
-                  type="button"
-                  onClick={() => setOpenFAQ(open ? null : i)}
-                  aria-expanded={open}
-                  className="w-full text-left py-5 flex items-start gap-4 group"
-                >
-                  <span className="flex-1 text-[15px] sm:text-[16px] font-bold text-ink leading-snug tracking-tight">
-                    {item.q}
-                  </span>
-                  <span
-                    className={`shrink-0 mt-0.5 w-7 h-7 rounded-full grid place-items-center transition-all duration-200 ${
-                      open
-                        ? 'bg-accent text-on-accent rotate-180'
-                        : 'bg-subtle text-ink-muted group-hover:bg-accent-soft group-hover:text-ink'
-                    }`}
-                  >
-                    <ChevronDown size={14} strokeWidth={2.4} />
-                  </span>
-                </button>
-                <AnimatePresence initial={false}>
-                  {open && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.26, ease: [0.2, 0.8, 0.2, 1] }}
-                      className="overflow-hidden"
-                    >
-                      <p className="text-[13.5px] sm:text-[14px] text-ink-muted leading-relaxed font-medium pb-5 pr-12 max-w-3xl">
-                        {item.a}
-                      </p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-      )}
+      {/* ===== POPULAR TAGS + LANGUAGE SWITCHER ===== */}
+      {!slim && <PopularTagsBar />}
 
       {/* ===== PAYMENTS — hidden in slim mode (Profile) ===== */}
       {!slim && (
@@ -378,6 +311,107 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
         </div>
       </section>
     </footer>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   PopularTagsBar — cloud of high-intent CS2 queries + a language picker.
+
+   Each tag links to a filtered marketplace view. The language picker
+   triggers Google Translate via the existing #google_translate_element
+   widget — same mechanism the in-page settings panel uses, so we don't
+   ship a second translation pipeline.
+   ───────────────────────────────────────────────────────────────────────── */
+const POPULAR_TAGS = [
+  { label: 'AK-47 skins', to: '/weapons/Rifles/AK-47' },
+  { label: 'AWP skins', to: '/weapons/Rifles/AWP' },
+  { label: 'M4A4', to: '/weapons/Rifles/M4A4' },
+  { label: 'M4A1-S', to: '/weapons/Rifles/M4A1-S' },
+  { label: 'Karambit', to: '/weapons/Knives/Karambit' },
+  { label: 'M9 Bayonet', to: '/weapons/Knives/M9%20Bayonet' },
+  { label: 'Butterfly Knife', to: '/weapons/Knives/Butterfly%20Knife' },
+  { label: 'Sport Gloves', to: '/weapons/Gloves/Sport%20Gloves' },
+  { label: 'Desert Eagle', to: '/weapons/Pistols/Desert%20Eagle' },
+  { label: 'USP-S', to: '/weapons/Pistols/USP-S' },
+  { label: 'Dragon Lore', to: '/marketplace?q=Dragon%20Lore' },
+  { label: 'Howl', to: '/marketplace?q=Howl' },
+  { label: 'Fire Serpent', to: '/marketplace?q=Fire%20Serpent' },
+  { label: 'Doppler', to: '/marketplace?q=Doppler' },
+  { label: 'Fade', to: '/marketplace?q=Fade' },
+  { label: 'Asiimov', to: '/marketplace?q=Asiimov' },
+  { label: 'Case Hardened', to: '/marketplace?q=Case%20Hardened' },
+  { label: 'StatTrak™', to: '/marketplace?q=StatTrak' },
+  { label: 'Souvenir', to: '/marketplace?q=Souvenir' },
+  { label: 'Factory New', to: '/marketplace?wear=Factory%20New' },
+];
+
+const LANGUAGES: Array<{ code: string; label: string }> = [
+  { code: 'en', label: 'English' },
+  { code: 'cs', label: 'Čeština' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'es', label: 'Español' },
+  { code: 'fr', label: 'Français' },
+  { code: 'it', label: 'Italiano' },
+  { code: 'pl', label: 'Polski' },
+  { code: 'pt', label: 'Português' },
+  { code: 'ru', label: 'Русский' },
+  { code: 'tr', label: 'Türkçe' },
+  { code: 'zh-CN', label: '中文' },
+  { code: 'ja', label: '日本語' },
+];
+
+const PopularTagsBar: React.FC = () => {
+  const setLanguage = (code: string) => {
+    /* Drive the existing Google Translate widget. The cookie tells GT
+       to render the page in the picked locale on next paint. */
+    try {
+      document.cookie = `googtrans=/en/${code}; path=/`;
+      document.cookie = `googtrans=/en/${code}; domain=.skinify.gg; path=/`;
+    } catch {
+      /* ignore */
+    }
+    window.location.reload();
+  };
+
+  return (
+    <section className="card p-6 md:p-8 flex flex-col gap-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <span className="label-eyebrow">Popular tags</span>
+          <h2 className="text-[18px] sm:text-[20px] font-bold tracking-tight text-ink mt-1 leading-none">
+            What people are looking for
+          </h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-[11px] font-bold uppercase tracking-wider text-ink-dim">
+            Language
+          </label>
+          <select
+            onChange={(e) => setLanguage(e.target.value)}
+            defaultValue="en"
+            className="h-9 px-3 rounded-full bg-subtle text-ink text-[12.5px] font-semibold outline-none focus:ring-2 focus:ring-accent/40 cursor-pointer"
+          >
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {POPULAR_TAGS.map((t) => (
+          <Link
+            key={t.to}
+            to={t.to}
+            className="px-3 h-8 rounded-full bg-subtle hover:bg-accent-soft hover:text-accent text-ink text-[12px] font-semibold inline-flex items-center transition-colors"
+          >
+            {t.label}
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 };
 
