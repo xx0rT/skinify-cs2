@@ -1,8 +1,16 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { Heart, ShoppingBag } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Eye,
+  FileText,
+  Heart,
+  Search as SearchIcon,
+  ShoppingBag,
+  UserPlus,
+} from 'lucide-react';
 import { CachedImage } from './CachedImage';
 import { tap } from '../../lib/motion';
+import { useToastStore } from '../../store/toastStore';
 
 /**
  * SkinCard — neutral, no-glow card for a CS2 listing.
@@ -239,6 +247,9 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
               SV
             </span>
           )}
+          {/* Wishlist heart — always visible in the top-right of the image
+              so users can favorite without hovering. Toggles the accent
+              fill when active. */}
           {onToggleWish && (
             <motion.button
               whileTap={tap}
@@ -246,13 +257,17 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
                 e.stopPropagation();
                 onToggleWish();
               }}
-              className="absolute top-2.5 right-2.5 w-7 h-7 grid place-items-center text-ink-muted hover:text-ink transition-colors z-10"
-              aria-label="Wishlist"
+              className={`absolute top-2.5 right-2.5 w-7 h-7 grid place-items-center transition-colors z-10 ${
+                wished
+                  ? 'text-accent'
+                  : 'text-ink-muted hover:text-ink opacity-0 group-hover:opacity-100'
+              }`}
+              aria-label={wished ? 'Remove from wishlist' : 'Add to wishlist'}
             >
               <Heart
-                size={14}
-                strokeWidth={wished ? 2.4 : 2}
-                className={wished ? 'fill-current text-accent' : ''}
+                size={15}
+                strokeWidth={wished ? 2.6 : 2}
+                className={wished ? 'fill-current' : ''}
               />
             </motion.button>
           )}
@@ -288,7 +303,10 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
           )}
         </div>
 
-        {/* Content — price, weapon class, item name, condition, float */}
+        {/* Content — price, weapon class, item name, condition, float.
+            Heights are normalised so every tile is the same height
+            regardless of whether the reference price exists. The float
+            row is anchored to the bottom via mt-auto. */}
         <div className="px-3.5 pt-1 pb-3 flex-1 flex flex-col">
           {/* Price row + change badge */}
           <div className="flex items-baseline gap-2 flex-wrap">
@@ -311,68 +329,83 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
             )}
           </div>
 
-          {/* Reference price — small grey line under the main price */}
-          {referencePrice != null && (
-            <div className="text-[11px] text-ink-dim font-medium mt-0.5 tabular-nums">
-              Reference price {formatPrice(referencePrice)}
-            </div>
-          )}
+          {/* Reference price slot — ALWAYS reserved (invisible placeholder
+              when missing) so every tile lines up vertically. */}
+          <div
+            className="text-[11px] font-medium mt-0.5 tabular-nums h-[15px]"
+            style={{
+              color: referencePrice != null ? 'rgb(var(--ink-dim))' : 'transparent',
+            }}
+          >
+            {referencePrice != null
+              ? `Reference price ${formatPrice(referencePrice)}`
+              : ' '}
+          </div>
 
           {/* Weapon class chip — rarity-colored square + colored label */}
-          {weaponLabel && (
-            <div className="mt-2 flex items-center gap-1.5">
-              <span
-                className="inline-block w-2.5 h-2.5"
-                style={{ background: color }}
-                aria-hidden
-              />
-              <span
-                className="text-[12px] font-semibold truncate"
-                style={{ color }}
-              >
-                {weaponLabel}
-              </span>
-            </div>
-          )}
+          <div className="mt-2 flex items-center gap-1.5 h-[16px]">
+            {weaponLabel && (
+              <>
+                <span
+                  className="inline-block w-2.5 h-2.5"
+                  style={{ background: color }}
+                  aria-hidden
+                />
+                <span
+                  className="text-[12px] font-semibold truncate"
+                  style={{ color }}
+                >
+                  {weaponLabel}
+                </span>
+              </>
+            )}
+          </div>
 
           {/* Item name */}
           <h3
-            className="text-[15px] font-bold text-ink truncate tracking-tight leading-tight mt-1"
+            className="text-[15px] font-bold text-ink truncate tracking-tight leading-tight mt-1 h-[20px]"
             title={name}
           >
             {name}
           </h3>
 
           {/* Condition row — "Factory New ★ Covert Rifle" */}
-          {(item.condition || item.type) && (
-            <div className="text-[11.5px] text-ink-muted font-medium mt-0.5 truncate">
-              {item.condition}
-              {item.condition && (item.special || item.type) && ' ★ '}
-              {item.rarity || ''}
-              {item.rarity && item.type && ' '}
-              {abbrevType(item.type)}
-            </div>
-          )}
+          <div className="text-[11.5px] text-ink-muted font-medium mt-0.5 truncate h-[17px]">
+            {item.condition || ''}
+            {item.condition && (item.special || item.type) && ' ★ '}
+            {item.rarity || ''}
+            {item.rarity && item.type && ' '}
+            {abbrevType(item.type)}
+          </div>
 
-          {/* Float bar at the very bottom */}
-          {floatPct != null && floatNum != null && (
-            <div className="mt-auto pt-3 flex items-center gap-2">
-              <span className="text-[11px] text-ink-muted font-mono tabular-nums shrink-0">
-                {floatNum.toFixed(3)}
+          {/* Float metadata — ALWAYS rendered. Compact row with float
+              value + paint seed before the gradient bar. */}
+          <div className="mt-auto pt-3">
+            <div className="flex items-center justify-between text-[10.5px] font-medium tabular-nums mb-1">
+              <span className="text-ink-muted font-mono truncate">
+                {floatNum != null && Number.isFinite(floatNum)
+                  ? `float ${floatNum.toFixed(4)}`
+                  : 'float —'}
               </span>
+              <span className="text-ink-dim shrink-0 font-mono">
+                {seed != null ? `#${String(seed)}` : ''}
+              </span>
+            </div>
+
+            <div
+              className="relative w-full h-1.5 overflow-hidden"
+              title={floatNum != null ? `Float ${floatNum.toFixed(6)}` : 'No float data'}
+            >
               <div
-                className="relative flex-1 h-1.5 overflow-hidden"
-                title={`Float ${floatNum.toFixed(6)}`}
-              >
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background:
-                      'linear-gradient(90deg, #22c55e 0%, #84cc16 25%, #eab308 50%, #f97316 75%, #ef4444 100%)',
-                  }}
-                  aria-hidden
-                />
-                {/* White triangle marker */}
+                className="absolute inset-0"
+                style={{
+                  background:
+                    'linear-gradient(90deg, #22c55e 0%, #84cc16 25%, #eab308 50%, #f97316 75%, #ef4444 100%)',
+                  opacity: floatPct != null ? 1 : 0.25,
+                }}
+                aria-hidden
+              />
+              {floatPct != null && (
                 <div
                   className="absolute top-0"
                   style={{
@@ -385,41 +418,18 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
                   }}
                   aria-hidden
                 />
-              </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Hover ADD TO CART action — slides up over the float bar area */}
+        {/* Hover ADD-TO-CART action bar — slides up from below. Its height
+            matches the float-row + bottom padding so the slide-up only
+            covers the float bar area and never the item name or condition
+            line. Accent color, accessed via CSS variables so it follows
+            the theme. */}
         {onAddCart && (
-          <div className="absolute bottom-0 left-0 right-0 translate-y-full group-hover:translate-y-0 transition-transform duration-200 ease-out flex items-stretch">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddCart();
-              }}
-              className="flex-1 h-11 bg-sky-300 hover:bg-sky-200 text-slate-900 text-[12.5px] font-bold uppercase tracking-[0.14em] inline-flex items-center justify-center gap-2 transition-colors"
-            >
-              <ShoppingBag size={14} strokeWidth={2.4} />
-              Add to cart
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                /* Reserved for "more options" — opens detail view for now. */
-                onView?.();
-              }}
-              className="w-11 h-11 bg-sky-300/95 hover:bg-sky-200 text-slate-900 grid place-items-center transition-colors"
-              style={{ boxShadow: 'inset 1px 0 0 0 rgb(0 0 0 / 0.08)' }}
-              aria-label="More"
-            >
-              <span className="flex flex-col gap-[2px]" aria-hidden>
-                <span className="w-[3px] h-[3px] bg-slate-900 rounded-full" />
-                <span className="w-[3px] h-[3px] bg-slate-900 rounded-full" />
-                <span className="w-[3px] h-[3px] bg-slate-900 rounded-full" />
-              </span>
-            </button>
-          </div>
+          <TileActionBar onAddCart={onAddCart} item={item} />
         )}
       </motion.article>
     );
@@ -624,6 +634,172 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
     </motion.article>
   );
 };
+
+/* ─────────────────────────────────────────────────────────────────────────
+   TileActionBar — hover-revealed accent action strip for the tile variant.
+
+   Sits at the bottom of the card. The Add-to-cart button takes the
+   majority width; the right-side button toggles a popover with four
+   actions: Inspect in game, Show user description, Search, Follow.
+
+   The bar covers only the float-row area (44px tall) so the item name
+   and condition lines remain visible while hovering — the user can read
+   what they're about to buy.
+   ───────────────────────────────────────────────────────────────────────── */
+const TileActionBar: React.FC<{
+  onAddCart: () => void;
+  onView?: () => void;
+  item: SkinCardItem;
+}> = ({ onAddCart, item }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const { addToast } = useToastStore();
+
+  /* Click-outside + Esc → close. */
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+
+  const inspectInGame = () => {
+    const inspectLink =
+      (item as any).inspect_link ||
+      (item as any).inspectLink ||
+      (item as any).inspect_url;
+    if (inspectLink) {
+      window.location.href = inspectLink;
+    } else {
+      addToast({
+        type: 'info',
+        title: 'Inspect link unavailable',
+        message: 'This listing did not include a Steam inspect link.',
+      });
+    }
+    setMenuOpen(false);
+  };
+
+  const showDescription = () => {
+    addToast({
+      type: 'info',
+      title: 'Seller description',
+      message:
+        (item as any).description ||
+        'The seller has not added a description for this item.',
+      duration: 6000,
+    });
+    setMenuOpen(false);
+  };
+
+  const searchSimilar = () => {
+    const q = (item.name || item.market_name || '').split('|')[0]?.trim();
+    if (q) {
+      window.location.href = `/marketplace?q=${encodeURIComponent(q)}`;
+    }
+    setMenuOpen(false);
+  };
+
+  const followSeller = () => {
+    const sellerId = item.seller?.steamId;
+    if (!sellerId) {
+      addToast({ type: 'warning', title: 'No seller info' });
+    } else {
+      addToast({
+        type: 'success',
+        title: 'Following seller',
+        message: `You'll be notified when ${item.seller?.name || 'this seller'} lists new items.`,
+      });
+    }
+    setMenuOpen(false);
+  };
+
+  return (
+    <div
+      className="absolute bottom-0 left-0 right-0 translate-y-full group-hover:translate-y-0 transition-transform duration-200 ease-out flex items-stretch z-30"
+      onClick={stop}
+    >
+      <button
+        onClick={(e) => {
+          stop(e);
+          onAddCart();
+        }}
+        className="flex-1 h-11 text-on-accent text-[12.5px] font-bold uppercase tracking-[0.14em] inline-flex items-center justify-center gap-2 transition-opacity hover:opacity-95"
+        style={{ background: 'rgb(var(--accent))' }}
+      >
+        <ShoppingBag size={14} strokeWidth={2.4} />
+        Add to cart
+      </button>
+
+      {/* 3-dot more menu */}
+      <div className="relative" ref={menuRef}>
+        <button
+          onClick={(e) => {
+            stop(e);
+            setMenuOpen((v) => !v);
+          }}
+          className="w-11 h-11 text-on-accent grid place-items-center transition-opacity hover:opacity-95"
+          style={{
+            background: 'rgb(var(--accent))',
+            boxShadow: 'inset 1px 0 0 0 rgb(0 0 0 / 0.18)',
+          }}
+          aria-label="More options"
+          aria-expanded={menuOpen}
+        >
+          <span className="flex flex-col gap-[2px]" aria-hidden>
+            <span className="w-[3px] h-[3px] bg-current rounded-full" />
+            <span className="w-[3px] h-[3px] bg-current rounded-full" />
+            <span className="w-[3px] h-[3px] bg-current rounded-full" />
+          </span>
+        </button>
+
+        <AnimatePresence>
+          {menuOpen && (
+            <motion.div
+              key="more-menu"
+              initial={{ opacity: 0, y: 6, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 6, scale: 0.96 }}
+              transition={{ duration: 0.14, ease: [0.4, 0, 0.2, 1] }}
+              onClick={stop}
+              className="absolute bottom-full right-0 mb-2 min-w-[200px] bg-surface text-ink shadow-xl ring-1 ring-line z-50 overflow-hidden"
+            >
+              <MenuItem Icon={Eye} label="Inspect in game" onClick={inspectInGame} />
+              <MenuItem Icon={FileText} label="Show user description" onClick={showDescription} />
+              <MenuItem Icon={SearchIcon} label="Search" onClick={searchSimilar} />
+              <MenuItem Icon={UserPlus} label="Follow" onClick={followSeller} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+};
+
+const MenuItem: React.FC<{
+  Icon: React.ComponentType<any>;
+  label: string;
+  onClick: () => void;
+}> = ({ Icon, label, onClick }) => (
+  <button
+    onClick={onClick}
+    className="w-full flex items-center gap-2.5 px-3 h-10 text-[12.5px] font-semibold text-ink hover:bg-subtle transition-colors text-left"
+  >
+    <Icon size={13} strokeWidth={2.2} className="text-ink-muted shrink-0" />
+    {label}
+  </button>
+);
 
 export const SkinCard = React.memo(SkinCardImpl, (a, b) => {
   return (

@@ -271,7 +271,7 @@ export const LandingNav: React.FC = () => {
 
               {/* UserProfile dropdown — md+ only; drawer surfaces it on mobile */}
               <div className="pl-1 hidden lg:block">
-                {user ? <UserProfile /> : <SteamLogin />}
+                {user ? <UserProfile /> : <NavSignInButton />}
               </div>
 
               {/* Mobile drawer trigger */}
@@ -405,7 +405,7 @@ export const LandingNav: React.FC = () => {
                 {user ? (
                   <MobileAccountPanel onNavigate={() => setMenuOpen(false)} />
                 ) : (
-                  <SteamLogin />
+                  <NavSignInButton onNavigate={() => setMenuOpen(false)} />
                 )}
               </div>
             </motion.div>
@@ -517,6 +517,30 @@ const MobileAccountPanel: React.FC<{ onNavigate: () => void }> = ({ onNavigate }
         Sign out
       </button>
     </div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   NavSignInButton — primary "Sign in" CTA shown in the navbar when no
+   user is signed in. Sends users to /auth/signin where they can choose
+   email/password or Steam. Replaces the prior direct-to-Steam button so
+   credentialed users have a clear entry point.
+   ───────────────────────────────────────────────────────────────────────── */
+const NavSignInButton: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
+  const navigate = useNavigate();
+  return (
+    <motion.button
+      whileTap={tap}
+      whileHover={{ scale: 1.03 }}
+      onClick={() => {
+        onNavigate?.();
+        navigate('/auth/signin');
+      }}
+      className="h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold inline-flex items-center gap-1.5"
+      style={{ boxShadow: '0 10px 22px -12px rgb(var(--accent) / 0.55)' }}
+    >
+      Sign in
+    </motion.button>
   );
 };
 

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { getSupabaseCredentials } from '../../../utils/supabaseHelpers';
 import { useToastStore } from '../../../store/toastStore';
+import { useAuthStore } from '../../../store/authStore';
 import { useCurrencyStore } from '../../../store/currencyStore';
 import { spring, tap } from '../../../lib/motion';
 import { rarityColor } from '../../ui/SkinCard';
@@ -137,6 +138,21 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
   }, [items]);
 
   const openListModal = (...itemsToList: InvItem[]) => {
+    /* Gate listing creation behind a linked Steam account.
+       Email-signup users won't have steamId set; they need to link
+       their Steam profile first because the trade offer + escrow flow
+       can only target a Steam account. */
+    const { user } = useAuthStore.getState();
+    if (!user?.steamId) {
+      addToast({
+        type: 'warning',
+        title: 'Link your Steam account first',
+        message:
+          'Listings deliver via Steam trade offers. Open Settings → Linked accounts to connect Steam.',
+        duration: 6000,
+      });
+      return;
+    }
     setModalItems(itemsToList);
     setShowListModal(true);
   };
@@ -283,8 +299,13 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
     });
   };
 
+  const { user } = useAuthStore();
+  const steamLinked = !!user?.steamId;
+
   return (
     <div className="space-y-4">
+      {!steamLinked && <SteamLinkBanner />}
+
       {/* KPIs */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -694,5 +715,50 @@ const SkeletonGrid: React.FC = () => (
     ))}
   </div>
 );
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SteamLinkBanner — shown to email-signup users who haven't connected
+   Steam yet. Listings require Steam because the trade offer + escrow
+   handoff target a Steam account. Tapping Link Steam restarts the
+   OpenID flow with ?mode=link so we attach the steamId to the current
+   authenticated user instead of starting a fresh sign-in.
+   ───────────────────────────────────────────────────────────────────────── */
+const SteamLinkBanner: React.FC = () => {
+  // Lazy import via dynamic-require pattern to avoid a top-level cycle
+  // when this file is imported by routes that don't need credentialAuth.
+  const onLink = () => {
+    import('../../../utils/credentialAuth').then((mod) => mod.startSteamLink());
+  };
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={spring}
+      className="card p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4"
+    >
+      <div className="w-11 h-11 rounded-2xl bg-accent-soft text-accent grid place-items-center shrink-0">
+        <Tag size={18} strokeWidth={2.4} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[14px] font-bold text-ink tracking-tight">
+          Link your Steam account to start listing
+        </div>
+        <p className="text-[12.5px] text-ink-muted font-medium mt-0.5 leading-relaxed">
+          You can browse and buy as you are. Listings deliver via Steam trade
+          offers, so we need to connect your Steam profile first.
+        </p>
+      </div>
+      <motion.button
+        whileTap={tap}
+        whileHover={{ scale: 1.02 }}
+        onClick={onLink}
+        className="h-10 px-4 rounded-full bg-accent text-on-accent font-bold text-[12.5px] inline-flex items-center justify-center gap-1.5 shrink-0"
+        style={{ boxShadow: '0 10px 22px -12px rgb(var(--accent) / 0.55)' }}
+      >
+        Link Steam
+      </motion.button>
+    </motion.div>
+  );
+};
 
 export default InventoryTab;

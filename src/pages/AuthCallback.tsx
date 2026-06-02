@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { getSupabaseCredentials } from '../utils/supabaseHelpers';
 import { useAuthStore } from '../store/authStore';
+import { attachSteamIdToCurrentUser } from '../utils/credentialAuth';
 import LandingNav from '../components/LandingNav';
 import { spring, tap } from '../lib/motion';
 
@@ -155,6 +156,24 @@ export default function AuthCallback() {
         const steamIdMatch = claimedId.match(/\/id\/(\d+)$/);
         const steamId = steamIdMatch ? steamIdMatch[1] : null;
         if (!steamId) throw new Error('Could not extract Steam ID from claimed_id');
+
+        /* Link mode — the user is already signed in via email/password
+           and is adding Steam to their account. Don't run the fresh
+           sign-in path; just attach the steamId to their public.users
+           row and bounce back to the profile. */
+        const linkMode = params.get('mode') === 'link';
+        if (linkMode) {
+          const result = await attachSteamIdToCurrentUser(steamId);
+          if (!result.ok) {
+            throw new Error(result.error);
+          }
+          setUser(result.user);
+          setStatus('success');
+          setTimeout(() => {
+            navigate('/profile?tab=settings&linked=1', { replace: true });
+          }, 1200);
+          return;
+        }
 
         const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
         if (!supabaseUrl || !supabaseKey) {

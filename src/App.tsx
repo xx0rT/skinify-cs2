@@ -100,6 +100,8 @@ const ChangelogPage = lazyWithRetry(() => import('./pages/ChangelogPage'));
 const BlogDetailPage = lazyWithRetry(() => import('./pages/BlogDetailPage'));
 const NotFoundPage = lazyWithRetry(() => import('./pages/NotFoundPage'));
 const OnboardingPage = lazyWithRetry(() => import('./pages/OnboardingPage'));
+const SignInPage = lazyWithRetry(() => import('./pages/SignInPage'));
+const SignUpPage = lazyWithRetry(() => import('./pages/SignUpPage'));
 
 // All supported language codes for routing
 const LANG_PATTERN = "en|es|cs|de|ru|fr|it|pt|pl|tr|ar|zh|ja|ko|nl|sv|no|da|fi|hu|ro|uk|el|th|vi|id|hi";
@@ -225,6 +227,11 @@ export default function App() {
             <Route path={`/:lang(${LANG_PATTERN})/tickets`} element={<SupportTicketsPage />} />
 
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/auth/signin" element={<SignInPage />} />
+            <Route path="/auth/signup" element={<SignUpPage />} />
+            <Route path="/login" element={<SignInPage />} />
+            <Route path="/signup" element={<SignUpPage />} />
+            <Route path="/register" element={<SignUpPage />} />
 
             <Route path="/marketplace" element={<MarketplacePage />} />
             <Route path={`/:lang(${LANG_PATTERN})/marketplace`} element={<MarketplacePage />} />
