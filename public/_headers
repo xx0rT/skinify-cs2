@@ -57,3 +57,19 @@
 # Audio Files - Cache for 7 days
 /*.mp3
   Cache-Control: public, max-age=604800, immutable
+
+# PWA manifest — explicit MIME so hosts that don't auto-resolve it
+# (Cloudflare Pages, some Netlify routes) return 200 instead of 403.
+/manifest.webmanifest
+  Content-Type: application/manifest+json
+  Cache-Control: public, max-age=3600
+  Access-Control-Allow-Origin: *
+
+# Sitemap + robots
+/sitemap.xml
+  Content-Type: application/xml
+  Cache-Control: public, max-age=3600
+
+/robots.txt
+  Content-Type: text/plain
+  Cache-Control: public, max-age=3600

@@ -247,10 +247,8 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
     return (
       <motion.article
         whileTap={tap}
-        whileHover={{ scale: 1.03, zIndex: 10 }}
-        transition={{ type: 'spring', stiffness: 380, damping: 26, mass: 0.55 }}
         onClick={onView}
-        className="group relative cursor-pointer contain-card overflow-hidden bg-surface flex flex-col"
+        className="group relative cursor-pointer contain-card overflow-hidden bg-surface flex flex-col transition-shadow duration-200 ease-out hover:z-10 hover:shadow-[0_18px_40px_-18px_rgba(0,0,0,0.55)]"
         style={{
           boxShadow: 'inset 0 0 0 1px rgb(255 255 255 / 0.04), inset 0 -1px 0 0 rgb(255 255 255 / 0.04)',
         }}
@@ -443,36 +441,13 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
           </div>
         </div>
 
-        {/* ADD-TO-CART action bar — sibling row of the content area, not
-            an overlay. Height transitions from 0 to 44px on hover so it
-            never obscures the float row above it. */}
+        {/* ADD-TO-CART action bar — always reserves 44px so the grid
+            never reflows on hover. Collapsed state hides it via
+            opacity + pointer-events:none; hover reveals it. Because the
+            slot height is constant, neighbouring tiles can't shift. */}
         {onAddCart && (
           <div
-            className="overflow-hidden transition-[max-height] duration-200 ease-out"
-            style={{ maxHeight: 0 }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLDivElement).style.maxHeight = '44px';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLDivElement).style.maxHeight = '0';
-            }}
-            ref={(node) => {
-              if (!node) return;
-              /* Sync open/close state with the parent card hover via
-                 CSS group-hover. Using a ref so we can flip max-height
-                 imperatively when the parent <article> hovers — group
-                 selectors can't transition max-height between two
-                 sibling element states reliably across all browsers. */
-              const article = node.closest('article');
-              if (!article || (article as any).__bound) return;
-              (article as any).__bound = true;
-              article.addEventListener('mouseenter', () => {
-                node.style.maxHeight = '44px';
-              });
-              article.addEventListener('mouseleave', () => {
-                node.style.maxHeight = '0';
-              });
-            }}
+            className="h-11 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150 ease-out"
           >
             <TileActionBar onAddCart={onAddCart} item={item} />
           </div>

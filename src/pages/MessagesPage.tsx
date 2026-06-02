@@ -47,9 +47,18 @@ const MessagesPage: React.FC = () => {
   const [activePeer, setActivePeer] = useState<string>(peerFromUrl);
   const [query, setQuery] = useState('');
 
-  const threads = useDMStore((s) => s.sortedThreads());
+  /* Subscribe to the raw threads map (stable reference unless threads
+     actually change). Then derive the sorted list locally with useMemo
+     so we don't return a new array from the selector every render —
+     that was triggering React error #185 (infinite render loop). */
+  const threadsMap = useDMStore((s) => s.threads);
   const markThreadRead = useDMStore((s) => s.markThreadRead);
   const deleteThread = useDMStore((s) => s.deleteThread);
+
+  const threads = useMemo(
+    () => Object.values(threadsMap).sort((a, b) => b.lastActivity - a.lastActivity),
+    [threadsMap],
+  );
 
   /* When a peer is supplied via URL, focus it. */
   useEffect(() => {

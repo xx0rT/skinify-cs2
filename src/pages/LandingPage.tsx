@@ -307,8 +307,7 @@ const LandingPage: React.FC = () => {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...spring, delay: 0.12 }}
-            style={{ y: reduceMotion ? 0 : heroParallax }}
-            className="card p-6 flex flex-col"
+            className="card p-6 flex flex-col lg:sticky lg:top-24 lg:self-start"
           >
             {/* Sparkline first — the chart visually owns the top of the
                 card, then the portfolio label / value / change sit

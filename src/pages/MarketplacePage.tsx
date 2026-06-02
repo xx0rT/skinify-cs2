@@ -21,7 +21,7 @@ import { useCartStore } from '../store/cartStore';
 import { useWishlistStore } from '../store/wishlistStore';
 import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
-import { SkinCard } from '../components/ui/SkinCard';
+import { SkinCard, SkinCardSkeleton } from '../components/ui/SkinCard';
 import { weaponCategories } from '../data/weaponCategories';
 import { MOCK_MARKET_ITEMS } from '../data/mockMarketItems';
 import { spring, tap } from '../lib/motion';
@@ -783,17 +783,13 @@ const MarketplacePage: React.FC = () => {
                     : 'space-y-2'
                 }
               >
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={
-                      view === 'grid'
-                        ? 'rounded-3xl skel'
-                        : 'rounded-2xl skel h-24'
-                    }
-                    style={view === 'grid' ? { aspectRatio: '5 / 6.4' } : undefined}
-                  />
-                ))}
+                {Array.from({ length: 12 }).map((_, i) =>
+                  view === 'grid' ? (
+                    <SkinCardSkeleton key={i} />
+                  ) : (
+                    <div key={i} className="rounded-2xl skel h-24" />
+                  ),
+                )}
               </div>
             ) : filtered.length === 0 ? (
               <div className="card p-16 text-center">

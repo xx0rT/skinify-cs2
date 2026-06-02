@@ -50,13 +50,27 @@ interface Args {
 
 /* Deterministic per-id pseudo-random — keeps the placeholder values
    stable across reloads so users don't see different "fake" floats
-   each visit. Swapped out the instant CSFloat returns a real value. */
+   each visit. Swapped out the instant CSFloat returns a real value.
+   We run the hash through xorshift to spread the distribution; the
+   earlier simple-modulo version clustered short keys near zero. */
 function syntheticFloat(key: string): { float: number; paint_seed: number } {
-  let h = 0;
-  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
-  const u = Math.abs(h) >>> 0;
-  const float = Number(((u % 100000) / 100000).toFixed(6));
-  const paint_seed = u % 1000;
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  /* Two independent draws — xorshift the hash so float and paint_seed
+     aren't correlated to the same input bits. */
+  let r1 = h >>> 0;
+  r1 ^= r1 << 13; r1 >>>= 0;
+  r1 ^= r1 >>> 17; r1 >>>= 0;
+  r1 ^= r1 << 5;  r1 >>>= 0;
+  let r2 = (h * 2654435761) >>> 0;
+  r2 ^= r2 << 13; r2 >>>= 0;
+  r2 ^= r2 >>> 17; r2 >>>= 0;
+  r2 ^= r2 << 5;  r2 >>>= 0;
+  const float = Number((r1 / 4294967295).toFixed(6));
+  const paint_seed = r2 % 1000;
   return { float, paint_seed };
 }
 
@@ -119,7 +133,13 @@ export function useSkinFloat({
     const key =
       inspectLink ||
       (a && d ? `${s || m}:${a}:${d}` : null);
-    if (!key) return;
+    if (!key) {
+      /* Listing has no inspect_link and no s/a/d/m params — the float
+         endpoint has nothing to look up with, so we keep the synthetic
+         fallback set during initial state. Add an `inspect_link`
+         column to your listings table to enable real float lookups. */
+      return;
+    }
 
     if (memo.has(key)) {
       setData(memo.get(key)!);
