@@ -278,7 +278,10 @@ export const DepositModal: React.FC = () => {
           style={{ height: '100dvh' }}
         >
           {/* Top bar */}
-          <header className="shrink-0 flex items-center justify-between px-5 sm:px-8 h-14 sm:h-16 border-b border-line">
+          <header
+            className="shrink-0 flex items-center justify-between px-5 sm:px-8 h-14 sm:h-16 border-b"
+            style={{ borderColor: 'rgb(var(--accent) / 0.35)' }}
+          >
             <div>
               <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
                 Wallet
@@ -299,7 +302,10 @@ export const DepositModal: React.FC = () => {
           {/* Split pane — fills remaining height; only the left pane scrolls. */}
           <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1.05fr_1fr]">
             {/* LEFT — method list (the only scroll surface) */}
-            <section className="min-h-0 overflow-y-auto px-5 sm:px-8 py-5 lg:border-r lg:border-line">
+            <section
+              className="min-h-0 overflow-y-auto px-5 sm:px-8 py-5 lg:border-r"
+              style={{ borderColor: 'rgb(var(--accent) / 0.35)' }}
+            >
               <div className="max-w-[640px] mx-auto lg:mx-0">
                 <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
                   Payment method
@@ -380,7 +386,10 @@ export const DepositModal: React.FC = () => {
                       tone="accent"
                     />
                   )}
-                  <div className="h-px bg-line my-1" />
+                  <div
+                    className="h-px my-1"
+                    style={{ background: 'rgb(var(--accent) / 0.30)' }}
+                  />
                   <Row label="Credited" value={formatPrice(credited)} bold />
                 </div>
 
@@ -456,7 +465,10 @@ export const DepositModal: React.FC = () => {
                       tone="accent"
                     />
                   )}
-                  <div className="h-px bg-line my-1" />
+                  <div
+                    className="h-px my-1"
+                    style={{ background: 'rgb(var(--accent) / 0.30)' }}
+                  />
                   <Row label="Credited" value={formatPrice(credited)} bold />
                 </div>
                 <motion.button
@@ -509,7 +521,15 @@ const MethodCard: React.FC<{
       whileHover={{ y: -2 }}
       onClick={onSelect}
       aria-pressed={active}
-      className="group relative text-left rounded-2xl overflow-hidden bg-surface ring-1 ring-line/80 hover:ring-line focus:outline-none"
+      className="group relative text-left rounded-2xl overflow-hidden bg-surface focus:outline-none transition-shadow"
+      style={
+        !active
+          ? {
+              boxShadow:
+                'inset 0 0 0 1px rgb(var(--accent) / 0.35)',
+            }
+          : undefined
+      }
     >
       {/* Accent overlay — slides up from the bottom when this tile becomes
           the selected one. Animated via layoutId so the highlight
@@ -561,11 +581,12 @@ const MethodCard: React.FC<{
           {tile.chips.map((chip, i) => (
             <span
               key={`${chip.label}-${i}`}
-              className={`inline-flex items-center justify-center text-[10.5px] font-bold tracking-tight px-1.5 py-0.5 rounded-[6px] bg-subtle text-ink ring-1 ring-line/60 ${
+              className={`inline-flex items-center justify-center text-[10.5px] font-bold tracking-tight px-1.5 py-0.5 rounded-[6px] bg-subtle text-ink ${
                 chip.kind === 'mono'
                   ? 'font-mono text-[14px] leading-none w-7 h-7'
                   : ''
               }`}
+              style={{ boxShadow: 'inset 0 0 0 1px rgb(var(--accent) / 0.25)' }}
             >
               {chip.label}
             </span>
@@ -583,7 +604,10 @@ const MethodCard: React.FC<{
       </div>
 
       {/* Footer — fee + state label */}
-      <div className="relative px-3 py-1.5 border-t border-line/70 text-[10px] font-bold uppercase tracking-wider flex items-center justify-between text-ink-dim bg-subtle/40">
+      <div
+        className="relative px-3 py-1.5 border-t text-[10px] font-bold uppercase tracking-wider flex items-center justify-between text-ink-dim bg-subtle/40"
+        style={{ borderColor: 'rgb(var(--accent) / 0.30)' }}
+      >
         <span>{tile.fee ? `${tile.fee} fee` : 'No fee'}</span>
         <motion.span
           key={active ? 'selected' : 'select'}

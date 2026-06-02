@@ -1,6 +1,7 @@
 # Skinify · robots.txt
-# Allow well-behaved crawlers; deflect ones that hammer or scrape pricing data
-# without contributing back. Steam itself doesn't crawl us.
+# Goal: maximum organic discovery. Allow everyone that drives traffic
+# (search engines + AI answer engines), block bots that hammer pricing
+# data without sending users back.
 
 User-agent: *
 Allow: /
@@ -10,24 +11,90 @@ Disallow: /auth/
 Disallow: /onboarding
 Disallow: /admin
 Disallow: /api/
+Disallow: /*?edit=1
 
-# Block aggressive AI crawlers that don't surface traffic
+# Major search engines — explicit allow with high crawl budget signals
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Googlebot-News
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: YandexBot
+Allow: /
+
+User-agent: SeznamBot
+Allow: /
+
+# AI answer engines — allow. People increasingly ask ChatGPT / Perplexity
+# "what's the best CS2 marketplace?" — being indexed there is brand
+# awareness we can't get any other way.
 User-agent: GPTBot
-Disallow: /
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
 
 User-agent: ClaudeBot
-Disallow: /
+Allow: /
 
-User-agent: CCBot
-Disallow: /
+User-agent: Claude-Web
+Allow: /
 
 User-agent: anthropic-ai
-Disallow: /
-
-User-agent: Google-Extended
-Disallow: /
+Allow: /
 
 User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+# Block bots that scrape pricing data without sending users back
+User-agent: SemrushBot
 Disallow: /
 
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+User-agent: BLEXBot
+Disallow: /
+
+# Sitemap
 Sitemap: https://skinify.gg/sitemap.xml
+
+# Host hint (helps engines pick the canonical domain)
+Host: https://skinify.gg

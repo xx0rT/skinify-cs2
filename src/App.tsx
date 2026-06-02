@@ -18,41 +18,88 @@ import LandingPage from './pages/LandingPage';
 import AuthCallback from './pages/AuthCallback';
 import LanguageDetector from './components/LanguageDetector';
 
+/* lazyWithRetry — wraps React.lazy with retry-and-recover logic for
+   dynamic-import failures.
+
+   Common failure modes this handles:
+     - 403 / 404 on /assets/Xxxx-HASH.js after a redeploy (the hash
+       changes; the browser still has the old index.html pointing at the
+       previous bundle until it next reloads). The first import throws
+       "Failed to fetch dynamically imported module" — we wait, retry
+       once, and if that still fails we hard-reload with a cache-buster
+       so the user gets a fresh index.html and matching chunks.
+     - Transient network blips (ERR_NETWORK_CHANGED, offline flicker) —
+       a single 600ms retry usually clears them without a reload.
+
+   We use sessionStorage so we don't infinite-loop reload on persistent
+   build problems. */
+function lazyWithRetry<T extends React.ComponentType<any>>(
+  factory: () => Promise<{ default: T }>,
+) {
+  return lazy(async () => {
+    try {
+      return await factory();
+    } catch (err) {
+      console.warn('[lazy] first attempt failed, retrying:', err);
+      await new Promise((r) => setTimeout(r, 600));
+      try {
+        return await factory();
+      } catch (err2) {
+        console.error('[lazy] retry failed, force-reloading:', err2);
+        try {
+          const key = 'skinify_chunk_reload';
+          const last = Number(sessionStorage.getItem(key) || '0');
+          /* Only auto-reload if we haven't reloaded for this reason in
+             the last 30s. Prevents reload loops if the server is truly
+             returning 403 for the chunk. */
+          if (Date.now() - last > 30_000) {
+            sessionStorage.setItem(key, String(Date.now()));
+            window.location.reload();
+          }
+        } catch {
+          /* sessionStorage may be unavailable — fall through to throw. */
+        }
+        throw err2;
+      }
+    }
+  });
+}
+
 // Lazy load less critical pages.
 // Note: we used to have separate Mobile* pages and route between them via
 // useMobileDetection(). Removed in favor of single responsive pages — every
 // page below is now expected to lay out cleanly from ~360px up to 1480px+.
-const SupportPage = lazy(() => import('./pages/SupportPage'));
-const SupportTicketsPage = lazy(() => import('./pages/SupportTicketsPage'));
-const ProfilePage = lazy(() => import('./pages/ProfilePage'));
-const CartPage = lazy(() => import('./pages/CartPage'));
-const ContactPage = lazy(() => import('./pages/ContactPage'));
-const TradingGuidePage = lazy(() => import('./pages/TradingGuidePage'));
-const AboutPage = lazy(() => import('./pages/AboutPage'));
-const TermsPage = lazy(() => import('./pages/TermsPage'));
-const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
-const FAQPage = lazy(() => import('./pages/FAQPage'));
-const SecurityTipsPage = lazy(() => import('./pages/SecurityTipsPage'));
-const AdminPage = lazy(() => import('./pages/AdminPage'));
-const AdminPanelNew = lazy(() => import('./pages/AdminPanelNew'));
-const ItemDetailPage = lazy(() => import('./pages/ItemDetailPage'));
-const WeaponCategoryPage = lazy(() => import('./pages/WeaponCategoryPage'));
-const WeaponCategoriesIndexPage = lazy(() => import('./pages/WeaponCategoriesIndexPage'));
-const UserProfilePage = lazy(() => import('./pages/UserProfilePage'));
-const MarketplacePage = lazy(() => import('./pages/MarketplacePage'));
-const BonusesPage = lazy(() => import('./pages/BonusesPage'));
-const VipPage = lazy(() => import('./pages/VipPage'));
-const RewardsPage = lazy(() => import('./pages/RewardsPage'));
-const ReferralPage = lazy(() => import('./pages/ReferralPage'));
-const RefundPolicyPage = lazy(() => import('./pages/RefundPolicyPage'));
-const DisputeResolutionPage = lazy(() => import('./pages/DisputeResolutionPage'));
-const UserShopPage = lazy(() => import('./pages/UserShopPage'));
-const CSSPresetsPage = lazy(() => import('./pages/CSSPresetsPage'));
-const DeveloperDocsPage = lazy(() => import('./pages/DeveloperDocsPage'));
-const ChangelogPage = lazy(() => import('./pages/ChangelogPage'));
-const BlogDetailPage = lazy(() => import('./pages/BlogDetailPage'));
-const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
-const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
+const SupportPage = lazyWithRetry(() => import('./pages/SupportPage'));
+const SupportTicketsPage = lazyWithRetry(() => import('./pages/SupportTicketsPage'));
+const ProfilePage = lazyWithRetry(() => import('./pages/ProfilePage'));
+const CartPage = lazyWithRetry(() => import('./pages/CartPage'));
+const ContactPage = lazyWithRetry(() => import('./pages/ContactPage'));
+const TradingGuidePage = lazyWithRetry(() => import('./pages/TradingGuidePage'));
+const AboutPage = lazyWithRetry(() => import('./pages/AboutPage'));
+const TermsPage = lazyWithRetry(() => import('./pages/TermsPage'));
+const PrivacyPage = lazyWithRetry(() => import('./pages/PrivacyPage'));
+const FAQPage = lazyWithRetry(() => import('./pages/FAQPage'));
+const SecurityTipsPage = lazyWithRetry(() => import('./pages/SecurityTipsPage'));
+const AdminPage = lazyWithRetry(() => import('./pages/AdminPage'));
+const AdminPanelNew = lazyWithRetry(() => import('./pages/AdminPanelNew'));
+const ItemDetailPage = lazyWithRetry(() => import('./pages/ItemDetailPage'));
+const WeaponCategoryPage = lazyWithRetry(() => import('./pages/WeaponCategoryPage'));
+const WeaponCategoriesIndexPage = lazyWithRetry(() => import('./pages/WeaponCategoriesIndexPage'));
+const UserProfilePage = lazyWithRetry(() => import('./pages/UserProfilePage'));
+const MarketplacePage = lazyWithRetry(() => import('./pages/MarketplacePage'));
+const BonusesPage = lazyWithRetry(() => import('./pages/BonusesPage'));
+const VipPage = lazyWithRetry(() => import('./pages/VipPage'));
+const RewardsPage = lazyWithRetry(() => import('./pages/RewardsPage'));
+const ReferralPage = lazyWithRetry(() => import('./pages/ReferralPage'));
+const RefundPolicyPage = lazyWithRetry(() => import('./pages/RefundPolicyPage'));
+const DisputeResolutionPage = lazyWithRetry(() => import('./pages/DisputeResolutionPage'));
+const UserShopPage = lazyWithRetry(() => import('./pages/UserShopPage'));
+const CSSPresetsPage = lazyWithRetry(() => import('./pages/CSSPresetsPage'));
+const DeveloperDocsPage = lazyWithRetry(() => import('./pages/DeveloperDocsPage'));
+const ChangelogPage = lazyWithRetry(() => import('./pages/ChangelogPage'));
+const BlogDetailPage = lazyWithRetry(() => import('./pages/BlogDetailPage'));
+const NotFoundPage = lazyWithRetry(() => import('./pages/NotFoundPage'));
+const OnboardingPage = lazyWithRetry(() => import('./pages/OnboardingPage'));
 
 // All supported language codes for routing
 const LANG_PATTERN = "en|es|cs|de|ru|fr|it|pt|pl|tr|ar|zh|ja|ko|nl|sv|no|da|fi|hu|ro|uk|el|th|vi|id|hi";

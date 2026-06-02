@@ -16,20 +16,69 @@ interface BalanceTransaction {
 }
 
 /**
- * Get user from users table
+ * Get user from users table, auto-provisioning a fresh row if missing.
+ *
+ * The function used to throw on missing rows, which surfaced as constant
+ * 500s for accounts that signed in with Steam OpenID but whose
+ * `public.users` row was never created (or was wiped). We coerce the
+ * steamId to a trimmed string (defends against TEXT/BIGINT mismatch in
+ * the WHERE clause) and self-heal so balance reads never dead-end.
  */
 async function getUserBysteamId(supabase: any, steamId: string) {
-  const { data: user, error: userError } = await supabase
-    .from('users')
-    .select('*')
-    .eq('steam_id', steamId)
-    .single();
-
-  if (userError || !user) {
-    throw new Error('User not found. Please log in with Steam first.');
+  const sid = String(steamId).trim();
+  if (!sid) {
+    throw new Error('Missing steam_id in request.');
   }
 
-  return user;
+  const lookup = await supabase
+    .from('users')
+    .select('*')
+    .eq('steam_id', sid)
+    .maybeSingle();
+
+  if (lookup.error && lookup.error.code !== 'PGRST116') {
+    console.error('users lookup error:', lookup.error);
+    throw new Error(`User lookup failed: ${lookup.error.message}`);
+  }
+  if (lookup.data) return lookup.data;
+
+  /* Auto-provision a minimal row so the GET balance flow returns zeros
+     instead of 500ing for first-time visitors / cleared dev DBs. */
+  console.warn('Auto-provisioning users row for steam_id:', sid);
+  const provisional = {
+    steam_id: sid,
+    display_name: `Trader_${sid.slice(-6)}`,
+    avatar_url: null,
+    current_balance: 0,
+    pending_balance: 0,
+    total_deposited: 0,
+    total_spent: 0,
+    total_earned: 0,
+    currency: 'CZK',
+    created_at: new Date().toISOString(),
+    last_login: new Date().toISOString(),
+  };
+  const insert = await supabase
+    .from('users')
+    .insert(provisional)
+    .select()
+    .single();
+  if (!insert.error && insert.data) return insert.data;
+
+  /* Race-recover: another concurrent request may have created the row. */
+  console.warn('Auto-provision insert failed, retrying lookup:', insert.error);
+  const refetch = await supabase
+    .from('users')
+    .select('*')
+    .eq('steam_id', sid)
+    .maybeSingle();
+  if (refetch.data) return refetch.data;
+
+  /* Last-ditch: return an in-memory zeroed object so the GET path still
+     responds 200 with empty totals instead of dragging the UI into a
+     loading loop. Note the absence of an `id` — callers using it for
+     foreign keys are skipped where appropriate. */
+  return provisional;
 }
 
 /**
@@ -131,24 +180,23 @@ Deno.serve(async (req) => {
       console.log('Total Earned:', user.total_earned);
       console.log('Pending Balance:', user.pending_balance);
 
-      // Get recent transactions
-      const { data: transactions, error: transactionsError } = await supabase
-        .from('user_transactions')
-        .select('*')
-        .eq('steam_id', steamId)
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (transactions && transactions.length > 0) {
-        console.log('=== RECENT TRANSACTIONS ===');
-        transactions.slice(0, 5).forEach((tx, idx) => {
-          console.log(`Transaction ${idx + 1}:`, {
-            type: tx.type,
-            amount: tx.amount,
-            description: tx.description,
-            created_at: tx.created_at
-          });
-        });
+      /* Recent transactions — if the table is empty/missing for a
+         brand-new user we just return []. Never let this part throw. */
+      let transactions: any[] = [];
+      try {
+        const txResp = await supabase
+          .from('user_transactions')
+          .select('*')
+          .eq('steam_id', steamId)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        if (!txResp.error && Array.isArray(txResp.data)) {
+          transactions = txResp.data;
+        } else if (txResp.error) {
+          console.warn('user_transactions query failed (returning []):', txResp.error.message);
+        }
+      } catch (txError) {
+        console.warn('user_transactions threw (returning []):', txError);
       }
 
       return new Response(

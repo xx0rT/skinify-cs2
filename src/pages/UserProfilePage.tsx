@@ -260,7 +260,7 @@ const UserProfilePage: React.FC = () => {
         <main className="max-w-[1280px] mx-auto px-4 sm:px-6 pt-4 pb-16 space-y-4">
           <div className="skel h-9 w-32" />
           <div className="skel h-44" />
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-2.5">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="skel" style={{ aspectRatio: '5 / 6.4' }} />
             ))}
@@ -523,7 +523,7 @@ const UserProfilePage: React.FC = () => {
                       hidden: {},
                       shown: { transition: { staggerChildren: 0.03 } },
                     }}
-                    className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"
+                    className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-2.5"
                   >
                     <AnimatePresence mode="popLayout">
                       {filtered.map((l) => (

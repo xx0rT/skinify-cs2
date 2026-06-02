@@ -474,7 +474,7 @@ const LandingPage: React.FC = () => {
 
           {/* grid */}
           {itemsLoading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-2.5">
               {Array.from({ length: 10 }).map((_, i) => (
                 <SkinCardSkeleton key={i} />
               ))}
@@ -492,7 +492,7 @@ const LandingPage: React.FC = () => {
               whileInView="shown"
               viewport={{ once: true, margin: '0px 0px -120px 0px' }}
               key={activeCat /* restart stagger on category switch */}
-              className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
+              className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-2.5"
             >
               {visibleItems.map((item: any) => (
                 <motion.div key={item.id} variants={staggerChild} whileHover={{ y: -4 }} transition={spring}>

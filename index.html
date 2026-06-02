@@ -23,20 +23,21 @@
     <link rel="preconnect" href="https://community.cloudflare.steamstatic.com" crossorigin />
     <meta http-equiv="x-dns-prefetch-control" content="on" />
 
-    <!-- TITLE: head term first, value prop second, brand last. Mirrors
-         what Google bolds in SERPs. Kept under 60 chars to avoid SERP
-         truncation. -->
-    <title>CS2 Marketplace · Buy & Sell CS2 Skins · 0% Fees · Skinify</title>
+    <!-- TITLE: brand FIRST so it ranks for "skinify" queries, then the
+         differentiator, then the long-tail head term. Mirrors what
+         Google bolds in SERPs and what users type to find us by name.
+         Kept under 60 chars to avoid SERP truncation. -->
+    <title>Skinify — CS2 Marketplace · 0% Buyer Fees · Escrow</title>
 
-    <!-- DESCRIPTION: 158 chars, leads with intent words ("buy", "sell",
-         "CS2 skins"), differentiator ("0% buyer fees, escrow"), trust
-         signal ("instant Steam delivery"). No emojis — they cut CTR in
-         Google SERPs even when they survive truncation. -->
-    <meta name="description" content="Buy and sell CS2 skins safely on Skinify. 0% buyer fees, escrow-protected trades, instant Steam delivery. AK-47, AWP, Karambit, knives, gloves & cases." />
+    <!-- DESCRIPTION: brand name in the FIRST four words so Google
+         features it for brand queries, then intent + differentiator.
+         158 chars, no emojis (they hurt CTR on Google SERPs). -->
+    <meta name="description" content="Skinify is the safe CS2 marketplace to buy and sell skins. 0% buyer fees, escrow-protected trades, instant Steam delivery — AK-47, AWP, Karambit & more." />
 
     <!-- Google ignores keywords meta, but Yandex + Seznam (CZ) still use
-         it. Kept tight and intent-aligned for those engines. -->
-    <meta name="keywords" content="cs2 marketplace, cs2 skins, buy cs2 skins, sell cs2 skins, counter-strike 2 marketplace, csgo skins, ak-47 skins, awp skins, karambit, m9 bayonet, sport gloves, cs2 trading, steam marketplace alternative, 0 fee cs2 marketplace, p2p cs2 trading" />
+         it. Kept tight and intent-aligned for those engines, with brand
+         variants up front for name-recall queries. -->
+    <meta name="keywords" content="skinify, skinify cs2, skinify marketplace, skinify gg, cs2 marketplace, cs2 skins, buy cs2 skins, sell cs2 skins, counter-strike 2 marketplace, csgo skins, ak-47 skins, awp skins, karambit, m9 bayonet, sport gloves, cs2 trading, steam marketplace alternative, 0 fee cs2 marketplace, p2p cs2 trading" />
     <meta name="author" content="Skinify" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -51,8 +52,8 @@
     <!-- Open Graph / Facebook (deduped) -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Skinify" />
-    <meta property="og:title" content="CS2 Marketplace · Buy & Sell CS2 Skins · 0% Fees · Skinify" />
-    <meta property="og:description" content="Buy and sell CS2 skins safely on Skinify. 0% buyer fees, escrow-protected trades, instant Steam delivery." />
+    <meta property="og:title" content="Skinify — CS2 Marketplace · 0% Buyer Fees · Escrow" />
+    <meta property="og:description" content="Skinify is the safe CS2 marketplace. 0% buyer fees, escrow-protected trades, instant Steam delivery — AK-47, AWP, Karambit & more." />
     <meta property="og:image" content="https://skinify.gg/og-cover.png" />
     <meta property="og:image:secure_url" content="https://skinify.gg/og-cover.png" />
     <meta property="og:image:type" content="image/png" />
@@ -67,6 +68,8 @@
          hreflang to serve the right localised page when one ranks. -->
     <link rel="canonical" href="https://skinify.gg/" />
     <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="alternate" type="application/rss+xml" title="Skinify Changelog" href="https://skinify.gg/changelog.xml" />
     <link rel="alternate" hrefLang="en" href="https://skinify.gg/" />
     <link rel="alternate" hrefLang="cs" href="https://skinify.gg/cs" />
     <link rel="alternate" hrefLang="x-default" href="https://skinify.gg/" />
@@ -75,8 +78,8 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@SkinifyCS2" />
     <meta name="twitter:creator" content="@SkinifyCS2" />
-    <meta name="twitter:title" content="CS2 Marketplace · Buy & Sell CS2 Skins · 0% Fees" />
-    <meta name="twitter:description" content="P2P CS2 marketplace. 0% buyer fees, escrow-protected trades, instant Steam delivery." />
+    <meta name="twitter:title" content="Skinify — CS2 Marketplace · 0% Buyer Fees" />
+    <meta name="twitter:description" content="Skinify is the safe P2P CS2 marketplace. 0% buyer fees, escrow trades, instant Steam delivery." />
     <meta name="twitter:image" content="https://skinify.gg/og-cover.png" />
     <meta name="twitter:image:alt" content="Skinify — CS2 skin marketplace" />
 
@@ -116,7 +119,11 @@
           "@type": "Organization",
           "@id": "https://skinify.gg/#org",
           "name": "Skinify",
+          "alternateName": ["Skinify CS2", "Skinify Marketplace", "skinify.gg"],
           "legalName": "LosSelloutos s.r.o.",
+          "slogan": "The CS2 marketplace with 0% buyer fees",
+          "description": "Skinify is a peer-to-peer Counter-Strike 2 skin marketplace where players buy and sell CS2 items with zero buyer fees and escrow-protected trades.",
+          "knowsAbout": ["Counter-Strike 2", "CS2 skins", "CS:GO skins", "Karambit", "AK-47", "AWP", "Steam trading"],
           "url": "https://skinify.gg/",
           "logo": {
             "@type": "ImageObject",
@@ -248,7 +255,75 @@
     <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      ─── Crawler-visible hero ──────────────────────────────────────────
+      This block ships in the raw HTML response. Googlebot and other
+      crawlers (including ones that don't render JS reliably) see the
+      brand name, value prop, and category links the moment they fetch
+      the page — without waiting for the React bundle. React replaces
+      the contents of #root after hydration so users never see this.
+
+      Why this exists:
+        - Brand queries ("skinify") need our brand to appear in
+          crawl-visible HTML, otherwise Google has nothing to anchor
+          the brand → domain association.
+        - The body links into our most important hub pages so the
+          first-crawl pass discovers them immediately.
+        - The semantic H1/H2 give topical signals before JS executes.
+    -->
+    <div id="root">
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Lexend, sans-serif; max-width: 900px; margin: 0 auto; padding: 32px 20px; color: #0f1018;">
+        <header>
+          <h1 style="font-size: 28px; margin: 0 0 8px; font-weight: 800; letter-spacing: -0.02em;">
+            Skinify — CS2 Marketplace with 0% Buyer Fees
+          </h1>
+          <p style="font-size: 16px; line-height: 1.5; color: #46485a; margin: 0 0 24px;">
+            Skinify is a peer-to-peer Counter-Strike 2 marketplace where you
+            buy and sell CS2 skins directly with other players. Every trade
+            is escrow-protected, fees are zero on the buyer side, and items
+            deliver to your Steam inventory within minutes.
+          </p>
+        </header>
+
+        <section>
+          <h2 style="font-size: 18px; margin: 24px 0 8px; font-weight: 700;">
+            Browse the CS2 marketplace
+          </h2>
+          <ul style="padding-left: 18px; line-height: 1.7; color: #46485a;">
+            <li><a href="/marketplace" style="color: #8B5CF6; text-decoration: none;">Live marketplace</a> — every active CS2 listing</li>
+            <li><a href="/weapons/Rifles/AK-47" style="color: #8B5CF6; text-decoration: none;">AK-47 skins</a>, <a href="/weapons/Rifles/AWP" style="color: #8B5CF6; text-decoration: none;">AWP skins</a>, <a href="/weapons/Rifles/M4A4" style="color: #8B5CF6; text-decoration: none;">M4A4</a>, <a href="/weapons/Rifles/M4A1-S" style="color: #8B5CF6; text-decoration: none;">M4A1-S</a></li>
+            <li><a href="/weapons/Pistols/Desert%20Eagle" style="color: #8B5CF6; text-decoration: none;">Desert Eagle</a>, <a href="/weapons/Pistols/USP-S" style="color: #8B5CF6; text-decoration: none;">USP-S</a>, <a href="/weapons/Pistols/Glock-18" style="color: #8B5CF6; text-decoration: none;">Glock-18</a></li>
+            <li><a href="/weapons/Knives/Karambit" style="color: #8B5CF6; text-decoration: none;">Karambit</a>, <a href="/weapons/Knives/M9%20Bayonet" style="color: #8B5CF6; text-decoration: none;">M9 Bayonet</a>, <a href="/weapons/Knives/Butterfly%20Knife" style="color: #8B5CF6; text-decoration: none;">Butterfly Knife</a></li>
+            <li><a href="/weapons/Gloves/Sport%20Gloves" style="color: #8B5CF6; text-decoration: none;">Sport Gloves</a>, <a href="/weapons/Gloves/Specialist%20Gloves" style="color: #8B5CF6; text-decoration: none;">Specialist Gloves</a></li>
+          </ul>
+
+          <h2 style="font-size: 18px; margin: 24px 0 8px; font-weight: 700;">
+            How Skinify works
+          </h2>
+          <p style="font-size: 15px; line-height: 1.6; color: #46485a; margin: 0 0 12px;">
+            Skinify charges zero buyer fees and a flat 2% seller fee — compared
+            to the Steam Market's 15% cut paid in non-cashable wallet credit.
+            Trades are held in escrow for 8 days to cover Steam's 7-day
+            trade-back window plus a one-day safety margin.
+          </p>
+          <ul style="padding-left: 18px; line-height: 1.7; color: #46485a;">
+            <li><a href="/faq" style="color: #8B5CF6; text-decoration: none;">FAQ</a></li>
+            <li><a href="/trading-guide" style="color: #8B5CF6; text-decoration: none;">Full trading guide</a></li>
+            <li><a href="/dispute-resolution" style="color: #8B5CF6; text-decoration: none;">How escrow & dispute resolution work</a></li>
+            <li><a href="/bonuses" style="color: #8B5CF6; text-decoration: none;">Sign-up bonus</a> — 10% on your first deposit</li>
+            <li><a href="/vip" style="color: #8B5CF6; text-decoration: none;">VIP membership</a> — reduced seller fees</li>
+          </ul>
+        </section>
+
+        <noscript>
+          <p style="margin-top: 24px; padding: 12px 16px; background: #fffbeb; border-radius: 8px; color: #92400e;">
+            Skinify needs JavaScript to load the interactive marketplace.
+            Please enable it in your browser to browse listings, top up your
+            balance and trade CS2 skins.
+          </p>
+        </noscript>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
