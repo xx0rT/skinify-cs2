@@ -5,8 +5,11 @@ import {
   Twitter,
   Github,
   MessageCircle,
+  Globe,
+  CircleDollarSign,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useCurrencyStore, currencies as currencyList } from '../store/currencyStore';
 
 const paymentMethods = [
   'Visa', 'MasterCard', 'Paypal', 'Apple', 'GoogleWallet',
@@ -361,6 +364,8 @@ const LANGUAGES: Array<{ code: string; label: string }> = [
 ];
 
 const PopularTagsBar: React.FC = () => {
+  const { selectedCurrency, setSelectedCurrency } = useCurrencyStore();
+
   const setLanguage = (code: string) => {
     /* Drive the existing Google Translate widget. The cookie tells GT
        to render the page in the picked locale on next paint. */
@@ -373,6 +378,19 @@ const PopularTagsBar: React.FC = () => {
     window.location.reload();
   };
 
+  const onCurrency = (code: string) => {
+    const next = currencyList.find((c) => c.code === code);
+    if (next) setSelectedCurrency(next);
+  };
+
+  /* Read the active language out of the googtrans cookie so the
+     selector reflects the user's last choice on hard reload. */
+  const activeLang = (() => {
+    if (typeof document === 'undefined') return 'en';
+    const m = document.cookie.match(/googtrans=\/en\/([a-zA-Z-]+)/);
+    return m ? m[1] : 'en';
+  })();
+
   return (
     <section className="card p-6 md:p-8 flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -382,21 +400,41 @@ const PopularTagsBar: React.FC = () => {
             What people are looking for
           </h2>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-[11px] font-bold uppercase tracking-wider text-ink-dim">
-            Language
-          </label>
-          <select
-            onChange={(e) => setLanguage(e.target.value)}
-            defaultValue="en"
-            className="h-9 px-3 rounded-full bg-subtle text-ink text-[12.5px] font-semibold outline-none focus:ring-2 focus:ring-accent/40 cursor-pointer"
-          >
-            {LANGUAGES.map((l) => (
-              <option key={l.code} value={l.code}>
-                {l.label}
-              </option>
-            ))}
-          </select>
+
+        {/* Combined language + currency switcher. Single rounded pill,
+            two native <select>s separated by a hairline. Keeps the
+            footer footprint small while letting users tune both knobs. */}
+        <div className="inline-flex items-stretch h-10 rounded-full bg-subtle overflow-hidden ring-1 ring-line">
+          <div className="flex items-center gap-1.5 pl-3.5 pr-2 border-r border-line">
+            <Globe size={12} strokeWidth={2.4} className="text-ink-muted" />
+            <select
+              onChange={(e) => setLanguage(e.target.value)}
+              defaultValue={activeLang}
+              aria-label="Language"
+              className="bg-transparent outline-none text-ink text-[12.5px] font-semibold cursor-pointer pr-1"
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-1.5 pl-3 pr-3.5">
+            <CircleDollarSign size={12} strokeWidth={2.4} className="text-ink-muted" />
+            <select
+              onChange={(e) => onCurrency(e.target.value)}
+              value={selectedCurrency.code}
+              aria-label="Currency"
+              className="bg-transparent outline-none text-ink text-[12.5px] font-semibold cursor-pointer pr-1"
+            >
+              {currencyList.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} · {c.symbol}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 

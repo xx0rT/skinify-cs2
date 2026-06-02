@@ -100,6 +100,12 @@ const MarketplacePage: React.FC = () => {
     stattrak: false,
     souvenir: false,
   });
+  /* Float / paint-seed / pattern advanced filters. Float is a range
+     slider (0.00–1.00); seed + pattern are exact-match number inputs.
+     Empty string means "no filter on this field". */
+  const [floatRange, setFloatRange] = useState<[number, number]>([0, 1]);
+  const [paintSeedQuery, setPaintSeedQuery] = useState('');
+  const [patternQuery, setPatternQuery] = useState('');
 
   useEffect(() => {
     if (user?.steamId) fetchWishlist(user.steamId);
@@ -159,6 +165,31 @@ const MarketplacePage: React.FC = () => {
       if (special.stattrak && it.special !== 'stattrak') return false;
       if (special.souvenir && it.special !== 'souvenir') return false;
 
+      /* Float range — apply only when narrower than 0..1 */
+      if (floatRange[0] > 0 || floatRange[1] < 1) {
+        const f = it.float != null ? Number(it.float) : null;
+        if (f == null || !Number.isFinite(f)) return false;
+        if (f < floatRange[0] || f > floatRange[1]) return false;
+      }
+
+      /* Paint seed exact match */
+      if (paintSeedQuery.trim()) {
+        const want = paintSeedQuery.trim();
+        const have = String(
+          (it as any).paintSeed ?? (it as any).paint_seed ?? '',
+        );
+        if (have !== want) return false;
+      }
+
+      /* Pattern template exact match */
+      if (patternQuery.trim()) {
+        const want = patternQuery.trim();
+        const have = String(
+          (it as any).patternTemplate ?? (it as any).pattern_template ?? '',
+        );
+        if (have !== want) return false;
+      }
+
       return true;
     });
 
@@ -182,7 +213,7 @@ const MarketplacePage: React.FC = () => {
         );
     }
     return out;
-  }, [items, searchQuery, priceRange, activeTypes, activeRarities, activeExteriors, special, sort]);
+  }, [items, searchQuery, priceRange, activeTypes, activeRarities, activeExteriors, special, sort, floatRange, paintSeedQuery, patternQuery]);
 
   const activeFilterCount =
     (searchQuery ? 1 : 0) +
@@ -191,7 +222,10 @@ const MarketplacePage: React.FC = () => {
     activeExteriors.size +
     (special.stattrak ? 1 : 0) +
     (special.souvenir ? 1 : 0) +
-    (priceRange[0] > 0 || priceRange[1] < maxPrice ? 1 : 0);
+    (priceRange[0] > 0 || priceRange[1] < maxPrice ? 1 : 0) +
+    (floatRange[0] > 0 || floatRange[1] < 1 ? 1 : 0) +
+    (paintSeedQuery.trim() ? 1 : 0) +
+    (patternQuery.trim() ? 1 : 0);
 
   const handleAddCart = useCallback(
     (item: any) => {
@@ -243,6 +277,9 @@ const MarketplacePage: React.FC = () => {
     setActiveRarities(new Set());
     setActiveExteriors(new Set());
     setSpecial({ stattrak: false, souvenir: false });
+    setFloatRange([0, 1]);
+    setPaintSeedQuery('');
+    setPatternQuery('');
   };
 
   /* Per-page SEO. Emits CollectionPage + BreadcrumbList + ItemList of
@@ -603,6 +640,104 @@ const MarketplacePage: React.FC = () => {
                       );
                     })}
                   </div>
+                </FilterSection>
+
+                <FilterSection title="Float (exterior wear)">
+                  <div className="px-1 pb-1">
+                    {/* Dual-thumb slider — two stacked range inputs share a
+                        track so users can clamp both min and max. The
+                        active range is rendered as an accent strip
+                        underneath via inline CSS. */}
+                    <div className="relative h-6 mb-2">
+                      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1 bg-subtle rounded-full" />
+                      <div
+                        className="absolute top-1/2 -translate-y-1/2 h-1 bg-accent rounded-full"
+                        style={{
+                          left: `${floatRange[0] * 100}%`,
+                          right: `${(1 - floatRange[1]) * 100}%`,
+                        }}
+                      />
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.001}
+                        value={floatRange[0]}
+                        onChange={(e) => {
+                          const v = Math.min(Number(e.target.value), floatRange[1] - 0.001);
+                          setFloatRange([v, floatRange[1]]);
+                        }}
+                        className="absolute inset-0 w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:shadow [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-accent [&::-moz-range-thumb]:border-0"
+                      />
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.001}
+                        value={floatRange[1]}
+                        onChange={(e) => {
+                          const v = Math.max(Number(e.target.value), floatRange[0] + 0.001);
+                          setFloatRange([floatRange[0], v]);
+                        }}
+                        className="absolute inset-0 w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:shadow [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-accent [&::-moz-range-thumb]:border-0"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        max={1}
+                        step={0.0001}
+                        value={floatRange[0]}
+                        onChange={(e) =>
+                          setFloatRange([
+                            Math.max(0, Math.min(Number(e.target.value) || 0, floatRange[1] - 0.001)),
+                            floatRange[1],
+                          ])
+                        }
+                        className="h-9 px-2.5 rounded-xl bg-subtle text-ink text-[12px] font-mono tabular-nums outline-none focus:ring-2 focus:ring-accent/40 min-w-0"
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        max={1}
+                        step={0.0001}
+                        value={floatRange[1]}
+                        onChange={(e) =>
+                          setFloatRange([
+                            floatRange[0],
+                            Math.min(1, Math.max(Number(e.target.value) || 0, floatRange[0] + 0.001)),
+                          ])
+                        }
+                        className="h-9 px-2.5 rounded-xl bg-subtle text-ink text-[12px] font-mono tabular-nums outline-none focus:ring-2 focus:ring-accent/40 min-w-0"
+                      />
+                    </div>
+                    <div className="text-[10.5px] text-ink-dim font-medium mt-1.5 tabular-nums">
+                      {floatRange[0].toFixed(4)} – {floatRange[1].toFixed(4)}
+                    </div>
+                  </div>
+                </FilterSection>
+
+                <FilterSection title="Paint seed">
+                  <input
+                    type="number"
+                    min={0}
+                    placeholder="e.g. 661"
+                    value={paintSeedQuery}
+                    onChange={(e) => setPaintSeedQuery(e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl bg-subtle text-ink text-[13px] font-mono tabular-nums outline-none focus:ring-2 focus:ring-accent/40"
+                  />
+                </FilterSection>
+
+                <FilterSection title="Pattern template">
+                  <input
+                    type="number"
+                    min={0}
+                    placeholder="e.g. 268"
+                    value={patternQuery}
+                    onChange={(e) => setPatternQuery(e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl bg-subtle text-ink text-[13px] font-mono tabular-nums outline-none focus:ring-2 focus:ring-accent/40"
+                  />
                 </FilterSection>
 
                 <FilterSection title="Special">

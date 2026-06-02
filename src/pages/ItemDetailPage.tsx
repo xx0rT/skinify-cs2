@@ -44,10 +44,10 @@ import { spring, tap } from '../lib/motion';
 import { openDepositModal } from '../components/DepositModal';
 import {
   ItemActionsRow,
-  RatingWidget,
   SalesHistoryCard,
   TagsRow,
   StickersRow,
+  SellerRatingWidget,
   SimilarItemsRow,
   buildItemTags,
 } from '../components/item/ItemDetailExtras';
@@ -620,47 +620,9 @@ const ItemDetailPage: React.FC = () => {
               onToggleFollow={toggleFollow}
             />
 
-            {/* Tags row */}
-            <TagsRow tags={buildItemTags(item)} />
-
-            {/* Sales history chart */}
-            <SalesHistoryCard
-              currentPrice={Number(item.price || 0)}
-              itemId={String(item.id)}
-              formatPrice={formatPrice}
-            />
-
-            {/* User rating */}
-            <RatingWidget itemId={String(item.id)} />
-
-            {/* Recommended stickers slider */}
-            <StickersRow
-              stickers={
-                Array.isArray(item.recommended_stickers) && item.recommended_stickers.length > 0
-                  ? item.recommended_stickers
-                  : [
-                      { name: 'Howling Dawn', price: 250 },
-                      { name: 'Crown (Foil)', price: 1200 },
-                      { name: 'Katowice 2014 Titan', price: 4200 },
-                      { name: 'iBUYPOWER (Holo)', price: 8500 },
-                      { name: 'Reason Gaming', price: 95 },
-                      { name: 'Cloud9 (Holo) Boston 2018', price: 320 },
-                    ]
-              }
-              formatPrice={formatPrice}
-            />
-
-            {/* Similar items slider (visual) — separate from the
-                table view below. */}
-            {related.length > 0 && (
-              <SimilarItemsRow
-                items={related}
-                onView={(id) => navigate(`/item/${id}`)}
-                formatPrice={formatPrice}
-              />
-            )}
-
-            {/* Tab bar */}
+            {/* Tab bar — Details / Stickers / Trust come FIRST so the
+                main column reads as "facts about this listing" before
+                any auxiliary sections (tags, sales chart, similar). */}
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -735,13 +697,41 @@ const ItemDetailPage: React.FC = () => {
               </motion.div>
             </AnimatePresence>
 
-            {/* Similar Offers — table layout */}
+            {/* Tags row */}
+            <TagsRow tags={buildItemTags(item)} />
+
+            {/* Sales history chart */}
+            <SalesHistoryCard
+              currentPrice={Number(item.price || 0)}
+              itemId={String(item.id)}
+              formatPrice={formatPrice}
+            />
+
+            {/* Recommended stickers slider */}
+            <StickersRow
+              stickers={
+                Array.isArray(item.recommended_stickers) && item.recommended_stickers.length > 0
+                  ? item.recommended_stickers
+                  : [
+                      { name: 'Howling Dawn', price: 250 },
+                      { name: 'Crown (Foil)', price: 1200 },
+                      { name: 'Katowice 2014 Titan', price: 4200 },
+                      { name: 'iBUYPOWER (Holo)', price: 8500 },
+                      { name: 'Reason Gaming', price: 95 },
+                      { name: 'Cloud9 (Holo) Boston 2018', price: 320 },
+                    ]
+              }
+              formatPrice={formatPrice}
+            />
+
+            {/* Similar items slider — uses the actual marketplace tile */}
             {related.length > 0 && (
-              <SimilarOffersTable
+              <SimilarItemsRow
                 items={related}
-                currentItem={item}
-                onView={(r) => navigate(`/item/${r.id}`)}
-                onAddCart={handleAddCart}
+                onView={(id) => navigate(`/item/${id}`)}
+                onAddCart={(it) => handleAddCart(it)}
+                onToggleWish={(it) => handleWish(it)}
+                isWished={(it) => isInWishlist(it.id)}
                 formatPrice={formatPrice}
               />
             )}
@@ -848,11 +838,34 @@ const ItemDetailPage: React.FC = () => {
                     addToast({
                       type: 'warning',
                       title: 'Login required',
-                      message: 'Sign in with Steam to message the seller.',
+                      message: 'Sign in to message the seller.',
                     });
                     return;
                   }
-                  setMessageOpen(true);
+                  /* Open the full /messages page. If this is the first
+                     time messaging the seller, seed the thread with a
+                     "buyer is asking about <listing>" context attached
+                     to a placeholder message so the seller sees what
+                     the conversation is about. */
+                  const peerId = String(
+                    item.seller?.steamId || item.seller?.name || 'unknown',
+                  );
+                  const { ensureThread, sendMessage, threads } =
+                    useDMStore.getState();
+                  ensureThread(peerId, item.seller?.name || 'Seller', item.seller?.avatar);
+                  const existing = useDMStore.getState().threads[peerId];
+                  if (!existing || existing.messages.length === 0) {
+                    sendMessage(
+                      peerId,
+                      `Hi! I'm interested in this listing.`,
+                      {
+                        itemId: String(item.id),
+                        itemName: item.name || item.market_name,
+                        itemImage: item.image,
+                      },
+                    );
+                  }
+                  navigate(`/messages?peer=${encodeURIComponent(peerId)}`);
                 }}
               />
             )}
@@ -1384,6 +1397,11 @@ const SellerCard: React.FC<{
           <ChevronRight size={12} strokeWidth={2.6} />
         </motion.button>
       </div>
+
+      {/* Direct seller rating — moved here from the main column so
+          users rate the SELLER (not the listing) right where they're
+          already looking at their stats. */}
+      <SellerRatingWidget sellerKey={seller?.steamId || seller?.name || 'anon'} />
     </motion.section>
   );
 };

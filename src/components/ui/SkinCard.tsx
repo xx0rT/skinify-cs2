@@ -127,6 +127,7 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
     initialFloat: item.float as any,
     initialPaintSeed: item.paintSeed as any,
     inspectLink: (item as any).inspect_link ?? (item as any).inspectLink ?? null,
+    fallbackKey: String(item.id || item.market_name || item.name || ''),
   });
 
   /* Shared derived values used by grid + tile variants. Hoisted here so
@@ -442,13 +443,39 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
           </div>
         </div>
 
-        {/* Hover ADD-TO-CART action bar — slides up from below. Its height
-            matches the float-row + bottom padding so the slide-up only
-            covers the float bar area and never the item name or condition
-            line. Accent color, accessed via CSS variables so it follows
-            the theme. */}
+        {/* ADD-TO-CART action bar — sibling row of the content area, not
+            an overlay. Height transitions from 0 to 44px on hover so it
+            never obscures the float row above it. */}
         {onAddCart && (
-          <TileActionBar onAddCart={onAddCart} item={item} />
+          <div
+            className="overflow-hidden transition-[max-height] duration-200 ease-out"
+            style={{ maxHeight: 0 }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLDivElement).style.maxHeight = '44px';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLDivElement).style.maxHeight = '0';
+            }}
+            ref={(node) => {
+              if (!node) return;
+              /* Sync open/close state with the parent card hover via
+                 CSS group-hover. Using a ref so we can flip max-height
+                 imperatively when the parent <article> hovers — group
+                 selectors can't transition max-height between two
+                 sibling element states reliably across all browsers. */
+              const article = node.closest('article');
+              if (!article || (article as any).__bound) return;
+              (article as any).__bound = true;
+              article.addEventListener('mouseenter', () => {
+                node.style.maxHeight = '44px';
+              });
+              article.addEventListener('mouseleave', () => {
+                node.style.maxHeight = '0';
+              });
+            }}
+          >
+            <TileActionBar onAddCart={onAddCart} item={item} />
+          </div>
         )}
       </motion.article>
     );
@@ -746,7 +773,7 @@ const TileActionBar: React.FC<{
 
   return (
     <div
-      className="absolute bottom-0 left-0 right-0 translate-y-full group-hover:translate-y-0 transition-transform duration-200 ease-out flex items-stretch z-30"
+      className="flex items-stretch w-full"
       onClick={stop}
     >
       <button
@@ -833,14 +860,48 @@ export const SkinCard = React.memo(SkinCardImpl, (a, b) => {
   );
 });
 
-/* Content-shaped skeleton — uses .skel (theme-aware) and matches the card. */
+/* Content-shaped skeleton — mirrors the tile variant layout exactly so
+   the grid doesn't jump as items resolve. Image block on top, then
+   price + weapon chip + name + condition + float bar, matching the
+   real tile's vertical rhythm. */
 export const SkinCardSkeleton: React.FC<{ className?: string }> = React.memo(({ className = '' }) => (
-  <div className={`skel relative ${className}`} style={{ aspectRatio: '5 / 6.4' }}>
-    <div className="absolute left-4 right-4 top-[58%] h-2 rounded-full bg-surface/60" />
-    <div className="absolute left-4 right-16 top-[68%] h-3 rounded-full bg-surface/70" />
-    <div className="absolute left-4 right-4 bottom-4 flex items-center justify-between">
-      <div className="h-4 w-20 rounded-md bg-surface/80" />
-      <div className="h-9 w-9 rounded-2xl bg-surface/70" />
+  <div
+    className={`relative bg-surface overflow-hidden flex flex-col ${className}`}
+    style={{
+      aspectRatio: '5 / 7',
+      boxShadow: 'inset 0 0 0 1px rgb(255 255 255 / 0.04)',
+    }}
+  >
+    {/* image area */}
+    <div className="relative aspect-[5/4] bg-subtle/30 grid place-items-center px-5 pt-5 pb-3">
+      <div className="skel w-[70%] h-[70%] rounded-xl" />
+    </div>
+    {/* content area */}
+    <div className="px-3.5 pt-1 pb-3 flex-1 flex flex-col gap-1.5">
+      {/* price row */}
+      <div className="flex items-center gap-2">
+        <div className="skel h-5 w-20 rounded-md" />
+        <div className="skel h-4 w-10 rounded" />
+      </div>
+      {/* reference price slot */}
+      <div className="skel h-3 w-32 rounded-sm" />
+      {/* weapon chip */}
+      <div className="mt-1 flex items-center gap-1.5">
+        <div className="skel w-2.5 h-2.5 rounded-none" />
+        <div className="skel h-3 w-20 rounded-sm" />
+      </div>
+      {/* item name */}
+      <div className="skel h-4 w-3/4 rounded-md" />
+      {/* condition */}
+      <div className="skel h-3 w-2/3 rounded-sm" />
+      {/* float row */}
+      <div className="mt-auto pt-3 flex flex-col gap-1.5">
+        <div className="flex justify-between">
+          <div className="skel h-3 w-16 rounded-sm" />
+          <div className="skel h-3 w-8 rounded-sm" />
+        </div>
+        <div className="skel h-1.5 w-full rounded-sm" />
+      </div>
     </div>
   </div>
 ));

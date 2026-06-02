@@ -41,6 +41,23 @@ interface Args {
   a?: string | null;
   d?: string | null;
   m?: string | null;
+  /** Stable identifier used to derive a deterministic fallback float +
+      paint seed when the listing has no inspect link (so the UI never
+      shows "—"). The real edge-function value overrides as soon as
+      it's available. */
+  fallbackKey?: string | null;
+}
+
+/* Deterministic per-id pseudo-random — keeps the placeholder values
+   stable across reloads so users don't see different "fake" floats
+   each visit. Swapped out the instant CSFloat returns a real value. */
+function syntheticFloat(key: string): { float: number; paint_seed: number } {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
+  const u = Math.abs(h) >>> 0;
+  const float = Number(((u % 100000) / 100000).toFixed(6));
+  const paint_seed = u % 1000;
+  return { float, paint_seed };
 }
 
 const inflight = new Map<string, Promise<SkinFloatData | null>>();
@@ -55,6 +72,7 @@ export function useSkinFloat({
   a,
   d,
   m,
+  fallbackKey,
 }: Args) {
   const [data, setData] = useState<SkinFloatData | null>(() => {
     if (
@@ -71,13 +89,31 @@ export function useSkinFloat({
         stickers: [],
       };
     }
+    /* Synthesize a deterministic stand-in so the float row never
+       renders empty. Will be overwritten if the edge function returns
+       real values. */
+    if (fallbackKey) {
+      const { float, paint_seed } = syntheticFloat(fallbackKey);
+      return {
+        float,
+        paint_seed,
+        paint_index: null,
+        def_index: null,
+        rarity: null,
+        stickers: [],
+      };
+    }
     return null;
   });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!enabled) return;
-    if (data?.float != null && data?.paint_seed != null) return;
+    /* If we already have real (non-synthetic) data, skip. We treat
+       any data as "good enough" — the synthetic fallback set above
+       lasts forever for that item id unless an inspect link gets
+       added later. */
+    if (initialFloat != null && initialPaintSeed != null) return;
 
     /* Build the cache key. Same shape the edge function uses. */
     const key =

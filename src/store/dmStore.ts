@@ -11,6 +11,19 @@ import { persist } from 'zustand/middleware';
    transport later is a one-line change.
    ───────────────────────────────────────────────────────────────────────── */
 
+export interface DMAttachment {
+  /** Stable id used for keys + Storage object path. */
+  id: string;
+  /** Display name shown in the bubble. */
+  name: string;
+  /** Public/signed URL once uploaded, OR a blob: URL while local-only. */
+  url: string;
+  /** MIME (`image/png`, `application/pdf`, etc.) — drives thumbnail rendering. */
+  mimeType: string;
+  /** Bytes. Used to render "120 KB". */
+  size: number;
+}
+
 export interface DMMessage {
   id: string;
   /** Sender steamId. 'me' is a sentinel for the local user — we don't
@@ -21,6 +34,8 @@ export interface DMMessage {
   itemId?: string;
   itemName?: string;
   itemImage?: string;
+  /** Attached files (images, docs, screenshots). */
+  attachments?: DMAttachment[];
   ts: number;
   /** True once the local user has opened the thread after this message
       arrived. Outgoing messages are read-by-default. */
@@ -48,6 +63,7 @@ interface DMState {
     peerSteamId: string,
     text: string,
     context?: { itemId?: string; itemName?: string; itemImage?: string },
+    attachments?: DMAttachment[],
   ) => DMMessage;
   markThreadRead: (peerSteamId: string) => void;
   deleteThread: (peerSteamId: string) => void;
@@ -81,7 +97,7 @@ export const useDMStore = create<DMState>()(
         });
       },
 
-      sendMessage: (peerSteamId, text, context) => {
+      sendMessage: (peerSteamId, text, context, attachments) => {
         const trimmed = text.trim();
         const msg: DMMessage = {
           id: newId(),
@@ -90,6 +106,7 @@ export const useDMStore = create<DMState>()(
           itemId: context?.itemId,
           itemName: context?.itemName,
           itemImage: context?.itemImage,
+          attachments,
           ts: Date.now(),
           read: true,
         };

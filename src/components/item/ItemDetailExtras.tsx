@@ -16,6 +16,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { CachedImage } from '../ui/CachedImage';
+import { SkinCard } from '../ui/SkinCard';
 import { useToastStore } from '../../store/toastStore';
 import { spring, tap } from '../../lib/motion';
 
@@ -207,9 +208,69 @@ const ShareItem: React.FC<{
   </button>
 );
 
-/* ───── RatingWidget ─────
-   Stars are 1..5; clicking writes to localStorage so the rating
-   survives reload. Stub for a real backend write later. */
+/* ───── SellerRatingWidget ─────
+   Compact 5-star inline widget designed to live INSIDE the seller card
+   on the item detail page. Clicking writes to localStorage so the
+   rating survives reload. Stub for a real backend write later. */
+export const SellerRatingWidget: React.FC<{ sellerKey: string }> = ({ sellerKey }) => {
+  const storageKey = `skinify_seller_rating_${sellerKey}`;
+  const [hover, setHover] = useState(0);
+  const [value, setValue] = useState(0);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) setValue(Number(raw) || 0);
+    } catch {
+      /* private window */
+    }
+  }, [storageKey]);
+
+  const set = (n: number) => {
+    setValue(n);
+    try {
+      localStorage.setItem(storageKey, String(n));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const display = hover || value;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-line">
+      <div className="flex items-center justify-between">
+        <span className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
+          Your rating
+        </span>
+        <div className="flex items-center gap-0.5">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button
+              key={n}
+              onMouseEnter={() => setHover(n)}
+              onMouseLeave={() => setHover(0)}
+              onClick={() => set(n)}
+              className="p-0.5 transition-transform hover:scale-110"
+              aria-label={`Rate ${n} stars`}
+            >
+              <Star
+                size={14}
+                strokeWidth={2}
+                className={
+                  n <= display
+                    ? 'fill-amber-400 text-amber-400'
+                    : 'text-ink-dim'
+                }
+              />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ───── RatingWidget — legacy, kept for backwards compat ───── */
 export const RatingWidget: React.FC<{ itemId: string }> = ({ itemId }) => {
   const storageKey = `skinify_rating_${itemId}`;
   const [hover, setHover] = useState(0);
@@ -520,8 +581,11 @@ export const StickersRow: React.FC<{
 export const SimilarItemsRow: React.FC<{
   items: any[];
   onView: (id: string) => void;
+  onAddCart?: (item: any) => void;
+  onToggleWish?: (item: any) => void;
+  isWished?: (item: any) => boolean;
   formatPrice: (n: number) => string;
-}> = ({ items, onView, formatPrice }) => {
+}> = ({ items, onView, onAddCart, onToggleWish, isWished, formatPrice }) => {
   if (items.length === 0) return null;
   return (
     <motion.section
@@ -540,28 +604,69 @@ export const SimilarItemsRow: React.FC<{
       </div>
       <HorizontalSlider>
         {items.slice(0, 12).map((it) => (
-          <button
+          <div
             key={it.id}
-            onClick={() => onView(String(it.id))}
-            className="snap-start shrink-0 w-40 card-flat p-2.5 text-left hover:bg-subtle/60 transition-colors"
+            className="snap-start shrink-0 w-56"
           >
-            <div className="aspect-[5/4] bg-subtle rounded-xl grid place-items-center overflow-hidden mb-2">
-              <CachedImage
-                src={it.image}
-                alt={it.name || it.market_name}
-                className="w-[85%] h-[85%] object-contain"
-              />
-            </div>
-            <div className="text-[12.5px] font-bold text-ink truncate leading-tight">
-              {it.name || it.market_name}
-            </div>
-            <div className="text-[10.5px] text-ink-muted truncate">
-              {it.condition || ''}
-            </div>
-            <div className="mt-1 text-[13px] font-bold text-ink tabular-nums leading-none">
-              {formatPrice(it.price)}
-            </div>
-          </button>
+            <SkinCard
+              variant="tile"
+              item={it}
+              onView={() => onView(String(it.id))}
+              onAddCart={onAddCart ? () => onAddCart(it) : undefined}
+              onToggleWish={onToggleWish ? () => onToggleWish(it) : undefined}
+              wished={isWished ? isWished(it) : false}
+              formatPrice={formatPrice}
+            />
+          </div>
+        ))}
+      </HorizontalSlider>
+    </motion.section>
+  );
+};
+
+/* RecommendedItemsRow — same shape as SimilarItemsRow but a different
+   header. Lets callers explicitly distinguish "things you may also
+   like" from "more of this category". */
+export const RecommendedItemsRow: React.FC<{
+  items: any[];
+  onView: (id: string) => void;
+  onAddCart?: (item: any) => void;
+  onToggleWish?: (item: any) => void;
+  isWished?: (item: any) => boolean;
+  formatPrice: (n: number) => string;
+}> = ({ items, onView, onAddCart, onToggleWish, isWished, formatPrice }) => {
+  if (items.length === 0) return null;
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={spring}
+      className="card p-4 sm:p-5"
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <span className="label-eyebrow">Recommended</span>
+          <h3 className="text-[16px] font-bold text-ink tracking-tight mt-1">
+            Picked for you
+          </h3>
+        </div>
+      </div>
+      <HorizontalSlider>
+        {items.slice(0, 12).map((it) => (
+          <div
+            key={it.id}
+            className="snap-start shrink-0 w-56"
+          >
+            <SkinCard
+              variant="tile"
+              item={it}
+              onView={() => onView(String(it.id))}
+              onAddCart={onAddCart ? () => onAddCart(it) : undefined}
+              onToggleWish={onToggleWish ? () => onToggleWish(it) : undefined}
+              wished={isWished ? isWished(it) : false}
+              formatPrice={formatPrice}
+            />
+          </div>
         ))}
       </HorizontalSlider>
     </motion.section>

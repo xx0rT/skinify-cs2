@@ -310,23 +310,11 @@ const LandingPage: React.FC = () => {
             style={{ y: reduceMotion ? 0 : heroParallax }}
             className="card p-6 flex flex-col"
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="label-eyebrow">
-                {user ? 'Your portfolio' : 'Marketplace volume'}
-              </span>
-              <span className="pill bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-                +2.4%
-              </span>
-            </div>
-            <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none text-ink mt-1 tabular-nums break-words">
-              {user ? formatPrice(portfolio) : formatPrice(36714736)}
-            </div>
-            <div className="text-[13px] text-ink-muted font-medium mt-1.5">
-              {user ? 'Available balance' : 'Total volume traded'}
-            </div>
-
-            {/* mini sparkline — uses accent */}
-            <div className="mt-5 mb-4 h-16 rounded-2xl bg-subtle/60 overflow-hidden relative">
+            {/* Sparkline first — the chart visually owns the top of the
+                card, then the portfolio label / value / change sit
+                under it so they read as a "summary of the trend above"
+                instead of a header above an unrelated chart. */}
+            <div className="mb-4 h-16 rounded-2xl bg-subtle/60 overflow-hidden relative">
               <svg
                 viewBox="0 0 200 60"
                 preserveAspectRatio="none"
@@ -358,6 +346,23 @@ const LandingPage: React.FC = () => {
                   fill="url(#spark-fill)"
                 />
               </svg>
+            </div>
+
+            {/* Portfolio header — moved BELOW the sparkline so the
+                chart sits at the top of the card. */}
+            <div className="flex items-center justify-between mb-1">
+              <span className="label-eyebrow">
+                {user ? 'Your portfolio' : 'Marketplace volume'}
+              </span>
+              <span className="pill bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                +2.4%
+              </span>
+            </div>
+            <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none text-ink tabular-nums break-words">
+              {user ? formatPrice(portfolio) : formatPrice(36714736)}
+            </div>
+            <div className="text-[13px] text-ink-muted font-medium mt-1.5 mb-4">
+              {user ? 'Available balance' : 'Total volume traded'}
             </div>
 
             <div className="grid grid-cols-2 gap-2 mt-auto">
@@ -499,11 +504,12 @@ const LandingPage: React.FC = () => {
               whileInView="shown"
               viewport={{ once: true, margin: '0px 0px -120px 0px' }}
               key={activeCat /* restart stagger on category switch */}
-              className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-2.5"
+              className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-0 isolate"
             >
               {visibleItems.map((item: any) => (
-                <motion.div key={item.id} variants={staggerChild} whileHover={{ y: -4 }} transition={spring}>
+                <motion.div key={item.id} variants={staggerChild} transition={spring}>
                   <SkinCard
+                    variant="tile"
                     item={item}
                     onView={() => navigate(`/item/${item.id}`)}
                     onAddCart={() => handleAddCart(item)}
