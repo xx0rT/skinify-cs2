@@ -42,6 +42,10 @@ interface InvItem {
   tradable: boolean;
   marketable: boolean;
   listed_for_sale: boolean;
+  /** Steam `csgo_econ_action_preview` URL captured from the inventory
+      API. Carried through to listing creation so the marketplace card
+      can later resolve real float + paint seed via /skin-float. */
+  inspect_link?: string;
 }
 
 type Sort = 'value-desc' | 'value-asc' | 'name';
@@ -102,6 +106,7 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
             tradable: it.tradable !== false,
             marketable: it.marketable !== false,
             listed_for_sale: listedIds.has(aid),
+            inspect_link: it.inspect_link || it.inspectLink || undefined,
           };
         });
 
@@ -196,6 +201,9 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
         image_url: item.image,
         description: info.description || `${item.condition} ${item.name}`,
         listing_type: info.listingType === 'auction' ? 'auction' : 'standard',
+        /* Inspect link travels with the listing so post-list it can
+           be used for real float lookups in /functions/v1/skin-float. */
+        inspect_link: item.inspect_link,
       };
       if (info.visibility === 'private') body.listing_type = 'private';
 

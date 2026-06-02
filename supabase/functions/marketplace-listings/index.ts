@@ -26,6 +26,9 @@ interface CreateListingRequest {
   buyout_price?: number;
   private_buyer_steam_id?: string;
   reserve_price?: number;
+  /** Steam inspect link captured at inventory-fetch time; used by the
+      CSFloat proxy hook to look up real float + paint seed values. */
+  inspect_link?: string;
 }
 
 interface UpdateListingRequest {
@@ -304,7 +307,10 @@ Deno.serve(async (req) => {
         buyout_price: listing.buyout_price,
         bid_count: listing.bid_count || 0,
         private_buyer_steam_id: listing.private_buyer_steam_id,
-        share_token: listing.share_token
+        share_token: listing.share_token,
+        /* Surface inspect_link to the client so the marketplace card
+           hook can call /functions/v1/skin-float with real params. */
+        inspect_link: listing.inspect_link || null,
       }));
 
       console.log(`=== FORMATTED LISTINGS ===`);
@@ -512,6 +518,12 @@ Deno.serve(async (req) => {
         stickers: listingData.stickers || [],
         description: listingData.description,
         listing_type: listingData.listing_type || 'standard',
+        /* Persist inspect_link so the CSFloat lookup hook on the
+           marketplace card can fetch real float/paint_seed data later.
+           Steam's `csgo_econ_action_preview` URL contains the M/A/D
+           triplet CSFloat needs — we can't reconstruct it from
+           asset_id alone. */
+        inspect_link: (listingData as any).inspect_link || null,
       };
 
       if (listingData.listing_type === 'auction') {

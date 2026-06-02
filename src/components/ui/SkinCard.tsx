@@ -247,8 +247,15 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
     return (
       <motion.article
         whileTap={tap}
+        /* Hover: spring-scale + lift (~22px up) + zIndex bump. Card
+           transforms only — neighbours never reflow. The lift makes
+           visual room ABOVE the next tile so the action bar (anchored
+           below the card edge) appears in the gap rather than over
+           the float row inside. */
+        whileHover={{ scale: 1.03, y: -22, zIndex: 10 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 26, mass: 0.55 }}
         onClick={onView}
-        className="group relative cursor-pointer contain-card overflow-hidden bg-surface flex flex-col transition-shadow duration-200 ease-out hover:z-10 hover:shadow-[0_18px_40px_-18px_rgba(0,0,0,0.55)]"
+        className="group relative cursor-pointer bg-surface flex flex-col"
         style={{
           boxShadow: 'inset 0 0 0 1px rgb(255 255 255 / 0.04), inset 0 -1px 0 0 rgb(255 255 255 / 0.04)',
         }}
@@ -441,13 +448,15 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
           </div>
         </div>
 
-        {/* ADD-TO-CART action bar — always reserves 44px so the grid
-            never reflows on hover. Collapsed state hides it via
-            opacity + pointer-events:none; hover reveals it. Because the
-            slot height is constant, neighbouring tiles can't shift. */}
+        {/* ADD-TO-CART action bar — anchored just BELOW the card edge
+            (`top: 100%`). Pre-hover: collapsed to zero height from its
+            center via `scaleY(0)`, invisible, no pointer events. On
+            hover: `scaleY(1)` expands the bar simultaneously upward
+            AND downward from the middle line, fading in over 200ms.
+            Origin is `center` so the growth is symmetric. */}
         {onAddCart && (
           <div
-            className="h-11 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150 ease-out"
+            className="absolute top-full left-0 right-0 origin-center scale-y-0 opacity-0 pointer-events-none group-hover:scale-y-100 group-hover:opacity-100 group-hover:pointer-events-auto transition-[transform,opacity] duration-200 ease-out z-30"
           >
             <TileActionBar onAddCart={onAddCart} item={item} />
           </div>

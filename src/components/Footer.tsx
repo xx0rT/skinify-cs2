@@ -306,7 +306,8 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
 
         <div className="mt-8 pt-5 border-t border-line flex flex-wrap items-center justify-between gap-3 text-[12.5px] text-ink-muted font-medium">
           <div>© {currentYear} Skinify. Not affiliated with Valve Corp. or Steam.</div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <LangCurrencySwitcher />
             <Link to="/terms" className="hover:text-ink transition-colors">Terms</Link>
             <Link to="/privacy" className="hover:text-ink transition-colors">Privacy</Link>
             <Link to="/refund-policy" className="hover:text-ink transition-colors">Refunds</Link>
@@ -363,12 +364,14 @@ const LANGUAGES: Array<{ code: string; label: string }> = [
   { code: 'ja', label: '日本語' },
 ];
 
-const PopularTagsBar: React.FC = () => {
+/* Combined language + currency switcher.
+   Single rounded pill, two native <select>s separated by a hairline.
+   Reused in the footer brand row (always visible) AND inside the
+   popular-tags card (on landing/marketplace where the card renders). */
+const LangCurrencySwitcher: React.FC = () => {
   const { selectedCurrency, setSelectedCurrency } = useCurrencyStore();
 
   const setLanguage = (code: string) => {
-    /* Drive the existing Google Translate widget. The cookie tells GT
-       to render the page in the picked locale on next paint. */
     try {
       document.cookie = `googtrans=/en/${code}; path=/`;
       document.cookie = `googtrans=/en/${code}; domain=.skinify.gg; path=/`;
@@ -383,14 +386,49 @@ const PopularTagsBar: React.FC = () => {
     if (next) setSelectedCurrency(next);
   };
 
-  /* Read the active language out of the googtrans cookie so the
-     selector reflects the user's last choice on hard reload. */
   const activeLang = (() => {
     if (typeof document === 'undefined') return 'en';
     const m = document.cookie.match(/googtrans=\/en\/([a-zA-Z-]+)/);
     return m ? m[1] : 'en';
   })();
 
+  return (
+    <div className="inline-flex items-stretch h-9 rounded-full bg-subtle overflow-hidden ring-1 ring-line">
+      <div className="flex items-center gap-1.5 pl-3 pr-1.5 border-r border-line">
+        <Globe size={11} strokeWidth={2.4} className="text-ink-muted" />
+        <select
+          onChange={(e) => setLanguage(e.target.value)}
+          defaultValue={activeLang}
+          aria-label="Language"
+          className="bg-transparent outline-none text-ink text-[12px] font-semibold cursor-pointer pr-1"
+        >
+          {LANGUAGES.map((l) => (
+            <option key={l.code} value={l.code}>
+              {l.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="flex items-center gap-1.5 pl-2.5 pr-3">
+        <CircleDollarSign size={11} strokeWidth={2.4} className="text-ink-muted" />
+        <select
+          onChange={(e) => onCurrency(e.target.value)}
+          value={selectedCurrency.code}
+          aria-label="Currency"
+          className="bg-transparent outline-none text-ink text-[12px] font-semibold cursor-pointer pr-1"
+        >
+          {currencyList.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.code} · {c.symbol}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+};
+
+const PopularTagsBar: React.FC = () => {
   return (
     <section className="card p-6 md:p-8 flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -400,42 +438,7 @@ const PopularTagsBar: React.FC = () => {
             What people are looking for
           </h2>
         </div>
-
-        {/* Combined language + currency switcher. Single rounded pill,
-            two native <select>s separated by a hairline. Keeps the
-            footer footprint small while letting users tune both knobs. */}
-        <div className="inline-flex items-stretch h-10 rounded-full bg-subtle overflow-hidden ring-1 ring-line">
-          <div className="flex items-center gap-1.5 pl-3.5 pr-2 border-r border-line">
-            <Globe size={12} strokeWidth={2.4} className="text-ink-muted" />
-            <select
-              onChange={(e) => setLanguage(e.target.value)}
-              defaultValue={activeLang}
-              aria-label="Language"
-              className="bg-transparent outline-none text-ink text-[12.5px] font-semibold cursor-pointer pr-1"
-            >
-              {LANGUAGES.map((l) => (
-                <option key={l.code} value={l.code}>
-                  {l.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center gap-1.5 pl-3 pr-3.5">
-            <CircleDollarSign size={12} strokeWidth={2.4} className="text-ink-muted" />
-            <select
-              onChange={(e) => onCurrency(e.target.value)}
-              value={selectedCurrency.code}
-              aria-label="Currency"
-              className="bg-transparent outline-none text-ink text-[12.5px] font-semibold cursor-pointer pr-1"
-            >
-              {currencyList.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.code} · {c.symbol}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+        <LangCurrencySwitcher />
       </div>
 
       <div className="flex flex-wrap gap-1.5">
