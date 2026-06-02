@@ -644,7 +644,7 @@ const MarketplacePage: React.FC = () => {
               <div
                 className={
                   view === 'grid'
-                    ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-2.5'
+                    ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-0 isolate'
                     : 'space-y-2'
                 }
               >
@@ -682,16 +682,16 @@ const MarketplacePage: React.FC = () => {
                 initial="hidden"
                 animate="shown"
                 key={`grid-${sort}-${activeTypes.size}-${activeRarities.size}`}
-                className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-2.5"
+                className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-0 isolate"
               >
                 {filtered.map((item: any) => (
                   <motion.div
                     key={item.id}
                     variants={staggerChild}
-                    whileHover={{ y: -4 }}
                     transition={spring}
                   >
                     <SkinCard
+                      variant="tile"
                       item={item}
                       onView={() => navigate(`/item/${item.id}`)}
                       onAddCart={() => handleAddCart(item)}

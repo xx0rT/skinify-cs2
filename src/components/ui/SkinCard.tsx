@@ -60,7 +60,13 @@ interface SkinCardProps {
   onToggleWish?: () => void;
   wished?: boolean;
   formatPrice: (n: number) => string;
-  variant?: 'grid' | 'list';
+  /**
+   * grid  — standard rounded card with a border (default)
+   * list  — horizontal row
+   * tile  — flat, sharp-edged marketplace tile that abuts its neighbours
+   *         with no gap. Used for the dense marketplace grid.
+   */
+  variant?: 'grid' | 'list' | 'tile';
 }
 
 const SkinCardImpl: React.FC<SkinCardProps> = ({
@@ -74,6 +80,17 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
 }) => {
   const color = rarityColor(item.rarity);
   const name = item.name || item.market_name || '';
+
+  /* Shared derived values used by grid + tile variants. Hoisted here so
+     the two branches don't redeclare them. */
+  const floatNum = item.float != null ? Number(item.float) : null;
+  const floatPct =
+    floatNum != null && Number.isFinite(floatNum)
+      ? Math.max(0, Math.min(1, floatNum)) * 100
+      : null;
+  const seed = item.paintSeed ?? item.patternTemplate;
+  const online = item.seller?.online ?? false;
+  const stickers = Array.isArray(item.stickers) ? item.stickers : [];
 
   if (variant === 'list') {
     return (
@@ -158,16 +175,202 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
     );
   }
 
+  /* ─────────── TILE — flat, sharp-edged, zero-gap marketplace tile ───────────
+     Designed to abut its neighbours edge-to-edge (use gap-0 on the
+     grid). Hover gently expands the tile via a subtle scale + z-index
+     bump and the rarity accent intensifies — top hairline, full-card
+     ring, and a glowing bottom bar all share the same rarity color. */
+  if (variant === 'tile') {
+    return (
+      <motion.article
+        whileTap={tap}
+        whileHover={{ scale: 1.025, zIndex: 5 }}
+        transition={{ type: 'spring', stiffness: 360, damping: 26, mass: 0.55 }}
+        onClick={onView}
+        className="group relative cursor-pointer contain-card overflow-hidden bg-surface"
+        style={{
+          /* Hairline borders on all sides so neighbouring tiles share a
+             1px seam instead of stacking 2px. Top accent stays neutral
+             at rest, then takes on the rarity color on hover. */
+          boxShadow: `inset 0 0 0 1px rgb(0 0 0 / 0.06)`,
+        }}
+      >
+        {/* image area — rarity gradient bg */}
+        <div
+          className="relative aspect-[5/4] flex items-center justify-center p-5 overflow-hidden"
+          style={{
+            background: `radial-gradient(120% 90% at 50% 100%, ${color}33 0%, ${color}14 45%, transparent 75%)`,
+          }}
+        >
+          {/* Glow halo behind the image — intensifies on hover */}
+          <div
+            className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+            style={{
+              background: `radial-gradient(60% 50% at 50% 60%, ${color}40 0%, transparent 75%)`,
+            }}
+            aria-hidden
+          />
+
+          {item.special === 'stattrak' && (
+            <span className="absolute top-2.5 left-2.5 px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase bg-orange-500/15 text-orange-600 dark:text-orange-300">
+              ST
+            </span>
+          )}
+          {item.special === 'souvenir' && (
+            <span className="absolute top-2.5 left-2.5 px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase bg-yellow-500/15 text-yellow-700 dark:text-yellow-300">
+              SV
+            </span>
+          )}
+
+          {onToggleWish && (
+            <motion.button
+              whileTap={tap}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleWish();
+              }}
+              className="absolute top-2.5 right-2.5 w-8 h-8 grid place-items-center bg-surface/90 backdrop-blur-sm"
+              aria-label="Wishlist"
+            >
+              <Heart
+                size={14}
+                strokeWidth={wished ? 2.4 : 2}
+                className={wished ? 'fill-current text-accent' : 'text-ink-muted'}
+              />
+            </motion.button>
+          )}
+
+          <CachedImage
+            src={item.image}
+            alt={name}
+            className="relative z-10 w-full h-full object-contain transition-transform duration-300 group-hover:scale-[1.06]"
+          />
+
+          {stickers.length > 0 && (
+            <div className="absolute left-2 bottom-2 flex items-center gap-1 z-20">
+              {stickers.slice(0, 5).map((s, i) => {
+                const url = typeof s === 'string' ? undefined : s.image;
+                const label = typeof s === 'string' ? s : s.name || '';
+                return (
+                  <div
+                    key={`${label}-${i}`}
+                    title={label}
+                    className="w-6 h-6 bg-surface/85 backdrop-blur-sm grid place-items-center overflow-hidden"
+                    style={{ boxShadow: 'inset 0 0 0 1px rgb(0 0 0 / 0.10)' }}
+                  >
+                    {url ? (
+                      <img src={url} alt={label} className="w-full h-full object-contain" />
+                    ) : (
+                      <span className="text-[9px] font-bold text-ink-muted">
+                        {label.slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Rarity bottom bar — full-width, no rounding, glow on hover */}
+          <div
+            className="absolute left-0 right-0 bottom-0 h-[3px] transition-[box-shadow,height] duration-300 group-hover:h-[4px]"
+            style={{
+              background: color,
+              boxShadow: `0 0 12px ${color}aa, 0 0 24px ${color}55`,
+            }}
+            aria-hidden
+          />
+        </div>
+
+        {/* content area */}
+        <div
+          className="relative px-3.5 pt-2.5 pb-3"
+          style={{ boxShadow: `inset 0 1px 0 0 ${color}33` }}
+        >
+          {/* Rarity word — small chip above the title, in the rarity color */}
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <span
+              className="text-[9.5px] font-bold uppercase tracking-[0.14em] truncate"
+              style={{ color }}
+            >
+              {item.rarity || 'Standard'}
+            </span>
+            {item.condition && (
+              <span className="text-[10px] text-ink-dim font-semibold tracking-wider uppercase truncate">
+                {item.condition.replace('Factory New', 'FN').replace('Minimal Wear', 'MW').replace('Field-Tested', 'FT').replace('Well-Worn', 'WW').replace('Battle-Scarred', 'BS')}
+              </span>
+            )}
+          </div>
+
+          <h3
+            className="text-[13.5px] font-bold text-ink truncate tracking-tight leading-tight"
+            title={name}
+          >
+            {name}
+          </h3>
+
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <div className="text-[16.5px] font-bold text-ink tracking-tight tabular-nums leading-none">
+              {formatPrice(item.price)}
+            </div>
+            {item.priceChange !== undefined && item.priceChange !== 0 && (
+              <span
+                className={`shrink-0 inline-flex items-center text-[10px] font-bold tabular-nums px-1.5 py-0.5 ${
+                  item.priceChange > 0
+                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
+                }`}
+              >
+                {item.priceChange > 0 ? '+' : '−'}
+                {Math.abs(item.priceChange).toFixed(1)}%
+              </span>
+            )}
+          </div>
+
+          {floatPct != null && (
+            <div className="mt-2 flex items-center gap-2">
+              <span
+                className={`w-1.5 h-1.5 shrink-0 ${online ? 'bg-emerald-500' : 'bg-ink-dim'}`}
+                aria-label={online ? 'Online' : 'Offline'}
+              />
+              <div
+                className="relative flex-1 h-1 overflow-hidden bg-subtle"
+                title={`Float ${floatNum?.toFixed(6)}`}
+              >
+                <div
+                  className="absolute inset-0 opacity-40"
+                  style={{
+                    background:
+                      'linear-gradient(90deg, #22c55e 0%, #84cc16 25%, #eab308 50%, #f97316 75%, #ef4444 100%)',
+                  }}
+                  aria-hidden
+                />
+                <div
+                  className="absolute top-0 bottom-0 w-[2px] bg-ink"
+                  style={{ left: `calc(${floatPct}% - 1px)` }}
+                  aria-hidden
+                />
+              </div>
+            </div>
+          )}
+
+          {(floatNum != null || seed != null) && (
+            <div className="mt-1 flex items-center justify-between text-[10.5px] font-medium tabular-nums">
+              <span className="text-ink-muted font-mono truncate">
+                {floatNum != null ? floatNum.toFixed(6) : '—'}
+              </span>
+              {seed != null && (
+                <span className="text-ink-dim shrink-0">#{String(seed)}</span>
+              )}
+            </div>
+          )}
+        </div>
+      </motion.article>
+    );
+  }
+
   /* grid — float-style: rarity-gradient image area, sharp rarity bottom
      line, then info rows beneath. */
-  const floatNum = item.float != null ? Number(item.float) : null;
-  const floatPct =
-    floatNum != null && Number.isFinite(floatNum)
-      ? Math.max(0, Math.min(1, floatNum)) * 100
-      : null;
-  const seed = item.paintSeed ?? item.patternTemplate;
-  const online = item.seller?.online ?? false;
-  const stickers = Array.isArray(item.stickers) ? item.stickers : [];
 
   return (
     <motion.article
