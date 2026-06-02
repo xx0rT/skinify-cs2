@@ -69,6 +69,35 @@ interface SkinCardProps {
   variant?: 'grid' | 'list' | 'tile';
 }
 
+/* Pull "AK-47" out of "AK-47 | Redline (Field-Tested)" — used as a
+   weapon-class chip on the tile variant. Falls back to item.type so
+   loadouts (Knives / Gloves / Sticker) still get a label. */
+function inferWeaponClass(item: SkinCardItem): string | null {
+  const raw = item.name || item.market_name || '';
+  if (!raw) return item.type || null;
+  const first = raw.split('|')[0]?.trim();
+  if (!first) return item.type || null;
+  // Drop StatTrak™ / ★ prefixes so "★ Karambit" → "Karambit"
+  return first.replace(/^★\s*/, '').replace(/^StatTrak™\s*/, '').trim() || (item.type || null);
+}
+
+/* Short label for the type ("Covert Knife", "Extraordinary Gloves") */
+function abbrevType(type?: string): string {
+  if (!type) return '';
+  const t = type.toLowerCase();
+  if (t.includes('rifle')) return 'Rifle';
+  if (t.includes('pistol')) return 'Pistol';
+  if (t.includes('smg') || t.includes('submachine')) return 'SMG';
+  if (t.includes('shotgun')) return 'Shotgun';
+  if (t.includes('heavy') || t.includes('machine gun')) return 'Heavy';
+  if (t.includes('knife') || t.includes('karambit') || t.includes('bayonet')) return 'Knife';
+  if (t.includes('glove')) return 'Gloves';
+  if (t.includes('sticker')) return 'Sticker';
+  if (t.includes('agent')) return 'Agent';
+  if (t.includes('case') || t.includes('container')) return 'Container';
+  return type;
+}
+
 const SkinCardImpl: React.FC<SkinCardProps> = ({
   item,
   onView,
@@ -175,42 +204,31 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
     );
   }
 
-  /* ─────────── TILE — flat, sharp-edged, zero-gap marketplace tile ───────────
-     Designed to abut its neighbours edge-to-edge (use gap-0 on the
-     grid). Hover gently expands the tile via a subtle scale + z-index
-     bump and the rarity accent intensifies — top hairline, full-card
-     ring, and a glowing bottom bar all share the same rarity color. */
+  /* ─────────── TILE — Float-style dense marketplace tile ───────────
+     Edge-to-edge layout (zero grid gap). Hairline borders share a single
+     pixel with the neighbours. Hover lifts the tile above the seam,
+     exposes a full-width ADD TO CART action at the bottom, and slightly
+     scales the skin art. */
+  const referencePrice =
+    item.priceChange !== undefined && item.priceChange !== 0 && item.priceChange < 0
+      ? item.price / (1 + item.priceChange / 100)
+      : null;
+  const weaponLabel = inferWeaponClass(item);
+
   if (variant === 'tile') {
     return (
       <motion.article
         whileTap={tap}
-        whileHover={{ scale: 1.025, zIndex: 5 }}
-        transition={{ type: 'spring', stiffness: 360, damping: 26, mass: 0.55 }}
+        whileHover={{ scale: 1.03, zIndex: 10 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 26, mass: 0.55 }}
         onClick={onView}
-        className="group relative cursor-pointer contain-card overflow-hidden bg-surface"
+        className="group relative cursor-pointer contain-card overflow-hidden bg-surface flex flex-col"
         style={{
-          /* Hairline borders on all sides so neighbouring tiles share a
-             1px seam instead of stacking 2px. Top accent stays neutral
-             at rest, then takes on the rarity color on hover. */
-          boxShadow: `inset 0 0 0 1px rgb(0 0 0 / 0.06)`,
+          boxShadow: 'inset 0 0 0 1px rgb(255 255 255 / 0.04), inset 0 -1px 0 0 rgb(255 255 255 / 0.04)',
         }}
       >
-        {/* image area — rarity gradient bg */}
-        <div
-          className="relative aspect-[5/4] flex items-center justify-center p-5 overflow-hidden"
-          style={{
-            background: `radial-gradient(120% 90% at 50% 100%, ${color}33 0%, ${color}14 45%, transparent 75%)`,
-          }}
-        >
-          {/* Glow halo behind the image — intensifies on hover */}
-          <div
-            className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-            style={{
-              background: `radial-gradient(60% 50% at 50% 60%, ${color}40 0%, transparent 75%)`,
-            }}
-            aria-hidden
-          />
-
+        {/* Image area — clean dark surface, no rarity glow */}
+        <div className="relative aspect-[5/4] flex items-center justify-center px-5 pt-5 pb-3 overflow-hidden">
           {item.special === 'stattrak' && (
             <span className="absolute top-2.5 left-2.5 px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase bg-orange-500/15 text-orange-600 dark:text-orange-300">
               ST
@@ -221,7 +239,6 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
               SV
             </span>
           )}
-
           {onToggleWish && (
             <motion.button
               whileTap={tap}
@@ -229,13 +246,13 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
                 e.stopPropagation();
                 onToggleWish();
               }}
-              className="absolute top-2.5 right-2.5 w-8 h-8 grid place-items-center bg-surface/90 backdrop-blur-sm"
+              className="absolute top-2.5 right-2.5 w-7 h-7 grid place-items-center text-ink-muted hover:text-ink transition-colors z-10"
               aria-label="Wishlist"
             >
               <Heart
                 size={14}
                 strokeWidth={wished ? 2.4 : 2}
-                className={wished ? 'fill-current text-accent' : 'text-ink-muted'}
+                className={wished ? 'fill-current text-accent' : ''}
               />
             </motion.button>
           )}
@@ -243,7 +260,7 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
           <CachedImage
             src={item.image}
             alt={name}
-            className="relative z-10 w-full h-full object-contain transition-transform duration-300 group-hover:scale-[1.06]"
+            className="relative z-0 w-full h-full object-contain transition-transform duration-300 group-hover:scale-[1.06]"
           />
 
           {stickers.length > 0 && (
@@ -255,13 +272,12 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
                   <div
                     key={`${label}-${i}`}
                     title={label}
-                    className="w-6 h-6 bg-surface/85 backdrop-blur-sm grid place-items-center overflow-hidden"
-                    style={{ boxShadow: 'inset 0 0 0 1px rgb(0 0 0 / 0.10)' }}
+                    className="w-5 h-5 bg-surface/85 grid place-items-center overflow-hidden"
                   >
                     {url ? (
                       <img src={url} alt={label} className="w-full h-full object-contain" />
                     ) : (
-                      <span className="text-[9px] font-bold text-ink-muted">
+                      <span className="text-[8.5px] font-bold text-ink-muted">
                         {label.slice(0, 1).toUpperCase()}
                       </span>
                     )}
@@ -270,101 +286,141 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
               })}
             </div>
           )}
-
-          {/* Rarity bottom bar — full-width, no rounding, glow on hover */}
-          <div
-            className="absolute left-0 right-0 bottom-0 h-[3px] transition-[box-shadow,height] duration-300 group-hover:h-[4px]"
-            style={{
-              background: color,
-              boxShadow: `0 0 12px ${color}aa, 0 0 24px ${color}55`,
-            }}
-            aria-hidden
-          />
         </div>
 
-        {/* content area */}
-        <div
-          className="relative px-3.5 pt-2.5 pb-3"
-          style={{ boxShadow: `inset 0 1px 0 0 ${color}33` }}
-        >
-          {/* Rarity word — small chip above the title, in the rarity color */}
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <span
-              className="text-[9.5px] font-bold uppercase tracking-[0.14em] truncate"
-              style={{ color }}
-            >
-              {item.rarity || 'Standard'}
-            </span>
-            {item.condition && (
-              <span className="text-[10px] text-ink-dim font-semibold tracking-wider uppercase truncate">
-                {item.condition.replace('Factory New', 'FN').replace('Minimal Wear', 'MW').replace('Field-Tested', 'FT').replace('Well-Worn', 'WW').replace('Battle-Scarred', 'BS')}
+        {/* Content — price, weapon class, item name, condition, float */}
+        <div className="px-3.5 pt-1 pb-3 flex-1 flex flex-col">
+          {/* Price row + change badge */}
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <div className="text-[19px] font-bold text-ink tracking-tight tabular-nums leading-none">
+              {formatPrice(item.price)}
+            </div>
+            {item.priceChange !== undefined && item.priceChange !== 0 && (
+              <span
+                className="inline-flex items-center text-[10.5px] font-bold tabular-nums px-1.5 py-[3px] text-white"
+                style={{
+                  background:
+                    item.priceChange > 0
+                      ? 'linear-gradient(90deg, #4f46e5 0%, #06b6d4 100%)'
+                      : 'linear-gradient(90deg, #6366f1 0%, #f97316 100%)',
+                }}
+              >
+                {item.priceChange > 0 ? '+' : '−'}
+                {Math.abs(item.priceChange).toFixed(0)}%
               </span>
             )}
           </div>
 
+          {/* Reference price — small grey line under the main price */}
+          {referencePrice != null && (
+            <div className="text-[11px] text-ink-dim font-medium mt-0.5 tabular-nums">
+              Reference price {formatPrice(referencePrice)}
+            </div>
+          )}
+
+          {/* Weapon class chip — rarity-colored square + colored label */}
+          {weaponLabel && (
+            <div className="mt-2 flex items-center gap-1.5">
+              <span
+                className="inline-block w-2.5 h-2.5"
+                style={{ background: color }}
+                aria-hidden
+              />
+              <span
+                className="text-[12px] font-semibold truncate"
+                style={{ color }}
+              >
+                {weaponLabel}
+              </span>
+            </div>
+          )}
+
+          {/* Item name */}
           <h3
-            className="text-[13.5px] font-bold text-ink truncate tracking-tight leading-tight"
+            className="text-[15px] font-bold text-ink truncate tracking-tight leading-tight mt-1"
             title={name}
           >
             {name}
           </h3>
 
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <div className="text-[16.5px] font-bold text-ink tracking-tight tabular-nums leading-none">
-              {formatPrice(item.price)}
+          {/* Condition row — "Factory New ★ Covert Rifle" */}
+          {(item.condition || item.type) && (
+            <div className="text-[11.5px] text-ink-muted font-medium mt-0.5 truncate">
+              {item.condition}
+              {item.condition && (item.special || item.type) && ' ★ '}
+              {item.rarity || ''}
+              {item.rarity && item.type && ' '}
+              {abbrevType(item.type)}
             </div>
-            {item.priceChange !== undefined && item.priceChange !== 0 && (
-              <span
-                className={`shrink-0 inline-flex items-center text-[10px] font-bold tabular-nums px-1.5 py-0.5 ${
-                  item.priceChange > 0
-                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                    : 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
-                }`}
-              >
-                {item.priceChange > 0 ? '+' : '−'}
-                {Math.abs(item.priceChange).toFixed(1)}%
-              </span>
-            )}
-          </div>
+          )}
 
-          {floatPct != null && (
-            <div className="mt-2 flex items-center gap-2">
-              <span
-                className={`w-1.5 h-1.5 shrink-0 ${online ? 'bg-emerald-500' : 'bg-ink-dim'}`}
-                aria-label={online ? 'Online' : 'Offline'}
-              />
+          {/* Float bar at the very bottom */}
+          {floatPct != null && floatNum != null && (
+            <div className="mt-auto pt-3 flex items-center gap-2">
+              <span className="text-[11px] text-ink-muted font-mono tabular-nums shrink-0">
+                {floatNum.toFixed(3)}
+              </span>
               <div
-                className="relative flex-1 h-1 overflow-hidden bg-subtle"
-                title={`Float ${floatNum?.toFixed(6)}`}
+                className="relative flex-1 h-1.5 overflow-hidden"
+                title={`Float ${floatNum.toFixed(6)}`}
               >
                 <div
-                  className="absolute inset-0 opacity-40"
+                  className="absolute inset-0"
                   style={{
                     background:
                       'linear-gradient(90deg, #22c55e 0%, #84cc16 25%, #eab308 50%, #f97316 75%, #ef4444 100%)',
                   }}
                   aria-hidden
                 />
+                {/* White triangle marker */}
                 <div
-                  className="absolute top-0 bottom-0 w-[2px] bg-ink"
-                  style={{ left: `calc(${floatPct}% - 1px)` }}
+                  className="absolute top-0"
+                  style={{
+                    left: `calc(${floatPct}% - 4px)`,
+                    width: 0,
+                    height: 0,
+                    borderLeft: '4px solid transparent',
+                    borderRight: '4px solid transparent',
+                    borderTop: '5px solid #ffffff',
+                  }}
                   aria-hidden
                 />
               </div>
             </div>
           )}
-
-          {(floatNum != null || seed != null) && (
-            <div className="mt-1 flex items-center justify-between text-[10.5px] font-medium tabular-nums">
-              <span className="text-ink-muted font-mono truncate">
-                {floatNum != null ? floatNum.toFixed(6) : '—'}
-              </span>
-              {seed != null && (
-                <span className="text-ink-dim shrink-0">#{String(seed)}</span>
-              )}
-            </div>
-          )}
         </div>
+
+        {/* Hover ADD TO CART action — slides up over the float bar area */}
+        {onAddCart && (
+          <div className="absolute bottom-0 left-0 right-0 translate-y-full group-hover:translate-y-0 transition-transform duration-200 ease-out flex items-stretch">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddCart();
+              }}
+              className="flex-1 h-11 bg-sky-300 hover:bg-sky-200 text-slate-900 text-[12.5px] font-bold uppercase tracking-[0.14em] inline-flex items-center justify-center gap-2 transition-colors"
+            >
+              <ShoppingBag size={14} strokeWidth={2.4} />
+              Add to cart
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                /* Reserved for "more options" — opens detail view for now. */
+                onView?.();
+              }}
+              className="w-11 h-11 bg-sky-300/95 hover:bg-sky-200 text-slate-900 grid place-items-center transition-colors"
+              style={{ boxShadow: 'inset 1px 0 0 0 rgb(0 0 0 / 0.08)' }}
+              aria-label="More"
+            >
+              <span className="flex flex-col gap-[2px]" aria-hidden>
+                <span className="w-[3px] h-[3px] bg-slate-900 rounded-full" />
+                <span className="w-[3px] h-[3px] bg-slate-900 rounded-full" />
+                <span className="w-[3px] h-[3px] bg-slate-900 rounded-full" />
+              </span>
+            </button>
+          </div>
+        )}
       </motion.article>
     );
   }
