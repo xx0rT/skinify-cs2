@@ -188,6 +188,7 @@ Deno.serve(async (req) => {
           seller: {
             steamId: listing.steam_id,
             name: listing.users?.display_name || 'Unknown',
+            avatar: listing.users?.avatar_url || null,
             avatarUrl: listing.users?.avatar_url
           },
           steam_id: listing.steam_id,
@@ -294,8 +295,14 @@ Deno.serve(async (req) => {
         pattern: listing.pattern_template,
         stickers: listing.stickers,
         seller: {
+          /* Sourced from the listing's `user_id` join, NOT the
+             currently-authenticated user. The card on the product
+             page renders these fields directly — if they're wrong,
+             check the join: `users:user_id` requires the FK to
+             match. */
           steamId: listing.steam_id,
-          name: listing.users?.display_name || 'Unknown'
+          name: listing.users?.display_name || 'Unknown',
+          avatar: listing.users?.avatar_url || null,
         },
         views: listing.views,
         description: listing.description,

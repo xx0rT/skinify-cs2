@@ -523,7 +523,7 @@ const UserProfilePage: React.FC = () => {
                       hidden: {},
                       shown: { transition: { staggerChildren: 0.03 } },
                     }}
-                    className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-2.5"
+                    className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-0 isolate"
                   >
                     <AnimatePresence mode="popLayout">
                       {filtered.map((l) => (
@@ -535,10 +535,10 @@ const UserProfilePage: React.FC = () => {
                             shown: { opacity: 1, y: 0, transition: spring },
                           }}
                           exit={{ opacity: 0, scale: 0.96 }}
-                          whileHover={{ y: -3 }}
                           transition={spring}
                         >
                           <SkinCard
+                            variant="tile"
                             item={{
                               id: l.id,
                               name: l.item_name,

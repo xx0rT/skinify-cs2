@@ -1293,11 +1293,18 @@ const SellerCard: React.FC<{
   onView: () => void;
   onMessage: () => void;
 }> = ({ seller, onView, onMessage }) => {
+  const { user } = useAuthStore();
   const name = seller?.name || 'Anonymous';
   const initial = name.charAt(0).toUpperCase();
+  const avatar = seller?.avatar || seller?.avatarUrl || null;
   const rating: number = Number(seller?.rating ?? 4.9);
   const deals: number = Number(seller?.totalDeals ?? seller?.successDeals ?? 124);
   const memberSince: string = seller?.memberSince || 'Active trader';
+  /* True when the viewer is also the seller. We surface a clear "Your
+     listing" pill so users don't think the card is rendering them by
+     mistake — same data, intentional indicator. */
+  const isSelf =
+    !!user?.steamId && !!seller?.steamId && String(user.steamId) === String(seller.steamId);
 
   return (
     <motion.section
@@ -1306,15 +1313,22 @@ const SellerCard: React.FC<{
       transition={{ ...spring, delay: 0.12 }}
       className="card p-5"
     >
-      <span className="label-eyebrow">Seller</span>
+      <div className="flex items-center justify-between">
+        <span className="label-eyebrow">Seller</span>
+        {isSelf && (
+          <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-accent-soft text-accent">
+            Your listing
+          </span>
+        )}
+      </div>
       {/* Header — clickable */}
       <button
         onClick={onView}
         className="w-full flex items-center gap-3 p-2 -mx-2 mt-2 rounded-2xl hover:bg-subtle transition-colors group"
       >
-        <div className="relative w-12 h-12 rounded-2xl bg-accent text-on-accent grid place-items-center font-bold shrink-0">
-          {seller?.avatar ? (
-            <img src={seller.avatar} alt="" className="w-full h-full object-cover rounded-2xl" />
+        <div className="relative w-12 h-12 rounded-2xl bg-accent text-on-accent grid place-items-center font-bold shrink-0 overflow-hidden">
+          {avatar ? (
+            <img src={avatar} alt="" className="w-full h-full object-cover" />
           ) : (
             <span className="text-[16px]">{initial}</span>
           )}
@@ -1398,10 +1412,12 @@ const SellerCard: React.FC<{
         </motion.button>
       </div>
 
-      {/* Direct seller rating — moved here from the main column so
-          users rate the SELLER (not the listing) right where they're
-          already looking at their stats. */}
-      <SellerRatingWidget sellerKey={seller?.steamId || seller?.name || 'anon'} />
+      {/* Direct seller rating — only shown when the viewer is NOT the
+          seller (no self-rating). Rates the seller, not the listing,
+          and persists per-seller in localStorage. */}
+      {!isSelf && (
+        <SellerRatingWidget sellerKey={seller?.steamId || seller?.name || 'anon'} />
+      )}
     </motion.section>
   );
 };

@@ -210,10 +210,48 @@ const ShareItem: React.FC<{
 
 /* ───── SellerRatingWidget ─────
    Compact 5-star inline widget designed to live INSIDE the seller card
-   on the item detail page. Clicking writes to localStorage so the
-   rating survives reload. Stub for a real backend write later. */
+   on the item detail page.
+
+   Color scale: 1★ = red (negative experience) → 5★ = green (excellent).
+   Now supports HALF stars: hovering or clicking the LEFT half of a
+   star registers `n - 0.5`, the right half registers the full `n`.
+   So ratings can be 0.5, 1, 1.5, 2, … 5.
+
+   Persistence: per-seller rating goes into localStorage with the key
+   `skinify_seller_rating_<sellerKey>`. We also append an entry to the
+   global `skinify_seller_ratings_index` so the seller's profile page
+   can show their accumulated ratings. */
+
+/* 1..5 → color. Stops are picked so the gradient feels balanced
+   (red → orange → amber → lime → emerald). For half ratings we round
+   UP to the nearest whole star for color/label selection — a 3.5 still
+   counts as lime/Good, not amber/OK. */
+const RATING_COLOR: Record<number, string> = {
+  1: '#ef4444', // red-500
+  2: '#f97316', // orange-500
+  3: '#eab308', // yellow-500
+  4: '#84cc16', // lime-500
+  5: '#22c55e', // emerald-500
+};
+
+/* Labels by 0.5 increments — 10 stops so half-star ratings still feel
+   informative ("Mediocre" vs "OK"). */
+const RATING_LABEL: Record<string, string> = {
+  '0.5': 'Terrible',
+  '1': 'Awful',
+  '1.5': 'Very poor',
+  '2': 'Poor',
+  '2.5': 'Mediocre',
+  '3': 'OK',
+  '3.5': 'Decent',
+  '4': 'Good',
+  '4.5': 'Great',
+  '5': 'Excellent',
+};
+
 export const SellerRatingWidget: React.FC<{ sellerKey: string }> = ({ sellerKey }) => {
   const storageKey = `skinify_seller_rating_${sellerKey}`;
+  const indexKey = 'skinify_seller_ratings_index';
   const [hover, setHover] = useState(0);
   const [value, setValue] = useState(0);
 
@@ -221,6 +259,7 @@ export const SellerRatingWidget: React.FC<{ sellerKey: string }> = ({ sellerKey 
     try {
       const raw = localStorage.getItem(storageKey);
       if (raw) setValue(Number(raw) || 0);
+      else setValue(0);
     } catch {
       /* private window */
     }
@@ -230,43 +269,113 @@ export const SellerRatingWidget: React.FC<{ sellerKey: string }> = ({ sellerKey 
     setValue(n);
     try {
       localStorage.setItem(storageKey, String(n));
+      const raw = localStorage.getItem(indexKey);
+      const arr: Array<{ sellerKey: string; rating: number; ts: number }> = raw
+        ? JSON.parse(raw)
+        : [];
+      const without = arr.filter((e) => e.sellerKey !== sellerKey);
+      without.push({ sellerKey, rating: n, ts: Date.now() });
+      localStorage.setItem(indexKey, JSON.stringify(without.slice(-500)));
     } catch {
       /* ignore */
     }
   };
 
   const display = hover || value;
+  const activeWhole = display > 0 ? Math.ceil(display) : 0;
+  const activeColor = activeWhole > 0 ? RATING_COLOR[activeWhole] : null;
+  const activeLabel = display > 0 ? RATING_LABEL[String(display)] : null;
 
   return (
     <div className="mt-3 pt-3 border-t border-line">
       <div className="flex items-center justify-between">
         <span className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
-          Your rating
+          {value > 0 ? 'Your rating' : 'Rate seller'}
         </span>
-        <div className="flex items-center gap-0.5">
-          {[1, 2, 3, 4, 5].map((n) => (
-            <button
-              key={n}
-              onMouseEnter={() => setHover(n)}
-              onMouseLeave={() => setHover(0)}
-              onClick={() => set(n)}
-              className="p-0.5 transition-transform hover:scale-110"
-              aria-label={`Rate ${n} stars`}
+        <div className="flex items-center gap-1.5">
+          {activeLabel && (
+            <span
+              className="text-[10px] font-bold uppercase tracking-wider tabular-nums"
+              style={{ color: activeColor || undefined }}
             >
-              <Star
-                size={14}
-                strokeWidth={2}
-                className={
-                  n <= display
-                    ? 'fill-amber-400 text-amber-400'
-                    : 'text-ink-dim'
-                }
+              {display.toFixed(display % 1 === 0 ? 0 : 1)} · {activeLabel}
+            </span>
+          )}
+          <div
+            className="flex items-center gap-0.5"
+            onMouseLeave={() => setHover(0)}
+          >
+            {[1, 2, 3, 4, 5].map((n) => (
+              <HalfStar
+                key={n}
+                index={n}
+                display={display}
+                color={activeColor}
+                onHover={setHover}
+                onPick={set}
               />
-            </button>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </div>
+  );
+};
+
+/* ───── HalfStar — single star with two hit-zones (left = n - 0.5,
+   right = n). The visual is one <Star> filled to the right percentage
+   via a clip-path, layered over an empty <Star> background. */
+const HalfStar: React.FC<{
+  index: number; // 1..5
+  display: number; // current effective rating (hover or value)
+  color: string | null;
+  onHover: (v: number) => void;
+  onPick: (v: number) => void;
+}> = ({ index, display, color, onHover, onPick }) => {
+  /* fillPct: how much of THIS star to fill, in % (0, 50, 100). */
+  const fillPct =
+    display >= index ? 100 : display >= index - 0.5 ? 50 : 0;
+
+  return (
+    <span className="relative inline-block w-[14px] h-[14px] cursor-pointer">
+      {/* Empty background star — always rendered, sets the outline. */}
+      <Star
+        size={14}
+        strokeWidth={2}
+        className="absolute inset-0 text-ink-dim"
+      />
+      {/* Filled overlay — clipped to fillPct of its width. */}
+      {fillPct > 0 && (
+        <span
+          className="absolute inset-0 overflow-hidden pointer-events-none"
+          style={{ width: `${fillPct}%` }}
+        >
+          <Star
+            size={14}
+            strokeWidth={2}
+            style={color ? { color, fill: color } : undefined}
+          />
+        </span>
+      )}
+      {/* Hit-zones: left half = -0.5 of index, right half = full. Both
+          are absolutely positioned over the star and transparent. */}
+      <button
+        type="button"
+        aria-label={`Rate ${index - 0.5} stars · ${RATING_LABEL[String(index - 0.5)]}`}
+        onMouseEnter={() => onHover(index - 0.5)}
+        onClick={() => onPick(index - 0.5)}
+        className="absolute top-0 bottom-0 left-0 w-1/2 z-10 transition-transform hover:scale-110"
+        style={{ transformOrigin: 'center' }}
+      />
+      <button
+        type="button"
+        aria-label={`Rate ${index} stars · ${RATING_LABEL[String(index)]}`}
+        onMouseEnter={() => onHover(index)}
+        onClick={() => onPick(index)}
+        className="absolute top-0 bottom-0 right-0 w-1/2 z-10 transition-transform hover:scale-110"
+        style={{ transformOrigin: 'center' }}
+      />
+    </span>
   );
 };
 

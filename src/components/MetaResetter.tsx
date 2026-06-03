@@ -69,10 +69,22 @@ function setLink(rel: string, href: string) {
   if (el.href !== href) el.href = href;
 }
 
+/* Remove any leftover meta-refresh tags. Cloudflare's "Under Attack"
+   challenge interstitial injects `<meta http-equiv="refresh">` to
+   bounce the user once the challenge passes. When our real app mounts
+   on top of that, the refresh tag can linger in the DOM and confuse
+   crawlers — strip every one we find. */
+function purgeRefreshMeta() {
+  document.head
+    .querySelectorAll<HTMLMetaElement>('meta[http-equiv="refresh" i]')
+    .forEach((el) => el.remove());
+}
+
 const MetaResetter: React.FC = () => {
   const { pathname } = useLocation();
 
   useEffect(() => {
+    purgeRefreshMeta();
     /* Robots — explicit per route. Pages opting in to a private state
        are listed above; everything else is public. */
     setMeta(

@@ -1,10 +1,34 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Star, ThumbsUp, MessageSquare, Shield, Calendar } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Star,
+  ShieldCheck,
+  MessageSquare,
+  Send,
+  X as XIcon,
+  ThumbsUp,
+} from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuthStore } from '../../store/authStore';
 import { useToastStore } from '../../store/toastStore';
-import ReviewSubmissionModal from './ReviewSubmissionModal';
+import { spring, tap } from '../../lib/motion';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   UserReviews — public profile reviews tab.
+
+   Full rewrite in the site's design language:
+     - `.card` surfaces (not gradient blobs)
+     - Token colors (accent / ink / subtle) so it picks up the theme
+     - Compact summary header with a 1–5 distribution bar chart
+     - Inline review composer with the same half-star rating widget
+       used in the seller-card on the item detail page (red 1★ → green 5★)
+     - Reviews list using `.card-flat` rows
+
+   Schema is unchanged — same `user_reviews` table the previous version
+   wrote to. We dropped the separate ReviewSubmissionModal and inlined a
+   single composer that opens in place; that's where the "horrible
+   modal" complaint came from.
+   ───────────────────────────────────────────────────────────────────────── */
 
 interface Review {
   id: string;
@@ -15,60 +39,80 @@ interface Review {
   created_at: string;
   reviewer: {
     display_name: string;
-    avatar_url: string;
+    avatar_url: string | null;
   };
 }
 
 interface UserReviewsProps {
+  /** Steam ID of the user being viewed. */
   userId: string;
+  /** Same as userId — kept for backwards compat with the call site. */
   steamId: string;
 }
+
+const RATING_COLOR: Record<number, string> = {
+  1: '#ef4444',
+  2: '#f97316',
+  3: '#eab308',
+  4: '#84cc16',
+  5: '#22c55e',
+};
+
+const RATING_LABEL: Record<string, string> = {
+  '0.5': 'Terrible',
+  '1': 'Awful',
+  '1.5': 'Very poor',
+  '2': 'Poor',
+  '2.5': 'Mediocre',
+  '3': 'OK',
+  '3.5': 'Decent',
+  '4': 'Good',
+  '4.5': 'Great',
+  '5': 'Excellent',
+};
 
 const UserReviews: React.FC<UserReviewsProps> = ({ userId, steamId }) => {
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showReviewForm, setShowReviewForm] = useState(false);
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
   const [canReview, setCanReview] = useState(false);
-  const [averageRating, setAverageRating] = useState(0);
-  const [totalReviews, setTotalReviews] = useState(0);
-  const [sellerName, setSellerName] = useState('Seller');
   const [actualUserId, setActualUserId] = useState<string | null>(null);
+
+  const isOwnProfile = !!user?.steamId && user.steamId === steamId;
 
   useEffect(() => {
     fetchUserIdAndReviews();
     checkCanReview();
-  }, [userId, user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, user?.steamId]);
 
   const fetchUserIdAndReviews = async () => {
     try {
       setIsLoading(true);
 
-      // First, get the actual user UUID from steam_id if userId is a steam_id
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('id, display_name')
+        .select('id')
         .eq('steam_id', userId)
         .maybeSingle();
 
       if (userError) throw userError;
-
       if (!userData) {
-        console.error('User not found for steam_id:', userId);
-        setIsLoading(false);
+        setReviews([]);
         return;
       }
 
       setActualUserId(userData.id);
-      setSellerName(userData.display_name || 'Seller');
 
-      // Fetch reviews using the actual UUID
       const { data: reviewsData, error } = await supabase
         .from('user_reviews')
-        .select(`
+        .select(
+          `
           id,
           reviewer_id,
           rating,
@@ -76,27 +120,21 @@ const UserReviews: React.FC<UserReviewsProps> = ({ userId, steamId }) => {
           is_verified_purchase,
           created_at,
           reviewer:users!user_reviews_reviewer_id_fkey(display_name, avatar_url)
-        `)
+        `,
+        )
         .eq('reviewed_user_id', userData.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-
-      setReviews(reviewsData || []);
-
-      // Fetch stats
-      const { data: statsData } = await supabase
-        .from('user_stats')
-        .select('average_rating, total_reviews')
-        .eq('user_id', userData.id)
-        .maybeSingle();
-
-      if (statsData) {
-        setAverageRating(parseFloat(statsData.average_rating) || 0);
-        setTotalReviews(statsData.total_reviews || 0);
-      }
-    } catch (error) {
-      console.error('Error fetching reviews:', error);
+      // Supabase typings return reviewer as an array when the alias isn't unique;
+      // flatten for downstream consumers.
+      const normalized = (reviewsData || []).map((r: any) => ({
+        ...r,
+        reviewer: Array.isArray(r.reviewer) ? r.reviewer[0] : r.reviewer,
+      })) as Review[];
+      setReviews(normalized);
+    } catch (e) {
+      console.error('Error fetching reviews:', e);
     } finally {
       setIsLoading(false);
     }
@@ -107,9 +145,8 @@ const UserReviews: React.FC<UserReviewsProps> = ({ userId, steamId }) => {
       setCanReview(false);
       return;
     }
-
     try {
-      // Check if user has completed order with this user
+      /* Has the viewer ever traded with this seller? */
       const { data: completedOrders } = await supabase
         .from('orders')
         .select('id')
@@ -118,7 +155,6 @@ const UserReviews: React.FC<UserReviewsProps> = ({ userId, steamId }) => {
         .or(`buyer_steam_id.eq.${steamId},seller_steam_id.eq.${steamId}`)
         .limit(1);
 
-      // Check if user already reviewed
       const { data: existingReview } = await supabase
         .from('user_reviews')
         .select('id')
@@ -126,248 +162,411 @@ const UserReviews: React.FC<UserReviewsProps> = ({ userId, steamId }) => {
         .eq('reviewed_user_id', userId)
         .maybeSingle();
 
-      setCanReview(!!completedOrders && completedOrders.length > 0 && !existingReview);
-    } catch (error) {
-      console.error('Error checking review eligibility:', error);
+      setCanReview(
+        !!completedOrders && completedOrders.length > 0 && !existingReview,
+      );
+    } catch (e) {
+      console.error('Error checking review eligibility:', e);
     }
   };
 
-  const handleSubmitReview = async () => {
-    if (!user || !newReview.comment.trim() || !actualUserId) {
-      addToast({
-        type: 'error',
-        message: 'Please provide a comment'
-      });
+  /* Aggregate stats derived from the loaded reviews so the header
+     summary always matches what's rendered below. Falls back to 0
+     when there are no reviews. */
+  const stats = useMemo(() => {
+    const total = reviews.length;
+    if (total === 0) {
+      return { total, avg: 0, distribution: [0, 0, 0, 0, 0] };
+    }
+    const sum = reviews.reduce((s, r) => s + Number(r.rating || 0), 0);
+    const dist = [0, 0, 0, 0, 0];
+    reviews.forEach((r) => {
+      const idx = Math.max(0, Math.min(4, Math.round(Number(r.rating || 0)) - 1));
+      dist[idx] += 1;
+    });
+    return { total, avg: sum / total, distribution: dist };
+  }, [reviews]);
+
+  const submit = async () => {
+    if (!user || !comment.trim() || !actualUserId) {
+      addToast({ type: 'error', title: 'Add a comment first' });
       return;
     }
-
+    if (rating <= 0) {
+      addToast({ type: 'error', title: 'Pick a rating first' });
+      return;
+    }
+    setSubmitting(true);
     try {
-      const { error } = await supabase
-        .from('user_reviews')
-        .insert({
-          reviewer_id: user.steamId,
-          reviewed_user_id: actualUserId,
-          rating: newReview.rating,
-          comment: newReview.comment.trim(),
-          is_verified_purchase: true
-        });
-
+      const { error } = await supabase.from('user_reviews').insert({
+        reviewer_id: user.steamId,
+        reviewed_user_id: actualUserId,
+        rating: rating,
+        comment: comment.trim(),
+        is_verified_purchase: true,
+      });
       if (error) throw error;
 
       addToast({
         type: 'success',
-        title: 'Review Posted',
-        message: 'Your review has been submitted successfully'
+        title: 'Review posted',
+        message: 'Thanks for the feedback.',
       });
-
-      setShowReviewForm(false);
-      setNewReview({ rating: 5, comment: '' });
-      fetchUserIdAndReviews();
+      setComposerOpen(false);
+      setRating(0);
+      setComment('');
       setCanReview(false);
-    } catch (error: any) {
-      console.error('Error submitting review:', error);
+      fetchUserIdAndReviews();
+    } catch (e: any) {
+      console.error('Error submitting review:', e);
       addToast({
         type: 'error',
-        title: 'Review Failed',
-        message: error.message || 'Failed to submit review'
+        title: 'Review failed',
+        message: e?.message || 'Try again in a minute.',
       });
+    } finally {
+      setSubmitting(false);
     }
-  };
-
-  const renderStars = (rating: number, size: 'sm' | 'lg' = 'sm') => {
-    const starSize = size === 'sm' ? 16 : 24;
-    return (
-      <div className="flex items-center">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <Star
-            key={star}
-            size={starSize}
-            className={`${
-              star <= rating
-                ? 'text-yellow-400 fill-yellow-400'
-                : 'text-gray-600'
-            }`}
-          />
-        ))}
-      </div>
-    );
-  };
-
-  const renderInteractiveStars = (rating: number, onChange: (rating: number) => void) => {
-    return (
-      <div className="flex items-center space-x-1">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <button
-            key={star}
-            onClick={() => onChange(star)}
-            className="transition-transform hover:scale-110"
-          >
-            <Star
-              size={32}
-              className={`${
-                star <= rating
-                  ? 'text-yellow-400 fill-yellow-400'
-                  : 'text-gray-600 hover:text-yellow-300'
-              }`}
-            />
-          </button>
-        ))}
-      </div>
-    );
   };
 
   if (isLoading) {
     return (
-      <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 p-6">
-        <div className="text-center text-gray-400">Loading reviews...</div>
+      <div className="card p-12 text-center">
+        <div className="text-[13.5px] text-ink-muted font-medium">Loading reviews…</div>
       </div>
     );
   }
 
   return (
-    <div className="bg-gradient-to-br from-gray-900/60 to-purple-900/20 backdrop-blur-sm rounded-xl border border-purple-500/30 overflow-hidden shadow-xl">
-      {/* Header with Stats */}
-      <div className="p-8 border-b border-purple-500/30 bg-gradient-to-r from-purple-900/20 to-fuchsia-900/20">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-2xl font-bold bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent flex items-center">
-              <Star className="w-7 h-7 text-yellow-400 mr-3 drop-shadow-lg" />
-              User Reviews
-            </h3>
-            <div className="flex items-center space-x-4 mt-2">
-              <div className="flex items-center space-x-2">
-                {renderStars(Math.round(averageRating), 'lg')}
-                <span className="text-2xl font-bold text-white">
-                  {averageRating > 0 ? averageRating.toFixed(1) : 'N/A'}
-                </span>
+    <div className="space-y-3">
+      {/* ─── Summary header ─── */}
+      <section className="card p-5 sm:p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr_auto] items-center gap-5">
+          {/* Average rating block */}
+          <div className="text-center sm:text-left">
+            <div className="label-eyebrow">Average rating</div>
+            <div className="flex items-baseline gap-2 mt-1 justify-center sm:justify-start">
+              <div className="text-[36px] sm:text-[44px] font-bold text-ink tracking-tight tabular-nums leading-none">
+                {stats.avg > 0 ? stats.avg.toFixed(1) : '—'}
               </div>
-              <span className="text-gray-400">({totalReviews} reviews)</span>
+              <div className="text-[12.5px] text-ink-muted font-medium">/ 5</div>
+            </div>
+            <StaticStars value={stats.avg} size={14} />
+            <div className="text-[11.5px] text-ink-muted font-medium mt-1">
+              {stats.total} {stats.total === 1 ? 'review' : 'reviews'}
             </div>
           </div>
 
-          {canReview && !showReviewForm && (
-            <button
-              onClick={() => setShowReviewModal(true)}
-              className="bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center space-x-2 shadow-lg shadow-purple-500/40"
+          {/* Distribution bars */}
+          <div className="space-y-1">
+            {[5, 4, 3, 2, 1].map((n) => {
+              const count = stats.distribution[n - 1];
+              const pct = stats.total > 0 ? (count / stats.total) * 100 : 0;
+              return (
+                <div key={n} className="flex items-center gap-2">
+                  <span className="text-[11.5px] font-bold text-ink-muted tabular-nums w-3">
+                    {n}
+                  </span>
+                  <Star
+                    size={11}
+                    strokeWidth={2}
+                    style={{
+                      color: RATING_COLOR[n],
+                      fill: RATING_COLOR[n],
+                    }}
+                  />
+                  <div className="flex-1 h-1.5 rounded-full bg-subtle overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${pct}%` }}
+                      transition={{ ...spring, mass: 0.7 }}
+                      className="h-full"
+                      style={{ background: RATING_COLOR[n] }}
+                    />
+                  </div>
+                  <span className="text-[11px] text-ink-dim font-medium tabular-nums w-8 text-right">
+                    {count}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Action button */}
+          {canReview && !composerOpen && (
+            <motion.button
+              whileTap={tap}
+              whileHover={{ scale: 1.02 }}
+              onClick={() => setComposerOpen(true)}
+              className="h-11 px-5 rounded-full bg-accent text-on-accent font-bold text-[13px] inline-flex items-center gap-1.5"
+              style={{ boxShadow: '0 12px 26px -12px rgb(var(--accent) / 0.55)' }}
             >
-              <MessageSquare size={18} />
-              <span>Write Review</span>
-            </button>
+              <MessageSquare size={13} strokeWidth={2.4} />
+              Write a review
+            </motion.button>
           )}
         </div>
-      </div>
 
-      {/* Review Form */}
-      {showReviewForm && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          className="p-8 border-b border-purple-500/30 bg-gradient-to-r from-purple-500/10 to-fuchsia-500/10 backdrop-blur-sm"
-        >
-          <h4 className="text-xl font-bold bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent mb-6">Write Your Review</h4>
+        {/* Gentle hints when the viewer can't post one */}
+        {!isOwnProfile && !canReview && user && (
+          <p className="text-[11.5px] text-ink-dim font-medium mt-4">
+            You can leave a review after a completed trade with this user.
+          </p>
+        )}
+        {!user && !isOwnProfile && (
+          <p className="text-[11.5px] text-ink-dim font-medium mt-4">
+            Sign in to leave a review.
+          </p>
+        )}
+      </section>
 
-          <div className="mb-4">
-            <label className="text-gray-300 text-sm mb-2 block">Rating</label>
-            {renderInteractiveStars(newReview.rating, (rating) =>
-              setNewReview({ ...newReview, rating })
-            )}
-          </div>
+      {/* ─── Composer ─── */}
+      <AnimatePresence initial={false}>
+        {composerOpen && (
+          <motion.section
+            key="composer"
+            initial={{ opacity: 0, y: -6, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            exit={{ opacity: 0, y: -6, height: 0 }}
+            transition={spring}
+            className="card p-5 sm:p-6 overflow-hidden"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <span className="label-eyebrow">Your review</span>
+                <h3 className="text-[18px] font-bold text-ink tracking-tight mt-1">
+                  Rate this trader
+                </h3>
+              </div>
+              <button
+                onClick={() => setComposerOpen(false)}
+                aria-label="Close"
+                className="w-9 h-9 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors"
+              >
+                <XIcon size={15} strokeWidth={2.4} />
+              </button>
+            </div>
 
-          <div className="mb-4">
-            <label className="text-gray-300 text-sm mb-2 block">Comment</label>
+            <div className="mt-5 flex items-center gap-4 flex-wrap">
+              <InteractiveRating value={rating} onChange={setRating} />
+              {rating > 0 && (
+                <span
+                  className="text-[12px] font-bold uppercase tracking-wider tabular-nums"
+                  style={{ color: RATING_COLOR[Math.ceil(rating)] }}
+                >
+                  {rating.toFixed(rating % 1 === 0 ? 0 : 1)} ·{' '}
+                  {RATING_LABEL[String(rating)]}
+                </span>
+              )}
+            </div>
+
             <textarea
-              value={newReview.comment}
-              onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
-              placeholder="Share your experience with this trader..."
-              className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 resize-none"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Share your experience trading with this user — delivery speed, communication, anything notable…"
               rows={4}
+              maxLength={1000}
+              className="mt-4 w-full rounded-2xl bg-subtle px-3.5 py-3 text-[13.5px] text-ink font-medium outline-none focus:ring-2 focus:ring-accent/40 resize-none"
             />
-          </div>
+            <div className="mt-1.5 flex items-center justify-between text-[10.5px] text-ink-dim font-medium">
+              <span>Be specific — facts help other traders more than vibes.</span>
+              <span className="tabular-nums">{comment.length}/1000</span>
+            </div>
 
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={handleSubmitReview}
-              className="bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white px-8 py-3 rounded-xl font-semibold transition-all duration-300 shadow-lg shadow-purple-500/40"
-            >
-              Submit Review
-            </button>
-            <button
-              onClick={() => setShowReviewForm(false)}
-              className="bg-gray-800 hover:bg-gray-700 text-white px-8 py-3 rounded-xl font-semibold transition-all duration-300 border border-gray-700"
-            >
-              Cancel
-            </button>
-          </div>
-        </motion.div>
-      )}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <motion.button
+                whileTap={tap}
+                whileHover={!submitting ? { scale: 1.01 } : undefined}
+                onClick={submit}
+                disabled={submitting || rating <= 0 || !comment.trim()}
+                className="h-11 px-5 rounded-full bg-accent text-on-accent font-bold text-[13px] inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                style={{ boxShadow: '0 12px 26px -12px rgb(var(--accent) / 0.55)' }}
+              >
+                <Send size={13} strokeWidth={2.4} />
+                {submitting ? 'Posting…' : 'Post review'}
+              </motion.button>
+              <motion.button
+                whileTap={tap}
+                onClick={() => setComposerOpen(false)}
+                className="h-11 px-5 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[13px] transition-colors"
+              >
+                Cancel
+              </motion.button>
+            </div>
+          </motion.section>
+        )}
+      </AnimatePresence>
 
-      {/* Reviews List */}
-      <div className="divide-y divide-gray-700/30">
+      {/* ─── Reviews list ─── */}
+      <section className="card p-3 sm:p-4">
         {reviews.length === 0 ? (
-          <div className="p-12 text-center">
-            <MessageSquare className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400">No reviews yet</p>
-            <p className="text-gray-500 text-sm mt-2">
-              Be the first to review this trader
+          <div className="py-12 text-center">
+            <MessageSquare className="w-12 h-12 text-ink-muted mx-auto mb-3" />
+            <p className="text-[14px] font-bold text-ink">No reviews yet</p>
+            <p className="text-[12.5px] text-ink-muted font-medium mt-1">
+              Be the first to leave one after a completed trade.
             </p>
           </div>
         ) : (
-          reviews.map((review) => (
-            <motion.div
-              key={review.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="p-6 hover:bg-purple-900/10 transition-all duration-300 border-l-2 border-transparent hover:border-purple-500/50"
-            >
-              <div className="flex items-start space-x-4">
-                <img
-                  src={review.reviewer.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${review.reviewer.display_name}`}
-                  alt={review.reviewer.display_name}
-                  className="w-14 h-14 rounded-full border-3 border-purple-400/40 shadow-lg shadow-purple-500/20"
-                />
-
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-3">
-                      <span className="font-semibold text-white">
-                        {review.reviewer.display_name}
-                      </span>
-                      {review.is_verified_purchase && (
-                        <span className="flex items-center space-x-1 bg-green-500/10 border border-green-500/30 rounded-full px-2 py-1 text-xs text-green-400">
-                          <Shield size={12} />
-                          <span>Verified</span>
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-2 text-gray-400 text-sm">
-                      <Calendar size={14} />
-                      <span>
-                        {new Date(review.created_at).toLocaleDateString('cs-CZ')}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="mb-2">{renderStars(review.rating)}</div>
-
-                  <p className="text-gray-300 leading-relaxed">{review.comment}</p>
-                </div>
-              </div>
-            </motion.div>
-          ))
+          <ul className="space-y-2">
+            {reviews.map((r) => (
+              <ReviewRow key={r.id} review={r} />
+            ))}
+          </ul>
         )}
-      </div>
-
-      <ReviewSubmissionModal
-        isOpen={showReviewModal}
-        onClose={() => setShowReviewModal(false)}
-        sellerSteamId={steamId}
-        sellerName={sellerName}
-        onReviewSubmitted={() => {
-          fetchUserIdAndReviews();
-          setShowReviewModal(false);
-        }}
-      />
+      </section>
     </div>
+  );
+};
+
+/* ───── ReviewRow ───── */
+const ReviewRow: React.FC<{ review: Review }> = ({ review }) => {
+  const name = review.reviewer?.display_name || 'Anonymous';
+  const avatar =
+    review.reviewer?.avatar_url ||
+    `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`;
+  return (
+    <motion.li
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={spring}
+      className="card-flat p-4"
+    >
+      <div className="flex items-start gap-3">
+        <img
+          src={avatar}
+          alt=""
+          className="w-10 h-10 rounded-2xl object-cover bg-subtle shrink-0"
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[13.5px] font-bold text-ink tracking-tight truncate">
+              {name}
+            </span>
+            {review.is_verified_purchase && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                <ShieldCheck size={10} strokeWidth={2.6} />
+                Verified
+              </span>
+            )}
+            <span className="text-[10.5px] text-ink-dim font-medium tabular-nums ml-auto">
+              {new Date(review.created_at).toLocaleDateString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+              })}
+            </span>
+          </div>
+          <div className="mt-1.5 flex items-center gap-2">
+            <StaticStars value={review.rating} size={12} />
+            <span className="text-[11px] font-bold tabular-nums text-ink-muted">
+              {Number(review.rating).toFixed(1)}
+            </span>
+          </div>
+          <p className="text-[13px] text-ink-muted font-medium leading-relaxed mt-2 whitespace-pre-wrap break-words">
+            {review.comment}
+          </p>
+        </div>
+      </div>
+    </motion.li>
+  );
+};
+
+/* ───── StaticStars ───── */
+const StaticStars: React.FC<{ value: number; size?: number }> = ({
+  value,
+  size = 14,
+}) => {
+  const color = value > 0 ? RATING_COLOR[Math.max(1, Math.ceil(value))] : null;
+  return (
+    <div className="inline-flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => {
+        const fillPct = value >= n ? 100 : value >= n - 0.5 ? 50 : 0;
+        return (
+          <span
+            key={n}
+            className="relative inline-block"
+            style={{ width: size, height: size }}
+          >
+            <Star size={size} strokeWidth={2} className="absolute inset-0 text-ink-dim" />
+            {fillPct > 0 && color && (
+              <span
+                className="absolute inset-0 overflow-hidden pointer-events-none"
+                style={{ width: `${fillPct}%` }}
+              >
+                <Star size={size} strokeWidth={2} style={{ color, fill: color }} />
+              </span>
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
+};
+
+/* ───── InteractiveRating — half-star, color-shifting, same UX as the
+   seller card on the item detail page. ───── */
+const InteractiveRating: React.FC<{
+  value: number;
+  onChange: (v: number) => void;
+}> = ({ value, onChange }) => {
+  const [hover, setHover] = useState(0);
+  const display = hover || value;
+  const color = display > 0 ? RATING_COLOR[Math.ceil(display)] : null;
+
+  return (
+    <div
+      className="flex items-center gap-1"
+      onMouseLeave={() => setHover(0)}
+    >
+      {[1, 2, 3, 4, 5].map((n) => (
+        <RatingStarPicker
+          key={n}
+          index={n}
+          display={display}
+          color={color}
+          onHover={setHover}
+          onPick={onChange}
+        />
+      ))}
+    </div>
+  );
+};
+
+const RatingStarPicker: React.FC<{
+  index: number;
+  display: number;
+  color: string | null;
+  onHover: (v: number) => void;
+  onPick: (v: number) => void;
+}> = ({ index, display, color, onHover, onPick }) => {
+  const fillPct = display >= index ? 100 : display >= index - 0.5 ? 50 : 0;
+  return (
+    <span className="relative inline-block w-7 h-7 cursor-pointer">
+      <Star size={28} strokeWidth={2} className="absolute inset-0 text-ink-dim" />
+      {fillPct > 0 && color && (
+        <span
+          className="absolute inset-0 overflow-hidden pointer-events-none"
+          style={{ width: `${fillPct}%` }}
+        >
+          <Star size={28} strokeWidth={2} style={{ color, fill: color }} />
+        </span>
+      )}
+      <button
+        type="button"
+        aria-label={`Rate ${index - 0.5} stars`}
+        onMouseEnter={() => onHover(index - 0.5)}
+        onClick={() => onPick(index - 0.5)}
+        className="absolute top-0 bottom-0 left-0 w-1/2 z-10 transition-transform hover:scale-110"
+      />
+      <button
+        type="button"
+        aria-label={`Rate ${index} stars`}
+        onMouseEnter={() => onHover(index)}
+        onClick={() => onPick(index)}
+        className="absolute top-0 bottom-0 right-0 w-1/2 z-10 transition-transform hover:scale-110"
+      />
+    </span>
   );
 };
 
