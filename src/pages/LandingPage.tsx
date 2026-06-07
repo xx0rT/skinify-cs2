@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { motion, AnimatePresence, useReducedMotion, useScroll, useTransform } from 'framer-motion';
 import {
   ArrowRight,
   ChevronRight,
@@ -12,6 +12,7 @@ import { useWishlistStore } from '../store/wishlistStore';
 import { useCurrencyStore } from '../store/currencyStore';
 import { useBalanceStore } from '../store/balanceStore';
 import { useMarketplaceItems } from '../hooks/useMarketplaceItems';
+import { MOCK_MARKET_ITEMS } from '../data/mockMarketItems';
 import { useHotItems } from '../hooks/useHotItems';
 import { weaponCategories } from '../data/weaponCategories';
 import LandingNav from '../components/LandingNav';
@@ -199,6 +200,30 @@ const LandingPage: React.FC = () => {
 
   const portfolio = useMemo(() => Number(balance || 0), [balance]);
 
+  /* Synthetic 100-item promoted feed for the wall. We cycle through
+     the real mock list, suffixing the id so React keys stay unique and
+     jittering the price ±15 % so the row doesn't look like a hall of
+     copies. Drop this in favour of the live promoted-slot endpoint
+     once it ships. */
+  const promotedMock = useMemo(() => {
+    const out: any[] = [];
+    const target = 100;
+    for (let i = 0; i < target; i++) {
+      const base = MOCK_MARKET_ITEMS[i % MOCK_MARKET_ITEMS.length];
+      const jitter = 1 + (((i * 1664525 + 1013904223) >>> 0) % 30 - 15) / 100;
+      out.push({
+        ...base,
+        id: `${base.id}-promo-${i}`,
+        price: Math.max(1, Math.round(base.price * jitter)),
+        priceChange:
+          base.priceChange != null
+            ? Number((base.priceChange + ((i % 7) - 3)).toFixed(1))
+            : null,
+      });
+    }
+    return out;
+  }, []);
+
   return (
     <div className="min-h-screen bg-bg text-ink">
       <LandingNav />
@@ -214,106 +239,47 @@ const LandingPage: React.FC = () => {
           CS2 Marketplace — Buy and Sell CS2 Skins on Skinify
         </h1>
 
-        {/* ===== PROMO BANNER =====
-            Full-bleed marketing banner. The image carries the visual
-            weight (skins + smoke + skinify.gg tape); we overlay only
-            short, intent-driven copy in the left dark zone so the
-            artwork stays the hero. */}
-        <PromoBanner />
+        {/* ===== PROMOTED WALL =====
+            Replaces the welcome banner at the top of the page. Mocked
+            with 100 synthetic listings while the real promoted-slot
+            backend is being wired. First 3 tiles are highlighted as
+            live paid promo slots; the rest fade progressively. */}
+        <PromotedWall
+          items={promotedMock}
+          onView={(id) => navigate(`/item/${id}`)}
+          onAddCart={handleAddCart}
+          onToggleWish={handleWish}
+          isWished={(id) => isInWishlist(id)}
+          formatPrice={formatPrice}
+        />
 
         {/* ===== HERO ===== */}
         <section className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-3 mb-3">
-          {/* Headline card — animates in on mount with a calm fade-up */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ ...spring, delay: 0.04 }}
-            className="card p-5 sm:p-8 md:p-10 relative overflow-hidden flex flex-col justify-between min-h-[260px] sm:min-h-[320px]"
-          >
-            {/* Hero ambient accent — gently breathes */}
-            <motion.div
-              aria-hidden
-              className="absolute -top-32 -right-24 w-[420px] h-[420px] rounded-full pointer-events-none"
-              style={{
-                background:
-                  'radial-gradient(closest-side, rgb(var(--accent) / 0.18), transparent 65%)',
-              }}
-              animate={reduceMotion ? {} : { scale: [1, 1.06, 1], opacity: [0.7, 1, 0.7] }}
-              transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-            />
+          {/* Promoted-listing showcase — rotates through user-paid promo
+              slots. Replaces the static "Trade CS2 skins" headline so
+              the hero shows a live, ad-style item (rifle on the right,
+              pinned details on the left) plus a CTA to buy a slot. */}
+          <PromotedShowcase
+            promoted={(marketplaceItems || []).slice(0, 6)}
+            formatPrice={formatPrice}
+            onView={(id) => navigate(`/item/${id}`)}
+          />
 
-            <div className="relative">
-              <motion.span
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ ...spring, delay: 0.14 }}
-                className="pill"
-              >
-                <span className="chip-dot bg-emerald-500" />
-                Live · {(marketplaceItems?.length || 0).toLocaleString()} listings
-              </motion.span>
-
-              <motion.h1
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ ...spring, delay: 0.2 }}
-                className="mt-4 sm:mt-5 text-[28px] sm:text-[34px] md:text-[44px] leading-[1.05] font-bold tracking-tight text-ink"
-              >
-                Trade CS2 skins.
-                <br />
-                <span className="text-accent">Instantly, fairly.</span>
-              </motion.h1>
-
-              <motion.p
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ ...spring, delay: 0.28 }}
-                className="mt-3.5 max-w-[480px] text-[14px] text-ink-muted leading-relaxed font-medium"
-              >
-                A premium peer-to-peer marketplace. 0% fees, escrow protection,
-                instant payouts. Built for collectors and traders.
-              </motion.p>
-            </div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ ...spring, delay: 0.36 }}
-              className="relative flex flex-wrap items-center gap-2 mt-6"
-            >
-              <motion.button
-                whileTap={tap}
-                whileHover={{ scale: 1.02 }}
-                onClick={() => navigate('/marketplace')}
-                className="h-12 px-6 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center gap-2"
-                style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.65)' }}
-              >
-                Browse market
-                <ArrowRight size={16} strokeWidth={2.4} />
-              </motion.button>
-              <motion.button
-                whileTap={tap}
-                whileHover={{ scale: 1.02 }}
-                onClick={() => navigate('/profile?tab=inventory')}
-                className="h-12 px-6 rounded-full bg-subtle text-ink font-semibold text-[14px]"
-              >
-                Sell an item
-              </motion.button>
-            </motion.div>
-          </motion.div>
-
-          {/* Featured / portfolio card — parallaxes as you scroll */}
+          {/* Featured / portfolio card — stretches to match the
+              promoted showcase on its left so the hero row has no
+              vertical gap. `h-full` makes the card fill the grid
+              row, `mt-auto` on the stats grid below keeps the
+              stat tiles pinned to the bottom of the card. */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...spring, delay: 0.12 }}
-            className="card p-6 flex flex-col lg:sticky lg:top-24 lg:self-start"
+            className="card p-6 flex flex-col h-full"
           >
-            {/* Sparkline first — the chart visually owns the top of the
-                card, then the portfolio label / value / change sit
-                under it so they read as a "summary of the trend above"
-                instead of a header above an unrelated chart. */}
-            <div className="mb-4 h-16 rounded-2xl bg-subtle/60 overflow-hidden relative">
+            {/* Sparkline — flex-grows to absorb the slack at the top
+                of the card so there's no dead space between the chart
+                and the stats below. */}
+            <div className="mb-4 flex-1 min-h-[100px] rounded-2xl bg-subtle/60 overflow-hidden relative">
               <svg
                 viewBox="0 0 200 60"
                 preserveAspectRatio="none"
@@ -364,7 +330,9 @@ const LandingPage: React.FC = () => {
               {user ? 'Available balance' : 'Total volume traded'}
             </div>
 
-            <div className="grid grid-cols-2 gap-2 mt-auto">
+            {/* 4-cell stats grid — bumped from 2 to 4 tiles so the
+                bottom of the card fills cleanly. */}
+            <div className="grid grid-cols-2 gap-2">
               <div className="card-flat px-3 py-2.5">
                 <div className="label-meta">Fee</div>
                 <div className="text-[15px] font-bold text-ink mt-0.5 tabular-nums">0%</div>
@@ -374,6 +342,14 @@ const LandingPage: React.FC = () => {
                 <div className="text-[15px] font-bold text-ink mt-0.5 tabular-nums">
                   {(marketplaceItems?.length || 60794).toLocaleString()}
                 </div>
+              </div>
+              <div className="card-flat px-3 py-2.5">
+                <div className="label-meta">Escrow</div>
+                <div className="text-[15px] font-bold text-ink mt-0.5 tabular-nums">8d</div>
+              </div>
+              <div className="card-flat px-3 py-2.5">
+                <div className="label-meta">Avg delivery</div>
+                <div className="text-[15px] font-bold text-ink mt-0.5 tabular-nums">{'<1m'}</div>
               </div>
             </div>
           </motion.div>
@@ -522,48 +498,12 @@ const LandingPage: React.FC = () => {
           )}
         </Reveal>
 
-        {/* ===== CTA ===== */}
+        {/* ===== WELCOME PROMO HERO =====
+            The welcome banner (skins + smoke + skinify.gg tape with
+            the "+10% on your first top-up" copy) now lives here as a
+            full-width visual break before the SEO copy. */}
         <Reveal>
-          <div className="card p-5 sm:p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5 sm:gap-6 relative overflow-hidden">
-            <motion.div
-              aria-hidden
-              className="absolute -bottom-24 -right-24 w-[360px] h-[360px] rounded-full pointer-events-none"
-              style={{
-                background:
-                  'radial-gradient(closest-side, rgb(var(--accent) / 0.14), transparent 65%)',
-              }}
-              animate={reduceMotion ? {} : { scale: [1, 1.08, 1] }}
-              transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
-            />
-            <div className="relative">
-              <h3 className="text-[22px] font-bold tracking-tight text-ink">
-                Start trading in under a minute
-              </h3>
-              <p className="text-[14px] text-ink-muted font-medium mt-1.5 max-w-xl">
-                Sign in with Steam, connect your inventory, list or buy. No verification fees, no
-                hidden steps.
-              </p>
-            </div>
-            <div className="flex gap-2 shrink-0 relative">
-              <motion.button
-                whileTap={tap}
-                whileHover={{ scale: 1.02 }}
-                onClick={() => navigate('/marketplace')}
-                className="h-12 px-6 rounded-full bg-accent text-on-accent font-bold text-[14px]"
-                style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.65)' }}
-              >
-                Explore market
-              </motion.button>
-              <motion.button
-                whileTap={tap}
-                whileHover={{ scale: 1.02 }}
-                onClick={() => navigate('/trading-guide')}
-                className="h-12 px-6 rounded-full bg-subtle text-ink font-semibold text-[14px]"
-              >
-                How it works
-              </motion.button>
-            </div>
-          </div>
+          <PromoBanner />
         </Reveal>
 
         {/*
@@ -708,6 +648,570 @@ const LandingPage: React.FC = () => {
   );
 };
 
+/* ─────────────────────────────────────────────────────────────────────────
+   PromotedWall — large grid of promoted items shown at the top of the
+   landing page.
+
+   Behaviour:
+     - First batch is 50 items
+     - First 5 tiles are accent-highlighted (live paid promo slots)
+     - Items 6..50 render normally
+     - Tiles past index ~30 fade to lower opacity to signal that they're
+       further down the queue / rotating into the spotlight
+     - "Load more" CTA appends another batch of 50 each click
+
+   This is the top-of-page replacement for the welcome banner. The
+   welcome banner has been moved further down the page.
+   ───────────────────────────────────────────────────────────────────────── */
+const PROMOTED_BATCH = 50;
+const PROMOTED_HIGHLIGHTED = 5;
+
+/* ─────────────────────────────────────────────────────────────────────────
+   FeaturedTradingCard — oversized trading-card style tile used in the
+   top-5 carousel of the promoted wall.
+
+   Design:
+     - Rarity-tinted swirling radial backdrop that gently breathes
+     - Giant ghosted weapon glyph as a watermark behind the skin
+     - Skin image with a subtle vertical float loop
+     - Diagonal "FEATURED" ribbon on the top-right with rank number
+     - Mono-style name typography (Lexend display weight) + tracked
+       wear/condition meta line
+     - Animated number-ticker price + accent-rimmed Buy chip
+   ───────────────────────────────────────────────────────────────────────── */
+const RARITY_HEX_FEATURED: Record<string, string> = {
+  consumer: '#B0C3D9',
+  industrial: '#5E98D9',
+  milspec: '#4B69FF',
+  restricted: '#8847FF',
+  classified: '#D32CE6',
+  covert: '#EB4B4B',
+  contraband: '#E4AE39',
+  extraordinary: '#E4AE39',
+};
+
+const FeaturedTradingCard: React.FC<{
+  item: any;
+  index: number;
+  onView: () => void;
+  onAddCart: () => void;
+  onToggleWish: () => void;
+  wished: boolean;
+  formatPrice: (n: number) => string;
+}> = ({ item, index, onView, onAddCart, formatPrice }) => {
+  const rarityKey = (item.rarity || '')
+    .toLowerCase()
+    .replace(/[^a-z-]/g, '')
+    .replace('-', '');
+  const color = RARITY_HEX_FEATURED[rarityKey] || '#8B8FA3';
+
+  /* Pull "AK-47" out of "AK-47 | Redline (FT)"; everything after the
+     pipe becomes the skin name on the plate. */
+  const raw = item.name || item.market_name || '';
+  const weapon =
+    raw.split('|')[0]?.trim().replace(/^★\s*/, '').replace(/^StatTrak™\s*/, '') ||
+    item.type ||
+    '';
+  const skin = (raw.split('|')[1] || raw).replace(/\(.*?\)/, '').trim();
+
+  /* Short condition abbreviation for the meta line. */
+  const condShort = (() => {
+    const c = (item.condition || '').toLowerCase();
+    if (c.includes('factory')) return 'FN';
+    if (c.includes('minimal')) return 'MW';
+    if (c.includes('field')) return 'FT';
+    if (c.includes('well')) return 'WW';
+    if (c.includes('battle')) return 'BS';
+    return '';
+  })();
+
+  return (
+    <motion.button
+      type="button"
+      onClick={onView}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ...spring, delay: index * 0.04 }}
+      whileHover={{ y: -3 }}
+      whileTap={tap}
+      className="snap-start shrink-0 relative text-left cursor-pointer flex flex-col group bg-surface overflow-hidden"
+      style={{
+        width: 'min(82vw, 300px)',
+        aspectRatio: '5 / 7',
+        borderRadius: '18px',
+        boxShadow: 'inset 0 0 0 1px rgb(var(--line))',
+      }}
+    >
+      {/* Skin image */}
+      <div className="relative flex-1 flex items-center justify-center px-6 pt-5">
+        <img
+          src={item.image}
+          alt={raw}
+          className="max-w-full max-h-full object-contain pointer-events-none transition-transform duration-300 group-hover:scale-[1.04]"
+          loading="eager"
+        />
+      </div>
+
+      {/* Info plate */}
+      <div className="relative px-4 pt-3 pb-4">
+        <div
+          className="text-[9.5px] font-bold uppercase tracking-[0.16em] truncate"
+          style={{ color }}
+        >
+          {weapon || 'Featured'}
+        </div>
+        <div
+          className="font-bold text-ink tracking-tight truncate mt-1"
+          style={{
+            fontSize: 'clamp(15px, 4vw, 18px)',
+            lineHeight: 1.15,
+            fontFamily: '"Lexend", system-ui, sans-serif',
+          }}
+        >
+          {skin || 'Featured skin'}
+        </div>
+        <div className="text-[11px] text-ink-muted font-medium truncate mt-0.5">
+          {item.condition || 'Standard'}{condShort ? ` · ${condShort}` : ''}
+        </div>
+
+        <div className="mt-3 flex items-end justify-between gap-3">
+          <div
+            className="font-bold tabular-nums tracking-tight text-ink leading-none"
+            style={{
+              fontSize: 'clamp(16px, 4vw, 19px)',
+              fontFamily: '"Lexend", system-ui, sans-serif',
+            }}
+          >
+            {formatPrice(item.price)}
+          </div>
+          <motion.span
+            whileTap={tap}
+            whileHover={{ scale: 1.04 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddCart();
+            }}
+            className="inline-flex items-center justify-center h-9 px-4 rounded-full bg-accent text-on-accent text-[12px] font-bold cursor-pointer"
+          >
+            Buy
+          </motion.span>
+        </div>
+      </div>
+
+      {/* Bottom rarity stripe — solid accent bar with a centred
+          shimmer sweep. Parent has `overflow-hidden` so the bar
+          clips cleanly to the card's rounded corners. */}
+      <div
+        aria-hidden
+        className="absolute left-0 right-0 bottom-0 overflow-hidden"
+        style={{ height: 6 }}
+      >
+        <div
+          className="absolute inset-0"
+          style={{
+            background: `linear-gradient(90deg, ${color}00 0%, ${color} 14%, ${color} 86%, ${color}00 100%)`,
+            boxShadow: `0 0 18px 0 ${color}80, inset 0 1px 0 ${color}ff`,
+          }}
+        />
+        <motion.div
+          className="absolute inset-y-0 w-1/3"
+          initial={false}
+          animate={{ left: ['-33%', '133%'] }}
+          transition={{
+            duration: 3.4,
+            repeat: Infinity,
+            ease: 'linear',
+            delay: index * 0.5,
+          }}
+          style={{
+            background: `linear-gradient(90deg, transparent 0%, ${color}, transparent 100%)`,
+            filter: 'blur(4px)',
+            mixBlendMode: 'screen',
+          }}
+        />
+      </div>
+    </motion.button>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   FeaturedCarousel — auto-scrolling horizontal slider for the top-5
+   promoted trading-cards.
+
+   - Snaps card-by-card with a smooth scroll every 4s
+   - Pauses while the user hovers, presses, or actively scrolls
+   - Resumes 2.5s after the user releases
+   - Pagination dots reflect the active index and let the user jump
+   ───────────────────────────────────────────────────────────────────────── */
+const FeaturedCarousel: React.FC<{
+  items: any[];
+  onView: (id: string) => void;
+  onAddCart: (item: any) => void;
+  onToggleWish: (item: any) => void;
+  isWished: (id: string) => boolean;
+  formatPrice: (n: number) => string;
+}> = ({ items, onView, onAddCart, onToggleWish, isWished, formatPrice }) => {
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const resumeTimer = useRef<number | null>(null);
+
+  const scrollToIndex = (i: number, smooth = true) => {
+    const node = scrollerRef.current;
+    if (!node) return;
+    const card = node.querySelectorAll<HTMLElement>('[data-featured-card]')[i];
+    if (!card) return;
+    node.scrollTo({
+      left: card.offsetLeft - node.offsetLeft - 8,
+      behavior: smooth ? 'smooth' : 'auto',
+    });
+  };
+
+  /* Auto-cycle through cards every 4 s. Resets the interval whenever
+     the user pauses (hover/touch) or the active card changes via
+     manual scroll. */
+  useEffect(() => {
+    if (paused || items.length < 2) return;
+    const t = window.setInterval(() => {
+      setActiveIdx((i) => {
+        const next = (i + 1) % items.length;
+        scrollToIndex(next);
+        return next;
+      });
+    }, 4000);
+    return () => window.clearInterval(t);
+  }, [paused, items.length]);
+
+  /* Track user scroll so the dots stay in sync if they swipe manually.
+     Also pauses the auto-cycle briefly so we don't fight their input. */
+  useEffect(() => {
+    const node = scrollerRef.current;
+    if (!node) return;
+    const onScroll = () => {
+      const cards = node.querySelectorAll<HTMLElement>('[data-featured-card]');
+      let best = 0;
+      let bestDelta = Infinity;
+      cards.forEach((c, i) => {
+        const d = Math.abs(c.offsetLeft - node.scrollLeft - 8);
+        if (d < bestDelta) {
+          bestDelta = d;
+          best = i;
+        }
+      });
+      setActiveIdx(best);
+      setPaused(true);
+      if (resumeTimer.current) window.clearTimeout(resumeTimer.current);
+      resumeTimer.current = window.setTimeout(() => setPaused(false), 2500);
+    };
+    node.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      node.removeEventListener('scroll', onScroll);
+      if (resumeTimer.current) window.clearTimeout(resumeTimer.current);
+    };
+  }, []);
+
+  return (
+    <div
+      className="mb-4 relative"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
+      <div
+        ref={scrollerRef}
+        className="flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-3 -mx-1 px-1"
+        style={{ scrollPaddingLeft: '8px' }}
+      >
+        {items.map((item, i) => (
+          <div key={`featured-${item.id}`} data-featured-card>
+            <FeaturedTradingCard
+              item={item}
+              index={i}
+              onView={() => onView(String(item.id))}
+              onAddCart={() => onAddCart(item)}
+              onToggleWish={() => onToggleWish(item)}
+              wished={isWished(item.id)}
+              formatPrice={formatPrice}
+            />
+          </div>
+        ))}
+      </div>
+
+      {items.length > 1 && (
+        <div className="flex items-center justify-center gap-1.5 mt-1">
+          {items.map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              aria-label={`Show featured card ${i + 1}`}
+              onClick={() => {
+                setActiveIdx(i);
+                scrollToIndex(i);
+                setPaused(true);
+                if (resumeTimer.current) window.clearTimeout(resumeTimer.current);
+                resumeTimer.current = window.setTimeout(() => setPaused(false), 4000);
+              }}
+              className={`h-1.5 rounded-full transition-all ${
+                i === activeIdx ? 'w-6 bg-accent' : 'w-1.5 bg-ink-dim/30 hover:bg-ink-dim/60'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PromotedWall: React.FC<{
+  items: any[];
+  onView: (id: string) => void;
+  onAddCart: (item: any) => void;
+  onToggleWish: (item: any) => void;
+  isWished: (id: string) => boolean;
+  formatPrice: (n: number) => string;
+}> = ({ items, onView, onAddCart, onToggleWish, isWished, formatPrice }) => {
+  const [visibleCount, setVisibleCount] = useState(PROMOTED_BATCH);
+  /* Filter state — drives the chip row. Categories map to a coarse
+     classification on item.type / rarity / special so the user can
+     narrow what's in the grid without leaving the landing page. */
+  const [filter, setFilter] = useState<
+    'all' | 'rifles' | 'knives' | 'pistols' | 'gloves' | 'covert' | 'stattrak'
+  >('all');
+  /* Track the height of a single tile so the bottom fade overlay
+     covers exactly ONE row (not 40% of the whole grid). We measure
+     the rendered tile DOM and update on resize / batch changes. */
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [rowHeight, setRowHeight] = useState(220);
+
+  useEffect(() => {
+    const node = gridRef.current;
+    if (!node) return;
+    const measure = () => {
+      const firstTile = node.querySelector<HTMLElement>(':scope > div');
+      if (firstTile) {
+        const h = firstTile.getBoundingClientRect().height;
+        if (h > 0 && Math.abs(h - rowHeight) > 1) setRowHeight(h);
+      }
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, [visibleCount, rowHeight]);
+
+  const filteredItems = useMemo(() => {
+    if (filter === 'all') return items;
+    return items.filter((it: any) => {
+      const t = String(it.type || '').toLowerCase();
+      const r = String(it.rarity || '').toLowerCase();
+      switch (filter) {
+        case 'rifles':
+          return t.includes('rifle') || t.includes('sniper');
+        case 'knives':
+          return (
+            t.includes('knife') || t.includes('karambit') || t.includes('bayonet')
+          );
+        case 'pistols':
+          return t.includes('pistol');
+        case 'gloves':
+          return t.includes('glove');
+        case 'covert':
+          return r.includes('covert') || r.includes('extraordinary');
+        case 'stattrak':
+          return it.special === 'stattrak';
+      }
+      return true;
+    });
+  }, [items, filter]);
+
+  const visible = useMemo(
+    () => filteredItems.slice(0, visibleCount),
+    [filteredItems, visibleCount],
+  );
+  const hasMore = filteredItems.length > visibleCount;
+
+  /* Reset to the first batch whenever the filter changes so the user
+     always sees the top of the freshly-filtered list. */
+  useEffect(() => {
+    setVisibleCount(PROMOTED_BATCH);
+  }, [filter]);
+
+  /* When the filtered set shrinks, clamp visibleCount inside bounds
+     so we don't render past the end. */
+  useEffect(() => {
+    if (visibleCount > filteredItems.length && filteredItems.length >= PROMOTED_BATCH) {
+      setVisibleCount(Math.max(PROMOTED_BATCH, filteredItems.length));
+    }
+  }, [filteredItems.length, visibleCount]);
+
+  if (items.length === 0) return null;
+
+  return (
+    <section className="mb-3">
+      {/* Header — clean: title on the left, simple counter on the right. */}
+      <header className="flex items-end justify-between gap-3 mb-3 px-1">
+        <h2
+          className="text-[20px] sm:text-[22px] font-bold text-ink tracking-tight leading-none"
+          style={{ fontFamily: '"Lexend", system-ui, sans-serif' }}
+        >
+          Promoted listings
+        </h2>
+        <span className="text-[12px] text-ink-muted font-medium tabular-nums">
+          {Math.min(filteredItems.length, visibleCount)} / {filteredItems.length}
+        </span>
+      </header>
+
+      {/* Filter chips — animated layoutId pill backs the active one
+          so it smoothly slides between selections. */}
+      <motion.div
+        initial={{ opacity: 0, y: 4 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ ...spring, delay: 0.05 }}
+        className="mb-4 flex items-center gap-1 overflow-x-auto scrollbar-hide px-1"
+      >
+        {(
+          [
+            ['all', 'All'],
+            ['rifles', 'Rifles'],
+            ['pistols', 'Pistols'],
+            ['knives', 'Knives'],
+            ['gloves', 'Gloves'],
+            ['covert', 'Covert'],
+            ['stattrak', 'StatTrak'],
+          ] as const
+        ).map(([k, label]) => {
+          const active = filter === k;
+          return (
+            <motion.button
+              type="button"
+              key={k}
+              whileTap={tap}
+              onClick={() => setFilter(k)}
+              className={`relative h-8 px-3 rounded-full text-[12px] font-bold whitespace-nowrap transition-colors ${
+                active ? 'text-on-accent' : 'text-ink-muted hover:text-ink'
+              }`}
+            >
+              {active && (
+                <motion.span
+                  layoutId="promoted-filter"
+                  className="absolute inset-0 rounded-full bg-accent"
+                  transition={{ ...spring, mass: 0.6 }}
+                />
+              )}
+              <span className="relative">{label}</span>
+            </motion.button>
+          );
+        })}
+      </motion.div>
+
+      {/* TOP-5 TRADING-CARD CAROUSEL — the paid promotion slots are
+          rendered as oversize trading-cards in a horizontal snap row.
+          Card #1 carries the strongest accent, each subsequent slot
+          gets a slightly weaker treatment so the eye walks down the
+          row. No backgrounds beyond the rarity-derived accent so it
+          looks like a curated set, not an ad. */}
+      {visible.length > 0 && (
+        <FeaturedCarousel
+          items={visible.slice(0, PROMOTED_HIGHLIGHTED)}
+          onView={onView}
+          onAddCart={onAddCart}
+          onToggleWish={onToggleWish}
+          isWished={isWished}
+          formatPrice={formatPrice}
+        />
+      )}
+
+      {/* REGULAR GRID — items 6..N. Wrapped in a relative container
+          so the bottom fade overlay can cover only the LAST ROW's
+          bottom half without leaking onto neighbouring sections. */}
+      <div className="relative">
+        <div
+          ref={gridRef}
+          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-0 isolate"
+        >
+          <AnimatePresence initial={false}>
+            {visible.slice(PROMOTED_HIGHLIGHTED).map((item, i) => {
+              const idxInGrid = i;
+              const totalGridItems = visible.length - PROMOTED_HIGHLIGHTED;
+              /* The last row's tiles sit under the fade gradient. We
+                 disable pointer events on them so:
+                   1. Their hover ADD-TO-CART overlay (which renders at
+                      `top: 100%`, below the tile) can't be triggered
+                      under the fade where it'd be invisible.
+                   2. Mouse wheel/scroll passes through cleanly into the
+                      load-more button area.
+                 Tiles fully above the fade keep all interactions. */
+              const isFadedRow =
+                hasMore && idxInGrid >= Math.max(0, totalGridItems - 6);
+
+              return (
+                <motion.div
+                  key={item.id}
+                  layout
+                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.94 }}
+                  transition={{
+                    duration: 0.28,
+                    delay: Math.min(i * 0.012, 0.35),
+                    ease: [0.2, 0.65, 0.3, 1],
+                  }}
+                  className={`relative ${isFadedRow ? 'pointer-events-none' : ''}`}
+                >
+                  <SkinCard
+                    variant="tile"
+                    item={item}
+                    onView={() => onView(String(item.id))}
+                    onAddCart={() => onAddCart(item)}
+                    onToggleWish={() => onToggleWish(item)}
+                    wished={isWished(item.id)}
+                    formatPrice={formatPrice}
+                  />
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </div>
+
+        {/* Bottom fade overlay — softer + shorter so it suggests
+            there's more below without making the page feel
+            half-broken. `pointer-events-none` so it never blocks
+            scroll or clicks. High z-index keeps it above any hover
+            action bars that the SkinCard tile renders just below the
+            tile (those are the elements that previously felt like
+            they were swallowing the mouse). */}
+        {hasMore && (
+          <div
+            aria-hidden
+            className="absolute left-0 right-0 bottom-0 pointer-events-none z-40"
+            style={{
+              height: `${Math.round(rowHeight * 0.4)}px`,
+              background:
+                'linear-gradient(to bottom, transparent 0%, rgb(var(--bg) / 0.35) 50%, rgb(var(--bg) / 0.9) 100%)',
+            }}
+          />
+        )}
+      </div>
+
+      {hasMore && (
+        <div className="mt-4 flex flex-col items-center gap-2 relative">
+          <motion.button
+            whileTap={tap}
+            whileHover={{ scale: 1.03 }}
+            onClick={() => setVisibleCount((c) => c + PROMOTED_BATCH)}
+            className="h-11 px-7 rounded-full bg-accent text-on-accent text-[13px] font-bold inline-flex items-center justify-center min-w-[200px] whitespace-nowrap"
+          >
+            Load {Math.min(PROMOTED_BATCH, filteredItems.length - visibleCount)} more
+          </motion.button>
+          <div className="text-[11px] text-ink-dim font-medium">
+            {filteredItems.length - visibleCount} more listings below
+          </div>
+        </div>
+      )}
+    </section>
+  );
+};
+
 /* PromoBanner — landing-page hero banner. Image lives in /public; the
    left-side dark zone of the artwork carries our promotional copy. The
    text fades up on mount and the CTA spring-pulses on hover. */
@@ -816,5 +1320,286 @@ const Stat: React.FC<{ label: string; value: string; sub: string }> = ({
     <div className="text-[11px] text-ink-muted font-medium mt-1 truncate">{sub}</div>
   </div>
 );
+
+/* ─────────────────────────────────────────────────────────────────────────
+   PromotedShowcase — replaces the static "Trade CS2 skins" headline.
+
+   Renders a dark, ad-style hero showcasing one promoted user listing
+   at a time (rotates every 6s) with the inspired layout from the
+   reference image:
+     - Left column: pinned label dots ("M4A1-S", "$15.25") + headline
+       + CTA to buy a promotion slot (2 € / 24h)
+     - Right column: big floating skin image
+
+   The promoted items are sourced from the marketplace listings the
+   page already loads — once the dedicated `promoted_listings` table
+   ships, swap the `promoted` prop's source and nothing else changes.
+   ───────────────────────────────────────────────────────────────────────── */
+const PromotedShowcase: React.FC<{
+  promoted: any[];
+  formatPrice: (n: number) => string;
+  onView: (id: string) => void;
+}> = ({ promoted, formatPrice, onView }) => {
+  const [idx, setIdx] = useState(0);
+  /* "now" ticker — drives the countdown timer below. Updates once per
+     second so HH:MM:SS counts down smoothly without re-rendering the
+     whole tree at sub-second intervals. */
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  /* Auto-rotate every 5 s minimum. Each promo gets at least 5 seconds
+     on screen before swapping to the next. */
+  useEffect(() => {
+    if (promoted.length < 2) return;
+    const t = setInterval(() => {
+      setIdx((i) => (i + 1) % promoted.length);
+    }, 5000);
+    return () => clearInterval(t);
+  }, [promoted.length]);
+
+  /* Reset index if the promoted list shrinks while we're focused on a
+     now-out-of-range entry. */
+  useEffect(() => {
+    if (idx >= promoted.length) setIdx(0);
+  }, [idx, promoted.length]);
+
+  const active = promoted[idx];
+
+  /* Pull weapon class out of "AWP | Dragon Lore (FN)" → "AWP" for
+     the small label-eyebrow chip. */
+  const weaponClass = useMemo(() => {
+    if (!active) return null;
+    const raw = active.name || active.market_name || '';
+    const first = raw.split('|')[0]?.trim();
+    return first ? first.replace(/^★\s*/, '').replace(/^StatTrak™\s*/, '') : null;
+  }, [active]);
+  const skinName = useMemo(() => {
+    if (!active) return null;
+    const raw = active.name || active.market_name || '';
+    const after = raw.split('|')[1];
+    if (!after) return raw;
+    return after.replace(/\(.*?\)/, '').trim().toUpperCase();
+  }, [active]);
+
+  /* Per-promo time-left countdown.
+     Real listings can carry `promoted_until` (ISO string) — when
+     present we count down to that timestamp. When missing we
+     synthesize a stable 24 h window seeded by the item id so the
+     timer feels real without requiring a backend deploy first. */
+  const promoEndMs = useMemo(() => {
+    if (!active) return null;
+    const raw =
+      (active as any).promoted_until ||
+      (active as any).promotedUntil ||
+      (active as any).promo_ends_at;
+    if (raw) {
+      const t = new Date(raw).getTime();
+      if (Number.isFinite(t)) return t;
+    }
+    /* Deterministic 24-hour stretch — keyed by item id so reloading
+       doesn't reset the timer to a wildly different value. */
+    const seedSource = String(active.id || active.name || '');
+    let seed = 0;
+    for (let i = 0; i < seedSource.length; i++) {
+      seed = (seed * 31 + seedSource.charCodeAt(i)) | 0;
+    }
+    const phaseMs = Math.abs(seed) % (24 * 60 * 60 * 1000);
+    /* Build an end-time that's `phaseMs` from now, anchored to a fixed
+       per-hour boundary so all viewers see roughly the same value. */
+    const dayStart = Math.floor(now / (24 * 60 * 60 * 1000)) * 24 * 60 * 60 * 1000;
+    return dayStart + 24 * 60 * 60 * 1000 + phaseMs;
+  }, [active, now]);
+
+  const timeLeft = useMemo(() => {
+    if (!promoEndMs) return null;
+    const diff = Math.max(0, promoEndMs - now);
+    const h = Math.floor(diff / 3_600_000);
+    const m = Math.floor((diff % 3_600_000) / 60_000);
+    const s = Math.floor((diff % 60_000) / 1000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return { h, m, s, label: `${pad(h)}:${pad(m)}:${pad(s)}` };
+  }, [promoEndMs, now]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ...spring, delay: 0.04 }}
+      className="relative overflow-hidden flex flex-col justify-between min-h-[260px] sm:min-h-[340px] rounded-3xl"
+      style={{
+        /* Match the dark, slightly-purple ad backdrop from the
+           reference. Token-driven so it tints with the user's accent. */
+        background:
+          'radial-gradient(140% 100% at 75% 50%, rgb(var(--accent) / 0.18) 0%, transparent 55%), linear-gradient(180deg, #0e1018 0%, #15131f 100%)',
+      }}
+    >
+      {/* Header row — countdown only, no badge. */}
+      <div className="relative z-10 p-5 sm:p-7 md:p-8 flex items-start justify-end gap-4">
+        {timeLeft && (
+          <motion.span
+            key={active?.id || idx}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            className="inline-flex items-center gap-2 h-8 px-3 rounded-full bg-black/35 ring-1 ring-white/15 backdrop-blur-sm text-white tabular-nums text-[12px] font-bold"
+            aria-label={`Promotion ends in ${timeLeft.label}`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+            Ends in <span className="font-mono">{timeLeft.label}</span>
+          </motion.span>
+        )}
+      </div>
+
+      {/* Body — pinned details + floating image */}
+      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-3 px-5 sm:px-7 md:px-8 pb-5 sm:pb-7 md:pb-8">
+        <AnimatePresence mode="wait">
+          {active ? (
+            <motion.div
+              key={active.id || idx}
+              initial={{ opacity: 0, x: -30, filter: 'blur(8px)' }}
+              animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, x: 18, filter: 'blur(6px)' }}
+              transition={{
+                opacity: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
+                x: { type: 'spring', stiffness: 260, damping: 32, mass: 0.8 },
+                filter: { duration: 0.35 },
+              }}
+              className="flex flex-col justify-end"
+            >
+              {/* Pinned weapon-class dot label */}
+              {weaponClass && (
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.8)]" />
+                  <span className="text-[12.5px] font-bold uppercase tracking-[0.18em] text-rose-400">
+                    {weaponClass}
+                  </span>
+                </div>
+              )}
+              <h1 className="text-[28px] sm:text-[36px] md:text-[44px] font-bold tracking-tight text-white leading-[1.02]">
+                {skinName || 'Featured skin'}
+              </h1>
+              <div className="mt-3 inline-flex items-center gap-2 text-[12.5px] text-white/70 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                {active.condition || 'Showcase'} ·{' '}
+                <span className="font-semibold text-white/90">
+                  by {active.seller?.name || 'Skinify'}
+                </span>
+              </div>
+
+              <div className="mt-5">
+                <motion.button
+                  whileTap={tap}
+                  whileHover={{ scale: 1.03 }}
+                  onClick={() => onView(String(active.id))}
+                  className="h-11 px-5 rounded-full bg-white text-zinc-900 text-[13px] font-bold inline-flex items-center gap-1.5"
+                >
+                  Buy for {formatPrice(active.price || 0)}
+                  <ArrowRight size={13} strokeWidth={2.6} />
+                </motion.button>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="fallback"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex flex-col justify-end"
+            >
+              <h1 className="text-[28px] sm:text-[36px] md:text-[44px] font-bold tracking-tight text-white leading-[1.05]">
+                No promotions live yet.
+              </h1>
+              <p className="mt-3 text-[14px] text-white/70 font-medium leading-relaxed max-w-[440px]">
+                Featured listings appear here for 24 hours each. Check
+                back soon.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Skin image — taller container so wide rifle/knife sprites
+            never get squashed. `min-h` guarantees enough vertical
+            room for tall items (knives), `max-h` keeps the card from
+            blowing out for square cases/stickers. */}
+        <div className="relative h-[200px] sm:h-[260px] lg:h-[300px] [perspective:1200px]">
+          <AnimatePresence mode="wait">
+            {active && (
+              <motion.div
+                key={`img-${active.id || idx}`}
+                initial={{
+                  opacity: 0,
+                  x: 90,
+                  scale: 0.86,
+                  rotateY: -22,
+                  filter: 'blur(10px)',
+                }}
+                animate={{
+                  opacity: 1,
+                  x: 0,
+                  scale: 1,
+                  rotateY: 0,
+                  filter: 'blur(0px)',
+                }}
+                exit={{
+                  opacity: 0,
+                  x: -120,
+                  scale: 0.82,
+                  rotateY: 18,
+                  filter: 'blur(8px)',
+                }}
+                transition={{
+                  opacity: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
+                  filter: { duration: 0.4 },
+                  default: { type: 'spring', stiffness: 220, damping: 28, mass: 0.9 },
+                }}
+                style={{ transformStyle: 'preserve-3d' }}
+                className="absolute inset-0 flex items-center justify-center"
+              >
+                <img
+                  src={active.image}
+                  alt={active.name || active.market_name}
+                  /* `w-full h-full object-contain` lets the image
+                     fill whichever dimension is smaller while keeping
+                     aspect — wide rifles span the width, tall knives
+                     span the height. Neither gets clipped. */
+                  className="block w-full h-full object-contain drop-shadow-[0_20px_40px_rgba(168,85,247,0.35)] cursor-pointer"
+                  onClick={() => onView(String(active.id))}
+                  loading="eager"
+                />
+
+                {/* Price pin */}
+                <div className="absolute top-3 right-3 sm:top-5 sm:right-5 flex items-center gap-2 pointer-events-none">
+                  <span className="text-[18px] sm:text-[20px] font-bold tracking-tight text-white tabular-nums">
+                    {formatPrice(active.price || 0)}
+                  </span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.9)]" />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Pagination dots — one per promoted slot, only when >1 */}
+      {promoted.length > 1 && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10">
+          {promoted.map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              aria-label={`Show promoted item ${i + 1}`}
+              onClick={() => setIdx(i)}
+              className={`h-1.5 rounded-full transition-all ${
+                i === idx ? 'w-6 bg-white' : 'w-1.5 bg-white/30 hover:bg-white/60'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
+};
 
 export default LandingPage;

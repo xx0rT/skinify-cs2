@@ -251,13 +251,36 @@ Deno.serve(async (req) => {
         }
       }
       
-      const { data: listings, error } = await query
+      const { data: rawListings, error } = await query
         .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Database error fetching listings:', error);
         throw new Error(`Failed to fetch listings: ${error.message}`);
       }
+
+      /* Re-order: active auctions float to the top, sorted by soonest
+         end-time first (more urgency = better placement). Expired
+         auctions and standard listings keep their `created_at DESC`
+         order. PostgREST can't sort by a computed condition so we do
+         it here in-process. */
+      const now = Date.now();
+      const listings = (rawListings || []).sort((a: any, b: any) => {
+        const aAuction =
+          a.listing_type === 'auction' &&
+          a.auction_end_time &&
+          new Date(a.auction_end_time).getTime() > now;
+        const bAuction =
+          b.listing_type === 'auction' &&
+          b.auction_end_time &&
+          new Date(b.auction_end_time).getTime() > now;
+        if (aAuction && !bAuction) return -1;
+        if (!aAuction && bAuction) return 1;
+        if (aAuction && bAuction) {
+          return new Date(a.auction_end_time).getTime() - new Date(b.auction_end_time).getTime();
+        }
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
 
       console.log(`=== DATABASE QUERY RESULT ===`);
       console.log(`Total rows returned: ${listings?.length || 0}`);

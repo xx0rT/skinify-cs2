@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -520,10 +520,6 @@ const MarketplacePage: React.FC = () => {
                   aria-hidden
                 />
                 <motion.aside
-                  // Single node: in-flow sticky on lg+, fixed bottom-sheet on
-                  // <lg. We avoid translate animations because they'd misbehave
-                  // across the two layout modes; a simple opacity fade reads
-                  // clean for both pop-in and slide-up.
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -779,7 +775,7 @@ const MarketplacePage: React.FC = () => {
               <div
                 className={
                   view === 'grid'
-                    ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-0 isolate'
+                    ? 'market-grid grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 isolate'
                     : 'space-y-2'
                 }
               >
@@ -813,7 +809,12 @@ const MarketplacePage: React.FC = () => {
                 initial="hidden"
                 animate="shown"
                 key={`grid-${sort}-${activeTypes.size}-${activeRarities.size}`}
-                className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-0 isolate"
+                /* Light mode: 1.5px gaps painted gray via the grid
+                   container background showing through. Dark mode keeps
+                   the original flush layout. Custom class lives in
+                   index.css so the gray reads against white tiles
+                   without leaking into the dark theme. */
+                className="market-grid grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 isolate"
               >
                 {filtered.map((item: any) => (
                   <motion.div

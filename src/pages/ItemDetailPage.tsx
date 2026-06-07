@@ -6,17 +6,12 @@ import {
   Heart,
   ShoppingBag,
   Share2,
-  ShieldCheck,
   Eye,
   Copy,
   CheckCircle2,
-  TrendingUp,
   ExternalLink,
   Check,
   Zap,
-  Layers,
-  Hash,
-  Paintbrush,
   Star,
   MessageCircle,
   Send,
@@ -40,6 +35,7 @@ import Footer from '../components/Footer';
 import { CachedImage } from '../components/ui/CachedImage';
 import ConfirmationModal from '../components/ui/ConfirmationModal';
 import { SkinCard, SkinCardSkeleton, rarityColor } from '../components/ui/SkinCard';
+import { useSkinFloat } from '../hooks/useSkinFloat';
 import { spring, tap } from '../lib/motion';
 import { openDepositModal } from '../components/DepositModal';
 import {
@@ -51,6 +47,7 @@ import {
   SimilarItemsRow,
   buildItemTags,
 } from '../components/item/ItemDetailExtras';
+import AuctionBidPanel from '../components/item/AuctionBidPanel';
 
 /* ─────────────────────────────────────────────────────────────────────────
    ItemDetailPage
@@ -82,10 +79,9 @@ const ItemDetailPage: React.FC = () => {
   const [purchasing, setPurchasing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
-  /* Local-only follow state — persists per seller in localStorage so
-     the badge survives reload. Real backend hook can replace this. */
+  /* Per-seller follow state, persisted in localStorage so the badge
+     survives reload. Backend hook can replace `skinify_following` later. */
   const [isFollowing, setIsFollowing] = useState(false);
-
   /* The mobile floating buy chip should only appear when the in-page
      buy panel is NOT visible. We render the panel twice (once inline on
      mobile above the tabs, once in the desktop right rail) and observe
@@ -138,6 +134,49 @@ const ItemDetailPage: React.FC = () => {
       b();
     };
   }, [item?.id]);
+
+  /* CSFloat enrichment — when the listing row didn't ship float /
+     paint seed / stickers we pull them lazily from the proxy hook.
+     `enrichedItem` overlays the real values onto the listing so every
+     downstream block (Summary, DetailsPanel, Stickers tab) sees the
+     same data. */
+  const skinFloat = useSkinFloat({
+    enabled: !!item,
+    initialFloat: item?.float as any,
+    initialPaintSeed: (item?.paintSeed ?? item?.patternTemplate ?? item?.paint_seed) as any,
+    inspectLink: (item as any)?.inspect_link ?? (item as any)?.inspectLink ?? null,
+    fallbackKey: String(item?.id || item?.market_name || item?.name || ''),
+  });
+
+  const enrichedItem = useMemo(() => {
+    if (!item) return item;
+    const fd = skinFloat.data;
+    const fetchedStickers = Array.isArray(fd?.stickers) ? fd!.stickers : [];
+    const existingStickers = Array.isArray(item.stickers) ? item.stickers : [];
+    /* Real seed: prefer listing → CSFloat → null. Pattern is shown
+       separately as the same number — Steam exposes them as the
+       same value. */
+    const seed =
+      item.paintSeed ??
+      item.paint_seed ??
+      item.patternTemplate ??
+      item.pattern ??
+      fd?.paint_seed ??
+      null;
+    return {
+      ...item,
+      float: item.float != null ? item.float : fd?.float ?? null,
+      paintSeed: seed,
+      patternTemplate: item.patternTemplate ?? item.pattern ?? seed,
+      paintIndex: (item as any).paintIndex ?? (item as any).paint_index ?? fd?.paint_index ?? null,
+      defIndex: (item as any).defIndex ?? (item as any).def_index ?? fd?.def_index ?? null,
+      finish: (item as any).finish ?? inferCategory(item.type) ?? null,
+      collection: item.collection ?? deriveCollection(item),
+      tradable: item.tradable !== false,
+      marketable: item.marketable !== false,
+      stickers: existingStickers.length > 0 ? existingStickers : fetchedStickers,
+    } as any;
+  }, [item, skinFloat.data]);
 
   /* When the live list is empty, fall back to the mock dataset for the
      "similar items" panel too. */
@@ -379,7 +418,14 @@ const ItemDetailPage: React.FC = () => {
     }
   };
 
-  const stickers: string[] = Array.isArray(item.stickers) ? item.stickers : [];
+  /* Use enriched stickers — falls back from listing → CSFloat lookup
+     → empty array. Each entry may be a string (legacy listings) or an
+     object with name/image/wear (from CSFloat). */
+  const stickers: any[] = Array.isArray(enrichedItem?.stickers)
+    ? enrichedItem.stickers
+    : Array.isArray(item.stickers)
+    ? item.stickers
+    : [];
   const name = item.name || item.market_name || '';
 
   return (
@@ -574,46 +620,11 @@ const ItemDetailPage: React.FC = () => {
               )}
             </motion.section>
 
-            {/* Description + Summary side-by-side */}
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ ...spring, delay: 0.04 }}
-              className="grid md:grid-cols-2 gap-3"
-            >
-              <section className="card p-5 md:p-6">
-                <span className="label-eyebrow">Description</span>
-                <p className="text-[13.5px] sm:text-[14px] text-ink-muted font-medium mt-2.5 leading-relaxed">
-                  {item.description ||
-                    `${name}${item.condition ? ` in ${item.condition}` : ''}. ${inferCategory(item.type) || 'Item'} from CS2 — fully tradable and marketable after purchase.`}
-                </p>
-              </section>
+            {/* Tags row — clickable filter chips that route into the
+                wider marketplace (rarity, weapon, collection, etc.). */}
+            <TagsRow tags={buildItemTags(enrichedItem)} />
 
-              <section className="card p-5 md:p-6">
-                <span className="label-eyebrow">Summary</span>
-                <dl className="mt-2.5 divide-y divide-line">
-                  {[
-                    item.collection && { Icon: Layers,      k: 'Collection', v: item.collection,                    accent: true },
-                    item.patternTemplate != null && { Icon: Hash, k: 'Pattern',  v: String(item.patternTemplate) },
-                    { Icon: Paintbrush, k: 'Finish',      v: item.finish || inferCategory(item.type) || '—' },
-                    { Icon: TrendingUp, k: 'Float',       v: item.float != null ? Number(item.float).toFixed(6) : '—' },
-                    { Icon: ShieldCheck, k: 'Tradable',   v: item.tradable === false ? 'No' : 'Yes' },
-                  ].filter(Boolean).map((row: any, i: number) => (
-                    <div key={i} className="py-2.5 flex items-center justify-between gap-3">
-                      <dt className="flex items-center gap-2 text-[13px] text-ink-muted font-medium">
-                        <row.Icon size={13} strokeWidth={2.2} className={row.accent ? 'text-accent' : 'text-ink-dim'} />
-                        {row.k}
-                      </dt>
-                      <dd className={`text-[13px] font-bold tabular-nums truncate max-w-[180px] ${row.accent ? 'text-accent' : 'text-ink'}`}>
-                        {row.v}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              </section>
-            </motion.div>
-
-            {/* Actions: Follow seller · Compare on Steam · Share */}
+            {/* Seller actions: Follow seller · Compare on Steam · Share */}
             <ItemActionsRow
               item={item}
               isFollowing={isFollowing}
@@ -670,35 +681,16 @@ const ItemDetailPage: React.FC = () => {
                 className="space-y-4"
               >
                 {tab === 'details' && (
-                  <DetailsPanel item={item} />
+                  <DetailsPanel item={enrichedItem} />
                 )}
 
                 {tab === 'stickers' && (
-                  <section className="card p-5 md:p-6">
-                    {stickers.length === 0 ? (
-                      <div className="py-10 text-center">
-                        <p className="text-[14px] text-ink-muted font-medium">No stickers applied.</p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        {stickers.map((s, i) => (
-                          <div key={i} className="card-flat p-3 text-center">
-                            <div className="text-[12px] font-bold text-ink truncate tracking-tight">
-                              {s}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </section>
+                  <StickersPanel stickers={stickers} />
                 )}
 
                 {tab === 'trust' && <TrustPanel />}
               </motion.div>
             </AnimatePresence>
-
-            {/* Tags row */}
-            <TagsRow tags={buildItemTags(item)} />
 
             {/* Sales history chart */}
             <SalesHistoryCard
@@ -747,7 +739,11 @@ const ItemDetailPage: React.FC = () => {
             transition={{ ...spring, delay: 0.08 }}
             className="hidden lg:flex lg:flex-col lg:sticky lg:top-24 self-start space-y-4"
           >
-            <section ref={desktopPanelRef} className="card p-6 relative overflow-hidden">
+            <div ref={desktopPanelRef}>
+            {item.listing_type === 'auction' ? (
+              <AuctionBidPanel item={item} formatPrice={formatPrice} />
+            ) : (
+            <section className="card p-6 relative overflow-hidden">
               <div className="relative">
                 <span className="label-eyebrow">Listed price</span>
                 <div className="text-[34px] sm:text-[40px] font-bold tracking-tight tabular-nums text-ink leading-none mt-2">
@@ -827,6 +823,8 @@ const ItemDetailPage: React.FC = () => {
                 )}
               </div>
             </section>
+            )}
+            </div>
 
             {/* Seller — expanded with rating, deals count, delivery time */}
             {item.seller?.name && (
@@ -1453,6 +1451,25 @@ function inferBaseName(name: string): string | null {
   return parts.slice(1).join('|').replace(/\(.*?\)/, '').trim();
 }
 
+/* deriveCollection — listings table does not yet ship `collection`, so
+   infer it from item shape: explicit field → graffiti/case/sticker
+   self-grouping → "Misc". Keeps the All-Attributes panel from showing
+   an empty dash when the data isn't surfaced yet. */
+function deriveCollection(item: any): string | null {
+  if (item?.collection) return item.collection;
+  const t = (item?.type || '').toLowerCase();
+  const name = item?.name || item?.market_name || '';
+  if (t.includes('graffiti')) return 'Graffiti Box';
+  if (t.includes('case')) return 'Weapon Case';
+  if (t.includes('sticker')) return 'Sticker Capsule';
+  if (t.includes('music')) return 'Music Kit Box';
+  if (t.includes('agent')) return 'Operation Agents';
+  if (t.includes('patch')) return 'Patch Pack';
+  /* As a last resort use the weapon family so users still see grouping. */
+  const weapon = inferWeapon(name);
+  return weapon ? `${weapon} Collection` : null;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────
    HeroImage — pointer-tracking zoom on the product hero.
 
@@ -1509,35 +1526,210 @@ const HeroImage: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
 };
 
 
-const DetailsPanel: React.FC<{ item: any }> = ({ item }) => (
-  <section className="card p-5 md:p-6">
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-      {[
-        ['Float',     item.float != null ? Number(item.float).toFixed(6) : '—'],
-        ['Type',      item.type || '—'],
-        ['Pattern',   item.patternTemplate || '—'],
-        ['Tradable',  item.tradable ? 'Yes' : 'No'],
-        ['Marketable',item.marketable ? 'Yes' : 'No'],
-        ['Listed',    item.listed_at ? new Date(item.listed_at).toLocaleDateString() : '—'],
-      ].map(([k, v]) => (
-        <div key={k as string} className="card-flat p-3">
-          <div className="label-meta">{k}</div>
-          <div className="text-[14px] font-bold text-ink mt-1 truncate tracking-tight">
-            {v as string}
-          </div>
+/* ─────────────────────────────────────────────────────────────────────────
+   DetailsPanel — Details tab content. The single source of truth for
+   every attribute about the listing (3-col grid of stat tiles with the
+   float bar on top). Replaces the old Summary card so power users have
+   one place to scan everything.
+   ───────────────────────────────────────────────────────────────────────── */
+const DetailsPanel: React.FC<{ item: any }> = ({ item }) => {
+  const floatNum = item.float != null ? Number(item.float) : null;
+  const floatPct =
+    floatNum != null && Number.isFinite(floatNum)
+      ? Math.max(0, Math.min(1, floatNum)) * 100
+      : null;
+  const stickers: any[] = Array.isArray(item.stickers) ? item.stickers : [];
+  const name = item.name || item.market_name || '';
+  const weapon = inferWeapon(name) || '—';
+  const skinName = inferBaseName(name) || '—';
+  const special =
+    item.special === 'stattrak'
+      ? 'StatTrak™'
+      : item.special === 'souvenir'
+      ? 'Souvenir'
+      : 'Normal';
+  const finish = item.finish || inferCategory(item.type) || '—';
+  const collection = item.collection || '—';
+
+  const tiles: Array<[string, string]> = [
+    ['Float', floatNum != null && Number.isFinite(floatNum) ? floatNum.toFixed(8) : '—'],
+    ['Paint seed', item.paintSeed != null ? `#${String(item.paintSeed)}` : '—'],
+    ['Pattern', item.patternTemplate != null ? String(item.patternTemplate) : '—'],
+    ['Paint index', item.paintIndex != null ? String(item.paintIndex) : '—'],
+    ['Def index', item.defIndex != null ? String(item.defIndex) : '—'],
+    ['Finish', finish],
+    ['Exterior', item.condition || 'Not Painted'],
+    ['Rarity', item.rarity || '—'],
+    ['Type', item.type || '—'],
+    ['Weapon', weapon],
+    ['Skin', skinName],
+    ['Quality', special],
+    ['Collection', collection],
+    ['Stickers', stickers.length > 0 ? `${stickers.length} applied` : 'None'],
+    ['Tradable', item.tradable === false ? 'No' : 'Yes'],
+    ['Marketable', item.marketable === false ? 'No' : 'Yes'],
+    ['Asset ID', item.asset_id || item.itemId || String(item.id || '—')],
+    [
+      'Listed',
+      item.listed_at
+        ? new Date(item.listed_at).toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          })
+        : '—',
+    ],
+  ];
+
+  return (
+    <section className="card p-5 md:p-6 space-y-5">
+      {/* Float visualization */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="label-eyebrow">Wear</span>
+          <span className="text-[12px] font-mono tabular-nums text-ink">
+            {floatNum != null && Number.isFinite(floatNum) ? floatNum.toFixed(8) : '—'}
+          </span>
         </div>
-      ))}
-    </div>
-    {item.description && (
-      <div className="mt-5">
-        <div className="label-eyebrow mb-2">Description</div>
-        <p className="text-[13.5px] text-ink-muted leading-relaxed font-medium">
-          {item.description}
-        </p>
+        <div className="relative w-full h-2.5 overflow-hidden rounded-full">
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                'linear-gradient(90deg, #22c55e 0%, #84cc16 20%, #eab308 50%, #f97316 75%, #ef4444 100%)',
+              opacity: floatPct != null ? 1 : 0.25,
+            }}
+          />
+          {floatPct != null && (
+            <div
+              className="absolute top-0"
+              style={{
+                left: `calc(${floatPct}% - 6px)`,
+                width: 0,
+                height: 0,
+                borderLeft: '6px solid transparent',
+                borderRight: '6px solid transparent',
+                borderTop: '7px solid #ffffff',
+              }}
+              aria-hidden
+            />
+          )}
+        </div>
+        <div className="mt-1.5 flex items-center justify-between text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
+          <span>FN</span>
+          <span>MW</span>
+          <span>FT</span>
+          <span>WW</span>
+          <span>BS</span>
+        </div>
       </div>
-    )}
-  </section>
-);
+
+      {/* All stats */}
+      <div>
+        <span className="label-eyebrow">All attributes</span>
+        <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2">
+          {tiles.map(([k, v]) => (
+            <div key={k} className="card-flat p-3">
+              <div className="label-meta">{k}</div>
+              <div className="text-[14px] font-bold text-ink mt-1 truncate tracking-tight">
+                {v}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+    </section>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   StickersPanel — image chips for each applied sticker.
+
+   Handles both shapes: legacy string sticker names AND the rich
+   CSFloat shape `{ name, image, wear, slot, sticker_id }`. When the
+   sticker has a real image URL it renders the Steam CDN image,
+   otherwise falls back to a colored initial chip.
+   ───────────────────────────────────────────────────────────────────────── */
+const StickersPanel: React.FC<{ stickers: any[] }> = ({ stickers }) => {
+  if (stickers.length === 0) {
+    return (
+      <section className="card p-5 md:p-6">
+        <div className="py-10 text-center">
+          <p className="text-[14px] text-ink-muted font-medium">No stickers applied.</p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="card p-5 md:p-6">
+      <div className="flex items-center justify-between mb-4">
+        <span className="label-eyebrow">Applied stickers</span>
+        <span className="text-[11px] text-ink-dim font-bold uppercase tracking-wider tabular-nums">
+          {stickers.length} {stickers.length === 1 ? 'sticker' : 'stickers'}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+        {stickers.map((s, i) => {
+          const name = typeof s === 'string' ? s : s?.name || `Sticker ${i + 1}`;
+          const image = typeof s === 'string' ? null : s?.image || null;
+          const slot = typeof s === 'string' ? null : s?.slot;
+          const wear = typeof s === 'string' ? null : s?.wear;
+          /* Wear is 0..1 from CSFloat (0 = pristine, 1 = scraped). */
+          const wearPct =
+            typeof wear === 'number' && Number.isFinite(wear)
+              ? Math.max(0, Math.min(1, wear)) * 100
+              : null;
+
+          return (
+            <div key={`${name}-${i}`} className="card-flat p-3 text-center">
+              <div className="aspect-square bg-subtle/60 rounded-xl grid place-items-center overflow-hidden mb-2">
+                {image ? (
+                  <img
+                    src={image}
+                    alt={name}
+                    className="w-[82%] h-[82%] object-contain"
+                  />
+                ) : (
+                  <span className="text-[18px] font-bold text-ink-muted">
+                    {name.slice(0, 1).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <div
+                className="text-[11.5px] font-bold text-ink truncate tracking-tight"
+                title={name}
+              >
+                {name}
+              </div>
+              <div className="mt-1 flex items-center justify-between text-[10px] font-medium tabular-nums">
+                <span className="text-ink-dim">
+                  {slot != null ? `Slot ${slot}` : ' '}
+                </span>
+                <span
+                  className={`font-mono ${
+                    wearPct == null
+                      ? 'text-ink-dim'
+                      : wearPct === 0
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : wearPct < 30
+                      ? 'text-lime-600 dark:text-lime-400'
+                      : wearPct < 70
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-rose-600 dark:text-rose-400'
+                  }`}
+                >
+                  {wearPct != null ? `${wearPct.toFixed(0)}% wear` : ''}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
 
 const TrustPanel: React.FC = () => (
   <section className="card p-5 md:p-6">

@@ -28,6 +28,8 @@ import UserProfile from './auth/UserProfile';
 import { useTheme } from '../theme/ThemeProvider';
 import { tap } from '../lib/motion';
 import { openSearchPalette } from './SearchPalette';
+import { useMarketplaceItems } from '../hooks/useMarketplaceItems';
+import { CachedImage } from './ui/CachedImage';
 import { openDepositModal } from './DepositModal';
 
 /**
@@ -84,7 +86,7 @@ export const LandingNav: React.FC = () => {
       <header
         /* Hidden on phones — MobileTabBar handles primary nav at the
            bottom of the viewport on <lg screens. */
-        className={`hidden lg:block sticky top-0 z-40 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+        className={`hidden lg:block sticky top-0 z-[55] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
           scrolled
             ? 'bg-bg/85 backdrop-blur-xl shadow-[0_4px_24px_-12px_rgba(20,16,40,0.18)]'
             : 'bg-transparent backdrop-blur-0'
@@ -149,24 +151,12 @@ export const LandingNav: React.FC = () => {
             {/* SPACER for sub-lg flex layout — collapses on lg+ where grid takes over */}
             <div className="flex-1 lg:hidden" aria-hidden />
 
-            {/* CENTER — search.
-                lg+ : full pill, anchored in the grid's geometric middle.
-                sub-lg : single icon button (still opens the same palette). */}
-            <motion.button
-              whileTap={tap}
-              whileHover={{ scale: 1.01 }}
-              onClick={openSearchPalette}
-              aria-label="Search"
-              className="hidden lg:flex w-[360px] xl:w-[420px] h-11 px-4 rounded-full bg-subtle hover:bg-subtle/70 items-center gap-3 text-ink-muted hover:text-ink transition-colors lg:justify-self-center"
-            >
-              <Search size={18} strokeWidth={2} className="shrink-0" />
-              <span className="text-[13.5px] font-medium truncate text-left flex-1">
-                Search skins, weapons, collections…
-              </span>
-              <kbd className="hidden xl:inline-flex items-center text-[10.5px] font-bold tracking-wider text-ink-muted px-1.5 py-0.5 rounded-md bg-surface ring-1 ring-line">
-                ⌘K
-              </kbd>
-            </motion.button>
+            {/* CENTER — inline search.
+                lg+ : real <input> with a results dropdown below it.
+                sub-lg : icon button (still uses the legacy modal). */}
+            <div className="hidden lg:block lg:justify-self-center w-[360px] xl:w-[420px]">
+              <NavInlineSearch />
+            </div>
             <motion.button
               whileTap={tap}
               onClick={openSearchPalette}
@@ -526,6 +516,200 @@ const MobileAccountPanel: React.FC<{ onNavigate: () => void }> = ({ onNavigate }
    email/password or Steam. Replaces the prior direct-to-Steam button so
    credentialed users have a clear entry point.
    ───────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────
+   NavInlineSearch — the navbar search input that filters items as the
+   user types and renders a result list directly below the input. No
+   modal: matches happen in-place, Enter routes to the full marketplace
+   with the query pre-applied.
+   ───────────────────────────────────────────────────────────────────────── */
+const NavInlineSearch: React.FC = () => {
+  const navigate = useNavigate();
+  const [q, setQ] = useState('');
+  const [focused, setFocused] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const { items } = useMarketplaceItems();
+
+  /* Close the dropdown when the user clicks outside or hits Escape, OR
+     when they scroll the page more than a small threshold from the
+     scroll position at the moment the dropdown opened. This keeps the
+     dropdown from awkwardly hovering over content the user is reading. */
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setFocused(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setFocused(false);
+        inputRef.current?.blur();
+      }
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, []);
+
+  /* Auto-close when the user intentionally scrolls the page. We listen
+     for wheel + touchmove (real scroll-intent gestures) rather than the
+     `scroll` event — `scroll` fires for autofill, IME composition, and
+     focus-triggered viewport shifts, which used to dismiss the dropdown
+     on the very first keystroke. We also ignore events that originate
+     inside the dropdown (the dropdown itself is scrollable). */
+  useEffect(() => {
+    if (!focused) return;
+    const onWheel = (e: WheelEvent) => {
+      if (wrapRef.current?.contains(e.target as Node)) return;
+      if (Math.abs(e.deltaY) < 4) return;
+      setFocused(false);
+      inputRef.current?.blur();
+    };
+    const onTouch = (e: TouchEvent) => {
+      if (wrapRef.current?.contains(e.target as Node)) return;
+      setFocused(false);
+      inputRef.current?.blur();
+    };
+    window.addEventListener('wheel', onWheel, { passive: true });
+    window.addEventListener('touchmove', onTouch, { passive: true });
+    return () => {
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('touchmove', onTouch);
+    };
+  }, [focused]);
+
+  const results = (() => {
+    const trimmed = q.trim().toLowerCase();
+    if (!trimmed) return [] as any[];
+    return (items || [])
+      .filter((it: any) => {
+        const name = (it.name || it.market_name || '').toLowerCase();
+        const type = (it.type || '').toLowerCase();
+        return name.includes(trimmed) || type.includes(trimmed);
+      })
+      .slice(0, 8);
+  })();
+
+  const submitFull = (next?: string) => {
+    const query = (next ?? q).trim();
+    if (!query) return;
+    setFocused(false);
+    navigate(`/marketplace?q=${encodeURIComponent(query)}`);
+  };
+
+  const open = focused && q.trim().length > 0;
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <div
+        className={`flex h-11 px-4 rounded-full bg-subtle items-center gap-3 transition-colors ${
+          focused ? 'ring-2 ring-accent/30' : 'hover:bg-subtle/70'
+        }`}
+      >
+        <Search size={18} strokeWidth={2} className="text-ink-muted shrink-0" />
+        <input
+          ref={inputRef}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') submitFull();
+          }}
+          placeholder="Search skins, weapons, collections…"
+          className="flex-1 bg-transparent outline-none text-[13.5px] font-medium text-ink placeholder:text-ink-muted min-w-0"
+        />
+        {q && (
+          <button
+            type="button"
+            onClick={() => {
+              setQ('');
+              inputRef.current?.focus();
+            }}
+            aria-label="Clear search"
+            className="text-ink-muted hover:text-ink shrink-0"
+          >
+            <X size={14} strokeWidth={2.4} />
+          </button>
+        )}
+      </div>
+
+      {/* Results dropdown — detached from input with a visible gap,
+          floats on its own elevation with a soft spring entrance. */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -8, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 30, mass: 0.6 }}
+            style={{
+              transformOrigin: 'top center',
+              boxShadow:
+                '0 24px 48px -16px rgba(0,0,0,0.28), 0 8px 24px -8px rgba(0,0,0,0.18)',
+            }}
+            className="absolute top-full left-0 right-0 mt-4 rounded-3xl bg-surface border border-line max-h-[60vh] overflow-y-auto overscroll-contain z-[60]"
+          >
+            {results.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.05 }}
+                className="p-4 text-[12.5px] text-ink-muted font-medium text-center"
+              >
+                No matches for "{q}"
+              </motion.div>
+            ) : (
+              <ul className="p-1.5">
+                {results.map((it: any, i: number) => (
+                  <motion.li
+                    key={it.id}
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.03 + i * 0.025, duration: 0.18 }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFocused(false);
+                        navigate(`/item/${it.id}`);
+                      }}
+                      className="w-full flex items-center gap-3 p-2 rounded-2xl hover:bg-subtle transition-colors text-left"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-subtle grid place-items-center overflow-hidden shrink-0">
+                        <CachedImage
+                          src={it.image}
+                          alt={it.name || it.market_name}
+                          className="w-[88%] h-[88%] object-contain"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] font-bold text-ink truncate tracking-tight">
+                          {it.name || it.market_name}
+                        </div>
+                        <div className="text-[11px] text-ink-muted font-medium truncate">
+                          {it.condition || it.rarity || ''}
+                        </div>
+                      </div>
+                    </button>
+                  </motion.li>
+                ))}
+              </ul>
+            )}
+            <button
+              type="button"
+              onClick={() => submitFull()}
+              className="w-full px-3 py-2.5 border-t border-line text-[12px] font-bold text-accent hover:bg-subtle transition-colors text-left rounded-b-3xl"
+            >
+              See all results for "{q}" →
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 const NavSignInButton: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
   const navigate = useNavigate();
   return (

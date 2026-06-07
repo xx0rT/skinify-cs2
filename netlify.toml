@@ -50,3 +50,27 @@
   for = "/*.jpg"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# PWA manifest — explicit MIME so Cloudflare/Netlify don't 403 it on
+# WebKit (the spec MIME is `application/manifest+json`; some hosts
+# served `text/html` which Safari/Chromium reject with a fetch error).
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+    Cache-Control = "public, max-age=3600"
+    Access-Control-Allow-Origin = "*"
+
+# Sitemap / robots — explicit text types so the file isn't downloaded
+# instead of inlined when accessed directly.
+[[headers]]
+  for = "/sitemap.xml"
+  [headers.values]
+    Content-Type = "application/xml"
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/robots.txt"
+  [headers.values]
+    Content-Type = "text/plain"
+    Cache-Control = "public, max-age=3600"

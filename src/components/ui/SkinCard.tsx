@@ -60,6 +60,15 @@ export interface SkinCardItem {
   stickers?: (string | { name?: string; image?: string })[];
   views?: number;
   expiresAt?: string | number;
+  /* Auction-mode fields. When `listing_type === 'auction'` the tile
+     shows a live countdown + current bid + Live Auction pill instead
+     of the standard price + add-to-cart. */
+  listing_type?: 'standard' | 'auction' | 'private';
+  auction_end_time?: string | number;
+  current_bid?: number;
+  minimum_bid?: number;
+  bid_count?: number;
+  buyout_price?: number;
 }
 
 interface SkinCardProps {
@@ -333,12 +342,18 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
             regardless of whether the reference price exists. The float
             row is anchored to the bottom via mt-auto. */}
         <div className="px-3.5 pt-1 pb-3 flex-1 flex flex-col">
-          {/* Price row + change badge */}
+          {/* Price row + change badge — replaced with current-bid and
+              auction-end pill when listing_type === 'auction'. */}
           <div className="flex items-baseline gap-2 flex-wrap">
             <div className="text-[19px] font-bold text-ink tracking-tight tabular-nums leading-none">
-              {formatPrice(item.price)}
+              {item.listing_type === 'auction'
+                ? formatPrice(item.current_bid ?? item.minimum_bid ?? item.price)
+                : formatPrice(item.price)}
             </div>
-            {item.priceChange !== undefined && item.priceChange !== 0 && (
+            {item.listing_type === 'auction' && (
+              <AuctionPill endTime={item.auction_end_time} />
+            )}
+            {item.listing_type !== 'auction' && item.priceChange !== undefined && item.priceChange !== 0 && (
               <span
                 className="inline-flex items-center text-[10.5px] font-bold tabular-nums px-1.5 py-[3px] text-white"
                 style={{
@@ -359,10 +374,15 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
           <div
             className="text-[11px] font-medium mt-0.5 tabular-nums h-[15px]"
             style={{
-              color: referencePrice != null ? 'rgb(var(--ink-dim))' : 'transparent',
+              color:
+                item.listing_type === "auction" || referencePrice != null
+                  ? "rgb(var(--ink-dim))"
+                  : "transparent",
             }}
           >
-            {referencePrice != null
+            {item.listing_type === "auction"
+              ? `${item.bid_count || 0} ${(item.bid_count || 0) === 1 ? "bid" : "bids"} so far`
+              : referencePrice != null
               ? `Reference price ${formatPrice(referencePrice)}`
               : ' '}
           </div>
@@ -830,6 +850,52 @@ const MenuItem: React.FC<{
     {label}
   </button>
 );
+
+/* ─────────────────────────────────────────────────────────────────────────
+   AuctionPill — small live-countdown chip rendered next to the current
+   bid on auction tiles. Ticks once per second. When time runs out the
+   chip turns muted and reads "Ended".
+   ───────────────────────────────────────────────────────────────────────── */
+const AuctionPill: React.FC<{ endTime?: string | number }> = ({ endTime }) => {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const end = endTime ? new Date(endTime).getTime() : null;
+  if (!end || !Number.isFinite(end)) return null;
+  const diff = end - now;
+  const ended = diff <= 0;
+
+  let label = 'Ended';
+  if (!ended) {
+    const totalSec = Math.floor(diff / 1000);
+    const d = Math.floor(totalSec / 86400);
+    const h = Math.floor((totalSec % 86400) / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    if (d > 0) label = `${d}d ${h}h`;
+    else if (h > 0) label = `${h}h ${String(m).padStart(2, '0')}m`;
+    else label = `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-[10.5px] font-bold tabular-nums px-1.5 py-[3px] rounded-md ${
+        ended
+          ? 'bg-subtle text-ink-muted'
+          : 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
+      }`}
+      title={ended ? 'Auction ended' : `Auction ends ${new Date(end).toLocaleString()}`}
+    >
+      {!ended && (
+        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+      )}
+      {label}
+    </span>
+  );
+};
 
 export const SkinCard = React.memo(SkinCardImpl, (a, b) => {
   return (

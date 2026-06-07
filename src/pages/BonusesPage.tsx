@@ -107,16 +107,46 @@ const BonusesPage: React.FC = () => {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={spring}
-          className="card p-7 sm:p-10 relative overflow-hidden"
+          /* Right-to-left purple gradient: solid on the RIGHT (behind
+             the artwork), fading to nearly transparent through the
+             middle, then back to a faint tint on the LEFT. The border
+             uses the SAME gradient but at a brighter alpha so it
+             reads as a hairline that's a shade lighter than the fill.
+             Implemented with `background-image` for the fill and a
+             matching `border-image` for the border. `rounded-3xl`
+             keeps the corner radius consistent with .card. */
+          className="relative rounded-3xl p-7 sm:p-10 overflow-hidden"
+          style={{
+            background:
+              'linear-gradient(to left, rgba(168, 85, 247, 0.55) 0%, rgba(168, 85, 247, 0.10) 50%, rgba(168, 85, 247, 0.20) 100%), rgb(var(--surface))',
+            border: '1px solid transparent',
+            backgroundClip: 'padding-box',
+            boxShadow:
+              /* Border-as-shadow trick: an inset 1px ring whose color
+                 is the same gradient at a brighter alpha. We use a
+                 stacked outline because CSS doesn't allow gradient
+                 borders on rounded boxes natively. */
+              `inset 0 0 0 1px transparent,
+               0 12px 30px -18px rgba(168, 85, 247, 0.35)`,
+            position: 'relative',
+          }}
         >
-          <motion.div
+          {/* Brighter gradient border — drawn with an absolutely
+              positioned overlay using `border-image`. */}
+          <div
             aria-hidden
-            className="absolute -top-32 -right-24 w-[460px] h-[460px] rounded-full pointer-events-none"
-            style={{ background: 'radial-gradient(closest-side, rgb(var(--accent) / 0.18), transparent 65%)' }}
-            animate={{ scale: [1, 1.06, 1] }}
-            transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+            className="absolute inset-0 rounded-3xl pointer-events-none"
+            style={{
+              padding: '1px',
+              background:
+                'linear-gradient(to left, rgba(192, 132, 252, 0.85) 0%, rgba(168, 85, 247, 0.25) 50%, rgba(192, 132, 252, 0.55) 100%)',
+              WebkitMask:
+                'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
+              WebkitMaskComposite: 'xor',
+              maskComposite: 'exclude',
+            }}
           />
-          <div className="relative grid md:grid-cols-[1fr_auto] gap-6 items-center">
+          <div className="relative grid md:grid-cols-[1fr_auto] gap-6 items-end">
             <div>
               <div className="icon-chip-lg bg-accent-soft mb-5">
                 <Gift size={22} className="text-accent" />
@@ -135,23 +165,33 @@ const BonusesPage: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className="card-flat p-5 md:p-6 min-w-[260px]">
-              <div className="label-meta">Next milestone</div>
-              <div className="mt-1.5 text-[22px] font-bold tracking-tight tabular-nums text-ink leading-none">
-                3 / 7 days
-              </div>
-              <div className="mt-3 h-2 rounded-full bg-subtle overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: '42%' }}
-                  transition={{ duration: 1.1, ease: [0.6, 0.05, 0.2, 1], delay: 0.3 }}
-                  className="h-full bg-accent rounded-full"
-                />
-              </div>
-              <div className="mt-3 text-[12px] text-ink-muted font-medium">
-                4 more days for a <span className="text-ink font-bold">premium crate</span>.
-              </div>
-            </div>
+            {/* Premium crate artwork — pushed further LEFT into the
+                text column, 30 % bigger and 30 % further DOWN past
+                the card edge. */}
+            <motion.img
+              src="/a5a6c232-eee7-4779-91f0-cc6323b69e80.png"
+              alt="Premium crate with coins and knives"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...spring, delay: 0.2 }}
+              className="select-none pointer-events-none self-end relative"
+              style={{
+                /* 340 → 442 (≈ +30 %) */
+                height: '442px',
+                width: 'auto',
+                maxWidth: 'none',
+                /* Aggressive left bleed and downward push so the
+                   figure ends well below the card edge. The hero
+                   card's own purple gradient handles ambient light;
+                   no external drop-shadow on the image so the glow
+                   doesn't leak past the card boundary. */
+                marginRight: '-40px',
+                marginBottom: '-118px',
+                marginLeft: '-176px',
+                transform: 'translateY(80px)',
+                zIndex: 1,
+              }}
+            />
           </div>
         </motion.section>
 

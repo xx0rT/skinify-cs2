@@ -387,6 +387,22 @@ select {
 
 .border-line  { border-color: rgb(var(--line)); }
 .ring-line    { --tw-ring-color: rgb(var(--line)); }
+.bg-line      { background-color: rgb(var(--line)); }
+
+/* Marketplace tile grid — light mode draws a 1px gray hairline around
+   each tile via an inset box-shadow so adjacent cards visually
+   separate without painting a background behind empty grid cells.
+   Dark mode keeps the original flush layout (no per-tile border). */
+.market-grid {
+  gap: 0;
+  background-color: transparent;
+}
+.market-grid > * {
+  box-shadow: inset 0 0 0 1px rgb(215 210 226);
+}
+.dark .market-grid > * {
+  box-shadow: none;
+}
 
 /* Skeleton — quiet pulsing shimmer that fits the new soft palette */
 .skel {
