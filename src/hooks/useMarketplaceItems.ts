@@ -36,12 +36,44 @@ interface UseMarketplaceItemsResult {
   refetch: () => void;
 }
 
+/* Listings that have been bought in this session are kept in
+   localStorage and stripped from the marketplace results. Persists across
+   reloads until the backend's next refetch confirms the listing is gone. */
+const readSoldIds = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem('skinify_sold_ids');
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return new Set(Array.isArray(arr) ? arr.map(String) : []);
+  } catch {
+    return new Set();
+  }
+};
+
 export const useMarketplaceItems = (): UseMarketplaceItemsResult => {
   const [items, setItems] = useState<MarketplaceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allItems, setAllItems] = useState<MarketplaceItem[]>([]);
+  const [soldIds, setSoldIds] = useState<Set<string>>(() => readSoldIds());
   const { selectedCategory, selectedWeapon, searchQuery } = useFilterStore();
+
+  /* React to local sold events so a purchase on ItemDetailPage instantly
+     drops the listing from the marketplace grid without a full refetch. */
+  useEffect(() => {
+    const onSold = (e: Event) => {
+      const id = (e as CustomEvent).detail?.id;
+      if (!id) return;
+      setSoldIds((prev) => {
+        if (prev.has(String(id))) return prev;
+        const next = new Set(prev);
+        next.add(String(id));
+        return next;
+      });
+    };
+    window.addEventListener('skinify:item-sold', onSold as EventListener);
+    return () => window.removeEventListener('skinify:item-sold', onSold as EventListener);
+  }, []);
 
   /**
    * Fetch marketplace items - only items that users have specifically listed for sale
@@ -92,7 +124,7 @@ export const useMarketplaceItems = (): UseMarketplaceItemsResult => {
 
   // Filter items based on selected filters
   const filterItems = () => {
-    let filteredItems = [...allItems];
+    let filteredItems = allItems.filter((it) => !soldIds.has(String(it.id)));
     
     // Group items by market name and calculate quantities
     const itemGroups = new Map<string, any[]>();
@@ -171,7 +203,7 @@ export const useMarketplaceItems = (): UseMarketplaceItemsResult => {
 
   useEffect(() => {
     filterItems();
-  }, [selectedCategory, selectedWeapon, searchQuery, allItems]);
+  }, [selectedCategory, selectedWeapon, searchQuery, allItems, soldIds]);
 
   const refetch = async () => {
     await fetchMarketplaceItems();

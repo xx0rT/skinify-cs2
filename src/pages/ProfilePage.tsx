@@ -10,7 +10,6 @@ import {
   Coins,
   CreditCard,
   Heart,
-  Image as ImageIcon,
   LayoutGrid,
   Package,
   Settings,
@@ -174,11 +173,27 @@ const ProfilePage: React.FC = () => {
             transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
           />
           <div className="relative flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-5">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-subtle grid place-items-center overflow-hidden shrink-0">
-              {user.avatar ? (
-                <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
+            <div
+              className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-subtle grid place-items-center overflow-hidden shrink-0 ring-2 ring-accent/25"
+              style={{ boxShadow: '0 10px 30px -12px rgb(var(--accent) / 0.45)' }}
+            >
+              {user.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt={user.displayName}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                  }}
+                />
               ) : (
-                <ImageIcon size={28} className="text-ink-muted" />
+                <span
+                  className="text-[20px] sm:text-[24px] font-bold tracking-tight text-ink"
+                  aria-hidden
+                >
+                  {(user.displayName || 'T').trim().charAt(0).toUpperCase()}
+                </span>
               )}
             </div>
             <div className="flex-1 min-w-0">

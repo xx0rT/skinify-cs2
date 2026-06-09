@@ -188,40 +188,71 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="max-w-[1480px] mx-auto px-4 sm:px-6 pb-8 space-y-3">
-      {/* ===== POPULAR TAGS + LANGUAGE SWITCHER ===== */}
-      {!slim && <PopularTagsBar />}
-
-      {/* ===== PAYMENTS — hidden in slim mode (Profile) ===== */}
-      {!slim && (
+    <footer className="max-w-[1480px] mx-auto px-4 sm:px-6 pb-8">
+      {/* Merged footer card — Popular tags + Accepted payments + Link
+          columns + Brand are stacked inside one card with internal
+          dividers so the page reads as a single landing platform
+          instead of three disconnected boxes. */}
       <section className="card p-6 md:p-8">
-        <div className="label-eyebrow mb-3">Accepted payments</div>
-        <div className="relative overflow-hidden h-12 rounded-2xl bg-subtle/40">
-          <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-bg to-transparent z-10" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-bg to-transparent z-10" />
-          <motion.div
-            animate={{ x: ['0%', '-50%'] }}
-            transition={{ duration: 60, repeat: Infinity, ease: 'linear' }}
-            className="flex items-center gap-8 h-full px-6 will-change-transform"
-            style={{ width: 'max-content' }}
-          >
-            {[...paymentMethods, ...paymentMethods].map((m, i) => (
-              <img
-                key={`${m}-${i}`}
-                src={`/${m}.svg`}
-                alt={m}
-                className="h-6 w-auto opacity-50 hover:opacity-100 transition-opacity grayscale hover:grayscale-0"
-                loading="lazy"
-              />
-            ))}
-          </motion.div>
-        </div>
-      </section>
-      )}
+        {!slim && (
+          <>
+            {/* ===== POPULAR TAGS + LANGUAGE SWITCHER ===== */}
+            <div className="flex flex-col gap-5">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <span className="label-eyebrow">Popular tags</span>
+                  <h2 className="text-[18px] sm:text-[20px] font-bold tracking-tight text-ink mt-1 leading-none">
+                    What people are looking for
+                  </h2>
+                </div>
+                <LangCurrencySwitcher />
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {POPULAR_TAGS.map((t) => (
+                  <Link
+                    key={t.to}
+                    to={t.to}
+                    className="px-3 h-8 rounded-full bg-subtle hover:bg-accent-soft hover:text-accent text-ink text-[12px] font-semibold inline-flex items-center transition-colors"
+                  >
+                    {t.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
 
-      {/* ===== LINK COLUMNS + BRAND ===== */}
-      <section className="card p-6 md:p-8">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
+            {/* ===== ACCEPTED PAYMENTS ===== */}
+            <div className="mt-8 pt-7 border-t border-line">
+              <div className="label-eyebrow mb-3">Accepted payments</div>
+              <div className="relative overflow-hidden h-12 rounded-2xl bg-subtle/40">
+                <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-bg to-transparent z-10" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-bg to-transparent z-10" />
+                <motion.div
+                  animate={{ x: ['0%', '-50%'] }}
+                  transition={{ duration: 60, repeat: Infinity, ease: 'linear' }}
+                  className="flex items-center gap-8 h-full px-6 will-change-transform"
+                  style={{ width: 'max-content' }}
+                >
+                  {[...paymentMethods, ...paymentMethods].map((m, i) => (
+                    <img
+                      key={`${m}-${i}`}
+                      src={`/${m}.svg`}
+                      alt={m}
+                      className="h-6 w-auto opacity-50 hover:opacity-100 transition-opacity grayscale hover:grayscale-0"
+                      loading="lazy"
+                    />
+                  ))}
+                </motion.div>
+              </div>
+            </div>
+
+          </>
+        )}
+
+        {/* ===== LINK COLUMNS + BRAND — always rendered, including
+            slim mode (Profile). The top border only kicks in when
+            there's something above to separate from. */}
+        <div className={!slim ? 'mt-8 pt-7 border-t border-line' : ''}>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="icon-chip bg-accent text-on-accent">
@@ -315,11 +346,11 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
         <div className="mt-8 pt-5 border-t border-line flex flex-wrap items-center justify-between gap-3 text-[12.5px] text-ink-muted font-medium">
           <div>© {currentYear} Skinify. Not affiliated with Valve Corp. or Steam.</div>
           <div className="flex flex-wrap items-center gap-4">
-            <LangCurrencySwitcher />
             <Link to="/terms" className="hover:text-ink transition-colors">Terms</Link>
             <Link to="/privacy" className="hover:text-ink transition-colors">Privacy</Link>
             <Link to="/refund-policy" className="hover:text-ink transition-colors">Refunds</Link>
           </div>
+        </div>
         </div>
       </section>
     </footer>
@@ -433,34 +464,6 @@ const LangCurrencySwitcher: React.FC = () => {
         </select>
       </div>
     </div>
-  );
-};
-
-const PopularTagsBar: React.FC = () => {
-  return (
-    <section className="card p-6 md:p-8 flex flex-col gap-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <span className="label-eyebrow">Popular tags</span>
-          <h2 className="text-[18px] sm:text-[20px] font-bold tracking-tight text-ink mt-1 leading-none">
-            What people are looking for
-          </h2>
-        </div>
-        <LangCurrencySwitcher />
-      </div>
-
-      <div className="flex flex-wrap gap-1.5">
-        {POPULAR_TAGS.map((t) => (
-          <Link
-            key={t.to}
-            to={t.to}
-            className="px-3 h-8 rounded-full bg-subtle hover:bg-accent-soft hover:text-accent text-ink text-[12px] font-semibold inline-flex items-center transition-colors"
-          >
-            {t.label}
-          </Link>
-        ))}
-      </div>
-    </section>
   );
 };
 

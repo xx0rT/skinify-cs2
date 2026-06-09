@@ -33,7 +33,7 @@ import { useDMStore } from '../store/dmStore';
 import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import { CachedImage } from '../components/ui/CachedImage';
-import ConfirmationModal from '../components/ui/ConfirmationModal';
+import BuyConfirmModal from '../components/marketplace/BuyConfirmModal';
 import { SkinCard, SkinCardSkeleton, rarityColor } from '../components/ui/SkinCard';
 import { useSkinFloat } from '../hooks/useSkinFloat';
 import { spring, tap } from '../lib/motion';
@@ -216,12 +216,13 @@ const ItemDetailPage: React.FC = () => {
   );
 
   const handleWish = useCallback(
-    (it: any) => {
+    async (it: any) => {
       if (!user) {
         addToast({ type: 'warning', title: 'Login required', message: 'Sign in to use wishlist.' });
         return;
       }
-      toggleItem(
+      const wasIn = isInWishlist(it.id);
+      const ok = await toggleItem(
         {
           id: it.id,
           name: it.name || it.market_name,
@@ -234,9 +235,29 @@ const ItemDetailPage: React.FC = () => {
         } as any,
         user.steamId,
       );
+      if (!ok) {
+        addToast({
+          type: 'error',
+          title: 'Wishlist failed',
+          message: 'Could not update your wishlist. Try again.',
+        });
+        return;
+      }
+      addToast({
+        type: 'success',
+        title: wasIn ? 'Removed from wishlist' : 'Added to wishlist',
+        message: it.name || it.market_name,
+      });
     },
-    [user, toggleItem, addToast],
+    [user, toggleItem, isInWishlist, addToast],
   );
+
+  /* Hydrate the wishlist set on mount so the heart on the buy panel
+     shows the correct state without the user having to interact first.
+     The store no-ops if there's no session. */
+  useEffect(() => {
+    if (user?.steamId) fetchWishlist(user.steamId);
+  }, [user?.steamId, fetchWishlist]);
 
   /* Follow-state per seller, persisted in localStorage. */
   const sellerKey = item?.seller?.steamId || item?.seller?.name || '';
@@ -399,6 +420,24 @@ const ItemDetailPage: React.FC = () => {
         type: item.type,
         seller: item.seller,
       } as any);
+
+      /* Mark the listing as sold so the marketplace removes it on next
+         render. Persisted in localStorage so the removal survives reload
+         until the backend confirms via a fresh fetch. */
+      try {
+        const raw = localStorage.getItem('skinify_sold_ids');
+        const arr: string[] = raw ? JSON.parse(raw) : [];
+        if (!arr.includes(String(item.id))) {
+          arr.push(String(item.id));
+          localStorage.setItem('skinify_sold_ids', JSON.stringify(arr));
+        }
+        window.dispatchEvent(
+          new CustomEvent('skinify:item-sold', { detail: { id: String(item.id) } }),
+        );
+      } catch {
+        /* private mode — no-op */
+      }
+
       addToast({ type: 'success', title: 'Order placed', message: 'Continue in cart to check out.' });
       setConfirmBuyOpen(false);
       navigate('/cart');
@@ -714,6 +753,23 @@ const ItemDetailPage: React.FC = () => {
                     ]
               }
               formatPrice={formatPrice}
+              onAddCart={(s) =>
+                handleAddCart({
+                  id: `sticker-${s.name}`,
+                  name: s.name,
+                  price: s.price ?? 0,
+                  image: s.image,
+                  type: 'Sticker',
+                  rarity: 'Industrial',
+                })
+              }
+              onBuyNow={(s) =>
+                addToast({
+                  type: 'info',
+                  title: 'Coming soon',
+                  message: `Direct sticker checkout for ${s.name} is on the way.`,
+                })
+              }
             />
 
             {/* Similar items slider — uses the actual marketplace tile */}
@@ -958,15 +1014,13 @@ const ItemDetailPage: React.FC = () => {
 
       <Footer />
 
-      <ConfirmationModal
+      <BuyConfirmModal
         isOpen={confirmBuyOpen}
         onClose={() => setConfirmBuyOpen(false)}
         onConfirm={confirmPurchase}
-        title="Confirm purchase"
-        message={`Buy ${name} for ${formatPrice(item.price)}?`}
-        confirmText="Buy now"
-        cancelText="Cancel"
-        variant="info"
+        item={item}
+        balance={Number(balance || 0)}
+        formatPrice={formatPrice}
         isProcessing={purchasing}
       />
 

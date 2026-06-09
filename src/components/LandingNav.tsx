@@ -601,7 +601,14 @@ const NavInlineSearch: React.FC = () => {
   const open = focused && q.trim().length > 0;
 
   return (
-    <div ref={wrapRef} className="relative">
+    <div
+      ref={wrapRef}
+      className="relative"
+      /* `overflow-anchor: none` stops the browser's scroll-anchoring
+         from pinning to the dropdown as it grows on each keystroke,
+         which was nudging the page upward letter-by-letter. */
+      style={{ overflowAnchor: 'none' }}
+    >
       <div
         className={`flex h-11 px-4 rounded-full bg-subtle items-center gap-3 transition-colors ${
           focused ? 'ring-2 ring-accent/30' : 'hover:bg-subtle/70'
@@ -612,7 +619,16 @@ const NavInlineSearch: React.FC = () => {
           ref={inputRef}
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          onFocus={() => setFocused(true)}
+          onFocus={() => {
+            setFocused(true);
+            /* Defensive: if the browser tries to scroll the input
+               into view (which happens when the dropdown grows below),
+               snap the scroll position back on the next frame. */
+            const y = window.scrollY;
+            requestAnimationFrame(() => {
+              if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y);
+            });
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') submitFull();
           }}
@@ -639,12 +655,13 @@ const NavInlineSearch: React.FC = () => {
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
             transition={{ type: 'spring', stiffness: 380, damping: 30, mass: 0.6 }}
             style={{
               transformOrigin: 'top center',
+              overflowAnchor: 'none',
               boxShadow:
                 '0 24px 48px -16px rgba(0,0,0,0.28), 0 8px 24px -8px rgba(0,0,0,0.18)',
             }}

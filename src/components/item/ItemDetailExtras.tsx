@@ -14,6 +14,9 @@ import {
   X as XIcon,
   ChevronLeft,
   ChevronRight,
+  Zap,
+  ShoppingBag,
+  Heart,
 } from 'lucide-react';
 import { CachedImage } from '../ui/CachedImage';
 import { SkinCard } from '../ui/SkinCard';
@@ -632,11 +635,17 @@ export const TagsRow: React.FC<{
   );
 };
 
-/* ───── StickersRow — recommended stickers slider ───── */
+/* ───── StickersRow — recommended stickers slider ─────
+   Hovered card expands horizontally into the next slot and reveals
+   Add to cart / Buy now / Wishlist actions. The neighbour collapses
+   to make room so the whole row stays inside one horizontal scroll. */
 export const StickersRow: React.FC<{
   stickers: Array<{ name: string; image?: string; price?: number }>;
   formatPrice: (n: number) => string;
-}> = ({ stickers, formatPrice }) => {
+  onAddCart?: (sticker: { name: string; image?: string; price?: number }) => void;
+  onBuyNow?: (sticker: { name: string; image?: string; price?: number }) => void;
+}> = ({ stickers, formatPrice, onAddCart, onBuyNow }) => {
+  const [hovered, setHovered] = useState<number | null>(null);
   if (stickers.length === 0) return null;
   return (
     <motion.section
@@ -654,30 +663,129 @@ export const StickersRow: React.FC<{
         </div>
       </div>
       <HorizontalSlider>
-        {stickers.map((s, i) => (
-          <div
-            key={`${s.name}-${i}`}
-            className="snap-start shrink-0 w-28 card-flat p-3 text-center"
-          >
-            <div className="aspect-square bg-subtle grid place-items-center rounded-xl overflow-hidden mb-2">
-              {s.image ? (
-                <img src={s.image} alt={s.name} className="w-[80%] h-[80%] object-contain" />
+        {stickers.map((s, i) => {
+          const isHovered = hovered === i;
+          /* If the card to the LEFT of this one is hovered, this card
+             gets crowded under the expansion — shrink it so the row
+             width doesn't change and the user sees an honest reveal. */
+          const isCrowded = hovered === i - 1;
+          return (
+            <motion.div
+              key={`${s.name}-${i}`}
+              layout
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() =>
+                setHovered((cur) => (cur === i ? null : cur))
+              }
+              transition={{ type: 'spring', stiffness: 320, damping: 30, mass: 0.7 }}
+              className={`snap-start shrink-0 card-flat overflow-hidden ${
+                isHovered ? 'ring-1 ring-accent/40 shadow-lg' : ''
+              }`}
+              style={{
+                width: isHovered ? 240 : isCrowded ? 64 : 112,
+                opacity: isCrowded ? 0.55 : 1,
+              }}
+            >
+              {!isHovered ? (
+                /* Collapsed/idle state — sticker preview + name + price */
+                <motion.div layout="position" className="p-3 text-center">
+                  <div className="aspect-square bg-subtle grid place-items-center rounded-xl overflow-hidden mb-2">
+                    {s.image ? (
+                      <img
+                        src={s.image}
+                        alt={s.name}
+                        className="w-[80%] h-[80%] object-contain"
+                      />
+                    ) : (
+                      <span className="text-[11px] font-bold text-ink-muted">
+                        {s.name.slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  {!isCrowded && (
+                    <>
+                      <div className="text-[11.5px] font-bold text-ink truncate leading-tight">
+                        {s.name}
+                      </div>
+                      {s.price != null && (
+                        <div className="text-[10.5px] text-ink-muted tabular-nums mt-0.5">
+                          {formatPrice(s.price)}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </motion.div>
               ) : (
-                <span className="text-[11px] font-bold text-ink-muted">
-                  {s.name.slice(0, 1).toUpperCase()}
-                </span>
+                /* Expanded state — preview on the left, actions on the right */
+                <motion.div
+                  layout="position"
+                  className="flex items-center gap-3 p-2.5"
+                >
+                  <div className="w-16 h-16 shrink-0 bg-subtle grid place-items-center rounded-xl overflow-hidden">
+                    {s.image ? (
+                      <img
+                        src={s.image}
+                        alt={s.name}
+                        className="w-[82%] h-[82%] object-contain"
+                      />
+                    ) : (
+                      <span className="text-[14px] font-bold text-ink-muted">
+                        {s.name.slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <motion.div
+                    initial={{ opacity: 0, x: -6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.08, duration: 0.18 }}
+                    className="flex-1 min-w-0"
+                  >
+                    <div className="text-[12px] font-bold text-ink truncate leading-tight">
+                      {s.name}
+                    </div>
+                    {s.price != null && (
+                      <div className="text-[11px] text-ink-muted tabular-nums mt-0.5 mb-1.5">
+                        {formatPrice(s.price)}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onBuyNow?.(s);
+                        }}
+                        className="h-7 px-2.5 rounded-full bg-accent text-on-accent text-[10.5px] font-bold inline-flex items-center gap-1 hover:opacity-90 transition-opacity"
+                      >
+                        <Zap size={10} strokeWidth={2.6} />
+                        Buy
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAddCart?.(s);
+                        }}
+                        aria-label="Add sticker to cart"
+                        className="h-7 w-7 rounded-full bg-subtle text-ink grid place-items-center hover:bg-bg transition-colors"
+                      >
+                        <ShoppingBag size={11} strokeWidth={2.4} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label="Save sticker"
+                        className="h-7 w-7 rounded-full bg-subtle text-ink grid place-items-center hover:bg-bg transition-colors"
+                      >
+                        <Heart size={11} strokeWidth={2.4} />
+                      </button>
+                    </div>
+                  </motion.div>
+                </motion.div>
               )}
-            </div>
-            <div className="text-[11.5px] font-bold text-ink truncate leading-tight">
-              {s.name}
-            </div>
-            {s.price != null && (
-              <div className="text-[10.5px] text-ink-muted tabular-nums mt-0.5">
-                {formatPrice(s.price)}
-              </div>
-            )}
-          </div>
-        ))}
+            </motion.div>
+          );
+        })}
       </HorizontalSlider>
     </motion.section>
   );
@@ -811,9 +919,13 @@ const HorizontalSlider: React.FC<{ children: React.ReactNode }> = ({ children })
       >
         <ChevronRight size={14} strokeWidth={2.6} />
       </button>
+      {/* Inner scroller. Padding-top makes room for the hover-lift on
+          tile cards (~22px) and padding-bottom makes room for the
+          action bar that tile cards render BELOW their footprint when
+          hovered, so neither end gets clipped by overflow-x scroll. */}
       <div
         ref={ref}
-        className="flex gap-2 overflow-x-auto snap-x snap-mandatory scrollbar-thin pb-1"
+        className="flex gap-2 overflow-x-auto snap-x snap-mandatory scrollbar-thin pt-6 pb-16 -my-4"
       >
         {children}
       </div>
