@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useEffect, useMemo } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Activity,
@@ -389,14 +389,19 @@ const ProfilePage: React.FC = () => {
             </nav>
           </motion.aside>
 
-          {/* Content */}
+          {/* Content. Note: NOT wrapped in AnimatePresence mode="wait" —
+              fast tab switches there could leave the queue in a state
+              where a new tab's enter is held up by a half-finished exit,
+              and the area would render empty (the bug reported). We
+              just animate in on key change; exits are instant. The key
+              includes activeSub so swapping sub-tabs re-runs the enter
+              animation on the new content too. */}
           <div className="min-w-0">
-            <AnimatePresence mode="wait" initial={false}>
+            {(
               <motion.div
-                key={activeTab}
+                key={`${activeTab}:${activeSub || ''}`}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
                 transition={{ ...spring, mass: 0.6 }}
               >
                 {activeTab === 'overview' && (
@@ -517,7 +522,7 @@ const ProfilePage: React.FC = () => {
                   </GroupedTab>
                 )}
               </motion.div>
-            </AnimatePresence>
+            )}
           </div>
         </div>
       </main>
