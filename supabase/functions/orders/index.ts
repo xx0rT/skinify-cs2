@@ -1254,12 +1254,27 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('=== ORDERS ERROR ===', error);
+    /* Be careful with the shape — Deno can throw plain strings or
+       PostgrestError objects whose `.message` isn't the full story.
+       Include both .message and a stringified payload so the client
+       (and Supabase logs) actually see what blew up. The previous
+       version just returned a generic 500 because `error.message`
+       was sometimes `undefined`. */
+    const message =
+      (error && typeof error === 'object' && 'message' in error
+        ? (error as any).message
+        : String(error)) || 'Failed to process order request';
+    const detail =
+      error && typeof error === 'object'
+        ? JSON.stringify(error, Object.getOwnPropertyNames(error as any))
+        : undefined;
+    console.error('=== ORDERS ERROR ===', message, detail);
 
     return new Response(
       JSON.stringify({
-        error: error.message || 'Failed to process order request',
-        timestamp: new Date().toISOString()
+        error: message,
+        detail,
+        timestamp: new Date().toISOString(),
       }),
       {
         status: 500,
