@@ -7,7 +7,6 @@ import {
   ChevronRight,
   CreditCard,
   MessageCircle,
-  Heart,
   LayoutGrid,
   Package,
   Settings,
@@ -55,15 +54,11 @@ const ReviewsTab = lazy(() => import('../components/profile/tabs/ReviewsTab'));
 
 type TabId =
   | 'overview'
-  | 'performance'
   | 'inventory'
   | 'listings'
-  | 'wishlist'
   | 'trades'
   | 'balance'
-  | 'shop'
-  | 'reviews'
-  | 'notifications'
+  | 'messages'
   | 'settings';
 
 interface TabDef {
@@ -79,20 +74,53 @@ interface TabDef {
   badge?: 'messages' | 'notifications';
 }
 
+/* Six top-level tabs. Sub-pages collapse into their parent (e.g.
+   Wishlist lives inside Inventory) so the sidebar stops sprawling.
+   `messages` keeps its `navigate` field — clicking it routes to the
+   standalone /messages page rather than swapping in-page content. */
 const TABS: TabDef[] = [
-  { id: 'overview',      label: 'Overview',      icon: LayoutGrid },
-  { id: 'performance',   label: 'Performance',   icon: Activity },
-  { id: 'inventory',     label: 'Inventory',     icon: Package },
-  { id: 'listings',      label: 'Listings',      icon: ShoppingBag },
-  { id: 'wishlist',      label: 'Wishlist',      icon: Heart },
-  { id: 'trades',        label: 'Trades',        icon: TrendingUp },
-  { id: 'balance',       label: 'Balance',       icon: Wallet },
-  { id: 'shop',          label: 'My shop',       icon: Store },
-  { id: 'reviews',       label: 'Reviews',       icon: Users },
-  { id: 'messages' as TabId, label: 'Messages',  icon: MessageCircle, navigate: '/messages', badge: 'messages' },
-  { id: 'notifications', label: 'Notifications', icon: Bell, badge: 'notifications' },
-  { id: 'settings',      label: 'Settings',      icon: Settings },
+  { id: 'overview',  label: 'Overview',  icon: LayoutGrid },
+  { id: 'inventory', label: 'Inventory', icon: Package },
+  { id: 'listings',  label: 'Listings',  icon: ShoppingBag },
+  { id: 'trades',    label: 'Trades',    icon: TrendingUp },
+  { id: 'balance',   label: 'Balance',   icon: Wallet },
+  { id: 'messages', label: 'Messages', icon: MessageCircle, navigate: '/messages', badge: 'messages' },
+  { id: 'settings',  label: 'Settings',  icon: Settings },
 ];
+
+/* Sub-tabs for each parent. Empty list means no sub-tabs (e.g. Overview,
+   Balance, Messages). The keys here map to the `sub` URL parameter. */
+type SubId = string;
+interface SubTab { id: SubId; label: string }
+const SUB_TABS: Partial<Record<TabId, SubTab[]>> = {
+  inventory: [
+    { id: 'steam',    label: 'Steam items' },
+    { id: 'wishlist', label: 'Wishlist' },
+  ],
+  listings: [
+    { id: 'active', label: 'Active' },
+    { id: 'shop',   label: 'My shop' },
+  ],
+  trades: [
+    { id: 'history',     label: 'History' },
+    { id: 'reviews',     label: 'Reviews' },
+    { id: 'performance', label: 'Performance' },
+  ],
+  settings: [
+    { id: 'profile',       label: 'Account' },
+    { id: 'notifications', label: 'Notifications' },
+  ],
+};
+
+/* Old tab IDs → new (tab, sub) pairs. Keeps deep links + email
+   notifications working after the merge. */
+const LEGACY_TAB_MAP: Record<string, { tab: TabId; sub?: SubId }> = {
+  wishlist:      { tab: 'inventory', sub: 'wishlist' },
+  shop:          { tab: 'listings',  sub: 'shop' },
+  reviews:       { tab: 'trades',    sub: 'reviews' },
+  performance:   { tab: 'trades',    sub: 'performance' },
+  notifications: { tab: 'settings',  sub: 'notifications' },
+};
 
 const staggerParent = { hidden: {}, shown: { transition: { staggerChildren: 0.05 } } };
 const staggerChild = {
@@ -131,8 +159,42 @@ const ProfilePage: React.FC = () => {
     return n;
   }, [dmThreads]);
 
-  const activeTab = (searchParams.get('tab') as TabId) || 'overview';
-  const setActiveTab = (tab: TabId) => setSearchParams({ tab });
+  /* Tab + sub-tab routing. We mirror state into the URL via
+     ?tab=inventory&sub=wishlist so deep links survive a reload and
+     the back button moves between sub-tabs naturally.
+
+     Legacy single-tab links (?tab=wishlist) are silently rewritten to
+     the new (tab, sub) pair via LEGACY_TAB_MAP. */
+  const rawTab = searchParams.get('tab') || 'overview';
+  const rawSub = searchParams.get('sub') || undefined;
+  const remapped = LEGACY_TAB_MAP[rawTab];
+  const activeTab: TabId = (remapped ? remapped.tab : (rawTab as TabId)) || 'overview';
+  const activeSub: SubId | undefined = (() => {
+    /* Legacy redirect wins over an explicit sub. */
+    if (remapped?.sub) return remapped.sub;
+    const list = SUB_TABS[activeTab];
+    if (!list || list.length === 0) return undefined;
+    if (rawSub && list.find((s) => s.id === rawSub)) return rawSub;
+    return list[0].id; // first sub-tab is the default
+  })();
+  const setActiveTab = (tab: TabId, sub?: SubId) => {
+    const list = SUB_TABS[tab];
+    const next: Record<string, string> = { tab };
+    if (list && list.length > 0) {
+      next.sub = sub || list[0].id;
+    }
+    setSearchParams(next);
+  };
+  const setActiveSub = (sub: SubId) => setActiveTab(activeTab, sub);
+
+  /* Persistent rewrite — if the user landed on a legacy URL, update
+     it in place so refreshing keeps the new shape. */
+  useEffect(() => {
+    if (!remapped) return;
+    const next: Record<string, string> = { tab: remapped.tab };
+    if (remapped.sub) next.sub = remapped.sub;
+    setSearchParams(next, { replace: true });
+  }, [rawTab]);
 
   useEffect(() => {
     if (!user?.steamId) return;
@@ -350,14 +412,6 @@ const ProfilePage: React.FC = () => {
                   />
                 )}
 
-                {activeTab === 'performance' && (
-                  <SubFrame title="Trading performance" subtitle="Profit, volume, and trade activity over time">
-                    <Suspense fallback={<TabSkeleton />}>
-                      <TradingPerformanceTab />
-                    </Suspense>
-                  </SubFrame>
-                )}
-
                 {activeTab === 'balance' && (
                   <SubFrame title="Balance" subtitle="Funds, lifetime totals, and transaction history">
                     <Suspense fallback={<TabSkeleton />}>
@@ -366,71 +420,101 @@ const ProfilePage: React.FC = () => {
                   </SubFrame>
                 )}
 
-                {activeTab === 'trades' && (
-                  <SubFrame title="Trades" subtitle="Purchases, sales, and items in escrow">
-                    <Suspense fallback={<TabSkeleton />}>
-                      <TradesTab />
-                    </Suspense>
-                  </SubFrame>
-                )}
-
                 {activeTab === 'inventory' && (
-                  <SubFrame title="Inventory" subtitle="Items you own on Steam">
+                  <GroupedTab
+                    title="Inventory"
+                    subtitle={
+                      activeSub === 'wishlist'
+                        ? "Skins you're watching"
+                        : 'Items you own on Steam'
+                    }
+                    subTabs={SUB_TABS.inventory || []}
+                    activeSub={activeSub}
+                    onSubChange={setActiveSub}
+                  >
                     <Suspense fallback={<TabSkeleton />}>
-                      <InventoryTab steamId={user.steamId} />
+                      {activeSub === 'wishlist' ? (
+                        <WishlistTab />
+                      ) : (
+                        <InventoryTab steamId={user.steamId} />
+                      )}
                     </Suspense>
-                  </SubFrame>
+                  </GroupedTab>
                 )}
 
                 {activeTab === 'listings' && (
-                  <SubFrame title="Listings" subtitle="Skins you've put up for sale">
+                  <GroupedTab
+                    title="Listings"
+                    subtitle={
+                      activeSub === 'shop'
+                        ? 'Public storefront for your listings'
+                        : "Skins you've put up for sale"
+                    }
+                    subTabs={SUB_TABS.listings || []}
+                    activeSub={activeSub}
+                    onSubChange={setActiveSub}
+                  >
                     <Suspense fallback={<TabSkeleton />}>
-                      <ListingsTab steamId={user.steamId} />
+                      {activeSub === 'shop' ? (
+                        <MyShopTab onNavigateToListings={() => setActiveTab('listings', 'active')} />
+                      ) : (
+                        <ListingsTab steamId={user.steamId} />
+                      )}
                     </Suspense>
-                  </SubFrame>
+                  </GroupedTab>
                 )}
 
-                {activeTab === 'wishlist' && (
-                  <SubFrame title="Wishlist" subtitle="Skins you're watching">
+                {activeTab === 'trades' && (
+                  <GroupedTab
+                    title="Trades"
+                    subtitle={
+                      activeSub === 'reviews'
+                        ? "Feedback from people you've traded with"
+                        : activeSub === 'performance'
+                        ? 'Profit, volume, and trade activity over time'
+                        : 'Purchases, sales, and items in escrow'
+                    }
+                    subTabs={SUB_TABS.trades || []}
+                    activeSub={activeSub}
+                    onSubChange={setActiveSub}
+                  >
                     <Suspense fallback={<TabSkeleton />}>
-                      <WishlistTab />
+                      {activeSub === 'reviews' ? (
+                        <ReviewsTab />
+                      ) : activeSub === 'performance' ? (
+                        <TradingPerformanceTab />
+                      ) : (
+                        <TradesTab />
+                      )}
                     </Suspense>
-                  </SubFrame>
-                )}
-
-                {activeTab === 'shop' && (
-                  <SubFrame title="My shop" subtitle="Public storefront for your listings">
-                    <Suspense fallback={<TabSkeleton />}>
-                      <MyShopTab onNavigateToListings={() => setActiveTab('listings')} />
-                    </Suspense>
-                  </SubFrame>
-                )}
-
-                {activeTab === 'reviews' && (
-                  <SubFrame title="Reviews" subtitle="Feedback from people you've traded with">
-                    <Suspense fallback={<TabSkeleton />}>
-                      <ReviewsTab />
-                    </Suspense>
-                  </SubFrame>
-                )}
-
-                {activeTab === 'notifications' && (
-                  <SubFrame title="Notifications" subtitle="Recent activity on your account">
-                    <div className="card p-8 text-center">
-                      <Bell size={22} className="mx-auto text-ink-muted mb-3" />
-                      <p className="text-[14px] text-ink-muted font-medium">
-                        No notifications yet — we’ll alert you when something changes.
-                      </p>
-                    </div>
-                  </SubFrame>
+                  </GroupedTab>
                 )}
 
                 {activeTab === 'settings' && (
-                  <SubFrame title="Settings" subtitle="Account, trade link, appearance, and preferences">
+                  <GroupedTab
+                    title="Settings"
+                    subtitle={
+                      activeSub === 'notifications'
+                        ? 'Recent activity on your account'
+                        : 'Account, trade link, appearance, and preferences'
+                    }
+                    subTabs={SUB_TABS.settings || []}
+                    activeSub={activeSub}
+                    onSubChange={setActiveSub}
+                  >
                     <Suspense fallback={<TabSkeleton />}>
-                      <SettingsTab />
+                      {activeSub === 'notifications' ? (
+                        <div className="card p-8 text-center">
+                          <Bell size={22} className="mx-auto text-ink-muted mb-3" />
+                          <p className="text-[14px] text-ink-muted font-medium">
+                            No notifications yet — we’ll alert you when something changes.
+                          </p>
+                        </div>
+                      ) : (
+                        <SettingsTab />
+                      )}
                     </Suspense>
-                  </SubFrame>
+                  </GroupedTab>
                 )}
               </motion.div>
             </AnimatePresence>
@@ -454,7 +538,7 @@ const OverviewTab: React.FC<{
   totalSpent: number;
   ordersCount: number;
   recentOrders: any[];
-  onGoTo: (t: TabId) => void;
+  onGoTo: (t: TabId, sub?: string) => void;
   formatPrice: (n: number) => string;
 }> = ({ balance, pendingBalance, totalDeposited, totalSpent, ordersCount, recentOrders, onGoTo, formatPrice }) => {
   const earned = Math.max(0, balance + pendingBalance - totalDeposited + totalSpent);
@@ -497,7 +581,7 @@ const OverviewTab: React.FC<{
           </div>
           <motion.button
             whileTap={tap}
-            onClick={() => onGoTo('performance')}
+            onClick={() => onGoTo('trades', 'performance')}
             className="mt-4 h-10 px-4 rounded-full bg-subtle hover:bg-bg text-ink text-[13px] font-semibold flex items-center justify-center gap-1.5 transition-colors"
           >
             View detailed performance <ChevronRight size={13} strokeWidth={2.4} />
@@ -536,7 +620,7 @@ const OverviewTab: React.FC<{
               hue="sand"
               label="Customize your shop"
               sub="Tweak your public storefront"
-              onClick={() => onGoTo('shop')}
+              onClick={() => onGoTo('listings', 'shop')}
             />
           </div>
         </motion.div>
@@ -623,6 +707,58 @@ const SubFrame: React.FC<{
         <p className="text-[13px] sm:text-[14px] text-ink-muted font-medium mt-1.5">{subtitle}</p>
       )}
     </div>
+    {children}
+  </div>
+);
+
+/* GroupedTab — SubFrame plus a pill row of sub-tabs. Used for the four
+   tabs that now host multiple related views (Inventory, Listings,
+   Trades, Settings). Active sub is highlighted with a shared layoutId
+   so the highlight pill slides between sub-tabs. */
+const GroupedTab: React.FC<{
+  title: string;
+  subtitle?: string;
+  subTabs: SubTab[];
+  activeSub?: SubId;
+  onSubChange: (sub: SubId) => void;
+  children: React.ReactNode;
+}> = ({ title, subtitle, subTabs, activeSub, onSubChange, children }) => (
+  <div className="space-y-4">
+    <div>
+      <span className="label-eyebrow">Profile</span>
+      <h2 className="text-[22px] sm:text-[26px] font-bold tracking-tight mt-1.5 leading-none">
+        {title}
+      </h2>
+      {subtitle && (
+        <p className="text-[13px] sm:text-[14px] text-ink-muted font-medium mt-1.5">{subtitle}</p>
+      )}
+    </div>
+    {subTabs.length > 1 && (
+      <div className="card p-1 inline-flex gap-1 max-w-full overflow-x-auto scrollbar-hide">
+        {subTabs.map((s) => {
+          const active = s.id === activeSub;
+          return (
+            <motion.button
+              whileTap={tap}
+              key={s.id}
+              onClick={() => onSubChange(s.id)}
+              className={`relative h-9 px-3.5 rounded-full text-[12.5px] font-bold whitespace-nowrap transition-colors ${
+                active ? 'text-on-accent' : 'text-ink-muted hover:text-ink'
+              }`}
+            >
+              {active && (
+                <motion.span
+                  layoutId="profile-subtab-pill"
+                  className="absolute inset-0 rounded-full bg-accent"
+                  transition={spring}
+                />
+              )}
+              <span className="relative">{s.label}</span>
+            </motion.button>
+          );
+        })}
+      </div>
+    )}
     {children}
   </div>
 );
