@@ -414,11 +414,14 @@ const LandingPage: React.FC = () => {
                   <motion.div
                     key={it.id}
                     variants={staggerChild}
-                    whileHover={{ y: -4 }}
                     transition={spring}
                     className="shrink-0 w-[240px] snap-start"
                   >
+                    {/* Same card variant as the marketplace grid so
+                        the Trending strip and the main listing wall
+                        look identical (no separate "trending" style). */}
                     <SkinCard
+                      variant="tile"
                       item={it}
                       onView={() => navigate(`/item/${it.id}`)}
                       onAddCart={() => handleAddCart(it)}
