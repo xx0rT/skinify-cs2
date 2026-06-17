@@ -105,27 +105,20 @@ export const LandingNav: React.FC = () => {
            down it eases into a transparent gradient so content can flow
            underneath without a hard band. */
         style={{
-          /* Layered gradient seam: a tight, fast-falloff curve from
-             solid bg → transparent (so the top of the bar is opaque and
-             the bottom blends), painted underneath an off-center accent
-             haze. The radial layer is large + low-opacity so it reads
-             as a tinted "light source" trailing the brand chip rather
-             than a colored band — gives the seam more depth than a
-             flat fade without ever feeling decorated. A 1px accent
-             hairline along the bottom edge gives the gradient a quiet
-             "seam highlight" that catches the eye. No backdrop blur —
-             the falloff alone carries the effect. */
+          /* Two visual states:
+               not scrolled  →  fully filled background. A soft accent
+                                glow sits just below the bar (separate
+                                ::after-style child element) so the bar
+                                feels "lit from below" while the page
+                                content slides under it.
+               scrolled      →  gradient that fades from solid at the
+                                top to transparent at the bottom. No
+                                glow — the gradient itself carries the
+                                seam, and a glow would look noisy.
+             No bottom hairline in either state (the previous accent
+             line was too visible at the very top of the page). */
           background: scrolled
-            ? [
-                /* Bottom edge highlight — extremely thin accent line */
-                'linear-gradient(to bottom, transparent calc(100% - 1px), rgb(var(--accent) / 0.18) 100%)',
-                /* Soft accent haze, off to the left, fading away */
-                'radial-gradient(120% 220% at 18% -40%, rgb(var(--accent) / 0.10) 0%, rgb(var(--accent) / 0.04) 35%, transparent 60%)',
-                /* Main color curve — opaque at top, transparent at bottom,
-                   with intermediate stops bunched near the top so the
-                   bar reads as solid while the seam falls off cleanly. */
-                'linear-gradient(to bottom, rgb(var(--bg)) 0%, rgb(var(--bg) / 0.96) 35%, rgb(var(--bg) / 0.55) 70%, rgb(var(--bg) / 0.15) 90%, rgb(var(--bg) / 0) 100%)',
-              ].join(', ')
+            ? 'linear-gradient(to bottom, rgb(var(--bg)) 0%, rgb(var(--bg) / 0.96) 35%, rgb(var(--bg) / 0.55) 70%, rgb(var(--bg) / 0.15) 90%, rgb(var(--bg) / 0) 100%)'
             : 'rgb(var(--bg))',
           backdropFilter: 'none',
           WebkitBackdropFilter: 'none',
@@ -134,6 +127,20 @@ export const LandingNav: React.FC = () => {
         }}
         className="hidden lg:block sticky top-0 z-[55] transition-[transform,background,backdrop-filter] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
       >
+        {/* Bottom glow — only visible when the navbar is on the FILLED
+            (not-scrolled) state. Sits below the navbar's bottom edge
+            as an absolutely-positioned strip that radiates accent
+            color outward and downward. Pointer-events-none so it
+            never blocks clicks on the page underneath. */}
+        <div
+          aria-hidden
+          className="absolute left-0 right-0 top-full h-12 pointer-events-none transition-opacity duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          style={{
+            opacity: scrolled ? 0 : 1,
+            background:
+              'radial-gradient(120% 100% at 50% 0%, rgb(var(--accent) / 0.22) 0%, rgb(var(--accent) / 0.08) 35%, transparent 70%)',
+          }}
+        />
         <div
           className={`w-full transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
             /* Edge-to-edge container — no max-width, no card pill. Just
