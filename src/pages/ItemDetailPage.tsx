@@ -166,8 +166,17 @@ const ItemDetailPage: React.FC = () => {
       item.pattern ??
       fd?.paint_seed ??
       null;
+    /* Prefer CSFloat's per-listing render over Steam's generic skin
+       thumbnail. Only when fd actually returned a preview (the synth
+       fallback leaves preview_image null) — otherwise keep the Steam
+       image so the hero isn't broken when CSFloat is unavailable. */
+    const heroImage = fd?.preview_image || item.image;
     return {
       ...item,
+      image: heroImage,
+      /* Preserve the Steam image too for the gallery strip / fallback. */
+      steam_image: item.image,
+      preview_image: fd?.preview_image || null,
       float: hasItemFloat ? Number(item.float) : fd?.float ?? null,
       paintSeed: seed,
       patternTemplate: item.patternTemplate ?? item.pattern ?? seed,
@@ -525,7 +534,7 @@ const ItemDetailPage: React.FC = () => {
                 aria-hidden
               />
 
-              <HeroImage src={item.image} alt={name} />
+              <HeroImage src={enrichedItem.image} alt={name} />
 
               <div className="relative mt-6 flex flex-wrap items-end justify-between gap-4">
                 <div className="min-w-0">
@@ -1451,10 +1460,21 @@ const SellerCard: React.FC<{
     };
   }, [sellerSteamId, baseAvatar]);
   const avatar = baseAvatar || fetchedAvatar;
-  const derived = deriveSellerStats(seller);
-  const rating: number = Number(seller?.rating ?? derived.rating);
-  const deals: number = Number(seller?.totalDeals ?? seller?.successDeals ?? derived.deals);
-  const memberSince: string = seller?.memberSince || derived.memberSince;
+  /* `realRating` / `realDeals` are non-null ONLY when the backend
+     ships real values on the seller payload. We don't fall back to
+     the synthetic-hash stats here (that's what the user flagged as
+     "mocked"). `memberSince` keeps the synthetic fallback because the
+     header always needs *something* under the name; if backend ships
+     a real value it wins via the `??`. */
+  const realRating: number | null =
+    seller?.rating != null && Number.isFinite(Number(seller.rating))
+      ? Number(seller.rating)
+      : null;
+  const realDeals: number | null = (() => {
+    const v = seller?.totalDeals ?? seller?.successDeals;
+    return v != null && Number.isFinite(Number(v)) ? Number(v) : null;
+  })();
+  const memberSince: string = seller?.memberSince || deriveSellerStats(seller).memberSince;
   /* True when the viewer is also the seller. We surface a clear "Your
      listing" pill so users don't think the card is rendering them by
      mistake — same data, intentional indicator. */
@@ -1502,48 +1522,31 @@ const SellerCard: React.FC<{
         />
       </button>
 
-      {/* Stat grid */}
-      <div className="mt-4 grid grid-cols-3 gap-2">
-        <div className="card-flat p-2.5 text-center">
-          <div className="label-meta">Rating</div>
-          <div className="mt-1 inline-flex items-center gap-1 text-[14px] font-bold text-ink tracking-tight tabular-nums">
-            <Star size={11} strokeWidth={2.4} className="fill-amber-400 text-amber-400" />
-            {rating.toFixed(1)}
-          </div>
+      {/* Real-only meta line. Only renders rating / deals when the
+          backend ships them on the seller payload — no synthetic
+          fallback so the card never invents numbers. The dropped
+          three-box grid (Rating / Deals / Reply) plus the "96%
+          positive" line were all driven by `deriveSellerStats` which
+          is now reserved for places where some signal is better than
+          nothing. */}
+      {(realRating != null || realDeals != null) && (
+        <div className="mt-3 flex items-center gap-3 text-[12.5px] font-semibold text-ink-muted">
+          {realRating != null && (
+            <span className="inline-flex items-center gap-1 tabular-nums">
+              <Star size={12} strokeWidth={2.4} className="fill-amber-400 text-amber-400" />
+              {Number(realRating).toFixed(1)}
+            </span>
+          )}
+          {realRating != null && realDeals != null && (
+            <span className="text-ink-dim">·</span>
+          )}
+          {realDeals != null && (
+            <span className="tabular-nums">
+              {Number(realDeals).toLocaleString()} deals
+            </span>
+          )}
         </div>
-        <div className="card-flat p-2.5 text-center">
-          <div className="label-meta">Deals</div>
-          <div className="mt-1 text-[14px] font-bold text-ink tracking-tight tabular-nums">
-            {deals.toLocaleString()}
-          </div>
-        </div>
-        <div className="card-flat p-2.5 text-center">
-          <div className="label-meta">Reply</div>
-          <div className="mt-1 text-[14px] font-bold text-ink tracking-tight tabular-nums">
-            ~{deals > 500 ? '2m' : deals > 100 ? '6m' : '15m'}
-          </div>
-        </div>
-      </div>
-
-      {/* Star track */}
-      <div className="mt-3 flex items-center gap-1.5">
-        <div className="flex items-center gap-0.5">
-          {[1, 2, 3, 4, 5].map((s) => (
-            <Star
-              key={s}
-              size={11}
-              className={
-                s <= Math.round(rating)
-                  ? 'fill-amber-400 text-amber-400'
-                  : 'text-ink-dim'
-              }
-            />
-          ))}
-        </div>
-        <span className="text-[11px] text-ink-muted font-medium">
-          {Math.round(rating * 20)}% positive
-        </span>
-      </div>
+      )}
 
       {/* CTA row — Message + View profile */}
       <div className="mt-4 grid grid-cols-2 gap-2">

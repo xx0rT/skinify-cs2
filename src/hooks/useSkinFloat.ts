@@ -20,6 +20,11 @@ export interface SkinFloatData {
   paint_index: number | null;
   def_index: number | null;
   rarity: number | null;
+  /** CSFloat's rendered preview of this exact float+seed combination.
+      Differs from the Steam thumbnail in that it shows the real pattern
+      and wear on this specific listing. Null when the edge function
+      falls back to synthetic data. */
+  preview_image: string | null;
   stickers: Array<{
     slot: number;
     sticker_id: number;
@@ -129,6 +134,7 @@ export function useSkinFloat({
         paint_index: synth.paint_index,
         def_index: synth.def_index,
         rarity: null,
+        preview_image: null,
         stickers: [],
       };
     }
