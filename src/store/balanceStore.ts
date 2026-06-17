@@ -27,6 +27,7 @@ interface BalanceState {
   
   // Actions
   fetchBalance: (steamId: string) => Promise<void>;
+  fetchTransactions: (steamId: string) => Promise<void>;
   depositFunds: (steamId: string, amount: number, paymentMethod: string) => Promise<boolean>;
   purchaseWithBalance: (amount: number, items: any[]) => Promise<boolean>;
   refreshTransactions: (steamId: string) => Promise<void>;

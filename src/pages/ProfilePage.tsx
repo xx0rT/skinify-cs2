@@ -1,14 +1,12 @@
-import React, { Suspense, lazy, useEffect } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Activity,
-  ArrowDownToLine,
-  ArrowUpFromLine,
   Bell,
   ChevronRight,
-  Coins,
   CreditCard,
+  MessageCircle,
   Heart,
   LayoutGrid,
   Package,
@@ -23,6 +21,8 @@ import { useAuthStore } from '../store/authStore';
 import { useBalanceStore } from '../store/balanceStore';
 import { useOrderStore } from '../store/orderStore';
 import { useCurrencyStore } from '../store/currencyStore';
+import { useDMStore } from '../store/dmStore';
+import { useNotificationStore } from '../store/notificationStore';
 import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import SteamLogin from '../components/auth/SteamLogin';
@@ -71,6 +71,12 @@ interface TabDef {
   label: string;
   icon: React.ComponentType<any>;
   hue?: string;
+  /** When set, clicking the item navigates to the URL instead of switching
+      the in-page tab. Used for first-class destinations like /messages
+      that already have their own full-page layout. */
+  navigate?: string;
+  /** Show the matching unread counter. */
+  badge?: 'messages' | 'notifications';
 }
 
 const TABS: TabDef[] = [
@@ -83,7 +89,8 @@ const TABS: TabDef[] = [
   { id: 'balance',       label: 'Balance',       icon: Wallet },
   { id: 'shop',          label: 'My shop',       icon: Store },
   { id: 'reviews',       label: 'Reviews',       icon: Users },
-  { id: 'notifications', label: 'Notifications', icon: Bell },
+  { id: 'messages' as TabId, label: 'Messages',  icon: MessageCircle, navigate: '/messages', badge: 'messages' },
+  { id: 'notifications', label: 'Notifications', icon: Bell, badge: 'notifications' },
   { id: 'settings',      label: 'Settings',      icon: Settings },
 ];
 
@@ -102,11 +109,27 @@ const ProfilePage: React.FC = () => {
     noindex: true,
   });
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const { balance, pendingBalance, totalDeposited, totalSpent, fetchBalance, fetchTransactions } =
     useBalanceStore();
   const { orders, fetchOrders } = useOrderStore();
   const { formatPrice } = useCurrencyStore();
+  const dmThreads = useDMStore((s) => s.threads);
+  const notificationUnread = useNotificationStore((s) => s.unreadCount);
+
+  /* Count unread DM messages across every thread. Subscribing to
+     `threads` (instead of calling `totalUnread()` once) means the badge
+     updates live as messages arrive or get marked read. */
+  const messagesUnread = useMemo(() => {
+    let n = 0;
+    for (const thread of Object.values(dmThreads)) {
+      for (const m of thread.messages) {
+        if (!m.read && m.fromSteamId !== 'me') n += 1;
+      }
+    }
+    return n;
+  }, [dmThreads]);
 
   const activeTab = (searchParams.get('tab') as TabId) || 'overview';
   const setActiveTab = (tab: TabId) => setSearchParams({ tab });
@@ -257,11 +280,14 @@ const ProfilePage: React.FC = () => {
               {TABS.map((t) => {
                 const active = activeTab === t.id;
                 const Icon = t.icon;
+                const badgeCount =
+                  t.badge === 'messages' ? messagesUnread :
+                  t.badge === 'notifications' ? notificationUnread : 0;
                 return (
                   <motion.button
                     whileTap={tap}
                     key={t.id}
-                    onClick={() => setActiveTab(t.id)}
+                    onClick={() => t.navigate ? navigate(t.navigate) : setActiveTab(t.id)}
                     className={`relative h-10 lg:h-11 px-3 rounded-2xl flex items-center gap-2.5 lg:gap-3 transition-colors text-left shrink-0 lg:w-full lg:shrink ${
                       active ? 'text-ink' : 'text-ink-muted hover:bg-subtle hover:text-ink'
                     }`}
@@ -284,7 +310,12 @@ const ProfilePage: React.FC = () => {
                     <span className="relative text-[13px] lg:text-[13.5px] font-semibold tracking-tight whitespace-nowrap lg:flex-1">
                       {t.label}
                     </span>
-                    {active && (
+                    {badgeCount > 0 && (
+                      <span className="relative ml-auto lg:ml-0 min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[10.5px] font-bold grid place-items-center tabular-nums">
+                        {badgeCount > 99 ? '99+' : badgeCount}
+                      </span>
+                    )}
+                    {active && !badgeCount && (
                       <ChevronRight
                         size={14}
                         className="relative text-ink-muted hidden lg:block"
@@ -428,40 +459,8 @@ const OverviewTab: React.FC<{
 }> = ({ balance, pendingBalance, totalDeposited, totalSpent, ordersCount, recentOrders, onGoTo, formatPrice }) => {
   const earned = Math.max(0, balance + pendingBalance - totalDeposited + totalSpent);
 
-  const tiles = [
-    { label: 'Available', value: formatPrice(balance), Icon: Wallet, hue: 'mint',  sub: 'Spendable now' },
-    { label: 'Pending',   value: formatPrice(pendingBalance), Icon: Coins, hue: 'lemon', sub: 'Releases after 8 days' },
-    { label: 'Deposited', value: formatPrice(totalDeposited), Icon: ArrowDownToLine, hue: 'sky', sub: 'Lifetime top-ups' },
-    { label: 'Spent',     value: formatPrice(totalSpent), Icon: ArrowUpFromLine, hue: 'rose', sub: 'Lifetime purchases' },
-  ];
-
   return (
     <div className="space-y-4">
-      {/* Stat tiles */}
-      <motion.div
-        variants={staggerParent}
-        initial="hidden"
-        animate="shown"
-        className="grid grid-cols-2 md:grid-cols-4 gap-3"
-      >
-        {tiles.map((t) => (
-          <motion.div key={t.label} variants={staggerChild} whileHover={{ y: -2 }} transition={spring} className="card p-4">
-            <div className="flex items-start justify-between mb-3">
-              <span className="label-meta">{t.label}</span>
-              {/* Single-color icon chip — accent-soft bg + accent stroke
-                  instead of per-tile hues (used to be rainbow). */}
-              <div className="icon-chip-sm bg-accent-soft">
-                <t.Icon size={14} strokeWidth={2.2} className="text-accent" />
-              </div>
-            </div>
-            <div className="text-[22px] font-bold tracking-tight tabular-nums text-ink leading-none">
-              {t.value}
-            </div>
-            {t.sub && <div className="text-[11.5px] text-ink-dim font-medium mt-1.5">{t.sub}</div>}
-          </motion.div>
-        ))}
-      </motion.div>
-
       {/* Performance + Quick links */}
       <div className="grid lg:grid-cols-[1.4fr_1fr] gap-4">
         <motion.div variants={staggerChild} initial="hidden" animate="shown" className="card p-5 md:p-6 flex flex-col">

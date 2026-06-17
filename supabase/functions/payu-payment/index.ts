@@ -6,17 +6,38 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
+/* PayU credentials. Production keys live in Supabase function secrets:
+   PAYU_POS_ID, PAYU_CLIENT_ID, PAYU_CLIENT_SECRET, PAYU_SECOND_KEY,
+   PAYU_API_URL (defaults to production). Set them with:
+     supabase secrets set PAYU_POS_ID=... PAYU_CLIENT_ID=... \
+       PAYU_CLIENT_SECRET=... PAYU_SECOND_KEY=... PAYU_API_URL=https://secure.payu.com
+   The hardcoded sandbox keys that used to live here are removed — if the
+   secret is missing the function returns a 500 with a clear message
+   instead of silently posting against the test environment. */
 const PAYU_CONFIG = {
-  posId: "4416072",
-  clientId: "4416072",
-  clientSecret: "c2fca2d6579e0258a2e70206caa64052",
-  secondKey: "547630fe34bf8ddb3c4133b3ec3619a1",
-  apiUrl: "https://secure.payu.com",
-  oauthUrl: "https://secure.payu.com/pl/standard/user/oauth/authorize",
-  ordersUrl: "https://secure.payu.com/api/v2_1/orders",
+  posId: Deno.env.get("PAYU_POS_ID") || "",
+  clientId: Deno.env.get("PAYU_CLIENT_ID") || "",
+  clientSecret: Deno.env.get("PAYU_CLIENT_SECRET") || "",
+  secondKey: Deno.env.get("PAYU_SECOND_KEY") || "",
+  apiUrl: Deno.env.get("PAYU_API_URL") || "https://secure.payu.com",
 };
 
+function assertPayUConfig() {
+  const missing: string[] = [];
+  if (!PAYU_CONFIG.posId) missing.push("PAYU_POS_ID");
+  if (!PAYU_CONFIG.clientId) missing.push("PAYU_CLIENT_ID");
+  if (!PAYU_CONFIG.clientSecret) missing.push("PAYU_CLIENT_SECRET");
+  if (!PAYU_CONFIG.secondKey) missing.push("PAYU_SECOND_KEY");
+  if (missing.length > 0) {
+    throw new Error(
+      `PayU not configured: missing env var(s) ${missing.join(", ")}. ` +
+        `Set them with: supabase secrets set ${missing.map((k) => `${k}=...`).join(" ")}`,
+    );
+  }
+}
+
 async function getPayUAccessToken(): Promise<string> {
+  assertPayUConfig();
   const tokenUrl = `${PAYU_CONFIG.apiUrl}/pl/standard/user/oauth/authorize`;
   const params = new URLSearchParams({
     grant_type: "client_credentials",
@@ -237,7 +258,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { amount, userId, userEmail, steamId, customerIp: providedIp, description } = await req.json();
+    const { amount, userId, userEmail, steamId, customerIp: providedIp, description, payMethod } = await req.json();
 
     console.log("=== PAYMENT REQUEST ===");
     console.log("Amount:", amount, "CZK");
@@ -266,7 +287,25 @@ Deno.serve(async (req: Request) => {
     const buyerEmail = userEmail || (steamId ? `user_${steamId}@csgo-marketplace.com` : `user_${userId}@csgo-marketplace.com`);
     const extOrderId = `deposit_${userId}_${Date.now()}`;
 
-    const orderData = {
+    /* When the client picked a specific payment method we forward it
+       via PayU's `payMethods.payMethod` shape so the hosted checkout
+       opens straight on that method (e.g. card, BLIK, Apple Pay).
+       Without it PayU shows its full method picker — also valid; users
+       who pick "All methods" in our UI get that experience.
+
+       Shape per PayU REST API:
+         - { type: "PBL",        value: "<channel>" }  for bank-transfer / wallet channels
+           (e.g. "c"=card, "ap"=Apple Pay, "jp"=Google Pay, "blik"=BLIK,
+            "dpcz"=Czech bank transfer)
+         - { type: "CARD_TOKEN", value: "<token>"   }  for tokenised card payments
+       We only support PBL channels here since we don't tokenise cards
+       on our side. */
+    const payMethods =
+      payMethod && typeof payMethod === "string"
+        ? { payMethod: { type: "PBL" as const, value: payMethod } }
+        : undefined;
+
+    const orderData: Record<string, any> = {
       notifyUrl,
       continueUrl,
       customerIp,
@@ -277,7 +316,7 @@ Deno.serve(async (req: Request) => {
       extOrderId,
       buyer: {
         email: buyerEmail,
-        language: "en",
+        language: "cs",
       },
       products: [{
         name: `Wallet Top-up ${amount.toLocaleString()} Kč`,
@@ -285,6 +324,8 @@ Deno.serve(async (req: Request) => {
         quantity: 1,
       }],
     };
+
+    if (payMethods) orderData.payMethods = payMethods;
 
     console.log("=== ORDER DATA ===");
     console.log("POS ID:", orderData.merchantPosId);

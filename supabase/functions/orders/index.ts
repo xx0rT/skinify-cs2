@@ -224,44 +224,61 @@ async function processSellerPayment(
           continue; // Skip this seller but continue with others
         }
 
-        // Create sale transaction for this seller.
-        // `pending_wallet: true` makes the balance trigger route this into the
-        // seller's PENDING balance (not current). The auto-escrow-release cron
-        // moves it to current balance once 8 days have passed (1-day safety
-        // margin past CS2's 7-day trade-back window).
-        const saleTransaction = {
-          user_id: seller.id,
-          steam_id: sellerSteamId,
-          type: 'sale',
-          amount: amount,
-          description: `Trade completed - Order ${order.transaction_id}. Your portion: ${items.length} item(s). Funds held 8 days.`,
-          reference_id: `sale_${order.transaction_id}_${sellerSteamId}_${Date.now()}`,
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-          metadata: {
-            order_id: order.transaction_id,
-            buyer_steam_id: buyerSteamId,
-            buyer_name: buyerName,
-            items: items,
-            multi_seller_order: true,
-            payment_source: 'buyer_confirmation',
-            pending_wallet: true,
-            hold_until: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString()
-          }
-        };
-
-        const { data: saleResult, error: saleError } = await supabase
+        // If this seller was already credited at order creation (new path,
+        // see POST handler), skip inserting another `sale` transaction —
+        // otherwise the trigger would double-pay pending_balance. We
+        // detect the prior credit by its deterministic reference_id.
+        const precreditRefId = `pending_credit_${order.transaction_id}_${sellerSteamId}`;
+        const { data: alreadyCredited } = await supabase
           .from('user_transactions')
-          .insert(saleTransaction)
-          .select()
-          .single();
+          .select('id')
+          .eq('reference_id', precreditRefId)
+          .maybeSingle();
 
-        if (saleError) {
-          console.error(`Failed to create payment for seller ${sellerSteamId}:`, saleError);
-          throw new Error(`Failed to process payment for seller ${sellerSteamId}: ${saleError.message}`);
+        if (alreadyCredited) {
+          console.log(
+            `Seller ${sellerSteamId} already credited at order creation — skipping confirmation credit`,
+          );
+        } else {
+          // Create sale transaction for this seller.
+          // `pending_wallet: true` makes the balance trigger route this into the
+          // seller's PENDING balance (not current). The auto-escrow-release cron
+          // moves it to current balance once 8 days have passed (1-day safety
+          // margin past CS2's 7-day trade-back window).
+          const saleTransaction = {
+            user_id: seller.id,
+            steam_id: sellerSteamId,
+            type: 'sale',
+            amount: amount,
+            description: `Trade completed - Order ${order.transaction_id}. Your portion: ${items.length} item(s). Funds held 8 days.`,
+            reference_id: `sale_${order.transaction_id}_${sellerSteamId}_${Date.now()}`,
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+            metadata: {
+              order_id: order.transaction_id,
+              buyer_steam_id: buyerSteamId,
+              buyer_name: buyerName,
+              items: items,
+              multi_seller_order: true,
+              payment_source: 'buyer_confirmation',
+              pending_wallet: true,
+              hold_until: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString()
+            }
+          };
+
+          const { data: saleResult, error: saleError } = await supabase
+            .from('user_transactions')
+            .insert(saleTransaction)
+            .select()
+            .single();
+
+          if (saleError) {
+            console.error(`Failed to create payment for seller ${sellerSteamId}:`, saleError);
+            throw new Error(`Failed to process payment for seller ${sellerSteamId}: ${saleError.message}`);
+          }
+
+          console.log(`✅ Payment created for seller ${sellerSteamId}: ${saleResult.id}`);
         }
-
-        console.log(`✅ Payment created for seller ${sellerSteamId}: ${saleResult.id}`);
 
         // Notify this seller
         await createNotification(
@@ -300,43 +317,59 @@ async function processSellerPayment(
 
       console.log('=== CREATING SELLER PAYMENT TRANSACTION ===');
 
-      // Create sale transaction for seller.
-      // `pending_wallet: true` routes the funds into pending_balance via the
-      // user-balance trigger; auto-escrow-release will move it to current
-      // balance after 8 days (1-day safety margin past CS2's 7-day trade-back
-      // window).
-      const saleTransaction = {
-        user_id: seller.id,
-        steam_id: order.seller_steam_id,
-        type: 'sale',
-        amount: order.total_amount,
-        description: `Trade completed - Order ${order.transaction_id}. Buyer confirmed receipt. Funds held 8 days.`,
-        reference_id: `sale_${order.transaction_id}_${Date.now()}`,
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-        metadata: {
-          order_id: order.transaction_id,
-          buyer_steam_id: buyerSteamId,
-          buyer_name: buyerName,
-          items: order.items,
-          payment_source: 'buyer_confirmation',
-          pending_wallet: true,
-          hold_until: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString()
-        }
-      };
-
-      const { data: saleResult, error: saleError } = await supabase
+      // Skip if the seller was already credited at order creation (new
+      // immediate-pending-credit path). Avoids double-paying via the
+      // `pending_wallet: true` trigger routing.
+      const precreditRefId = `pending_credit_${order.transaction_id}_${order.seller_steam_id}`;
+      const { data: alreadyCredited } = await supabase
         .from('user_transactions')
-        .insert(saleTransaction)
-        .select()
-        .single();
+        .select('id')
+        .eq('reference_id', precreditRefId)
+        .maybeSingle();
 
-      if (saleError) {
-        console.error('Failed to create seller payment:', saleError);
-        throw new Error(`Failed to process seller payment: ${saleError.message}`);
+      if (alreadyCredited) {
+        console.log(
+          `Seller ${order.seller_steam_id} already credited at order creation — skipping confirmation credit`,
+        );
+      } else {
+        // Create sale transaction for seller.
+        // `pending_wallet: true` routes the funds into pending_balance via the
+        // user-balance trigger; auto-escrow-release will move it to current
+        // balance after 8 days (1-day safety margin past CS2's 7-day trade-back
+        // window).
+        const saleTransaction = {
+          user_id: seller.id,
+          steam_id: order.seller_steam_id,
+          type: 'sale',
+          amount: order.total_amount,
+          description: `Trade completed - Order ${order.transaction_id}. Buyer confirmed receipt. Funds held 8 days.`,
+          reference_id: `sale_${order.transaction_id}_${Date.now()}`,
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          metadata: {
+            order_id: order.transaction_id,
+            buyer_steam_id: buyerSteamId,
+            buyer_name: buyerName,
+            items: order.items,
+            payment_source: 'buyer_confirmation',
+            pending_wallet: true,
+            hold_until: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString()
+          }
+        };
+
+        const { data: saleResult, error: saleError } = await supabase
+          .from('user_transactions')
+          .insert(saleTransaction)
+          .select()
+          .single();
+
+        if (saleError) {
+          console.error('Failed to create seller payment:', saleError);
+          throw new Error(`Failed to process seller payment: ${saleError.message}`);
+        }
+
+        console.log(`✅ Seller payment created: ${saleResult.id}`);
       }
-
-      console.log(`✅ Seller payment created: ${saleResult.id}`);
 
       // Notify seller
       await createNotification(
@@ -1041,6 +1074,92 @@ Deno.serve(async (req) => {
               action_required: 'send_items_via_steam'
             }
           );
+        }
+
+        // ============================================================
+        // CREDIT SELLERS' PENDING BALANCE AT ORDER CREATION
+        // ============================================================
+        // The buyer's funds are already deducted above. Now mirror the
+        // money into each seller's pending_balance immediately so the
+        // seller sees their escrowed payment the moment the order is
+        // placed (not only after buyer-confirmation, which used to be
+        // the only path that ran processSellerPayment).
+        //
+        // Mechanism: insert a `sale` user_transaction with
+        // metadata.pending_wallet = true. The DB trigger
+        // (update_user_balance_from_transactions) sums these into
+        // users.pending_balance — the same routing the legacy
+        // confirmation-time credit relied on. The 8-day escrow cron
+        // moves the funds out of pending into current_balance after the
+        // CS2 trade-back window.
+        //
+        // Idempotent across retries: the reference_id includes
+        // `pending_credit_<txn>_<seller>` so a duplicate POST collides
+        // with the existing row instead of double-paying. If insertion
+        // fails we log + continue (the order itself is already
+        // committed — the buyer paid, the listing is removed, and the
+        // seller will still be credited on buyer-confirmation as a
+        // safety net).
+        try {
+          console.log('=== CREDITING SELLER PENDING BALANCES ===');
+          for (const sellerSteamId of uniqueSellers) {
+            const sellerItems = orderData.items.filter(
+              (it: any) => it.seller_steam_id === sellerSteamId,
+            );
+            const sellerAmount = sellerItems.reduce(
+              (sum: number, it: any) => sum + Number(it.price || 0),
+              0,
+            );
+            if (!sellerSteamId || sellerSteamId === 'unknown' || sellerAmount <= 0) continue;
+
+            const { data: sellerRow } = await supabase
+              .from('users')
+              .select('id')
+              .eq('steam_id', sellerSteamId)
+              .single();
+
+            if (!sellerRow) {
+              console.warn(`Seller ${sellerSteamId} not found — skipping pending credit`);
+              continue;
+            }
+
+            const referenceId = `pending_credit_${transactionId}_${sellerSteamId}`;
+            const { error: pendingError } = await supabase
+              .from('user_transactions')
+              .insert({
+                user_id: sellerRow.id,
+                steam_id: sellerSteamId,
+                type: 'sale',
+                amount: sellerAmount,
+                description: `Pending sale - Order ${transactionId}. Released to main balance after 8 days.`,
+                reference_id: referenceId,
+                status: 'completed',
+                completed_at: new Date().toISOString(),
+                metadata: {
+                  order_id: transactionId,
+                  buyer_steam_id: orderData.buyer_steam_id,
+                  buyer_name: buyer.display_name,
+                  items: sellerItems,
+                  payment_source: 'order_creation',
+                  pending_wallet: true,
+                  hold_until: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString(),
+                },
+              });
+
+            if (pendingError) {
+              if (String(pendingError.code) === '23505') {
+                console.log(`Pending credit already exists for ${sellerSteamId} (idempotent retry)`);
+              } else {
+                console.error(`Failed to credit seller ${sellerSteamId}:`, pendingError);
+              }
+            } else {
+              console.log(
+                `✅ Credited seller ${sellerSteamId} pending_balance by ${sellerAmount}`,
+              );
+            }
+          }
+        } catch (creditErr) {
+          console.error('Pending-credit step failed (order still committed):', creditErr);
         }
 
         console.log('=== ORDER CREATION COMPLETE ===');

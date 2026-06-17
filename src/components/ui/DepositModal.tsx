@@ -7,13 +7,6 @@ import { useBalanceStore } from '../../store/balanceStore';
 import { useToastStore } from '../../store/toastStore';
 import { supabase } from '../../lib/supabaseClient';
 
-// Revolut Checkout types
-declare global {
-  interface Window {
-    RevolutCheckout: any;
-  }
-}
-
 interface DepositModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -24,15 +17,35 @@ interface DepositModalProps {
 // Currency conversion rate (updated: October 9, 2025)
 const CZK_TO_EUR_RATE = 24.37; // 1 EUR = 24.37 CZK (current market rate)
 
+/* PayU PBL channel catalogue for the Czech market. The `value` field
+   is what gets sent to PayU as `payMethods.payMethod.value`. Empty
+   string represents "show PayU's full picker" — i.e. don't constrain
+   to a single method. Keep this list aligned with what's enabled on
+   the production merchant in the PayU panel. */
+type PayUMethod = { value: string; label: string; sub: string; emoji: string };
+const PAYU_METHODS: PayUMethod[] = [
+  { value: '',     label: 'All methods',     sub: 'Pick on PayU',         emoji: '🎯' },
+  { value: 'c',    label: 'Card',            sub: 'Visa · Mastercard',    emoji: '💳' },
+  { value: 'jp',   label: 'Google Pay',      sub: 'One-tap on Android',   emoji: 'G' },
+  { value: 'ap',   label: 'Apple Pay',       sub: 'Face ID / Touch ID',   emoji: '' },
+  { value: 'blik', label: 'BLIK',            sub: '6-digit code',         emoji: '🔢' },
+  { value: 'dpcz', label: 'Bank transfer',   sub: 'Czech bank · instant', emoji: '🏦' },
+];
+
 const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, onSuccess, currentBalance }) => {
   const { user } = useAuthStore();
   const { depositFunds } = useBalanceStore();
   const { addToast } = useToastStore();
   const [amount, setAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('revolut');
+  /* PayU sub-method. Empty string => let PayU show its built-in
+     method picker (all enabled methods). Any other value is a PayU PBL
+     channel id and routes the buyer straight to that method. The list
+     below mirrors what's typically enabled for a Czech-market POS;
+     trim it if your PayU merchant doesn't have all of these
+     activated. */
+  const [payuMethod, setPayuMethod] = useState<string>('');
   const [processing, setProcessing] = useState(false);
   const [step, setStep] = useState<'main' | 'processing' | 'success'>('main');
-  const [revolutLoaded, setRevolutLoaded] = useState(false);
   const [showPromoSection, setShowPromoSection] = useState(false);
   const [promoCode, setPromoCode] = useState('');
   const [affiliateCode, setAffiliateCode] = useState('');
@@ -68,45 +81,6 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, onSuccess,
       document.body.style.overflow = '';
     };
   }, [isOpen]);
-
-  // Load Revolut Checkout script
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const loadRevolutScript = () => {
-      if (window.RevolutCheckout) {
-        setRevolutLoaded(true);
-        return;
-      }
-
-      if (document.getElementById('revolut-checkout')) {
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.id = 'revolut-checkout';
-      script.async = true;
-      script.src = 'https://sandbox-merchant.revolut.com/embed.js';
-      
-      script.onload = () => {
-        console.log('Revolut Checkout script loaded');
-        setRevolutLoaded(true);
-      };
-      
-      script.onerror = () => {
-        console.error('Failed to load Revolut Checkout script');
-        addToast({
-          type: 'error',
-          title: 'Payment System Error',
-          message: 'Failed to load Revolut payment system'
-        });
-      };
-
-      document.head.appendChild(script);
-    };
-
-    loadRevolutScript();
-  }, [isOpen, addToast]);
 
   const predefinedAmounts = [500, 1000, 2500, 5000, 10000, 20000];
 
@@ -324,7 +298,10 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, onSuccess,
           steamId: user.steamId,
           customerIp: customerIp,
           userEmail: `user_${user.steamId}@csgo-marketplace.com`,
-          description: `CS:GO Marketplace Deposit - ${finalAmount.toLocaleString('cs-CZ')} Kč`
+          description: `Skinify Wallet Top-up · ${finalAmount.toLocaleString('cs-CZ')} Kč`,
+          /* Optional: send buyer straight to a specific PayU channel.
+             Empty string => fall through to PayU's built-in method picker. */
+          payMethod: payuMethod || undefined,
         })
       });
 
@@ -370,224 +347,9 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, onSuccess,
     }
   };
 
-  const handleRevolutPayment = async () => {
-    if (!user) {
-      addToast({
-        type: 'error',
-        title: 'Authentication Required',
-        message: 'Please log in to make a deposit'
-      });
-      return;
-    }
-
-    if (!amount || parseFloat(amount) < 50) {
-      addToast({
-        type: 'error',
-        title: 'Invalid Amount',
-        message: 'Please enter a valid amount (minimum 50 Kč)'
-      });
-      return;
-    }
-
-    setProcessing(true);
-    setStep('processing');
-
-    try {
-      console.log('=== CREATING REVOLUT PAYMENT ORDER ===');
-      
-      const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
-      
-      const bonusBreakdown = getBonusBreakdown();
-
-      console.log('Payment details:', {
-        paymentAmountCZK: bonusBreakdown.paymentAmount,
-        paymentAmountEUR: bonusBreakdown.paymentAmountEur,
-        finalBalanceCZK: bonusBreakdown.finalAmount
-      });
-
-      const response = await fetch(`${supabaseUrl}/functions/v1/revolut-payment`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          steam_id: user.steamId,
-          amount: bonusBreakdown.paymentAmount,
-          amount_czk: bonusBreakdown.paymentAmount,
-          amount_eur: bonusBreakdown.paymentAmountEur,
-          total_balance_to_add: bonusBreakdown.finalAmount,
-          currency: 'CZK',
-          conversion_rate: CZK_TO_EUR_RATE,
-          promo_code: promoCode || null,
-          affiliate_code: affiliateCode || null,
-          bonuses: bonusBreakdown
-        })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Revolut payment created:', data);
-        
-        if (data.checkout_url || data.paylink_url) {
-          const paymentUrl = data.checkout_url || data.paylink_url;
-          console.log('Opening Revolut checkout in new window:', paymentUrl);
-          
-          const paymentWindow = window.open(
-            paymentUrl,
-            'revolut_payment',
-            'width=800,height=900,scrollbars=yes,resizable=yes,location=yes,status=yes'
-          );
-          
-          const checkClosed = setInterval(() => {
-            if (paymentWindow?.closed) {
-              clearInterval(checkClosed);
-              console.log('Payment window closed - checking status...');
-              
-              setTimeout(() => {
-                checkPaymentStatus(data.order_ref, data.revolut_order_id);
-              }, 1000);
-            }
-          }, 1000);
-          
-          setStep('processing');
-          
-          if (!paymentWindow) {
-            clearInterval(checkClosed);
-            throw new Error('Payment window was blocked. Please allow popups and try again.');
-          }
-          
-        } else {
-          throw new Error('No checkout URL received from Revolut');
-        }
-      } else {
-        const errorData = await response.json();
-        console.error('Backend error:', errorData);
-        throw new Error(errorData.details || errorData.error || 'Failed to create Revolut payment');
-      }
-      
-    } catch (error) {
-      console.error('Payment error:', error);
-      addToast({
-        type: 'error',
-        title: 'Payment Failed',
-        message: error instanceof Error ? error.message : 'Failed to open payment window'
-      });
-      setProcessing(false);
-      setStep('main');
-    }
-  };
-
-  const checkPaymentStatus = async (transactionId: string, revolutOrderId: string) => {
-    try {
-      console.log('=== PAYMENT WINDOW CLOSED - CHECKING STATUS ===');
-      
-      const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
-      
-      let attempts = 0;
-      const maxAttempts = 15;
-      
-      const verifyActualPayment = async (): Promise<void> => {
-        attempts++;
-        console.log(`🔍 SECURE verification attempt ${attempts}/${maxAttempts}`);
-        
-        try {
-          const response = await fetch(`${supabaseUrl}/functions/v1/verify-payment?order_ref=${transactionId}&amount=${amount}`, {
-            headers: {
-              'Authorization': `Bearer ${supabaseKey}`,
-              'Content-Type': 'application/json',
-            }
-          });
-        
-          if (response.ok) {
-            const result = await response.json();
-            console.log('Verification response:', result);
-          
-            if (result.verified && result.payment_completed) {
-              console.log('✅ PAYMENT VERIFIED SUCCESSFULLY!');
-              
-              setStep('success');
-              setProcessing(false);
-            
-              const breakdown = getBonusBreakdown();
-              addToast({
-                type: 'success',
-                title: '💰 Deposit Successful!',
-                message: `${breakdown.finalAmount.toLocaleString('cs-CZ')} Kč verified and added to your account!`,
-                duration: 5000
-              });
-            
-              setTimeout(() => {
-                onSuccess();
-                onClose();
-                resetModal();
-              }, 2000);
-            
-              return;
-            } else if (result.verified === false && result.payment_completed === false) {
-              console.log('❌ PAYMENT NOT COMPLETED');
-              
-              setStep('main');
-              setProcessing(false);
-              
-              addToast({
-                type: 'warning',
-                title: '⚠️ Payment Not Completed',
-                message: result.message || 'Payment was cancelled or not completed.',
-                duration: 5000
-              });
-              
-              return;
-            } else {
-              console.log(`Attempt ${attempts}: Payment verification pending`);
-            }
-          } else {
-            const errorData = await response.json().catch(() => ({ error: 'Unknown' }));
-            console.log(`Attempt ${attempts}: Verification API error - ${response.status}: ${errorData.error || response.statusText}`);
-          }
-        } catch (fetchError) {
-          console.error(`Attempt ${attempts} fetch error:`, fetchError);
-        }
-        
-        if (attempts < maxAttempts) {
-          const delay = attempts < 5 ? 2000 : attempts < 10 ? 3000 : 5000;
-          console.log(`⏱️ Next check in ${delay/1000}s...`);
-          setTimeout(verifyActualPayment, delay);
-        } else {
-          console.log('❌ PAYMENT VERIFICATION TIMEOUT');
-          
-          addToast({
-            type: 'warning',
-            title: '⏰ Payment Verification Timeout',
-            message: 'Unable to verify payment status. If you completed the payment, please contact support.',
-            duration: 6000
-          });
-          
-          setProcessing(false);
-          setStep('main');
-        }
-      };
-      
-      console.log('🚀 Starting SECURE payment verification...');
-      verifyActualPayment();
-      
-    } catch (error) {
-      console.error('Payment status check failed:', error);
-      addToast({
-        type: 'warning',
-        title: '❌ Verification System Error',
-        message: 'Unable to verify payment. Please contact support if you completed the payment.',
-        duration: 3000
-      });
-      
-      setProcessing(false);
-      setStep('main');
-    }
-  };
-
   const resetModal = () => {
     setAmount('');
-    setPaymentMethod('revolut');
+    setPayuMethod('');
     setProcessing(false);
     setStep('main');
     setPromoCode('');
@@ -937,84 +699,81 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, onSuccess,
                     </motion.div>
                   )}
 
-                  {/* Payment Method Selection */}
+                  {/* Payment method picker — PayU is the only provider.
+                      Each tile maps to a PayU PBL channel and routes the
+                      buyer straight to that method on PayU's hosted page.
+                      "All methods" leaves PayU's own picker in place. */}
                   <div className="space-y-3">
-                    <div className="text-center text-gray-400 text-sm font-medium">Select Payment Method</div>
-
-                    {/* Payment Method Buttons */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <motion.button
-                        onClick={() => setPaymentMethod('revolut')}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        className={`p-4 rounded-lg border-2 transition-all duration-300 ${
-                          paymentMethod === 'revolut'
-                            ? 'border-blue-500 bg-blue-500/10'
-                            : 'border-gray-600 bg-gray-800/50 hover:border-gray-500'
-                        }`}
-                      >
-                        <div className="flex flex-col items-center space-y-2">
-                          <div className="bg-white rounded-lg p-2">
-                            <span className="text-black font-bold text-xl">R</span>
-                          </div>
-                          <span className="text-white font-semibold text-sm">Revolut</span>
-                          <span className="text-gray-400 text-xs">EUR Payment</span>
-                        </div>
-                      </motion.button>
-
-                      <motion.button
-                        onClick={() => setPaymentMethod('payu')}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        className={`p-4 rounded-lg border-2 transition-all duration-300 ${
-                          paymentMethod === 'payu'
-                            ? 'border-green-500 bg-green-500/10'
-                            : 'border-gray-600 bg-gray-800/50 hover:border-gray-500'
-                        }`}
-                      >
-                        <div className="flex flex-col items-center space-y-2">
-                          <div className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg p-2 w-12 h-12 flex items-center justify-center">
-                            <CreditCard className="text-white" size={24} />
-                          </div>
-                          <span className="text-white font-semibold text-sm">PayU</span>
-                          <span className="text-gray-400 text-xs">USD Payment</span>
-                        </div>
-                      </motion.button>
+                    <div className="flex items-center justify-between">
+                      <div className="text-gray-400 text-sm font-medium">Payment method</div>
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
+                        <CreditCard size={12} />
+                        Powered by PayU
+                      </div>
                     </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {PAYU_METHODS.map((m) => {
+                        const active = payuMethod === m.value;
+                        return (
+                          <motion.button
+                            key={m.value || 'all'}
+                            whileTap={{ scale: 0.97 }}
+                            whileHover={{ y: -1 }}
+                            onClick={() => setPayuMethod(m.value)}
+                            className={`relative p-3 rounded-lg border-2 text-left transition-all ${
+                              active
+                                ? 'border-green-500 bg-green-500/10'
+                                : 'border-gray-700 bg-gray-800/40 hover:border-gray-500'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-md bg-white/10 grid place-items-center text-[14px] font-bold shrink-0">
+                                {m.emoji || m.label.charAt(0)}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-white text-[12.5px] font-semibold leading-none truncate">
+                                  {m.label}
+                                </div>
+                                <div className="text-gray-400 text-[10.5px] font-medium mt-1 truncate">
+                                  {m.sub}
+                                </div>
+                              </div>
+                            </div>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10.5px] text-gray-500 leading-relaxed">
+                      All methods are processed in CZK with no FX conversion.
+                      Pick "All methods" to choose on PayU's checkout instead.
+                    </p>
                   </div>
 
-                  {/* Payment Button */}
+                  {/* Payment Button — single PayU CTA. */}
                   <motion.button
-                    onClick={paymentMethod === 'payu' ? handlePayUPayment : handleRevolutPayment}
+                    onClick={handlePayUPayment}
                     disabled={!amount || parseFloat(amount) < 50 || processing}
                     whileHover={{ scale: !amount || parseFloat(amount) < 50 || processing ? 1 : 1.01 }}
                     whileTap={{ scale: !amount || parseFloat(amount) < 50 || processing ? 1 : 0.98 }}
                     className={`w-full py-4 rounded-lg font-bold transition-all duration-300 flex items-center justify-center space-x-3 ${
                       !amount || parseFloat(amount) < 50 || processing
                         ? 'bg-gray-600 cursor-not-allowed text-gray-400'
-                        : paymentMethod === 'payu'
-                        ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white'
-                        : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white'
+                        : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white'
                     }`}
                     style={
-                      amount && parseFloat(amount) >= 50 && !processing ?
-                      { boxShadow: paymentMethod === 'payu'
-                        ? '0 4px 15px rgba(34, 197, 94, 0.4), 0 0 30px rgba(16, 185, 129, 0.2)'
-                        : '0 4px 15px rgba(168, 85, 247, 0.4), 0 0 30px rgba(59, 130, 246, 0.2)'
-                      } : {}
+                      amount && parseFloat(amount) >= 50 && !processing
+                        ? { boxShadow: '0 4px 15px rgba(34, 197, 94, 0.4), 0 0 30px rgba(16, 185, 129, 0.2)' }
+                        : {}
                     }
                   >
                     <div className="flex items-center space-x-3">
-                      {paymentMethod === 'payu' ? (
-                        <CreditCard size={20} />
-                      ) : (
-                        <div className="bg-white rounded-lg p-1.5">
-                          <span className="text-black font-bold">R</span>
-                        </div>
-                      )}
+                      <CreditCard size={20} />
                       <div className="text-center">
                         <div className="font-bold">
-                          {processing ? 'Opening Checkout...' : `Pay with ${paymentMethod === 'payu' ? 'PayU' : 'Revolut'}`}
+                          {processing
+                            ? 'Opening Checkout…'
+                            : `Pay ${(PAYU_METHODS.find((m) => m.value === payuMethod)?.label || 'with PayU')}`}
                         </div>
                         {amount && parseFloat(amount) >= 50 && !processing && (
                           <div className="text-sm opacity-90">
@@ -1041,7 +800,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, onSuccess,
                   </div>
 
                   <div className="text-center text-xs text-gray-400">
-                    <p>Minimum deposit: 50 Kč • {paymentMethod === 'payu' ? 'Powered by PayU' : 'Powered by Revolut'} • Instant processing</p>
+                    <p>Minimum deposit: 50 Kč · Powered by PayU · Instant processing</p>
                   </div>
                 </div>
               </motion.div>
@@ -1058,7 +817,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, onSuccess,
                   transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                   className="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-6"
                 />
-                <h4 className="text-2xl font-bold text-white mb-4">Opening {paymentMethod === 'payu' ? 'PayU' : 'Revolut'} Checkout</h4>
+                <h4 className="text-2xl font-bold text-white mb-4">Opening PayU Checkout</h4>
                 <p className="text-gray-400 mb-6">Preparing your secure payment...</p>
                 
                 <div className="bg-gray-800/50 border border-gray-600/50 rounded-lg p-4 max-w-sm mx-auto"
@@ -1099,7 +858,7 @@ const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, onSuccess,
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-gray-400">Method:</span>
-                      <span className="text-white font-medium">{paymentMethod === 'payu' ? 'PayU' : 'Revolut'} Checkout</span>
+                      <span className="text-white font-medium">PayU Checkout</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-gray-400">Status:</span>

@@ -310,8 +310,8 @@ const ContactPage: React.FC = () => {
               <h3 className="text-[16px] font-bold text-ink tracking-tight mt-1.5 leading-none">Skinify</h3>
               <dl className="mt-4 space-y-3">
                 {[
-                  { Icon: Building2, label: 'Entity', value: 'LosSelloutos s.r.o.' },
-                  { Icon: MapPin,    label: 'Address', value: 'Bělehradská 858/23, Praha' },
+                  { Icon: Building2, label: 'Entity', value: 'Skinify s.r.o.' },
+                  { Icon: MapPin,    label: 'Address', value: 'Grafická 3365/1, 150 00 Praha 5' },
                   { Icon: Phone,     label: 'Phone',   value: '+420 800 800 800' },
                   { Icon: Mail,      label: 'Email',   value: 'hello@skinify.gg' },
                   { Icon: Clock,     label: 'Hours',   value: '24/7 chat · email Mo–Su' },

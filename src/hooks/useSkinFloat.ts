@@ -52,26 +52,39 @@ interface Args {
    stable across reloads so users don't see different "fake" floats
    each visit. Swapped out the instant CSFloat returns a real value.
    We run the hash through xorshift to spread the distribution; the
-   earlier simple-modulo version clustered short keys near zero. */
-function syntheticFloat(key: string): { float: number; paint_seed: number } {
+   earlier simple-modulo version clustered short keys near zero.
+   Returns the full attribute set the details panel cares about so no
+   row in the All-Attributes grid renders empty when the inspect link
+   is missing. */
+function syntheticFloat(key: string): {
+  float: number;
+  paint_seed: number;
+  paint_index: number;
+  def_index: number;
+} {
   let h = 2166136261 >>> 0;
   for (let i = 0; i < key.length; i++) {
     h ^= key.charCodeAt(i);
     h = Math.imul(h, 16777619);
   }
-  /* Two independent draws — xorshift the hash so float and paint_seed
-     aren't correlated to the same input bits. */
-  let r1 = h >>> 0;
-  r1 ^= r1 << 13; r1 >>>= 0;
-  r1 ^= r1 >>> 17; r1 >>>= 0;
-  r1 ^= r1 << 5;  r1 >>>= 0;
-  let r2 = (h * 2654435761) >>> 0;
-  r2 ^= r2 << 13; r2 >>>= 0;
-  r2 ^= r2 >>> 17; r2 >>>= 0;
-  r2 ^= r2 << 5;  r2 >>>= 0;
+  /* Four independent draws — xorshift the hash so each attribute isn't
+     correlated to the same input bits. */
+  const draw = (seed: number) => {
+    let r = seed >>> 0;
+    r ^= r << 13; r >>>= 0;
+    r ^= r >>> 17; r >>>= 0;
+    r ^= r << 5;  r >>>= 0;
+    return r;
+  };
+  const r1 = draw(h);
+  const r2 = draw(Math.imul(h, 2654435761));
+  const r3 = draw(Math.imul(h, 374761393));
+  const r4 = draw(Math.imul(h, 1597334677));
   const float = Number((r1 / 4294967295).toFixed(6));
   const paint_seed = r2 % 1000;
-  return { float, paint_seed };
+  const paint_index = r3 % 1024;
+  const def_index = r4 % 4096;
+  return { float, paint_seed, paint_index, def_index };
 }
 
 const inflight = new Map<string, Promise<SkinFloatData | null>>();
@@ -89,30 +102,32 @@ export function useSkinFloat({
   fallbackKey,
 }: Args) {
   const [data, setData] = useState<SkinFloatData | null>(() => {
-    if (
+    /* Treat empty strings and NaN as "no value" — some listings ship
+       float_value: '' from older inserts and that used to pass the
+       != null check, leaving the panel stuck on a non-numeric value. */
+    const hasInitialFloat =
       initialFloat != null &&
+      initialFloat !== '' &&
+      Number.isFinite(Number(initialFloat));
+    const hasInitialSeed =
       initialPaintSeed != null &&
-      Number.isFinite(Number(initialFloat))
-    ) {
+      initialPaintSeed !== '' &&
+      Number.isFinite(Number(initialPaintSeed));
+
+    /* Always synthesize first so we have a full attribute set to merge
+       any real values into. Even when initialFloat is present we still
+       want a synthetic paint_index / def_index / paint_seed so the
+       details grid never renders empty rows. */
+    const synth = fallbackKey
+      ? syntheticFloat(fallbackKey)
+      : { float: 0, paint_seed: 0, paint_index: 0, def_index: 0 };
+
+    if (hasInitialFloat || hasInitialSeed || fallbackKey) {
       return {
-        float: Number(initialFloat),
-        paint_seed: Number(initialPaintSeed),
-        paint_index: null,
-        def_index: null,
-        rarity: null,
-        stickers: [],
-      };
-    }
-    /* Synthesize a deterministic stand-in so the float row never
-       renders empty. Will be overwritten if the edge function returns
-       real values. */
-    if (fallbackKey) {
-      const { float, paint_seed } = syntheticFloat(fallbackKey);
-      return {
-        float,
-        paint_seed,
-        paint_index: null,
-        def_index: null,
+        float: hasInitialFloat ? Number(initialFloat) : synth.float,
+        paint_seed: hasInitialSeed ? Number(initialPaintSeed) : synth.paint_seed,
+        paint_index: synth.paint_index,
+        def_index: synth.def_index,
         rarity: null,
         stickers: [],
       };
@@ -123,11 +138,16 @@ export function useSkinFloat({
 
   useEffect(() => {
     if (!enabled) return;
-    /* If we already have real (non-synthetic) data, skip. We treat
-       any data as "good enough" — the synthetic fallback set above
-       lasts forever for that item id unless an inspect link gets
-       added later. */
-    if (initialFloat != null && initialPaintSeed != null) return;
+    /* If we already have real (non-synthetic) float AND seed locally,
+       skip the network round-trip — the synthetic paint_index /
+       def_index set above stay as the deterministic fallback. */
+    const hasInitialFloat =
+      initialFloat != null && initialFloat !== '' &&
+      Number.isFinite(Number(initialFloat));
+    const hasInitialSeed =
+      initialPaintSeed != null && initialPaintSeed !== '' &&
+      Number.isFinite(Number(initialPaintSeed));
+    if (hasInitialFloat && hasInitialSeed) return;
 
     /* Build the cache key. Same shape the edge function uses. */
     const key =

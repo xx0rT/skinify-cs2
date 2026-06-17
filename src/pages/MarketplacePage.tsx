@@ -534,15 +534,17 @@ const MarketplacePage: React.FC = () => {
                     lg:self-start lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)]
                   "
                 >
-                  {/* Drag handle — mobile only (visual affordance, not interactive yet) */}
-                  <div className="lg:hidden flex items-center justify-between mb-3">
+                  {/* Header — mobile: drag-handle style; desktop: title +
+                      close X so users can collapse the sidebar without
+                      hunting for the toolbar toggle. */}
+                  <div className="flex items-center justify-between mb-3">
                     <span className="text-[14px] font-bold text-ink tracking-tight">Filters</span>
                     <button
                       onClick={() => setFiltersOpen(false)}
-                      className="icon-chip-sm hover:bg-subtle"
+                      className="h-8 w-8 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors"
                       aria-label="Close filters"
                     >
-                      <X size={14} className="text-ink-muted" />
+                      <X size={14} strokeWidth={2.4} />
                     </button>
                   </div>
                 {/* Price */}
