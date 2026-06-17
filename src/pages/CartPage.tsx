@@ -48,7 +48,7 @@ const CartPage: React.FC = () => {
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
   const { formatPrice } = useCurrencyStore();
-  const { balance, fetchBalance } = useBalanceStore();
+  const { balance, fetchBalance, purchaseWithBalance } = useBalanceStore();
 
   const [promo, setPromo] = useState('');
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; pct: number } | null>(null);
@@ -96,12 +96,53 @@ const CartPage: React.FC = () => {
   const finalizeCheckout = async () => {
     setProcessing(true);
     try {
-      await new Promise((r) => setTimeout(r, 600));
+      /* Real checkout via the `orders` edge function: deducts the
+         buyer's current_balance and credits each seller's
+         pending_balance (8-day escrow), then deactivates the listings. */
+      const purchaseItems = items.map((it) => ({
+        id: it.id,
+        name: it.name,
+        market_name: it.market_name || it.name,
+        price: it.price,
+        image: it.image,
+        condition: it.condition,
+        rarity: it.rarity,
+        type: it.type,
+        seller: it.seller,
+      }));
+
+      const ok = await purchaseWithBalance(total, purchaseItems as any);
+      if (!ok) {
+        const err = useBalanceStore.getState().error;
+        addToast({
+          type: 'error',
+          title: 'Checkout failed',
+          message: err || 'Could not complete the checkout. Please try again.',
+        });
+        return;
+      }
+
+      /* Notify the marketplace strip so any of these listings still
+         rendered on another tab/component drop instantly. */
+      try {
+        const raw = localStorage.getItem('skinify_sold_ids');
+        const arr: string[] = raw ? JSON.parse(raw) : [];
+        for (const it of items) {
+          if (!arr.includes(String(it.id))) arr.push(String(it.id));
+          window.dispatchEvent(
+            new CustomEvent('skinify:item-sold', { detail: { id: String(it.id) } }),
+          );
+        }
+        localStorage.setItem('skinify_sold_ids', JSON.stringify(arr));
+      } catch {
+        /* private mode — no-op */
+      }
+
       clearCart();
       addToast({
         type: 'success',
         title: 'Order placed',
-        message: 'Sellers will be notified to send trade offers.',
+        message: 'Sellers have been notified. Payment is held in escrow.',
       });
       setConfirmCheckoutOpen(false);
       navigate('/profile?tab=trades');

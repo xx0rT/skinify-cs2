@@ -165,16 +165,17 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
   const handleConfirmListing = async (listings: ListingData[]) => {
     const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
 
-    /* Submit listings with a small concurrency window so we don't open
-       dozens of HTTP streams (Supabase edge functions cap throughput per
-       origin and the database connection pool gets contention with
-       concurrent INSERTs into the same table — 40+ parallel POSTs were
-       returning 500s).
+    /* Submit listings with a healthy concurrency window. Earlier this
+       was capped at 2 (an over-correction after some 500s under burst
+       load), which made bulk listings feel sluggish — listing 40 items
+       took the better part of a minute serially. 8 workers stays well
+       under PostgREST/db pool limits while turning a 40-item submit
+       into ~5 batches.
 
        Each POST has a 15s timeout and a one-shot retry with jittered
        backoff on 5xx / network errors, since most failures under load
        are transient. */
-    const CONCURRENCY = 2;
+    const CONCURRENCY = 8;
     const TIMEOUT_MS = 15000;
     const RETRY_BACKOFF_MS = 600;
 

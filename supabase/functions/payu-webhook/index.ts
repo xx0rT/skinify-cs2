@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.39.0";
-import { createHmac } from "node:crypto";
+import { createHash } from "node:crypto";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,19 +7,54 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const PAYU_SECOND_KEY = "547630fe34bf8ddb3c4133b3ec3619a1";
+/* PayU "second key" (signature key) — production value lives in
+   Supabase function secrets as PAYU_SECOND_KEY. The previous hardcoded
+   sandbox key has been removed. */
+const PAYU_SECOND_KEY = Deno.env.get("PAYU_SECOND_KEY") || "";
 
-function verifyPayUSignature(body: string, signature: string): boolean {
-  const hash = createHmac("sha256", PAYU_SECOND_KEY)
-    .update(body)
-    .digest("hex");
+/* PayU signs notifications with MD5(rawBody + secondKey) and ships the
+   result in the OpenPayU-Signature header as a semicolon-delimited list,
+   e.g. `sender=checkout;signature=<md5>;algorithm=MD5;content=DOCUMENT`.
+   Earlier this function used HMAC-SHA256, which never matched a real
+   signature — verification only ever passed because the fallback string
+   compare also accepted unsigned payloads. Now we parse the header
+   properly and require an exact algorithm + signature match. */
+function parseSignatureHeader(header: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const part of header.split(";")) {
+    const [k, v] = part.trim().split("=");
+    if (k && v) out[k.toLowerCase()] = v;
+  }
+  return out;
+}
 
-  const expectedSignature = `signature=${hash}`;
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
 
-  console.log("Expected signature:", expectedSignature);
-  console.log("Received signature:", signature);
-
-  return signature === expectedSignature || hash === signature.replace("signature=", "");
+function verifyPayUSignature(body: string, header: string): boolean {
+  if (!PAYU_SECOND_KEY) {
+    console.error("PAYU_SECOND_KEY not configured — rejecting webhook");
+    return false;
+  }
+  const parsed = parseSignatureHeader(header);
+  const algo = (parsed.algorithm || "MD5").toUpperCase();
+  const received = (parsed.signature || "").toLowerCase();
+  if (!received) return false;
+  if (algo !== "MD5") {
+    console.error("Unexpected PayU signature algorithm:", algo);
+    return false;
+  }
+  const expected = createHash("md5")
+    .update(body + PAYU_SECOND_KEY, "utf8")
+    .digest("hex")
+    .toLowerCase();
+  return timingSafeEqualHex(received, expected);
 }
 
 Deno.serve(async (req: Request) => {

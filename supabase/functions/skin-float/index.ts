@@ -65,11 +65,24 @@ async function lookupFloat(p: InspectParams, apiKey: string) {
     : `steam://rungame/730/76561202255233023/+csgo_econ_action_preview%20M${p.m}A${p.a}D${p.d}`;
 
   const apiUrl = `${CSFLOAT_BASE}?url=${encodeURIComponent(url)}`;
-  const res = await fetch(apiUrl, {
-    headers: {
-      Authorization: apiKey,
-    },
-  });
+
+  /* CSFloat accepts the API key in the Authorization header. Some
+     accounts have keys that need a "Bearer " prefix and others don't —
+     try the bare key first (current behaviour) and fall back to Bearer
+     on 401 so we work across both. */
+  const tryFetch = async (auth: string) =>
+    fetch(apiUrl, {
+      headers: { Authorization: auth },
+      /* CSFloat can hold a request open while it talks to the GC. Cap
+         the wait so a stuck request doesn't tie up an edge function
+         worker. */
+      signal: AbortSignal.timeout(20000),
+    });
+
+  let res = await tryFetch(apiKey);
+  if (res.status === 401 || res.status === 403) {
+    res = await tryFetch(`Bearer ${apiKey}`);
+  }
 
   if (!res.ok) {
     const body = await res.text().catch(() => '');

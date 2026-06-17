@@ -3,9 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
+  Bell,
   ChevronDown,
   Heart,
   LogOut,
+  MessageCircle,
   Package,
   Plus,
   Settings,
@@ -19,6 +21,8 @@ import { useAuthStore } from '../../store/authStore';
 import { useBalanceStore } from '../../store/balanceStore';
 import { useCurrencyStore } from '../../store/currencyStore';
 import { useToastStore } from '../../store/toastStore';
+import { useDMStore } from '../../store/dmStore';
+import { useNotificationStore } from '../../store/notificationStore';
 import { spring, tap } from '../../lib/motion';
 import { openDepositModal } from '../DepositModal';
 
@@ -44,9 +48,29 @@ const UserProfile: React.FC = () => {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const dmThreads = useDMStore((s) => s.threads);
+  const notificationUnread = useNotificationStore((s) => s.unreadCount);
+  const fetchNotifications = useNotificationStore((s) => s.fetchNotifications);
+
+  /* Live-derive unread DM count so the badge updates as messages
+     arrive or get read elsewhere in the app. */
+  const messagesUnread = React.useMemo(() => {
+    let n = 0;
+    for (const t of Object.values(dmThreads)) {
+      for (const m of t.messages) {
+        if (!m.read && m.fromSteamId !== 'me') n += 1;
+      }
+    }
+    return n;
+  }, [dmThreads]);
+
+  const totalBadge = messagesUnread + notificationUnread;
 
   useEffect(() => {
-    if (user?.steamId) fetchBalance(user.steamId);
+    if (user?.steamId) {
+      fetchBalance(user.steamId);
+      fetchNotifications(user.steamId);
+    }
   }, [user?.steamId]);
 
   useEffect(() => {
@@ -105,13 +129,24 @@ const UserProfile: React.FC = () => {
           ) : (
             <span className="text-[13px] font-bold tracking-tight">{initial}</span>
           )}
-          {/* Status dot — green when trade link is set, amber otherwise */}
-          <span
-            className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-bg ${
-              tradeReady ? 'bg-emerald-500' : 'bg-amber-500'
-            }`}
-            aria-hidden
-          />
+          {/* Unread badge — preferred over the trade-link dot when there are
+              messages or notifications waiting. Falls back to the status
+              dot when nothing is unread. */}
+          {totalBadge > 0 ? (
+            <span
+              className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold grid place-items-center tabular-nums ring-2 ring-bg"
+              aria-label={`${totalBadge} unread`}
+            >
+              {totalBadge > 99 ? '99+' : totalBadge}
+            </span>
+          ) : (
+            <span
+              className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-bg ${
+                tradeReady ? 'bg-emerald-500' : 'bg-amber-500'
+              }`}
+              aria-hidden
+            />
+          )}
         </span>
         <ChevronDown
           size={14}
@@ -223,6 +258,8 @@ const UserProfile: React.FC = () => {
             <div className="px-2 pt-1 pb-1.5 border-t border-line">
               <nav className="space-y-px">
                 <Item Icon={UserIcon}    label="Overview"  onClick={() => go('/profile?tab=overview')} />
+                <Item Icon={MessageCircle} label="Messages" badge={messagesUnread} onClick={() => go('/messages')} />
+                <Item Icon={Bell}        label="Notifications" badge={notificationUnread} onClick={() => go('/profile?tab=notifications')} />
                 <Item Icon={Package}     label="Inventory" onClick={() => go('/profile?tab=inventory')} />
                 <Item Icon={ShoppingBag} label="Listings"  onClick={() => go('/profile?tab=listings')} />
                 <Item Icon={Heart}       label="Wishlist"  onClick={() => go('/profile?tab=wishlist')} />
@@ -268,7 +305,8 @@ const Item: React.FC<{
   Icon: React.ComponentType<any>;
   label: string;
   onClick: () => void;
-}> = ({ Icon, label, onClick }) => (
+  badge?: number;
+}> = ({ Icon, label, onClick, badge }) => (
   <button
     onClick={onClick}
     className="w-full h-9 px-2.5 rounded-xl flex items-center gap-3 hover:bg-subtle transition-colors text-left group"
@@ -280,6 +318,11 @@ const Item: React.FC<{
       className="text-ink-muted group-hover:text-ink transition-colors shrink-0"
     />
     <span className="flex-1 text-[13px] font-semibold text-ink tracking-tight">{label}</span>
+    {badge && badge > 0 ? (
+      <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[10.5px] font-bold grid place-items-center tabular-nums shrink-0">
+        {badge > 99 ? '99+' : badge}
+      </span>
+    ) : null}
   </button>
 );
 

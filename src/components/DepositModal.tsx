@@ -3,7 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X } from 'lucide-react';
 import { useCurrencyStore } from '../store/currencyStore';
 import { useToastStore } from '../store/toastStore';
+import { useAuthStore } from '../store/authStore';
 import { spring, tap } from '../lib/motion';
+import { getSupabaseCredentials } from '../utils/supabaseHelpers';
+import { supabase } from '../lib/supabaseClient';
 
 /**
  * DepositModal — full-screen, two-pane "add funds" dialog.
@@ -26,134 +29,143 @@ let _openSetter: ((open: boolean) => void) | null = null;
 export const openDepositModal = () => _openSetter?.(true);
 export const closeDepositModal = () => _openSetter?.(false);
 
+/* PayU PBL channel ids — the value sent to the edge function as
+   `payMethod` (then forwarded as `payMethods.payMethod.value` to PayU).
+   Empty string => PayU's built-in method picker (lets the buyer choose
+   on the hosted page). Channels here mirror what's typically enabled
+   for a Czech-market POS; trim if your merchant doesn't have all of
+   them activated.
+
+   When a channel above ships a fee in `fee:`, we surface it in the
+   tile footer and (currently informationally) in the breakdown — PayU's
+   real channel cost is invoiced separately, this is just transparency. */
+/* PayU methods enabled on POS 4433877. The current merchant config has
+   ONLY Czech-bank PBL channels active (1% fee each, 1 CZK fixed).
+   Cards, Apple Pay, Google Pay, BLIK, paysafecard are all disabled —
+   sending those values made PayU return PAY_METHOD_NOT_ENABLED_ON_POS.
+
+   Each tile sends the individual PayU PBL channel value so the buyer
+   lands straight on their bank. "All methods" sends an empty value
+   and lets PayU show its own picker (equivalent to the umbrella `dpcz`
+   here, since that's all that's enabled). When more methods get
+   activated in the PayU panel, add them back here with their channel
+   value and they'll just work.
+
+   Fees noted on the screenshot: 1% + 1 CZK fixed per transaction. */
 type MethodId =
-  | 'cards-eu'
-  | 'crypto'
-  | 'cards-us'
-  | 'skins'
-  | 'kinguin'
-  | 'eneba'
-  | 'vouchers'
-  | 'giftcards'
-  | 'premium';
+  | 'all'
+  | 'csob'
+  | 'cs'
+  | 'kb'
+  | 'mbank'
+  | 'fio'
+  | 'moneta'
+  | 'qr'
+  | 'raiffeisen'
+  | 'unicredit';
 
 interface MethodTile {
   id: MethodId;
+  /** PayU PBL channel value (empty = "show PayU's full picker"). */
+  payuValue: string;
   label: string;
-  /** Single-line caption rendered under the label. */
   caption: string;
-  /** Corner badge — TOP, +16%, NEW, etc. */
   badge?: { text: string; tone: 'top' | 'bonus' | 'neutral' };
-  /** Stack of brand chips rendered inside the tile body. */
   chips: { kind: 'text' | 'mono'; label: string }[];
-  /** Optional fee tag shown in the footer (free if omitted). */
   fee?: string;
 }
 
-/* 3x3 grid — order matches the reference layout: VISA · CRYPTO · VISA / SKINS
-   · KINGUIN · ENEBA / VOUCHERS · GIFTCARDS · PREMIUM. Single neutral
-   surface for every tile; selection state is the only color. */
 const METHOD_TILES: MethodTile[] = [
   {
-    id: 'cards-eu',
-    label: 'Cards · V1',
-    caption: '100+ more',
+    id: 'all',
+    payuValue: '',
+    label: 'All banks',
+    caption: 'Pick on PayU',
     badge: { text: 'TOP', tone: 'top' },
     chips: [
-      { kind: 'text', label: 'VISA' },
-      { kind: 'text', label: 'Mastercard' },
-      { kind: 'text', label: 'AMEX' },
-    ],
-  },
-  {
-    id: 'crypto',
-    label: 'Crypto',
-    caption: 'BTC · ETH · USDT · LTC',
-    badge: { text: '+16%', tone: 'bonus' },
-    chips: [
-      { kind: 'mono', label: '₿' },
-      { kind: 'mono', label: 'Ξ' },
-      { kind: 'mono', label: '◎' },
-      { kind: 'mono', label: '₮' },
+      { kind: 'text', label: 'ČSOB' },
+      { kind: 'text', label: 'KB' },
+      { kind: 'text', label: 'mBank' },
+      { kind: 'text', label: 'Fio' },
     ],
     fee: '1%',
   },
   {
-    id: 'cards-us',
-    label: 'Cards · V2',
-    caption: 'US issuers',
-    chips: [
-      { kind: 'text', label: 'VISA' },
-      { kind: 'text', label: 'Discover' },
-      { kind: 'text', label: 'JCB' },
-    ],
+    id: 'csob',
+    payuValue: 'csobcz',
+    label: 'ČSOB',
+    caption: 'Instant bank transfer',
+    chips: [{ kind: 'text', label: 'ČSOB' }],
+    fee: '1%',
   },
   {
-    id: 'skins',
-    label: 'Pay by skins',
-    caption: 'From your Steam inventory',
-    chips: [
-      { kind: 'text', label: 'CS2 inventory' },
-      { kind: 'text', label: 'Instant quote' },
-    ],
+    id: 'cs',
+    payuValue: 'cs',
+    label: 'Česká spořitelna',
+    caption: 'Instant bank transfer',
+    chips: [{ kind: 'text', label: 'ČS' }],
+    fee: '1%',
   },
   {
-    id: 'kinguin',
-    label: 'Kinguin',
-    caption: 'Wallet card',
-    chips: [
-      { kind: 'text', label: 'KINGUIN' },
-      { kind: 'text', label: 'Prepaid' },
-    ],
-    fee: '3%',
+    id: 'kb',
+    payuValue: 'kbcz',
+    label: 'Komerční banka',
+    caption: 'Instant bank transfer',
+    chips: [{ kind: 'text', label: 'KB' }],
+    fee: '1%',
   },
   {
-    id: 'eneba',
-    label: 'eneba',
-    caption: 'Wallet card',
-    chips: [
-      { kind: 'text', label: 'eneba' },
-      { kind: 'text', label: 'Prepaid' },
-    ],
-    fee: '3%',
+    id: 'mbank',
+    payuValue: 'mbankcz',
+    label: 'mBank',
+    caption: 'Instant bank transfer',
+    chips: [{ kind: 'text', label: 'mBank' }],
+    fee: '1%',
   },
   {
-    id: 'vouchers',
-    label: 'Vouchers',
-    caption: '30+ more',
-    chips: [
-      { kind: 'text', label: 'paysafecard' },
-      { kind: 'text', label: 'Revolut' },
-      { kind: 'text', label: 'Papara' },
-      { kind: 'text', label: 'Havale' },
-    ],
-    fee: '4%',
+    id: 'fio',
+    payuValue: 'fiocz',
+    label: 'Fio banka',
+    caption: 'Instant bank transfer',
+    chips: [{ kind: 'text', label: 'Fio' }],
+    fee: '1%',
   },
   {
-    id: 'giftcards',
-    label: 'Gift cards',
-    caption: 'Digital codes',
-    chips: [
-      { kind: 'text', label: 'PayPal' },
-      { kind: 'text', label: 'Apple' },
-      { kind: 'text', label: 'Google' },
-    ],
-    fee: '2%',
+    id: 'moneta',
+    payuValue: 'monetacz',
+    label: 'Moneta',
+    caption: 'Money Bank · instant',
+    chips: [{ kind: 'text', label: 'Moneta' }],
+    fee: '1%',
   },
   {
-    id: 'premium',
-    label: 'Premium',
-    caption: 'Priority support',
-    badge: { text: 'VIP', tone: 'neutral' },
-    chips: [
-      { kind: 'mono', label: '◆' },
-      { kind: 'text', label: 'White-glove' },
-    ],
+    id: 'raiffeisen',
+    payuValue: 'rbcz',
+    label: 'Raiffeisenbank',
+    caption: 'Instant bank transfer',
+    chips: [{ kind: 'text', label: 'RB' }],
+    fee: '1%',
+  },
+  {
+    id: 'unicredit',
+    payuValue: 'unicz',
+    label: 'UniCredit',
+    caption: 'Instant bank transfer',
+    chips: [{ kind: 'text', label: 'UCB' }],
+    fee: '1%',
+  },
+  {
+    id: 'qr',
+    payuValue: 'qrcz',
+    label: 'QR code',
+    caption: 'Scan with banking app',
+    chips: [{ kind: 'text', label: 'QR' }],
+    fee: '1%',
   },
 ];
 
 const QUICK_AMOUNTS = [200, 500, 1000, 2500, 5000, 10000];
-const MIN_AMOUNT = 100;
+const MIN_AMOUNT = 50;
 
 const PROMO = {
   enabled: true,
@@ -161,23 +173,22 @@ const PROMO = {
   copy: '+10% bonus on your first deposit · auto-applied',
 };
 
-const calcFeeRate = (id: MethodId): number => {
-  if (id === 'crypto') return 0.01;
-  if (id === 'vouchers') return 0.04;
-  if (id === 'giftcards') return 0.02;
-  if (id === 'kinguin' || id === 'eneba') return 0.03;
-  return 0;
-};
+/* All Czech-bank PBL channels on this POS share the same 1% + 1 CZK
+   fee schedule, so the calc is a constant. PayU bills the fee on top
+   of the deposit (out of your merchant payout), not deducted from the
+   buyer's amount — so this is for display only. */
+const calcFeeRate = (_id: MethodId): number => 0.01;
 
 export const DepositModal: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState<number>(500);
-  const [method, setMethod] = useState<MethodId>('cards-eu');
+  const [method, setMethod] = useState<MethodId>('all');
   const [submitting, setSubmitting] = useState(false);
   const [promoActive, setPromoActive] = useState(PROMO.enabled);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const { formatPrice } = useCurrencyStore();
   const { addToast } = useToastStore();
+  const { user } = useAuthStore();
 
   useEffect(() => {
     _openSetter = setOpen;
@@ -244,18 +255,102 @@ export const DepositModal: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
+    if (!user?.steamId) {
+      addToast({
+        type: 'warning',
+        title: 'Sign in required',
+        message: 'Please sign in with Steam to deposit funds.',
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await new Promise((r) => setTimeout(r, 600));
+      const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+
+      /* The PayU edge function requires the public.users row id — not
+         the steam id. authStore caches it but if it's missing (older
+         session) we look it up by steam_id. */
+      let userId = user.id;
+      if (!userId) {
+        const { data, error } = await supabase
+          .from('users')
+          .select('id')
+          .eq('steam_id', user.steamId)
+          .maybeSingle();
+        if (error || !data) {
+          throw new Error('Could not load your account. Please sign in again.');
+        }
+        userId = data.id;
+      }
+
+      /* Customer IP — PayU uses it for fraud-scoring. Best-effort:
+         a failed lookup falls back server-side to the x-forwarded-for
+         header, which is fine. */
+      let customerIp: string | undefined;
+      try {
+        const r = await fetch('https://ipapi.co/json/');
+        if (r.ok) {
+          const j = await r.json();
+          if (j?.ip) customerIp = j.ip;
+        }
+      } catch {
+        /* network — leave undefined, server will fall back */
+      }
+
+      const tile = METHOD_TILES.find((m) => m.id === method);
+      const payMethod = tile?.payuValue || undefined;
+
+      const res = await fetch(`${supabaseUrl}/functions/v1/payu-payment`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: safeAmount,
+          userId,
+          steamId: user.steamId,
+          customerIp,
+          userEmail: user.email || `user_${user.steamId}@skinify.gg`,
+          description: `Skinify Wallet Top-up · ${safeAmount.toLocaleString('cs-CZ')} Kč`,
+          payMethod,
+        }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(text || `PayU error ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (!data?.redirectUri) {
+        throw new Error('PayU did not return a checkout URL.');
+      }
+
+      /* Persist order metadata so the success page can verify on return. */
+      try {
+        localStorage.setItem('payu_order_id', data.orderId);
+        localStorage.setItem('payu_ext_order_id', data.extOrderId);
+        localStorage.setItem('payu_user_id', userId);
+        localStorage.setItem('payu_amount', String(safeAmount));
+      } catch {
+        /* private window — non-fatal */
+      }
+
+      /* Hand off to PayU. The hosted page either lets the user pick a
+         method (when payMethod is empty) or jumps straight to the
+         requested method. Notification webhook credits the balance on
+         success. */
+      window.location.href = data.redirectUri;
+    } catch (err) {
+      console.error('PayU deposit failed:', err);
       addToast({
-        type: 'info',
-        title: 'Payments not configured',
-        message:
-          'Set REVOLUT_API_KEY or PAYU_MERCHANT_KEY in your Supabase secrets to enable deposits.',
+        type: 'error',
+        title: 'Deposit failed',
+        message: err instanceof Error ? err.message : 'Could not start PayU checkout.',
         duration: 6000,
       });
-      setOpen(false);
-    } finally {
       setSubmitting(false);
     }
   };

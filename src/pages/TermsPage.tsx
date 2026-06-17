@@ -161,12 +161,12 @@ const TermsPage: React.FC = () => {
     info={{
       label: 'Service provider',
       rows: [
-        { k: 'Company', v: 'LosSelloutos s.r.o.' },
-        { k: 'Legal form', v: 'Limited Liability Company' },
-        { k: 'Business ID', v: '06448771' },
-        { k: 'Tax ID', v: '06448771' },
-        { k: 'Address', v: 'Bělehradská 858/23, Praha' },
-        { k: 'Registered', v: '17.10.2025' },
+        { k: 'Company', v: 'Skinify s.r.o.' },
+        { k: 'Legal form', v: 'Sole trader' },
+        { k: 'Business ID (IČO)', v: '29671311' },
+        { k: 'Tax ID', v: '29671311' },
+        { k: 'Address', v: 'Grafická 3365/1, 150 00 Praha 5, Česká republika' },
+        { k: 'Registered', v: '16.06.2026' },
       ],
     }}
     sections={sections}

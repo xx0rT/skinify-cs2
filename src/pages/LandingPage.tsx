@@ -361,7 +361,12 @@ const LandingPage: React.FC = () => {
           <LiveActivityFeed />
         </Reveal>
 
-        {/* ===== TRENDING ===== */}
+        {/* ===== TRENDING =====
+            Primary source: the `hot_items` edge function (curated /
+            paid-promoted). When that returns zero — common on fresh DBs
+            and for non-logged-in views — we fall back to real
+            marketplace listings ranked by views, then newest, so the
+            section never shows skeletons forever or empty content. */}
         <Reveal className="mb-10">
           <div className="flex items-end justify-between mb-4 px-1">
             <div>
@@ -378,20 +383,40 @@ const LandingPage: React.FC = () => {
             </button>
           </div>
 
-          <motion.div
-            variants={staggerParent}
-            initial="hidden"
-            whileInView="shown"
-            viewport={{ once: true, margin: '0px 0px -80px 0px' }}
-            className="flex gap-3 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-2 snap-x"
-          >
-            {hotItemsLoading || !hotItems?.length
-              ? Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="shrink-0 w-[240px] snap-start">
-                    <SkinCardSkeleton />
-                  </div>
-                ))
-              : hotItems.slice(0, 8).map((it: any) => (
+          {(() => {
+            const trendingSource =
+              hotItems && hotItems.length > 0
+                ? hotItems
+                : [...(marketplaceItems || [])]
+                    .sort((a: any, b: any) => {
+                      const va = Number(a?.views || 0);
+                      const vb = Number(b?.views || 0);
+                      if (vb !== va) return vb - va;
+                      return (
+                        new Date(b?.listed_at || 0).getTime() -
+                        new Date(a?.listed_at || 0).getTime()
+                      );
+                    })
+                    .slice(0, 8);
+
+            const stillLoading =
+              hotItemsLoading && (!marketplaceItems || marketplaceItems.length === 0);
+
+            return (
+              <motion.div
+                variants={staggerParent}
+                initial="hidden"
+                whileInView="shown"
+                viewport={{ once: true, margin: '0px 0px -80px 0px' }}
+                className="flex gap-3 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-2 snap-x"
+              >
+                {stillLoading || !trendingSource.length
+                  ? Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="shrink-0 w-[240px] snap-start">
+                        <SkinCardSkeleton />
+                      </div>
+                    ))
+                  : trendingSource.slice(0, 8).map((it: any) => (
                   <motion.div
                     key={it.id}
                     variants={staggerChild}
@@ -409,7 +434,9 @@ const LandingPage: React.FC = () => {
                     />
                   </motion.div>
                 ))}
-          </motion.div>
+              </motion.div>
+            );
+          })()}
         </Reveal>
 
         {/* ===== CATEGORY FILTER + GRID ===== */}

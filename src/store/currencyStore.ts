@@ -75,9 +75,19 @@ export const useCurrencyStore = create<CurrencyState>()(
         const { selectedCurrency, convertPrice } = get();
         const convertedPrice = convertPrice(priceInCZK);
 
+        /* For CZK the canonical display is whole koruny, but small
+           sub-koruna prices (e.g. 0.8 Kč) used to round to "1 Kč" —
+           wrong both as display and as a basis for the listing fee.
+           When the converted value isn't a whole number, fall through
+           to 2 fraction digits so the user always sees the real price. */
+        const isCZK = selectedCurrency.code === 'CZK';
+        const hasFraction = Math.abs(convertedPrice - Math.round(convertedPrice)) > 1e-9;
+        const minFrac = isCZK ? (hasFraction ? 2 : 0) : 2;
+        const maxFrac = isCZK ? (hasFraction ? 2 : 0) : 2;
+
         return `${convertedPrice.toLocaleString('en-US', {
-          minimumFractionDigits: selectedCurrency.code === 'CZK' ? 0 : 2,
-          maximumFractionDigits: selectedCurrency.code === 'CZK' ? 0 : 2
+          minimumFractionDigits: minFrac,
+          maximumFractionDigits: maxFrac
         })} ${selectedCurrency.symbol}`;
       }
     }),

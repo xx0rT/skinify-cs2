@@ -57,15 +57,29 @@ export const LandingNav: React.FC = () => {
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const themeMenuRef = useRef<HTMLDivElement | null>(null);
 
-  // Scroll-shrink: the navbar collapses its vertical padding + tightens the
-  // glass surface once you've scrolled past ~24px. Cheap state flip, no
-  // re-render storm because we throttle on a motion value, not raw scroll.
+  // Scroll-shrink: the navbar collapses its vertical padding + fades its
+  // surface into a transparent gradient once you've scrolled past ~24px.
+  // Cheap state flip, no re-render storm because we throttle on a motion
+  // value, not raw scroll.
   const [scrolled, setScrolled] = useState(false);
   const { scrollY } = useScroll();
   useMotionValueEvent(scrollY, 'change', (latest) => {
     const next = latest > 24;
     if (next !== scrolled) setScrolled(next);
   });
+
+  // Full-screen modals (listing, etc.) dispatch `skinify:nav-hidden` to
+  // make the nav step out of the way — fixes the listing modal colliding
+  // with the navbar. The event payload is a boolean.
+  const [navHidden, setNavHidden] = useState(false);
+  useEffect(() => {
+    const onHide = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setNavHidden(Boolean(detail));
+    };
+    window.addEventListener('skinify:nav-hidden', onHide as EventListener);
+    return () => window.removeEventListener('skinify:nav-hidden', onHide as EventListener);
+  }, []);
 
   const cartCount = getItemCount();
 
@@ -85,19 +99,46 @@ export const LandingNav: React.FC = () => {
     <>
       <header
         /* Hidden on phones — MobileTabBar handles primary nav at the
-           bottom of the viewport on <lg screens. */
-        className={`hidden lg:block sticky top-0 z-[55] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-          scrolled
-            ? 'bg-bg/85 backdrop-blur-xl shadow-[0_4px_24px_-12px_rgba(20,16,40,0.18)]'
-            : 'bg-transparent backdrop-blur-0'
-        }`}
+           bottom of the viewport on <lg screens. Full-bleed: spans the
+           viewport edge-to-edge with no rounded "island" — at the top
+           it's an opaque surface flush to the screen; as the user scrolls
+           down it eases into a transparent gradient so content can flow
+           underneath without a hard band. */
+        style={{
+          /* Layered gradient seam: a tight, fast-falloff curve from
+             solid bg → transparent (so the top of the bar is opaque and
+             the bottom blends), painted underneath an off-center accent
+             haze. The radial layer is large + low-opacity so it reads
+             as a tinted "light source" trailing the brand chip rather
+             than a colored band — gives the seam more depth than a
+             flat fade without ever feeling decorated. A 1px accent
+             hairline along the bottom edge gives the gradient a quiet
+             "seam highlight" that catches the eye. No backdrop blur —
+             the falloff alone carries the effect. */
+          background: scrolled
+            ? [
+                /* Bottom edge highlight — extremely thin accent line */
+                'linear-gradient(to bottom, transparent calc(100% - 1px), rgb(var(--accent) / 0.18) 100%)',
+                /* Soft accent haze, off to the left, fading away */
+                'radial-gradient(120% 220% at 18% -40%, rgb(var(--accent) / 0.10) 0%, rgb(var(--accent) / 0.04) 35%, transparent 60%)',
+                /* Main color curve — opaque at top, transparent at bottom,
+                   with intermediate stops bunched near the top so the
+                   bar reads as solid while the seam falls off cleanly. */
+                'linear-gradient(to bottom, rgb(var(--bg)) 0%, rgb(var(--bg) / 0.96) 35%, rgb(var(--bg) / 0.55) 70%, rgb(var(--bg) / 0.15) 90%, rgb(var(--bg) / 0) 100%)',
+              ].join(', ')
+            : 'rgb(var(--bg))',
+          backdropFilter: 'none',
+          WebkitBackdropFilter: 'none',
+          transform: navHidden ? 'translateY(-100%)' : 'translateY(0)',
+          pointerEvents: navHidden ? 'none' : 'auto',
+        }}
+        className="hidden lg:block sticky top-0 z-[55] transition-[transform,background,backdrop-filter] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
       >
         <div
-          className={`max-w-[1480px] mx-auto transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-            /* At top: extra side breathing room + roomy vertical padding,
-               makes the card-style nav feel like a floating pill. On scroll
-               it docks tightly to the viewport edge for content focus. */
-            scrolled ? 'px-3 sm:px-6 py-1.5' : 'px-4 sm:px-8 py-3.5'
+          className={`w-full transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+            /* Edge-to-edge container — no max-width, no card pill. Just
+               horizontal padding that tightens on scroll. */
+            scrolled ? 'px-4 sm:px-8 py-2' : 'px-4 sm:px-8 py-3'
           }`}
         >
           {/*
@@ -115,7 +156,10 @@ export const LandingNav: React.FC = () => {
               We never try to fit the full pill on a 360px screen — it would
               squish the actions or shove the logo offscreen.
           */}
-          <div className="card h-16 px-1.5 sm:px-3 flex lg:grid items-center gap-1 sm:gap-2 lg:gap-3 lg:grid-cols-[1fr_auto_1fr]">
+          {/* Bar itself — no card chrome (no rounded island). Just a flat
+              full-width row inside the gradient header so the navbar feels
+              docked to the page rather than floating. */}
+          <div className="max-w-[1480px] mx-auto h-14 flex lg:grid items-center gap-1 sm:gap-2 lg:gap-3 lg:grid-cols-[1fr_auto_1fr]">
             {/* LEFT — logo + (lg+) nav links */}
             <div className="flex items-center gap-2 min-w-0 lg:justify-self-start">
               <Link
@@ -130,22 +174,12 @@ export const LandingNav: React.FC = () => {
                     className="w-6 h-6"
                   />
                 </div>
-                <span className="text-[16px] font-bold text-ink tracking-tight hidden lg:inline">
+                <span className="hidden lg:inline text-[16px] font-bold text-ink tracking-tight">
                   Skinify
                 </span>
               </Link>
 
-              <nav className="hidden xl:flex items-center gap-1 ml-2">
-                {NAV_LINKS.map((l) => (
-                  <Link
-                    key={l.label}
-                    to={l.to}
-                    className="h-10 px-3.5 rounded-full text-[14px] font-semibold text-ink-muted hover:text-ink hover:bg-subtle transition-colors flex items-center"
-                  >
-                    {l.label}
-                  </Link>
-                ))}
-              </nav>
+              <NavLinksRow />
             </div>
 
             {/* SPACER for sub-lg flex layout — collapses on lg+ where grid takes over */}
@@ -157,30 +191,49 @@ export const LandingNav: React.FC = () => {
             <div className="hidden lg:block lg:justify-self-center w-[360px] xl:w-[420px]">
               <NavInlineSearch />
             </div>
-            <motion.button
-              whileTap={tap}
+            <NavIconButton
               onClick={openSearchPalette}
               aria-label="Search"
-              className="lg:hidden icon-chip hover:bg-bg transition-colors"
+              className="lg:hidden"
             >
               <Search size={18} strokeWidth={2} className="text-ink-muted" />
-            </motion.button>
+            </NavIconButton>
 
             {/* RIGHT — actions. md+ shows the full stack; sub-md keeps just
                 cart + drawer trigger to save horizontal space. */}
             <div className="flex items-center gap-1 shrink-0 lg:justify-self-end">
+              {/* Refill — lifts on hover with a soft accent glow and a
+                  one-shot shine sweep so it visibly invites a click. */}
               <motion.button
-                whileTap={tap}
+                whileTap={{ scale: 0.96 }}
+                whileHover={{ y: -2, scale: 1.03 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 22 }}
                 onClick={openDepositModal}
-                className="hidden lg:flex h-11 px-4 rounded-full bg-accent text-on-accent text-[13.5px] font-bold items-center gap-1.5 hover:opacity-90 transition-opacity"
-                style={{ boxShadow: '0 8px 20px -10px rgb(var(--accent) / 0.6)' }}
+                className="hidden lg:flex h-11 px-4 rounded-full bg-accent text-on-accent text-[13.5px] font-bold items-center gap-1.5 relative overflow-hidden group"
+                style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.7)' }}
               >
-                <Plus size={15} strokeWidth={2.6} />
-                Refill
+                <motion.span
+                  aria-hidden
+                  initial={{ x: '-130%', rotate: 12 }}
+                  whileHover={{ x: '130%' }}
+                  transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                  className="absolute inset-y-0 w-1/2 pointer-events-none"
+                  style={{
+                    background:
+                      'linear-gradient(110deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%)',
+                  }}
+                />
+                <motion.span
+                  className="inline-flex relative"
+                  whileHover={{ rotate: 90 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 16 }}
+                >
+                  <Plus size={15} strokeWidth={2.6} />
+                </motion.span>
+                <span className="relative">Refill</span>
               </motion.button>
 
-              <motion.button
-                whileTap={tap}
+              <NavIconButton
                 onClick={() => {
                   if (!user) {
                     addToast({
@@ -193,35 +246,41 @@ export const LandingNav: React.FC = () => {
                   navigate('/profile?tab=inventory');
                 }}
                 aria-label="Wishlist"
-                className="hidden lg:grid icon-chip hover:bg-bg transition-colors"
+                className="hidden lg:grid"
               >
-                <Heart size={18} strokeWidth={2} className="text-ink-muted" />
-              </motion.button>
+                <Heart size={18} strokeWidth={2} className="text-ink-muted group-hover:text-rose-500 transition-colors" />
+              </NavIconButton>
 
-              <motion.button
-                whileTap={tap}
+              <NavIconButton
                 onClick={() => navigate('/cart')}
                 aria-label="Cart"
-                className="icon-chip hover:bg-bg transition-colors relative"
+                className="relative"
               >
-                <ShoppingBag size={18} strokeWidth={2} className="text-ink-muted" />
+                <ShoppingBag size={18} strokeWidth={2} className="text-ink-muted group-hover:text-ink transition-colors" />
                 {cartCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-on-accent grid place-items-center text-[10px] font-bold">
+                  <motion.span
+                    key={cartCount}
+                    initial={{ scale: 0.4, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: 'spring', stiffness: 520, damping: 16 }}
+                    /* Tucked inside the chip's top-right quadrant so the
+                       badge never bleeds past the navbar's bottom edge. */
+                    className="absolute top-0.5 right-0.5 min-w-[14px] h-[14px] px-1 rounded-full bg-accent text-on-accent grid place-items-center text-[9px] font-bold leading-none ring-2 ring-bg"
+                  >
                     {cartCount > 9 ? '9+' : cartCount}
-                  </span>
+                  </motion.span>
                 )}
-              </motion.button>
+              </NavIconButton>
 
               {/* Theme menu — md+ only (moved into drawer on mobile) */}
               <div className="relative hidden lg:block" ref={themeMenuRef}>
-                <motion.button
-                  whileTap={tap}
+                <NavIconButton
                   onClick={() => setThemeMenuOpen((v) => !v)}
                   aria-label="Theme"
-                  className="icon-chip hover:bg-bg transition-colors"
+                  iconSpin
                 >
-                  <ThemeIcon size={18} strokeWidth={2} className="text-ink-muted" />
-                </motion.button>
+                  <ThemeIcon size={18} strokeWidth={2} className="text-ink-muted group-hover:text-amber-500 transition-colors" />
+                </NavIconButton>
                 <AnimatePresence>
                   {themeMenuOpen && (
                     <motion.div
@@ -265,14 +324,13 @@ export const LandingNav: React.FC = () => {
               </div>
 
               {/* Mobile drawer trigger */}
-              <motion.button
-                whileTap={tap}
+              <NavIconButton
                 onClick={() => setMenuOpen(true)}
                 aria-label="Open menu"
-                className="icon-chip hover:bg-bg transition-colors lg:hidden"
+                className="lg:hidden"
               >
                 <Menu size={18} strokeWidth={2} className="text-ink-muted" />
-              </motion.button>
+              </NavIconButton>
             </div>
           </div>
         </div>
@@ -516,6 +574,85 @@ const MobileAccountPanel: React.FC<{ onNavigate: () => void }> = ({ onNavigate }
    email/password or Steam. Replaces the prior direct-to-Steam button so
    credentialed users have a clear entry point.
    ───────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────
+   NavLinksRow — primary marketplace links with a shared "magnet pill"
+   that slides between items as the user hovers. The pill is rendered
+   once and animated with framer-motion's `layoutId`, so the highlight
+   morphs smoothly between targets instead of fading in/out separately
+   on each. An animated underline tracks the same hovered index so the
+   active state reads even before the pointer settles.
+   ───────────────────────────────────────────────────────────────────────── */
+const NavLinksRow: React.FC = () => {
+  const [hovered, setHovered] = useState<string | null>(null);
+  return (
+    <nav
+      className="hidden xl:flex items-center gap-1 ml-2 relative"
+      onMouseLeave={() => setHovered(null)}
+    >
+      {NAV_LINKS.map((l) => {
+        const active = hovered === l.label;
+        return (
+          <Link
+            key={l.label}
+            to={l.to}
+            onMouseEnter={() => setHovered(l.label)}
+            className="relative h-10 px-3.5 rounded-full text-[14px] font-semibold flex items-center transition-colors"
+            style={{ color: active ? 'rgb(var(--ink))' : undefined }}
+          >
+            {active && (
+              <motion.span
+                layoutId="nav-link-pill"
+                className="absolute inset-0 rounded-full bg-subtle"
+                transition={{ type: 'spring', stiffness: 380, damping: 30, mass: 0.6 }}
+                aria-hidden
+              />
+            )}
+            <span className="relative inline-flex items-center gap-1.5">
+              {l.label}
+              <motion.span
+                aria-hidden
+                className="absolute -bottom-1 left-0 right-0 h-[2px] rounded-full bg-accent origin-left"
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: active ? 1 : 0 }}
+                transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+              />
+            </span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   NavIconButton — shared chip-style icon button used by the right-side
+   actions in the navbar. Hover lifts the chip slightly, the background
+   warms toward the subtle surface, and (when `iconSpin` is set) the
+   icon inside rotates a quarter turn. Tapping squashes it briefly.
+
+   Wrapping these in one component keeps every action in the right rail
+   feeling identical instead of each implementing its own springs.
+   ───────────────────────────────────────────────────────────────────────── */
+const NavIconButton: React.FC<
+  React.ButtonHTMLAttributes<HTMLButtonElement> & { iconSpin?: boolean }
+> = ({ children, className = '', iconSpin, ...rest }) => (
+  <motion.button
+    {...(rest as any)}
+    whileHover={{ y: -1.5, scale: 1.06 }}
+    whileTap={{ scale: 0.92 }}
+    transition={{ type: 'spring', stiffness: 460, damping: 20 }}
+    className={`icon-chip relative overflow-hidden group hover:bg-subtle transition-colors ${className}`}
+  >
+    <motion.span
+      className="inline-flex"
+      whileHover={iconSpin ? { rotate: 90 } : undefined}
+      transition={{ type: 'spring', stiffness: 380, damping: 18 }}
+    >
+      {children}
+    </motion.span>
+  </motion.button>
+);
+
 /* ─────────────────────────────────────────────────────────────────────────
    NavInlineSearch — the navbar search input that filters items as the
    user types and renders a result list directly below the input. No

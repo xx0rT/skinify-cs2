@@ -112,12 +112,15 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
 
-  /* Lock body scroll while modal is open. */
+  /* Lock body scroll while modal is open, and signal the LandingNav to
+     slide out of the way so it doesn't collide with the floating card. */
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      window.dispatchEvent(new CustomEvent('skinify:nav-hidden', { detail: true }));
       return () => {
         document.body.style.overflow = 'unset';
+        window.dispatchEvent(new CustomEvent('skinify:nav-hidden', { detail: false }));
       };
     }
   }, [isOpen]);
@@ -259,7 +262,7 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 grid place-items-center bg-black/40 dark:bg-black/65 backdrop-blur-md p-4"
+        className="fixed inset-0 z-[80] grid place-items-center bg-ink/40 dark:bg-black/70 backdrop-blur-md p-4"
         onClick={onClose}
       >
         <motion.div
@@ -268,18 +271,34 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
           exit={{ scale: 0.96, opacity: 0, y: 8 }}
           transition={{ type: 'spring', stiffness: 380, damping: 32, mass: 0.7 }}
           onClick={(e) => e.stopPropagation()}
-          className="card w-full flex flex-col overflow-hidden"
-          style={{ maxWidth: 760, maxHeight: '90vh' }}
+          className="relative card-elevated w-full flex flex-col overflow-hidden"
+          style={{
+            maxWidth: 780,
+            maxHeight: '90vh',
+            boxShadow:
+              '0 32px 64px -24px rgba(20,16,40,0.55), 0 12px 28px -10px rgba(20,16,40,0.35)',
+          }}
         >
+          {/* Accent stripe along the top edge — same idiom as the
+              item-detail hero, signals this is the "selling" surface. */}
+          <div
+            aria-hidden
+            className="absolute top-0 left-0 right-0 h-[3px]"
+            style={{
+              background:
+                'linear-gradient(90deg, rgb(var(--accent)), rgb(var(--accent) / 0.55) 60%, transparent)',
+            }}
+          />
+
           {/* ─── Header ─── */}
-          <div className="shrink-0 px-5 sm:px-6 py-5 border-b border-line flex items-center justify-between gap-4">
+          <div className="shrink-0 px-5 sm:px-6 pt-5 pb-4 border-b border-line/70 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="icon-chip bg-accent-soft shrink-0">
-                <Tag size={16} strokeWidth={2.4} className="text-accent" />
+              <div className="w-11 h-11 rounded-2xl bg-accent-soft grid place-items-center shrink-0">
+                <Tag size={17} strokeWidth={2.4} className="text-accent" />
               </div>
               <div className="min-w-0">
                 <span className="label-eyebrow">Sell on Skinify</span>
-                <h2 className="text-[18px] sm:text-[20px] font-bold text-ink tracking-tight mt-1 leading-none truncate">
+                <h2 className="text-[19px] sm:text-[21px] font-bold text-ink tracking-tight mt-1 leading-none truncate">
                   {totals.count} {totals.count === 1 ? 'item' : 'items'} ready to list
                 </h2>
               </div>
@@ -287,9 +306,9 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
             <button
               onClick={onClose}
               aria-label="Close"
-              className="h-9 w-9 shrink-0 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors"
+              className="h-10 w-10 shrink-0 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors"
             >
-              <X size={15} strokeWidth={2.4} />
+              <X size={16} strokeWidth={2.4} />
             </button>
           </div>
 
@@ -638,19 +657,15 @@ const ItemCard: React.FC<{
           )}
         </div>
 
-        {/* Custom price input — big, dedicated */}
+        {/* Custom price input — big, dedicated. We keep the raw input
+            string in component state so a user typing "0.8" sees "0.8"
+            and not a re-rounded "1" or "0.80" stomping their cursor. */}
         <div className="flex items-center gap-2">
-          <div className="flex-1 flex items-center gap-2 h-12 px-4 rounded-2xl bg-surface focus-within:ring-2 focus-within:ring-accent transition-all">
-            <input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step="0.01"
-              value={Number(group.price.toFixed(2))}
-              onChange={(e) => setPriceFromInput(e.target.value)}
+          <div className="flex-1 flex items-center gap-2 h-14 px-4 rounded-2xl bg-surface ring-1 ring-line focus-within:ring-2 focus-within:ring-accent transition-all">
+            <PriceInput
+              value={group.price}
               disabled={group.isLoadingPrice}
-              className="flex-1 min-w-0 bg-transparent outline-none text-ink text-[18px] font-bold tabular-nums disabled:opacity-40"
-              aria-label="Custom price"
+              onChange={(n) => setPriceFromInput(String(n))}
             />
             <span className="text-[13px] font-bold text-ink-dim uppercase tracking-wider">
               {currencySymbol}
@@ -844,6 +859,62 @@ const ItemCard: React.FC<{
         )}
       </AnimatePresence>
     </motion.div>
+  );
+};
+
+/* PriceInput keeps the raw text the user typed in local state so partial
+   entries like "0.", "0.8", "30,5" don't get reformatted while typing.
+   We commit a numeric value to the parent on every valid change, but we
+   only re-sync the displayed string from the parent when the parent
+   value diverges from what we currently show (e.g. the slider moved it).
+   This is what fixes the "0.8 Kč rounds to 1 Kč" complaint — the input
+   no longer round-trips through Number.toFixed(2) on every keystroke. */
+const PriceInput: React.FC<{
+  value: number;
+  disabled?: boolean;
+  onChange: (n: number) => void;
+}> = ({ value, disabled, onChange }) => {
+  const [text, setText] = React.useState<string>(() =>
+    Number.isFinite(value) ? String(Number(value.toFixed(2))) : '',
+  );
+
+  React.useEffect(() => {
+    /* Sync from parent when the parent's value doesn't round-trip back to
+       our current text (so slider moves update the display, but typing
+       "0.8" doesn't get rewritten to "0.80"). */
+    const parsed = Number(text.replace(',', '.'));
+    if (!Number.isFinite(parsed) || Math.abs(parsed - value) > 1e-6) {
+      setText(Number.isFinite(value) ? String(Number(value.toFixed(2))) : '');
+    }
+  }, [value]);
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={text}
+      disabled={disabled}
+      onChange={(e) => {
+        /* Accept "0.8", "0,8" (Czech), "30,5", "1500"; reject anything
+           with non-digit/non-separator characters. */
+        const raw = e.target.value;
+        if (!/^[0-9]*[.,]?[0-9]*$/.test(raw)) return;
+        setText(raw);
+        const n = Number(raw.replace(',', '.'));
+        if (Number.isFinite(n) && n >= 0) onChange(n);
+      }}
+      onBlur={() => {
+        /* On blur, normalize the display: trim trailing zeros after the
+           decimal but keep the fraction the user entered. "0.80" → "0.8",
+           "1.00" → "1". Empty → leave blank, the parent keeps the last
+           valid value. */
+        const n = Number(text.replace(',', '.'));
+        if (Number.isFinite(n)) setText(String(Number(n.toFixed(2))));
+      }}
+      className="flex-1 min-w-0 bg-transparent outline-none text-ink text-[20px] font-bold tabular-nums disabled:opacity-40"
+      aria-label="Custom price"
+      placeholder="0"
+    />
   );
 };
 

@@ -6,14 +6,26 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
+/* Production PayU credentials read from Supabase function secrets.
+   See payu-payment/index.ts for the full env-var list. */
 const PAYU_CONFIG = {
-  posId: "4416072",
-  clientId: "4416072",
-  clientSecret: "c2fca2d6579e0258a2e70206caa64052",
-  apiUrl: "https://secure.payu.com",
+  posId: Deno.env.get("PAYU_POS_ID") || "",
+  clientId: Deno.env.get("PAYU_CLIENT_ID") || "",
+  clientSecret: Deno.env.get("PAYU_CLIENT_SECRET") || "",
+  apiUrl: Deno.env.get("PAYU_API_URL") || "https://secure.payu.com",
 };
 
+function assertPayUConfig() {
+  const missing: string[] = [];
+  if (!PAYU_CONFIG.clientId) missing.push("PAYU_CLIENT_ID");
+  if (!PAYU_CONFIG.clientSecret) missing.push("PAYU_CLIENT_SECRET");
+  if (missing.length > 0) {
+    throw new Error(`PayU not configured: missing env var(s) ${missing.join(", ")}`);
+  }
+}
+
 async function getPayUAccessToken(): Promise<string> {
+  assertPayUConfig();
   const tokenUrl = `${PAYU_CONFIG.apiUrl}/pl/standard/user/oauth/authorize`;
   const params = new URLSearchParams({
     grant_type: "client_credentials",

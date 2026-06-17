@@ -165,10 +165,10 @@ const PrivacyPage: React.FC = () => {
     info={{
       label: 'Data controller',
       rows: [
-        { k: 'Entity', v: 'LosSelloutos s.r.o.' },
-        { k: 'Address', v: 'Bělehradská 858/23, Praha' },
-        { k: 'Business ID', v: '06448771' },
-        { k: 'DPO email', v: 'dpo@skinify.com' },
+        { k: 'Entity', v: 'Skinify s.r.o.' },
+        { k: 'Address', v: 'Grafická 3365/1, 150 00 Praha 5, Česká republika' },
+        { k: 'Business ID (IČO)', v: '29671311' },
+        { k: 'DPO email', v: 'dpo@skinify.gg' },
       ],
     }}
     sections={sections}
