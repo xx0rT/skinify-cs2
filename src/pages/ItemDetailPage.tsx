@@ -1401,7 +1401,56 @@ const SellerCard: React.FC<{
   const { user } = useAuthStore();
   const name = seller?.name || 'Anonymous';
   const initial = name.charAt(0).toUpperCase();
-  const avatar = seller?.avatar || seller?.avatarUrl || null;
+  /* Avatar fallback chain:
+     1. Whatever the listing payload shipped
+     2. /functions/v1/user-profile?steam_id=... (lazy fetch, cached
+        per-id on `window` so multiple listings by the same seller
+        only trigger one request)
+     The lazy fetch is fire-and-forget; if it fails we keep the
+     initial-chip fallback. */
+  const [fetchedAvatar, setFetchedAvatar] = useState<string | null>(null);
+  const sellerSteamId = seller?.steamId ? String(seller.steamId) : null;
+  const baseAvatar = seller?.avatar || seller?.avatarUrl || null;
+  useEffect(() => {
+    if (baseAvatar) return;
+    if (!sellerSteamId) return;
+    /* Process-wide cache so repeat renders / sibling cards don't re-fetch. */
+    const cache = ((window as any).__skinifySellerAvatarCache ||= new Map<string, string>());
+    if (cache.has(sellerSteamId)) {
+      const cached = cache.get(sellerSteamId);
+      if (cached) setFetchedAvatar(cached);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
+        const supabaseKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
+        if (!supabaseUrl || !supabaseKey) return;
+        const res = await fetch(
+          `${supabaseUrl}/functions/v1/user-profile?steam_id=${encodeURIComponent(sellerSteamId)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${supabaseKey}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        );
+        if (!res.ok) return;
+        const json = await res.json();
+        const url = json?.user?.avatar_url || json?.avatar_url || null;
+        if (!url) return;
+        cache.set(sellerSteamId, url);
+        if (!cancelled) setFetchedAvatar(url);
+      } catch {
+        /* network — fall through to initial chip */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sellerSteamId, baseAvatar]);
+  const avatar = baseAvatar || fetchedAvatar;
   const derived = deriveSellerStats(seller);
   const rating: number = Number(seller?.rating ?? derived.rating);
   const deals: number = Number(seller?.totalDeals ?? seller?.successDeals ?? derived.deals);

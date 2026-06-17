@@ -162,22 +162,13 @@ export const LandingNav: React.FC = () => {
           <div className="max-w-[1480px] mx-auto h-14 flex lg:grid items-center gap-1 sm:gap-2 lg:gap-3 lg:grid-cols-[1fr_auto_1fr]">
             {/* LEFT — logo + (lg+) nav links */}
             <div className="flex items-center gap-2 min-w-0 lg:justify-self-start">
-              <Link
-                to="/"
-                className="flex items-center gap-2.5 shrink-0 px-1 sm:px-2"
-                aria-label="Skinify home"
-              >
-                <div className="icon-chip bg-accent text-on-accent">
-                  <img
-                    src="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png"
-                    alt=""
-                    className="w-6 h-6"
-                  />
-                </div>
-                <span className="hidden lg:inline text-[16px] font-bold text-ink tracking-tight">
-                  Skinify
-                </span>
-              </Link>
+              {/* Bare-image logo (no chip, no static wordmark). On hover,
+                  the "Skinify" wordmark slides out from behind the icon.
+                  Lifted hover state to the Link so the icon scale and the
+                  wordmark slide-out animate together — `whileHover` on
+                  nested motion children only fires when the pointer is
+                  directly over that child, which is the wrong scope. */}
+              <LogoLink />
 
               <NavLinksRow />
             </div>
@@ -582,6 +573,58 @@ const MobileAccountPanel: React.FC<{ onNavigate: () => void }> = ({ onNavigate }
    on each. An animated underline tracks the same hovered index so the
    active state reads even before the pointer settles.
    ───────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────
+   LogoLink — bare-image logo with a hover-driven wordmark that slides out
+   from behind the icon. Hover state lives on the parent <Link> via React
+   state (not whileHover on individual children) so the icon scale, the
+   slide-out maxWidth, and the inner x-offset all animate together when
+   the pointer enters the link anywhere.
+
+   maxWidth (not width) because framer-motion can't tween to/from `auto`.
+   120px is enough for the 7-letter "Skinify" wordmark with breathing room.
+   ───────────────────────────────────────────────────────────────────────── */
+const LogoLink: React.FC = () => {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <Link
+      to="/"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onTouchStart={() => setHovered(true)}
+      onTouchEnd={() => setHovered(false)}
+      className="relative flex items-center shrink-0 px-1 sm:px-2"
+      aria-label="Skinify home"
+    >
+      <motion.img
+        src="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png"
+        alt="Skinify"
+        className="w-8 h-8 relative z-10 select-none"
+        draggable={false}
+        animate={hovered ? { scale: 1.08, rotate: -6 } : { scale: 1, rotate: 0 }}
+        transition={{ type: 'spring', stiffness: 420, damping: 18 }}
+      />
+      <motion.span
+        aria-hidden
+        className="hidden lg:inline-block overflow-hidden whitespace-nowrap text-[16px] font-bold text-ink tracking-tight"
+        animate={
+          hovered
+            ? { maxWidth: 120, opacity: 1, marginLeft: 8 }
+            : { maxWidth: 0, opacity: 0, marginLeft: 0 }
+        }
+        transition={{ type: 'spring', stiffness: 360, damping: 28, mass: 0.7 }}
+      >
+        <motion.span
+          className="inline-block"
+          animate={hovered ? { x: 0 } : { x: -8 }}
+          transition={{ type: 'spring', stiffness: 360, damping: 26 }}
+        >
+          Skinify
+        </motion.span>
+      </motion.span>
+    </Link>
+  );
+};
+
 const NavLinksRow: React.FC = () => {
   const [hovered, setHovered] = useState<string | null>(null);
   return (
