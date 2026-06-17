@@ -20,6 +20,7 @@ import { useToastStore } from '../../store/toastStore';
 import { useAuthStore } from '../../store/authStore';
 import { initializeWebPush, checkPushSubscription } from '../../utils/webPushNotifications';
 import { spring, tap } from '../../lib/motion';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 /* ─────────────────────────────────────────────────────────────────────────
    ListItemModal — clean rewrite
@@ -112,14 +113,14 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [expandedIdx, setExpandedIdx] = useState<number | null>(0);
 
-  /* Lock body scroll while modal is open, and signal the LandingNav to
+  /* Lock body scroll while modal is open (via shared hook so stacked
+     modals don't clobber each other), and signal the LandingNav to
      slide out of the way so it doesn't collide with the floating card. */
+  useBodyScrollLock(isOpen);
   useEffect(() => {
     if (isOpen) {
-      document.body.style.overflow = 'hidden';
       window.dispatchEvent(new CustomEvent('skinify:nav-hidden', { detail: true }));
       return () => {
-        document.body.style.overflow = 'unset';
         window.dispatchEvent(new CustomEvent('skinify:nav-hidden', { detail: false }));
       };
     }
@@ -279,16 +280,8 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
               '0 32px 64px -24px rgba(20,16,40,0.55), 0 12px 28px -10px rgba(20,16,40,0.35)',
           }}
         >
-          {/* Accent stripe along the top edge — same idiom as the
-              item-detail hero, signals this is the "selling" surface. */}
-          <div
-            aria-hidden
-            className="absolute top-0 left-0 right-0 h-[3px]"
-            style={{
-              background:
-                'linear-gradient(90deg, rgb(var(--accent)), rgb(var(--accent) / 0.55) 60%, transparent)',
-            }}
-          />
+          {/* (Removed the top accent stripe — was reading as a "white
+              flash" on the modal header in dark mode.) */}
 
           {/* ─── Header ─── */}
           <div className="shrink-0 px-5 sm:px-6 pt-5 pb-4 border-b border-line/70 flex items-center justify-between gap-4">
@@ -397,6 +390,10 @@ const ConfirmListingDialog: React.FC<{
   feePct: number;
   formatPrice: (n: number) => string;
 }> = ({ isOpen, onClose, onConfirm, isProcessing, items, totals, feePct, formatPrice }) => {
+  /* Scroll-lock the page while THIS dialog is open. The parent ListItemModal
+     also locks via useBodyScrollLock, but with the shared-counter hook
+     multiple locks compose cleanly (only the last close restores scroll). */
+  useBodyScrollLock(isOpen);
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -418,7 +415,7 @@ const ConfirmListingDialog: React.FC<{
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.18 }}
-      className="fixed inset-0 z-[60] bg-black/55 backdrop-blur-md flex items-end sm:items-center justify-center p-3"
+      className="fixed inset-0 z-[90] bg-ink/45 dark:bg-black/65 backdrop-blur-md flex items-end sm:items-center justify-center p-3"
       onClick={() => !isProcessing && onClose()}
     >
       <motion.div
@@ -428,16 +425,14 @@ const ConfirmListingDialog: React.FC<{
         exit={{ opacity: 0, y: 16, scale: 0.97 }}
         transition={spring}
         onClick={(e) => e.stopPropagation()}
-        className="card w-full max-w-md relative overflow-hidden"
+        className="card-elevated w-full max-w-md relative overflow-hidden"
+        style={{
+          boxShadow:
+            '0 32px 64px -24px rgba(20,16,40,0.55), 0 12px 28px -10px rgba(20,16,40,0.35)',
+        }}
       >
-        <div
-          className="absolute top-0 left-0 right-0 h-[3px]"
-          style={{
-            background:
-              'linear-gradient(90deg, rgb(var(--accent)), rgb(var(--accent) / 0.55) 60%, transparent)',
-          }}
-          aria-hidden
-        />
+        {/* (No accent stripe — used to be a 3px gradient bar at top
+            that read as a "white flash" in dark theme. Cleaner without.) */}
 
         <div className="p-6">
           {/* Header */}

@@ -16,6 +16,7 @@ import { useCurrencyStore } from '../store/currencyStore';
 import { CachedImage } from './ui/CachedImage';
 import { rarityColor } from './ui/SkinCard';
 import { spring } from '../lib/motion';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 /**
  * SearchPalette — Linear/Cmd-K style global search.
@@ -100,16 +101,13 @@ export const SearchPalette: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Lock body scroll while open
+  // Lock body scroll while open (via shared hook so stacked modals
+  // don't clobber each other's overflow restore).
+  useBodyScrollLock(open);
   useEffect(() => {
     if (open) {
-      const prev = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
       // microtask focus — modal renders, then we focus
       setTimeout(() => inputRef.current?.focus(), 50);
-      return () => {
-        document.body.style.overflow = prev;
-      };
     }
   }, [open]);
 

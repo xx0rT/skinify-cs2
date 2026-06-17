@@ -585,40 +585,92 @@ const MobileAccountPanel: React.FC<{ onNavigate: () => void }> = ({ onNavigate }
    ───────────────────────────────────────────────────────────────────────── */
 const LogoLink: React.FC = () => {
   const [hovered, setHovered] = useState(false);
+
+  /* Wordmark-only animation. The icon stays perfectly still — no
+     scale, no tilt — and the "Skinify" text rolls out letter by
+     letter from behind it on hover.
+
+     Implementation:
+       - Outer container animates its `width` so layout reflows
+         smoothly as the wordmark grows.
+       - Each character is its own motion.span. They stagger out
+         left-to-right (variants), springing in from a small left
+         offset + 0 opacity + slight downward y so they appear to
+         tumble out of the icon, not fade in flat.
+       - Exit reverses the order (rightmost letter leaves first) so
+         the wordmark visually retracts back into the icon. */
+  const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
+  const EASE_IN: [number, number, number, number] = [0.65, 0, 0.35, 1];
+
+  const containerVariants = {
+    rest: { width: 0, marginLeft: 0 },
+    hover: { width: 96, marginLeft: 10 },
+  };
+
+  const letterStaggerParent = {
+    rest: {
+      transition: {
+        staggerChildren: 0.025,
+        staggerDirection: -1, // exit right-to-left
+      },
+    },
+    hover: {
+      transition: {
+        delayChildren: 0.08, // wait for container to open a touch
+        staggerChildren: 0.035,
+      },
+    },
+  };
+
+  const letterChild = {
+    rest: { x: -8, y: 4, opacity: 0 },
+    hover: { x: 0, y: 0, opacity: 1 },
+  };
+
   return (
     <Link
       to="/"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onFocus={() => setHovered(true)}
+      onBlur={() => setHovered(false)}
       onTouchStart={() => setHovered(true)}
       onTouchEnd={() => setHovered(false)}
-      className="relative flex items-center shrink-0 px-1 sm:px-2"
+      className="relative flex items-center shrink-0 px-1 sm:px-2 outline-none"
       aria-label="Skinify home"
     >
-      <motion.img
+      <img
         src="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png"
         alt="Skinify"
         className="w-8 h-8 relative z-10 select-none"
         draggable={false}
-        animate={hovered ? { scale: 1.08, rotate: -6 } : { scale: 1, rotate: 0 }}
-        transition={{ type: 'spring', stiffness: 420, damping: 18 }}
       />
+
       <motion.span
         aria-hidden
-        className="hidden lg:inline-block overflow-hidden whitespace-nowrap text-[16px] font-bold text-ink tracking-tight"
-        animate={
-          hovered
-            ? { maxWidth: 120, opacity: 1, marginLeft: 8 }
-            : { maxWidth: 0, opacity: 0, marginLeft: 0 }
-        }
-        transition={{ type: 'spring', stiffness: 360, damping: 28, mass: 0.7 }}
+        className="hidden lg:inline-block overflow-hidden whitespace-nowrap"
+        variants={containerVariants}
+        animate={hovered ? 'hover' : 'rest'}
+        initial="rest"
+        transition={{
+          duration: hovered ? 0.42 : 0.28,
+          ease: hovered ? EASE_OUT : EASE_IN,
+        }}
       >
         <motion.span
-          className="inline-block"
-          animate={hovered ? { x: 0 } : { x: -8 }}
-          transition={{ type: 'spring', stiffness: 360, damping: 26 }}
+          className="inline-flex text-[16px] font-bold text-ink tracking-tight"
+          variants={letterStaggerParent}
         >
-          Skinify
+          {'Skinify'.split('').map((char, i) => (
+            <motion.span
+              key={i}
+              variants={letterChild}
+              transition={{ type: 'spring', stiffness: 420, damping: 26, mass: 0.5 }}
+              className="inline-block"
+            >
+              {char}
+            </motion.span>
+          ))}
         </motion.span>
       </motion.span>
     </Link>
@@ -626,19 +678,38 @@ const LogoLink: React.FC = () => {
 };
 
 const NavLinksRow: React.FC = () => {
-  const [hovered, setHovered] = useState<string | null>(null);
+  const [hovered, setHovered] = useState<number | null>(null);
+  /* Track the previous hovered index so we can choose the underline's
+     transform-origin based on direction. Moving rightward → underline
+     grows from the left edge (origin-left). Moving leftward → grows
+     from the right edge (origin-right). This mirrors how an eye reads
+     the motion: the line always "trails" the pointer. */
+  const [prevHovered, setPrevHovered] = useState<number | null>(null);
+
   return (
     <nav
       className="hidden xl:flex items-center gap-1 ml-2 relative"
-      onMouseLeave={() => setHovered(null)}
+      onMouseLeave={() => {
+        setPrevHovered(hovered);
+        setHovered(null);
+      }}
     >
-      {NAV_LINKS.map((l) => {
-        const active = hovered === l.label;
+      {NAV_LINKS.map((l, i) => {
+        const active = hovered === i;
+        /* Direction of travel:
+             - first hover after a mouse-leave (prev === null)  → grow from left (default).
+             - moving rightward (prev < current)                → grow from left.
+             - moving leftward (prev > current)                 → grow from right. */
+        const growFromRight =
+          active && prevHovered != null && prevHovered > i;
         return (
           <Link
             key={l.label}
             to={l.to}
-            onMouseEnter={() => setHovered(l.label)}
+            onMouseEnter={() => {
+              setPrevHovered(hovered);
+              setHovered(i);
+            }}
             className="relative h-10 px-3.5 rounded-full text-[14px] font-semibold flex items-center transition-colors"
             style={{ color: active ? 'rgb(var(--ink))' : undefined }}
           >
@@ -654,7 +725,9 @@ const NavLinksRow: React.FC = () => {
               {l.label}
               <motion.span
                 aria-hidden
-                className="absolute -bottom-1 left-0 right-0 h-[2px] rounded-full bg-accent origin-left"
+                className={`absolute -bottom-1 left-0 right-0 h-[2px] rounded-full bg-accent ${
+                  growFromRight ? 'origin-right' : 'origin-left'
+                }`}
                 initial={{ scaleX: 0 }}
                 animate={{ scaleX: active ? 1 : 0 }}
                 transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}

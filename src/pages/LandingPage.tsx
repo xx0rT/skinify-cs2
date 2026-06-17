@@ -12,7 +12,6 @@ import { useWishlistStore } from '../store/wishlistStore';
 import { useCurrencyStore } from '../store/currencyStore';
 import { useBalanceStore } from '../store/balanceStore';
 import { useMarketplaceItems } from '../hooks/useMarketplaceItems';
-import { MOCK_MARKET_ITEMS } from '../data/mockMarketItems';
 import { useHotItems } from '../hooks/useHotItems';
 import { weaponCategories } from '../data/weaponCategories';
 import LandingNav from '../components/LandingNav';
@@ -200,29 +199,24 @@ const LandingPage: React.FC = () => {
 
   const portfolio = useMemo(() => Number(balance || 0), [balance]);
 
-  /* Synthetic 100-item promoted feed for the wall. We cycle through
-     the real mock list, suffixing the id so React keys stay unique and
-     jittering the price ±15 % so the row doesn't look like a hall of
-     copies. Drop this in favour of the live promoted-slot endpoint
-     once it ships. */
-  const promotedMock = useMemo(() => {
-    const out: any[] = [];
-    const target = 100;
-    for (let i = 0; i < target; i++) {
-      const base = MOCK_MARKET_ITEMS[i % MOCK_MARKET_ITEMS.length];
-      const jitter = 1 + (((i * 1664525 + 1013904223) >>> 0) % 30 - 15) / 100;
-      out.push({
-        ...base,
-        id: `${base.id}-promo-${i}`,
-        price: Math.max(1, Math.round(base.price * jitter)),
-        priceChange:
-          base.priceChange != null
-            ? Number((base.priceChange + ((i % 7) - 3)).toFixed(1))
-            : null,
-      });
-    }
-    return out;
-  }, []);
+  /* Promoted wall — real listings, no mocks. We sort `promoted` items
+     to the front (paid 7-day boosts), then pad with the freshest live
+     listings up to 100 entries. If the live feed is empty we render
+     nothing rather than fall back to demo data — the section just
+     hides until there are real items. */
+  const promotedItems = useMemo(() => {
+    const live = Array.isArray(marketplaceItems) ? marketplaceItems : [];
+    if (live.length === 0) return [] as any[];
+    const promoted = live.filter((it: any) => it?.promoted);
+    const rest = live
+      .filter((it: any) => !it?.promoted)
+      .sort(
+        (a: any, b: any) =>
+          new Date(b?.listed_at || 0).getTime() -
+          new Date(a?.listed_at || 0).getTime(),
+      );
+    return [...promoted, ...rest].slice(0, 100);
+  }, [marketplaceItems]);
 
   return (
     <div className="min-h-screen bg-bg text-ink">
@@ -245,7 +239,7 @@ const LandingPage: React.FC = () => {
             backend is being wired. First 3 tiles are highlighted as
             live paid promo slots; the rest fade progressively. */}
         <PromotedWall
-          items={promotedMock}
+          items={promotedItems}
           onView={(id) => navigate(`/item/${id}`)}
           onAddCart={handleAddCart}
           onToggleWish={handleWish}
