@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { useSaleNotifications } from './hooks/useSaleNotifications';
 import { useCurrencyStore } from './store/currencyStore';
 import { useTranslationStore } from './store/translationStore';
+import { useAuthStore } from './store/authStore';
 import { autoDetectAndSetCurrency } from './utils/geolocation';
 import { memoryOptimizer } from './utils/memoryOptimizer';
 import ToastContainer from './components/ui/ToastContainer';
@@ -199,6 +200,7 @@ export default function App() {
         <LanguageDetector />
         <ScrollToTop />
         <MetaResetter />
+        <OnboardingGate />
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             {/* Main routes - always use mobile version for small screens */}
@@ -335,4 +337,42 @@ export default function App() {
       <AgeVerificationModal />
     </ThemeProvider>
   );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   OnboardingGate — force logged-in users into /onboarding until they
+   have (a) a linked Steam account and (b) a saved trade URL.
+
+   Rules:
+     - No user signed in           →  no-op.
+     - Already on /onboarding       →  no-op (let them finish).
+     - Already on /auth/*           →  no-op (don't interrupt OAuth callbacks).
+     - User has both fields         →  no-op.
+     - Otherwise                    →  redirect to /onboarding (replace).
+
+   The redirect uses `replace` so the back button doesn't drop the user
+   into a loop. The Steam-link return ALSO comes through /auth/callback,
+   which is exempt above, so the linking flow can finish without us
+   bouncing the user mid-OAuth.
+   ───────────────────────────────────────────────────────────────────────── */
+function OnboardingGate() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useAuthStore();
+
+  React.useEffect(() => {
+    if (!user) return;
+    const path = location.pathname || '/';
+    if (path.startsWith('/onboarding')) return;
+    if (path.startsWith('/auth')) return;
+    /* Strip optional lang prefix so /cs/onboarding matches too. */
+    if (/^\/[a-z]{2}\/onboarding/i.test(path)) return;
+    const needsSteam = !user.steamLinked;
+    const needsTradeLink = !user.tradeLink;
+    if (needsSteam || needsTradeLink) {
+      navigate('/onboarding', { replace: true });
+    }
+  }, [user?.steamLinked, user?.tradeLink, location.pathname, navigate]);
+
+  return null;
 }
