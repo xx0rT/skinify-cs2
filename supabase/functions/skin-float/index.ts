@@ -198,6 +198,11 @@ Deno.serve(async (req) => {
       def_index: ii.defindex ?? null,
       origin: ii.origin ?? null,
       rarity: ii.rarity ?? null,
+      /* CSFloat ships a rendered preview of this exact float+seed
+         combination at `iteminfo.imageurl`. Surface it so the item
+         detail hero can show the real skin pattern instead of the
+         generic Steam thumbnail. */
+      preview_image: ii.imageurl || ii.image_url || null,
       stickers: Array.isArray(ii.stickers)
         ? ii.stickers.map((s: any) => ({
             slot: s.slot,

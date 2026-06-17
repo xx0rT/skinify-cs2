@@ -13,7 +13,10 @@ import {
   Plus,
   Minus,
   Sparkles,
+  X,
+  Zap,
 } from 'lucide-react';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
@@ -55,6 +58,10 @@ const CartPage: React.FC = () => {
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [confirmCheckoutOpen, setConfirmCheckoutOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
+  /* When true, the checkout dialog shows the success state (post-order
+     confetti / "order placed" frame) before routing the user away.
+     The route push is deferred 1.4s so the user reads the success cue. */
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
 
   useEffect(() => {
     if (user?.steamId) fetchBalance(user.steamId);
@@ -139,13 +146,15 @@ const CartPage: React.FC = () => {
       }
 
       clearCart();
-      addToast({
-        type: 'success',
-        title: 'Order placed',
-        message: 'Sellers have been notified. Payment is held in escrow.',
-      });
-      setConfirmCheckoutOpen(false);
-      navigate('/profile?tab=trades');
+      /* Flip the dialog into success mode rather than slamming the
+         router. The user sees a clean "Order placed" frame for ~1.4s,
+         then we route through to the trades tab. */
+      setCheckoutSuccess(true);
+      setTimeout(() => {
+        setConfirmCheckoutOpen(false);
+        setCheckoutSuccess(false);
+        navigate('/profile?tab=trades');
+      }, 1400);
     } finally {
       setProcessing(false);
     }
@@ -488,16 +497,15 @@ const CartPage: React.FC = () => {
         variant="warning"
       />
 
-      <ConfirmationModal
+      <CheckoutConfirmDialog
         isOpen={confirmCheckoutOpen}
-        onClose={() => setConfirmCheckoutOpen(false)}
+        onClose={() => !processing && !checkoutSuccess && setConfirmCheckoutOpen(false)}
         onConfirm={finalizeCheckout}
-        title="Confirm checkout"
-        message={`Place an order for ${items.length} ${items.length === 1 ? 'item' : 'items'} totalling ${formatPrice(total)}?`}
-        confirmText="Place order"
-        cancelText="Cancel"
-        variant="info"
-        isProcessing={processing}
+        items={items}
+        total={total}
+        processing={processing}
+        success={checkoutSuccess}
+        formatPrice={formatPrice}
       />
     </div>
   );
@@ -525,5 +533,209 @@ const Row: React.FC<{ label: string; value: string; valueClass?: string }> = ({
     <span className={`font-bold tabular-nums ${valueClass}`}>{value}</span>
   </div>
 );
+
+/* ─────────────────────────────────────────────────────────────────────────
+   CheckoutConfirmDialog — custom dialog that replaces the generic
+   ConfirmationModal for the checkout step. Goals:
+     - Matches the site's design language (card-elevated, accent rail,
+       same icon-chip + label-eyebrow + typography scale as the listing
+       modal)
+     - Shows a real preview of what's being ordered (the first few
+       thumbnails with a +N chip) so the user sees what they're
+       confirming
+     - Has a post-order success state with a check pulse + escrow
+       reassurance copy, which the page holds for ~1.4s before routing.
+       The previous one slammed a toast and route-changed immediately,
+       which made successful orders feel terse and underwhelming.
+   ───────────────────────────────────────────────────────────────────────── */
+const CheckoutConfirmDialog: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  items: any[];
+  total: number;
+  processing: boolean;
+  success: boolean;
+  formatPrice: (n: number) => string;
+}> = ({ isOpen, onClose, onConfirm, items, total, processing, success, formatPrice }) => {
+  useBodyScrollLock(isOpen);
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !processing && !success) onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, processing, success, onClose]);
+
+  if (!isOpen) return null;
+
+  const preview = items.slice(0, 4);
+  const remaining = Math.max(0, items.length - preview.length);
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        key="co-backdrop"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.18 }}
+        className="fixed inset-0 z-[90] bg-ink/45 dark:bg-black/65 backdrop-blur-md flex items-end sm:items-center justify-center p-3"
+        onClick={onClose}
+      >
+        <motion.div
+          key="co-card"
+          initial={{ opacity: 0, y: 20, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 16, scale: 0.97 }}
+          transition={spring}
+          onClick={(e) => e.stopPropagation()}
+          className="card-elevated w-full max-w-md relative overflow-hidden"
+          style={{
+            boxShadow:
+              '0 32px 64px -24px rgba(20,16,40,0.55), 0 12px 28px -10px rgba(20,16,40,0.35)',
+          }}
+        >
+          <AnimatePresence mode="wait">
+            {success ? (
+              <motion.div
+                key="co-success"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={spring}
+                className="p-7 text-center"
+              >
+                {/* Success medallion with a pulsing accent halo */}
+                <div className="relative w-16 h-16 mx-auto mb-5">
+                  <motion.span
+                    aria-hidden
+                    initial={{ scale: 0.6, opacity: 0.6 }}
+                    animate={{ scale: 1.6, opacity: 0 }}
+                    transition={{ duration: 1.1, ease: 'easeOut', repeat: Infinity }}
+                    className="absolute inset-0 rounded-3xl bg-accent/30"
+                  />
+                  <motion.div
+                    initial={{ scale: 0.5, rotate: -8 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: 'spring', stiffness: 420, damping: 18 }}
+                    className="relative w-16 h-16 rounded-3xl bg-accent text-on-accent grid place-items-center"
+                    style={{ boxShadow: '0 16px 32px -10px rgb(var(--accent) / 0.65)' }}
+                  >
+                    <CheckCircle2 size={28} strokeWidth={2.4} />
+                  </motion.div>
+                </div>
+                <span className="label-eyebrow text-accent">Order placed</span>
+                <h2 className="text-[22px] font-bold text-ink tracking-tight leading-tight mt-2">
+                  {items.length} {items.length === 1 ? 'item' : 'items'} on the way
+                </h2>
+                <p className="text-[13.5px] text-ink-muted font-medium mt-3 leading-relaxed">
+                  Payment is held in escrow. Sellers have been notified and your
+                  trades show up in your profile under <span className="text-ink font-semibold">Trades</span>.
+                </p>
+                <div className="mt-5 inline-flex items-center gap-1.5 text-[12px] font-semibold text-ink-muted">
+                  <Lock size={12} strokeWidth={2.4} />
+                  Escrow-protected · funds release after 8 days
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="co-confirm"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                className="p-6"
+              >
+                <div className="flex items-start justify-between gap-3 mb-5">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-11 h-11 rounded-2xl bg-accent-soft grid place-items-center shrink-0">
+                      <Zap size={17} strokeWidth={2.4} className="text-accent" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="label-eyebrow">Confirm checkout</span>
+                      <h2 className="text-[19px] font-bold text-ink tracking-tight leading-tight mt-1 truncate">
+                        Place {items.length} {items.length === 1 ? 'item' : 'items'} order
+                      </h2>
+                    </div>
+                  </div>
+                  <button
+                    onClick={onClose}
+                    disabled={processing}
+                    aria-label="Close"
+                    className="h-9 w-9 shrink-0 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors disabled:opacity-50"
+                  >
+                    <X size={15} strokeWidth={2.4} />
+                  </button>
+                </div>
+
+                {/* Item preview row */}
+                <div className="flex items-center gap-2 mb-5">
+                  {preview.map((it) => (
+                    <div
+                      key={it.id}
+                      className="relative w-14 h-14 rounded-2xl bg-subtle grid place-items-center overflow-hidden shrink-0"
+                      title={it.name}
+                    >
+                      <CachedImage
+                        src={it.image}
+                        alt={it.name}
+                        className="w-[88%] h-[88%] object-contain"
+                      />
+                    </div>
+                  ))}
+                  {remaining > 0 && (
+                    <div className="w-14 h-14 rounded-2xl bg-subtle grid place-items-center text-[12px] font-bold text-ink-muted tabular-nums shrink-0">
+                      +{remaining}
+                    </div>
+                  )}
+                </div>
+
+                {/* Total + escrow line */}
+                <div className="rounded-3xl bg-subtle p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12.5px] text-ink-muted font-medium">Total</span>
+                    <span className="text-[18px] font-bold text-ink tabular-nums tracking-tight">
+                      {formatPrice(total)}
+                    </span>
+                  </div>
+                  <div className="h-px bg-line my-1" />
+                  <div className="flex items-start gap-2 text-[11.5px] text-ink-muted font-medium">
+                    <Shield size={12} strokeWidth={2.4} className="text-accent shrink-0 mt-0.5" />
+                    Funds release to sellers 8 days after each Steam trade is
+                    accepted. You can dispute anytime in that window.
+                  </div>
+                </div>
+
+                {/* CTAs */}
+                <div className="mt-6 flex flex-col-reverse sm:flex-row gap-2">
+                  <motion.button
+                    whileTap={tap}
+                    onClick={onClose}
+                    disabled={processing}
+                    className="sm:flex-1 h-12 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[13.5px] transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </motion.button>
+                  <motion.button
+                    whileTap={tap}
+                    whileHover={!processing ? { scale: 1.01 } : undefined}
+                    onClick={onConfirm}
+                    disabled={processing}
+                    className="sm:flex-[1.4] h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] inline-flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed transition-opacity"
+                    style={{ boxShadow: '0 12px 26px -12px rgb(var(--accent) / 0.55)' }}
+                  >
+                    {processing ? 'Placing order…' : `Place order · ${formatPrice(total)}`}
+                  </motion.button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
 
 export default CartPage;
