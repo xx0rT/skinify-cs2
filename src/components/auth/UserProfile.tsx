@@ -3,16 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
-  Bell,
   ChevronDown,
-  Heart,
   LogOut,
   MessageCircle,
   Package,
   Plus,
   Settings,
   ShoppingBag,
-  Store,
   TrendingUp,
   User as UserIcon,
   Wallet,
@@ -254,17 +251,18 @@ const UserProfile: React.FC = () => {
               </button>
             )}
 
-            {/* ── 4. Navigation ───────────────────────────── */}
+            {/* ── 4. Navigation ─────────────────────────────
+                Matches the consolidated 6-tab profile sidebar. Old
+                top-level entries (Wishlist, My shop, Notifications)
+                now live as sub-tabs inside their parent and aren't
+                worth surfacing here — keeps the dropdown short. */}
             <div className="px-2 pt-1 pb-1.5 border-t border-line">
               <nav className="space-y-px">
                 <Item Icon={UserIcon}    label="Overview"  onClick={() => go('/profile?tab=overview')} />
-                <Item Icon={MessageCircle} label="Messages" badge={messagesUnread} onClick={() => go('/messages')} />
-                <Item Icon={Bell}        label="Notifications" badge={notificationUnread} onClick={() => go('/profile?tab=notifications')} />
                 <Item Icon={Package}     label="Inventory" onClick={() => go('/profile?tab=inventory')} />
                 <Item Icon={ShoppingBag} label="Listings"  onClick={() => go('/profile?tab=listings')} />
-                <Item Icon={Heart}       label="Wishlist"  onClick={() => go('/profile?tab=wishlist')} />
                 <Item Icon={TrendingUp}  label="Trades"    onClick={() => go('/profile?tab=trades')} />
-                <Item Icon={Store}       label="My shop"   onClick={() => go('/profile?tab=shop')} />
+                <Item Icon={MessageCircle} label="Messages" badge={messagesUnread} onClick={() => go('/messages')} />
                 <Item Icon={Settings}    label="Settings"  onClick={() => go('/profile?tab=settings')} />
               </nav>
             </div>
