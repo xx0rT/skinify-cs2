@@ -127,18 +127,22 @@ export const LandingNav: React.FC = () => {
         }}
         className="hidden lg:block sticky top-0 z-[55] transition-[transform,background,backdrop-filter] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
       >
-        {/* Bottom glow — only visible when the navbar is on the FILLED
-            (not-scrolled) state. Sits below the navbar's bottom edge
-            as an absolutely-positioned strip that radiates accent
-            color outward and downward. Pointer-events-none so it
-            never blocks clicks on the page underneath. */}
+        {/* Bottom glow — only visible in the FILLED (not-scrolled)
+            state. Uses `mix-blend-mode: plus-lighter` so it brightens
+            the page beneath rather than overlaying it (the previous
+            version painted accent color on top of content, which is
+            why text / cards looked tinted purple as you scrolled the
+            page). The blend mode is supported on Safari + Chromium;
+            for the few browsers without it, `screen` is a perfectly
+            good visual fallback that also doesn't obscure content. */}
         <div
           aria-hidden
-          className="absolute left-0 right-0 top-full h-12 pointer-events-none transition-opacity duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          className="absolute left-0 right-0 top-full h-10 pointer-events-none transition-opacity duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
           style={{
             opacity: scrolled ? 0 : 1,
             background:
-              'radial-gradient(120% 100% at 50% 0%, rgb(var(--accent) / 0.22) 0%, rgb(var(--accent) / 0.08) 35%, transparent 70%)',
+              'radial-gradient(120% 100% at 50% 0%, rgb(var(--accent) / 0.32) 0%, rgb(var(--accent) / 0.10) 35%, transparent 70%)',
+            mixBlendMode: 'plus-lighter',
           }}
         />
         <div
