@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, Cake, ArrowRight, X } from 'lucide-react';
 import { spring, tap } from '../lib/motion';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 /* ─────────────────────────────────────────────────────────────────────────
    AgeVerificationModal — first-visit 18+ gate.
@@ -28,14 +29,7 @@ const AgeVerificationModal: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
+  useBodyScrollLock(open);
 
   const confirm = () => {
     try {

@@ -7,6 +7,7 @@ import { useAuthStore } from '../store/authStore';
 import { spring, tap } from '../lib/motion';
 import { getSupabaseCredentials } from '../utils/supabaseHelpers';
 import { supabase } from '../lib/supabaseClient';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 /**
  * DepositModal — full-screen, two-pane "add funds" dialog.
@@ -197,14 +198,10 @@ export const DepositModal: React.FC = () => {
     };
   }, []);
 
+  useBodyScrollLock(open);
   useEffect(() => {
     if (open) {
-      const prev = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
       setTimeout(() => inputRef.current?.focus(), 50);
-      return () => {
-        document.body.style.overflow = prev;
-      };
     }
   }, [open]);
 
