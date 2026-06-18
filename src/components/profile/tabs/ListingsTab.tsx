@@ -20,7 +20,7 @@ import { getSupabaseCredentials } from '../../../utils/supabaseHelpers';
 import { useToastStore } from '../../../store/toastStore';
 import { useCurrencyStore } from '../../../store/currencyStore';
 import { spring, tap } from '../../../lib/motion';
-import { SkinCard } from '../../ui/SkinCard';
+import { rarityColor } from '../../ui/SkinCard';
 
 /* ─────────────────────────────────────────────────────────────────────────
    ListingsTab — redesigned
@@ -383,51 +383,103 @@ const ListingCard: React.FC<{
   onView,
   formatPrice,
 }) => {
-  /* Shape the listing into what SkinCard expects. The DB columns are
-     snake_case (image_url, item_name) so we map them to the card's
-     camelCase + canonical fields. */
-  const cardItem = {
-    id: String(listing.id),
-    name: listing.item_name,
-    market_name: listing.market_hash_name,
-    image: listing.image_url,
-    price: Number(listing.price),
-    type: listing.item_type,
-    rarity: listing.rarity,
-    condition: listing.condition,
-    seller: { steamId: '', name: '', online: false },
-    views: listing.views,
-  } as any;
-
-  /* Owner actions live INSIDE the card now — absolutely positioned
-     overlay at the bottom edge of the SkinCard. We render the card
-     and overlay inside a relatively-positioned wrapper. The overlay
-     uses a small backdrop-blur strip so the buttons remain readable
-     against any image content beneath. */
+  /* Bespoke listing card — a focused, info-dense seller view rather
+     than the marketplace SkinCard. The previous wrap-SkinCard-with-
+     overlay attempt left actions floating outside the card and price
+     appearing twice (once in SkinCard's own footer, once in the
+     overlay). This version owns the whole layout: rarity-tinted image
+     panel, info strip, price + actions inline at the bottom, all
+     contained by a single rounded card with a hairline border that
+     warms to the rarity colour on hover. */
+  const r = rarityColor(listing.rarity);
   return (
-    <motion.div
+    <motion.article
       layout
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ ...spring, delay: Math.min(index * 0.012, 0.18) }}
-      className="relative"
+      whileHover={{ y: -2 }}
+      className="group relative bg-surface rounded-2xl overflow-hidden flex flex-col"
+      style={{
+        boxShadow:
+          'inset 0 0 0 1px rgb(var(--ink) / 0.08)',
+        ['--rarity' as any]: r || 'rgb(var(--accent))',
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.boxShadow =
+          'inset 0 0 0 1.5px var(--rarity), 0 10px 26px -14px rgb(0 0 0 / 0.25)';
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.boxShadow =
+          'inset 0 0 0 1px rgb(var(--ink) / 0.08)';
+      }}
     >
-      <SkinCard
-        variant="tile"
-        hoverLift={false}
-        item={cardItem}
-        onView={onView}
-        formatPrice={formatPrice}
-      />
-      <div
-        className="absolute inset-x-2 bottom-2 z-20"
-        /* stop the card's onView from firing when the user taps a
-           button inside the overlay */
-        onClick={(e) => e.stopPropagation()}
+      {/* Image area — click-to-view. Rarity wash from the bottom up,
+          plus a sharp 1.5px stripe along the bottom edge. */}
+      <button
+        type="button"
+        onClick={onView}
+        className="relative w-full aspect-[5/3.4] grid place-items-center overflow-hidden bg-subtle/40 px-5 pt-5 pb-3 text-left"
       >
+        {r && (
+          <>
+            <div
+              aria-hidden
+              className="absolute inset-x-0 bottom-0 h-[42%] pointer-events-none"
+              style={{ background: `linear-gradient(to top, ${r}59 0%, ${r}26 35%, transparent 100%)` }}
+            />
+            <div
+              aria-hidden
+              className="absolute inset-x-0 bottom-0 h-[1.5px] pointer-events-none"
+              style={{ background: r }}
+            />
+          </>
+        )}
+        <img
+          src={listing.image_url}
+          alt={listing.item_name}
+          loading="lazy"
+          className="relative max-h-[88%] max-w-[88%] object-contain transition-transform duration-300 group-hover:scale-[1.04]"
+        />
+        {/* Top-right meta pills — listing type + view count */}
+        <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
+          {listing.listing_type === 'auction' && (
+            <span className="px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase rounded bg-amber-500/15 text-amber-700 dark:text-amber-300">
+              Auction
+            </span>
+          )}
+          {listing.listing_type === 'private' && (
+            <span className="px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase rounded bg-purple-500/15 text-purple-700 dark:text-purple-300">
+              Private
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-bg/80 text-ink-muted tabular-nums">
+            <Eye size={10} strokeWidth={2.6} />
+            {listing.views}
+          </span>
+        </div>
+      </button>
+
+      {/* Info + actions strip. Single padded surface so price, name,
+          condition, and the action row all read as one block. */}
+      <div className="p-3 space-y-2.5 flex-1 flex flex-col">
+        <div className="min-w-0">
+          <div className="text-[10.5px] text-ink-dim font-bold uppercase tracking-wider truncate">
+            {listing.item_type}
+          </div>
+          <div className="text-[13.5px] font-bold text-ink truncate tracking-tight leading-tight mt-0.5">
+            {listing.item_name}
+          </div>
+          <div className="text-[11.5px] text-ink-muted font-medium truncate mt-0.5">
+            {listing.condition}
+          </div>
+        </div>
+
+        {/* Price + edit/remove row. When editing, the input replaces
+            the price+actions inline (no layout shift). */}
         {editing ? (
-          <div className="flex items-center gap-1.5 rounded-full bg-bg/85 backdrop-blur-md p-1">
+          <div className="flex items-center gap-1.5">
             <input
               autoFocus
               type="number"
@@ -437,61 +489,73 @@ const ListingCard: React.FC<{
                 if (e.key === 'Enter') onSaveEdit();
                 if (e.key === 'Escape') onCancelEdit();
               }}
-              className="flex-1 min-w-0 h-8 px-3 rounded-full bg-subtle outline-none text-ink text-[12.5px] font-bold tabular-nums focus:ring-2 focus:ring-accent"
+              className="flex-1 min-w-0 h-9 px-3 rounded-full bg-subtle outline-none text-ink text-[13px] font-bold tabular-nums focus:ring-2 focus:ring-accent"
             />
             <motion.button
               whileTap={tap}
               onClick={onSaveEdit}
-              className="h-8 w-8 shrink-0 rounded-full bg-accent text-on-accent grid place-items-center"
+              className="h-9 w-9 shrink-0 rounded-full bg-accent text-on-accent grid place-items-center"
+              title="Save"
             >
               <Check size={13} strokeWidth={2.6} />
             </motion.button>
             <motion.button
               whileTap={tap}
               onClick={onCancelEdit}
-              className="h-8 w-8 shrink-0 rounded-full bg-subtle text-ink grid place-items-center"
+              className="h-9 w-9 shrink-0 rounded-full bg-subtle text-ink grid place-items-center"
+              title="Cancel"
             >
               <X size={13} strokeWidth={2.4} />
             </motion.button>
           </div>
         ) : (
-          <div className="space-y-1.5">
-            {/* Primary owner row — Edit price + Remove */}
-            <div className="flex items-center gap-1.5 rounded-full bg-bg/85 backdrop-blur-md p-1">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-ink-dim">
+                Price
+              </div>
+              <div className="text-[16px] font-bold text-ink tracking-tight tabular-nums leading-none mt-0.5">
+                {formatPrice(listing.price)}
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
               <motion.button
                 whileTap={tap}
                 onClick={onStartEdit}
-                className="flex-1 h-8 rounded-full bg-subtle hover:bg-accent-soft text-ink-muted hover:text-ink text-[11.5px] font-bold inline-flex items-center justify-center gap-1.5 transition-colors"
+                className="h-9 w-9 rounded-full bg-subtle hover:bg-accent-soft text-ink-muted hover:text-ink grid place-items-center transition-colors"
+                title="Edit price"
               >
-                <Edit3 size={11} strokeWidth={2.4} />
-                Edit price
+                <Edit3 size={13} strokeWidth={2.4} />
               </motion.button>
               <motion.button
                 whileTap={tap}
                 onClick={onRemove}
-                className="h-8 w-8 rounded-full bg-subtle hover:bg-rose-500/15 grid place-items-center transition-colors group/del"
+                className="h-9 w-9 rounded-full bg-subtle hover:bg-rose-500/15 grid place-items-center transition-colors group/del"
                 title="Remove listing"
               >
-                <Trash2 size={11} strokeWidth={2.4} className="text-ink-muted group-hover/del:text-rose-500 transition-colors" />
+                <Trash2 size={13} strokeWidth={2.4} className="text-ink-muted group-hover/del:text-rose-500 transition-colors" />
               </motion.button>
             </div>
-            {/* Promote — paid 7-day featured boost. Accent-coloured pill
-                so it visually pops as the upsell action; price label
-                ("49 Kč" in CZK or rounded equivalent in other currencies)
-                renders inline so the seller knows the cost upfront. */}
-            <motion.button
-              whileTap={tap}
-              onClick={onPromote}
-              className="w-full h-8 rounded-full bg-accent text-on-accent text-[11.5px] font-bold inline-flex items-center justify-center gap-1.5"
-              style={{ boxShadow: '0 6px 16px -8px rgb(var(--accent) / 0.55)' }}
-            >
-              <Sparkles size={11} strokeWidth={2.6} />
-              Promote · {promoteLabel}
-            </motion.button>
           </div>
         )}
+
+        {/* Promote — paid 7-day featured boost. Sits on its own row
+            below the price+actions block so it always reads as the
+            secondary upsell rather than fighting the primary actions. */}
+        {!editing && (
+          <motion.button
+            whileTap={tap}
+            whileHover={{ scale: 1.02 }}
+            onClick={onPromote}
+            className="w-full h-9 rounded-full bg-accent text-on-accent text-[12px] font-bold inline-flex items-center justify-center gap-1.5"
+            style={{ boxShadow: '0 8px 18px -8px rgb(var(--accent) / 0.55)' }}
+          >
+            <Sparkles size={12} strokeWidth={2.6} />
+            Promote · {promoteLabel}
+          </motion.button>
+        )}
       </div>
-    </motion.div>
+    </motion.article>
   );
 };
 
