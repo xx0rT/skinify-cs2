@@ -6,11 +6,19 @@ import {
   Copy,
   ExternalLink,
   Eye,
+  EyeOff,
   Edit3,
   TrendingUp,
   ShoppingBag,
   Check,
   Plus,
+  Image as ImageIcon,
+  Globe,
+  Layers,
+  Star,
+  MessageSquareText,
+  Info,
+  Save,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabaseClient';
 import { useAuthStore } from '../../../store/authStore';
@@ -35,7 +43,42 @@ interface Shop {
   total_sales: number;
   total_revenue: number;
   is_active: boolean;
+  layout?: ShopLayout | null;
+  custom_domain?: string | null;
 }
+
+/* Shape of the layout JSON stored on user_shops.layout. Older shops
+   created before this column existed will have `null` here — the
+   editor seeds the default shape lazily on first save. */
+export interface ShopLayout {
+  banner_url?: string;
+  accent?: string;
+  tagline?: string;
+  card_style?: 'tile' | 'list' | 'compact';
+  sections?: ShopSection[];
+}
+
+export interface ShopSection {
+  id: 'hero' | 'featured' | 'listings' | 'reviews' | 'about';
+  visible: boolean;
+  settings?: Record<string, any>;
+}
+
+const DEFAULT_SECTIONS: ShopSection[] = [
+  { id: 'hero',     visible: true },
+  { id: 'featured', visible: true },
+  { id: 'listings', visible: true },
+  { id: 'reviews',  visible: false },
+  { id: 'about',    visible: false, settings: { body: '' } },
+];
+
+const SECTION_LABELS: Record<ShopSection['id'], { label: string; sub: string }> = {
+  hero:     { label: 'Hero banner',     sub: 'Banner image + tagline at the top' },
+  featured: { label: 'Featured items',  sub: 'Hand-picked listings carousel' },
+  listings: { label: 'All listings',    sub: 'Full marketplace grid for your shop' },
+  reviews:  { label: 'Reviews',         sub: 'Feedback from buyers' },
+  about:    { label: 'About me',        sub: 'Free-form text block (markdown)' },
+};
 
 const MyShopTab: React.FC<{ onNavigateToListings: () => void }> = ({
   onNavigateToListings,
@@ -69,7 +112,7 @@ const MyShopTab: React.FC<{ onNavigateToListings: () => void }> = ({
 
         const { data: shopRow } = await supabase
           .from('user_shops')
-          .select('id, shop_name, shop_url, description, total_views, total_sales, total_revenue, is_active')
+          .select('id, shop_name, shop_url, description, total_views, total_sales, total_revenue, is_active, layout, custom_domain')
           .eq('user_id', u.id)
           .maybeSingle();
 
@@ -337,6 +380,24 @@ const MyShopTab: React.FC<{ onNavigateToListings: () => void }> = ({
           />
         </div>
       </div>
+
+      {/* Layout editor — banner, accent, sections, card style. Save
+          writes to user_shops.layout (JSONB). */}
+      <ShopLayoutEditor
+        shopId={shop.id}
+        initialLayout={shop.layout || null}
+        onSaved={(layout) => setShop({ ...shop, layout })}
+      />
+
+      {/* Custom domain manager — placeholder for now. UI shows the
+          current value + a help link explaining the DNS step. Wiring
+          the actual provisioning (Vercel domain API) is a follow-up. */}
+      <CustomDomainCard
+        shopId={shop.id}
+        initialDomain={shop.custom_domain || null}
+        shopUrl={shop.shop_url}
+        onSaved={(domain) => setShop({ ...shop, custom_domain: domain })}
+      />
     </div>
   );
 };
@@ -381,5 +442,532 @@ const ActionRow: React.FC<{
     </div>
   </motion.button>
 );
+
+/* ─────────────────────────────────────────────────────────────────────────
+   ShopLayoutEditor — sectioned editor.
+
+   Lets a shop owner:
+     - Upload (paste URL of) a banner image
+     - Pick an accent color
+     - Write a tagline shown under shop name
+     - Toggle sections on/off (hero / featured / listings / reviews /
+       about) and reorder them
+     - Edit the About section's body text inline
+     - Pick a card-style preset for their listings (tile / list / compact)
+
+   The state lives in a single ShopLayout object that we save as a
+   JSONB blob to user_shops.layout. The public shop page reads the
+   same object to render. Older shops with no layout saved get the
+   DEFAULT_SECTIONS shape on first edit.
+
+   Reorder is buttons-based (up/down arrows) rather than drag-and-drop
+   to keep the implementation small. Adding react-beautiful-dnd or
+   dnd-kit later is a drop-in replacement of the section list.
+   ───────────────────────────────────────────────────────────────────────── */
+const ShopLayoutEditor: React.FC<{
+  shopId: string;
+  initialLayout: ShopLayout | null;
+  onSaved: (layout: ShopLayout) => void;
+}> = ({ shopId, initialLayout, onSaved }) => {
+  const { addToast } = useToastStore();
+  /* Seed local state from the saved layout, padded with any sections
+     that aren't in the saved blob (e.g. shops that saved before we
+     added a new section). We dedupe by id and append defaults missing
+     from the saved order so the editor stays forward-compatible. */
+  const seedSections = (): ShopSection[] => {
+    const saved = initialLayout?.sections || [];
+    const out: ShopSection[] = saved.map((s) => ({ ...s }));
+    DEFAULT_SECTIONS.forEach((d) => {
+      if (!out.find((s) => s.id === d.id)) out.push({ ...d });
+    });
+    return out;
+  };
+  const [bannerUrl, setBannerUrl] = useState(initialLayout?.banner_url || '');
+  const [accent, setAccent] = useState(initialLayout?.accent || '#7c3aed');
+  const [tagline, setTagline] = useState(initialLayout?.tagline || '');
+  const [cardStyle, setCardStyle] = useState<NonNullable<ShopLayout['card_style']>>(
+    initialLayout?.card_style || 'tile',
+  );
+  const [sections, setSections] = useState<ShopSection[]>(seedSections);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  /* Flip the dirty flag on any local mutation so the Save CTA can
+     visually wake up. Cheap recomputation on render. */
+  useEffect(() => {
+    setDirty(true);
+  }, [bannerUrl, accent, tagline, cardStyle, sections]);
+  /* Reset dirty after the initial mount (above effect fires on first
+     paint). */
+  useEffect(() => {
+    setDirty(false);
+  }, []);
+
+  const toggleSection = (id: ShopSection['id']) => {
+    setSections((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, visible: !s.visible } : s)),
+    );
+  };
+
+  const moveSection = (id: ShopSection['id'], dir: -1 | 1) => {
+    setSections((prev) => {
+      const i = prev.findIndex((s) => s.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  };
+
+  const setAboutBody = (body: string) => {
+    setSections((prev) =>
+      prev.map((s) =>
+        s.id === 'about' ? { ...s, settings: { ...(s.settings || {}), body } } : s,
+      ),
+    );
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const layout: ShopLayout = {
+        banner_url: bannerUrl.trim() || undefined,
+        accent,
+        tagline: tagline.trim() || undefined,
+        card_style: cardStyle,
+        sections,
+      };
+      const { error } = await supabase
+        .from('user_shops')
+        .update({ layout, updated_at: new Date().toISOString() })
+        .eq('id', shopId);
+      if (error) throw error;
+      onSaved(layout);
+      setDirty(false);
+      addToast({
+        type: 'success',
+        title: 'Layout saved',
+        message: 'Your changes are live on the public shop page.',
+      });
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'Could not save',
+        message: err?.message || 'Try again',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const aboutBody = sections.find((s) => s.id === 'about')?.settings?.body || '';
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={spring}
+      className="card p-5 md:p-6 space-y-5"
+    >
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <span className="label-eyebrow">Customize</span>
+          <h3 className="text-[17px] font-bold tracking-tight text-ink mt-1.5 leading-none">
+            Shop layout & branding
+          </h3>
+          <p className="text-[12.5px] text-ink-muted font-medium mt-1.5">
+            Banner, accent color, sections — everything buyers see on your public page.
+          </p>
+        </div>
+        <motion.button
+          whileTap={tap}
+          whileHover={!saving && dirty ? { scale: 1.02 } : undefined}
+          onClick={save}
+          disabled={saving || !dirty}
+          className="h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+          style={dirty ? { boxShadow: '0 8px 20px -10px rgb(var(--accent) / 0.6)' } : undefined}
+        >
+          <Save size={13} strokeWidth={2.4} />
+          {saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
+        </motion.button>
+      </div>
+
+      {/* Banner + accent + tagline */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <FieldGroup
+          label="Banner image URL"
+          hint="Paste a direct image URL (PNG/JPG). Recommended size 1600×400."
+        >
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-2xl bg-subtle grid place-items-center shrink-0 overflow-hidden">
+              {bannerUrl ? (
+                <img src={bannerUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <ImageIcon size={14} strokeWidth={2.4} className="text-ink-muted" />
+              )}
+            </div>
+            <input
+              value={bannerUrl}
+              onChange={(e) => setBannerUrl(e.target.value)}
+              placeholder="https://i.imgur.com/your-banner.jpg"
+              className="flex-1 h-10 px-3.5 rounded-full bg-subtle outline-none text-ink text-[13px] font-medium placeholder:text-ink-dim focus:ring-2 focus:ring-accent transition-shadow"
+            />
+          </div>
+          {bannerUrl && (
+            <div className="mt-2 aspect-[4/1] rounded-2xl bg-subtle overflow-hidden">
+              {/* Live preview so the seller can sanity-check before saving */}
+              <img
+                src={bannerUrl}
+                alt="Banner preview"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            </div>
+          )}
+        </FieldGroup>
+
+        <FieldGroup
+          label="Accent color"
+          hint="Used for buttons, badges, and the active state on your public page."
+        >
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={accent}
+              onChange={(e) => setAccent(e.target.value)}
+              className="w-10 h-10 rounded-2xl bg-subtle border-0 cursor-pointer shrink-0"
+            />
+            <input
+              value={accent}
+              onChange={(e) => setAccent(e.target.value)}
+              placeholder="#7c3aed"
+              className="flex-1 h-10 px-3.5 rounded-full bg-subtle outline-none text-ink font-mono text-[13px] uppercase focus:ring-2 focus:ring-accent transition-shadow"
+              maxLength={7}
+            />
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {['#7c3aed', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899'].map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setAccent(c)}
+                className="w-7 h-7 rounded-full ring-2 ring-transparent hover:ring-ink-muted transition-shadow"
+                style={{
+                  background: c,
+                  boxShadow: accent === c ? '0 0 0 2px rgb(var(--ink) / 0.45)' : undefined,
+                }}
+                aria-label={`Use ${c}`}
+              />
+            ))}
+          </div>
+        </FieldGroup>
+      </div>
+
+      <FieldGroup label="Tagline" hint="A one-liner shown under your shop name.">
+        <input
+          value={tagline}
+          onChange={(e) => setTagline(e.target.value)}
+          placeholder="Boutique CS2 skins · low floats · fair prices"
+          maxLength={80}
+          className="w-full h-11 px-4 rounded-full bg-subtle outline-none text-ink text-[13.5px] font-medium placeholder:text-ink-dim focus:ring-2 focus:ring-accent transition-shadow"
+        />
+        <div className="text-[10.5px] text-ink-dim font-bold tabular-nums mt-1 text-right">
+          {tagline.length}/80
+        </div>
+      </FieldGroup>
+
+      {/* Card style picker */}
+      <FieldGroup
+        label="Card style"
+        hint="How the listings grid is laid out on your public shop."
+      >
+        <div className="grid grid-cols-3 gap-2">
+          {(
+            [
+              { id: 'tile',    label: 'Tile',    sub: 'Large image cards' },
+              { id: 'compact', label: 'Compact', sub: 'Dense grid' },
+              { id: 'list',    label: 'List',    sub: 'Horizontal rows' },
+            ] as const
+          ).map((c) => {
+            const active = cardStyle === c.id;
+            return (
+              <motion.button
+                whileTap={tap}
+                key={c.id}
+                onClick={() => setCardStyle(c.id)}
+                className={`text-left p-3 rounded-2xl border-2 transition-colors ${
+                  active
+                    ? 'border-accent bg-accent-soft'
+                    : 'border-line bg-subtle hover:bg-bg'
+                }`}
+              >
+                <div className="text-[13px] font-bold text-ink tracking-tight">{c.label}</div>
+                <div className="text-[11px] text-ink-muted font-medium mt-0.5">{c.sub}</div>
+              </motion.button>
+            );
+          })}
+        </div>
+      </FieldGroup>
+
+      {/* Sections — toggle + reorder */}
+      <FieldGroup
+        label="Page sections"
+        hint="Toggle off any section you don't want shown. Reorder with the arrows."
+      >
+        <div className="space-y-1.5">
+          {sections.map((s, i) => {
+            const meta = SECTION_LABELS[s.id];
+            const Icon = SECTION_ICONS[s.id];
+            return (
+              <div
+                key={s.id}
+                className={`flex items-center gap-3 p-2.5 rounded-2xl transition-colors ${
+                  s.visible ? 'bg-subtle' : 'bg-subtle/50 opacity-70'
+                }`}
+              >
+                <div className="icon-chip-sm bg-accent-soft shrink-0">
+                  <Icon size={13} strokeWidth={2.4} className="text-accent" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-bold text-ink truncate">{meta.label}</div>
+                  <div className="text-[11px] text-ink-muted font-medium truncate">{meta.sub}</div>
+                </div>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <button
+                    onClick={() => moveSection(s.id, -1)}
+                    disabled={i === 0}
+                    className="h-7 w-7 rounded-full bg-bg hover:bg-bg/70 grid place-items-center text-ink-muted hover:text-ink disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Move up"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    onClick={() => moveSection(s.id, 1)}
+                    disabled={i === sections.length - 1}
+                    className="h-7 w-7 rounded-full bg-bg hover:bg-bg/70 grid place-items-center text-ink-muted hover:text-ink disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Move down"
+                  >
+                    ↓
+                  </button>
+                  <button
+                    onClick={() => toggleSection(s.id)}
+                    className={`h-7 w-7 rounded-full grid place-items-center transition-colors ${
+                      s.visible
+                        ? 'bg-accent text-on-accent'
+                        : 'bg-bg text-ink-muted hover:text-ink'
+                    }`}
+                    aria-label={s.visible ? 'Hide section' : 'Show section'}
+                    title={s.visible ? 'Hide' : 'Show'}
+                  >
+                    {s.visible ? <Eye size={12} strokeWidth={2.6} /> : <EyeOff size={12} strokeWidth={2.4} />}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* About-section body editor — only visible when About is enabled */}
+        {sections.find((s) => s.id === 'about')?.visible && (
+          <div className="mt-3 rounded-2xl bg-subtle p-3">
+            <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim mb-2">
+              About body
+            </div>
+            <textarea
+              value={aboutBody}
+              onChange={(e) => setAboutBody(e.target.value)}
+              placeholder="Tell buyers about your shop, trading hours, dispute policy…"
+              rows={4}
+              maxLength={800}
+              className="w-full bg-bg rounded-2xl p-3 outline-none text-ink text-[13px] font-medium placeholder:text-ink-dim focus:ring-2 focus:ring-accent resize-y transition-shadow"
+            />
+            <div className="text-[10.5px] text-ink-dim font-bold tabular-nums mt-1 text-right">
+              {aboutBody.length}/800
+            </div>
+          </div>
+        )}
+      </FieldGroup>
+    </motion.section>
+  );
+};
+
+const SECTION_ICONS: Record<ShopSection['id'], React.ComponentType<any>> = {
+  hero:     ImageIcon,
+  featured: Star,
+  listings: Layers,
+  reviews:  MessageSquareText,
+  about:    Info,
+};
+
+const FieldGroup: React.FC<{
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}> = ({ label, hint, children }) => (
+  <div>
+    <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim mb-1.5">
+      {label}
+    </div>
+    {children}
+    {hint && (
+      <div className="text-[11px] text-ink-dim font-medium mt-1.5 leading-relaxed">{hint}</div>
+    )}
+  </div>
+);
+
+/* ─────────────────────────────────────────────────────────────────────────
+   CustomDomainCard — placeholder for the custom-domain feature.
+
+   For now this only persists the value to user_shops.custom_domain
+   and shows a status line telling the user what DNS record they need
+   to add. Actually provisioning the domain (calling the Vercel /
+   Netlify domain API to attach it + auto-issue an SSL cert) needs to
+   be wired up in a backend edge function — that's the follow-up turn.
+
+   Why the placeholder ships now: the DB column exists, the UI shape is
+   stable, and saving the value is harmless. When the backend lands
+   later, the only thing that changes is the verification status line.
+   ───────────────────────────────────────────────────────────────────────── */
+const CustomDomainCard: React.FC<{
+  shopId: string;
+  initialDomain: string | null;
+  shopUrl: string;
+  onSaved: (domain: string | null) => void;
+}> = ({ shopId, initialDomain, shopUrl, onSaved }) => {
+  const { addToast } = useToastStore();
+  const [domain, setDomain] = useState(initialDomain || '');
+  const [saving, setSaving] = useState(false);
+
+  const isValid = (d: string) =>
+    /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i.test(d.trim());
+
+  const save = async () => {
+    const trimmed = domain.trim().toLowerCase();
+    if (trimmed && !isValid(trimmed)) {
+      addToast({
+        type: 'error',
+        title: 'Invalid domain',
+        message: 'Enter a bare domain like myshop.com (no https://, no path).',
+      });
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('user_shops')
+        .update({
+          custom_domain: trimmed || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', shopId);
+      if (error) throw error;
+      onSaved(trimmed || null);
+      addToast({
+        type: 'success',
+        title: trimmed ? 'Domain saved' : 'Domain removed',
+        message: trimmed
+          ? `Next: add a CNAME at your registrar pointing ${trimmed} to cname.skinify.gg`
+          : 'You can re-add a custom domain anytime.',
+      });
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'Could not save',
+        message: err?.message || 'Try again',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={spring}
+      className="card p-5 md:p-6 space-y-4"
+    >
+      <div className="flex items-center gap-3">
+        <div className="icon-chip bg-accent-soft">
+          <Globe size={16} strokeWidth={2.4} className="text-accent" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <span className="label-eyebrow">Custom domain</span>
+          <h3 className="text-[16px] font-bold tracking-tight text-ink mt-1 leading-none">
+            Use your own domain
+          </h3>
+        </div>
+      </div>
+
+      <p className="text-[12.5px] text-ink-muted font-medium leading-relaxed">
+        Point a domain you already own at your Skinify shop. Your shop will be
+        reachable at <span className="font-mono text-ink">https://yourdomain.com</span> instead
+        of <span className="font-mono">skinify.gg/shop/{shopUrl}</span>.
+      </p>
+
+      <div className="flex items-center gap-2">
+        <input
+          value={domain}
+          onChange={(e) => setDomain(e.target.value)}
+          placeholder="myshop.com"
+          className="flex-1 h-11 px-4 rounded-full bg-subtle outline-none text-ink text-[13.5px] font-medium placeholder:text-ink-dim focus:ring-2 focus:ring-accent transition-shadow"
+        />
+        <motion.button
+          whileTap={tap}
+          onClick={save}
+          disabled={saving}
+          className="h-11 px-5 rounded-full bg-accent text-on-accent text-[13px] font-bold inline-flex items-center gap-1.5 disabled:opacity-50 transition-opacity"
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </motion.button>
+      </div>
+
+      {domain.trim() && isValid(domain.trim()) && (
+        <div className="card-flat p-4 space-y-3">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-ink-dim">
+            DNS setup (one-time)
+          </div>
+          <ol className="space-y-2.5 text-[12.5px] text-ink font-medium">
+            <li className="flex items-start gap-2.5">
+              <span className="shrink-0 w-5 h-5 rounded-full bg-accent-soft text-accent text-[10px] font-bold grid place-items-center tabular-nums mt-0.5">
+                1
+              </span>
+              <span>
+                Sign in to your domain registrar (GoDaddy, Namecheap, Cloudflare,
+                etc.) and open DNS settings for <span className="font-mono">{domain.trim()}</span>.
+              </span>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <span className="shrink-0 w-5 h-5 rounded-full bg-accent-soft text-accent text-[10px] font-bold grid place-items-center tabular-nums mt-0.5">
+                2
+              </span>
+              <span>
+                Add a <span className="font-mono font-bold">CNAME</span> record:{' '}
+                <span className="font-mono text-ink-muted">@</span> → <span className="font-mono text-ink-muted">cname.skinify.gg</span>
+              </span>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <span className="shrink-0 w-5 h-5 rounded-full bg-accent-soft text-accent text-[10px] font-bold grid place-items-center tabular-nums mt-0.5">
+                3
+              </span>
+              <span>
+                Wait 5–30 minutes for DNS to propagate. We auto-issue a free
+                SSL certificate once your record resolves.
+              </span>
+            </li>
+          </ol>
+          <div className="text-[10.5px] text-ink-dim font-medium leading-relaxed">
+            Status verification + automatic SSL provisioning are rolling out shortly —
+            for now, save the domain here and email <span className="font-mono text-ink">support@skinify.gg</span> with
+            your shop URL and we'll attach it manually within 24h.
+          </div>
+        </div>
+      )}
+    </motion.section>
+  );
+};
 
 export default MyShopTab;
