@@ -19,7 +19,7 @@ import { getSupabaseCredentials } from '../../../utils/supabaseHelpers';
 import { useToastStore } from '../../../store/toastStore';
 import { useCurrencyStore } from '../../../store/currencyStore';
 import { spring, tap } from '../../../lib/motion';
-import { rarityColor } from '../../ui/SkinCard';
+import { SkinCard } from '../../ui/SkinCard';
 
 /* ─────────────────────────────────────────────────────────────────────────
    ListingsTab — redesigned
@@ -310,6 +310,10 @@ const KpiTile: React.FC<{
   </motion.div>
 );
 
+/* Wraps the marketplace SkinCard (same visual as /marketplace) and
+   stacks a thin owner-only action row beneath it: edit price + remove.
+   Keeps the look unified across the site instead of every page
+   rolling its own card. */
 const ListingCard: React.FC<{
   listing: Listing;
   index: number;
@@ -335,7 +339,22 @@ const ListingCard: React.FC<{
   onView,
   formatPrice,
 }) => {
-  const r = rarityColor(listing.rarity);
+  /* Shape the listing into what SkinCard expects. The DB columns are
+     snake_case (image_url, item_name) so we map them to the card's
+     camelCase + canonical fields. */
+  const cardItem = {
+    id: String(listing.id),
+    name: listing.item_name,
+    market_name: listing.market_hash_name,
+    image: listing.image_url,
+    price: Number(listing.price),
+    type: listing.item_type,
+    rarity: listing.rarity,
+    condition: listing.condition,
+    seller: { steamId: '', name: '', online: false },
+    views: listing.views,
+  } as any;
+
   return (
     <motion.div
       layout
@@ -343,110 +362,62 @@ const ListingCard: React.FC<{
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ ...spring, delay: Math.min(index * 0.012, 0.18) }}
-      whileHover={{ y: -3 }}
-      className="card overflow-hidden group"
+      className="space-y-2"
     >
-      <div className="h-1 w-full" style={{ background: r || 'rgb(var(--accent))' }} />
-
-      <div
-        onClick={onView}
-        className="relative aspect-[5/3.6] bg-subtle/40 grid place-items-center overflow-hidden cursor-pointer"
-      >
-        <motion.div
-          aria-hidden
-          className="absolute inset-0 pointer-events-none"
-          style={{ background: `radial-gradient(circle at 50% 50%, ${r || 'rgb(var(--accent))'}22, transparent 65%)` }}
-        />
-        <img
-          src={listing.image_url}
-          alt={listing.item_name}
-          loading="lazy"
-          className="relative w-[80%] h-[80%] object-contain transition-transform duration-300 group-hover:scale-105"
-        />
-        {listing.listing_type === 'auction' && (
-          <span className="absolute top-2 left-2 pill bg-amber-500/15 text-amber-700 dark:text-amber-300">
-            Auction
-          </span>
-        )}
-        {listing.listing_type === 'private' && (
-          <span className="absolute top-2 left-2 pill bg-purple-500/15 text-purple-700 dark:text-purple-300">
-            Private
-          </span>
-        )}
-        <span className="absolute top-2 right-2 pill bg-bg/80 text-ink inline-flex items-center gap-1">
-          <Eye size={10} strokeWidth={2.4} />
-          {listing.views}
-        </span>
-      </div>
-
-      <div className="p-3 space-y-2">
-        <div className="text-[12px] text-ink-dim font-semibold uppercase tracking-wider truncate">
-          {listing.item_type}
+      <SkinCard
+        variant="tile"
+        item={cardItem}
+        onView={onView}
+        formatPrice={formatPrice}
+      />
+      {editing ? (
+        <div className="flex items-center gap-1.5">
+          <input
+            autoFocus
+            type="number"
+            value={editPrice}
+            onChange={(e) => setEditPrice(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onSaveEdit();
+              if (e.key === 'Escape') onCancelEdit();
+            }}
+            className="flex-1 min-w-0 h-9 px-3 rounded-full bg-subtle outline-none text-ink text-[13px] font-bold tabular-nums focus:ring-2 focus:ring-accent"
+          />
+          <motion.button
+            whileTap={tap}
+            onClick={onSaveEdit}
+            className="h-9 w-9 shrink-0 rounded-full bg-accent text-on-accent grid place-items-center"
+          >
+            <Check size={14} strokeWidth={2.6} />
+          </motion.button>
+          <motion.button
+            whileTap={tap}
+            onClick={onCancelEdit}
+            className="h-9 w-9 shrink-0 rounded-full bg-subtle text-ink grid place-items-center"
+          >
+            <X size={14} strokeWidth={2.4} />
+          </motion.button>
         </div>
-        <div className="text-[13.5px] font-bold text-ink truncate tracking-tight leading-tight">
-          {listing.item_name}
+      ) : (
+        <div className="flex items-center gap-1.5">
+          <motion.button
+            whileTap={tap}
+            onClick={onStartEdit}
+            className="flex-1 h-9 rounded-full bg-subtle hover:bg-accent-soft text-ink-muted hover:text-ink text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <Edit3 size={12} strokeWidth={2.4} />
+            Edit price
+          </motion.button>
+          <motion.button
+            whileTap={tap}
+            onClick={onRemove}
+            className="h-9 w-9 rounded-full bg-subtle hover:bg-rose-500/15 grid place-items-center transition-colors group/del"
+            title="Remove listing"
+          >
+            <Trash2 size={12} strokeWidth={2.4} className="text-ink-muted group-hover/del:text-rose-500 transition-colors" />
+          </motion.button>
         </div>
-        <div className="text-[11.5px] text-ink-muted font-medium truncate">
-          {listing.condition}
-        </div>
-
-        {editing ? (
-          <div className="flex items-center gap-1.5 pt-1.5">
-            <input
-              autoFocus
-              type="number"
-              value={editPrice}
-              onChange={(e) => setEditPrice(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') onSaveEdit();
-                if (e.key === 'Escape') onCancelEdit();
-              }}
-              className="flex-1 min-w-0 h-9 px-3 rounded-full bg-subtle outline-none text-ink text-[13px] font-bold tabular-nums focus:ring-2 focus:ring-accent"
-            />
-            <motion.button
-              whileTap={tap}
-              onClick={onSaveEdit}
-              className="h-9 w-9 shrink-0 rounded-full bg-accent text-on-accent grid place-items-center"
-            >
-              <Check size={14} strokeWidth={2.6} />
-            </motion.button>
-            <motion.button
-              whileTap={tap}
-              onClick={onCancelEdit}
-              className="h-9 w-9 shrink-0 rounded-full bg-subtle text-ink grid place-items-center"
-            >
-              <X size={14} strokeWidth={2.4} />
-            </motion.button>
-          </div>
-        ) : (
-          <div className="flex items-end justify-between pt-1.5">
-            <div className="min-w-0">
-              <div className="label-meta">Price</div>
-              <div className="text-[15px] font-bold tracking-tight tabular-nums text-ink">
-                {formatPrice(listing.price)}
-              </div>
-            </div>
-            <div className="flex items-center gap-1">
-              <motion.button
-                whileTap={tap}
-                onClick={onStartEdit}
-                className="h-8 w-8 rounded-full bg-subtle hover:bg-accent-soft grid place-items-center transition-colors"
-                title="Edit price"
-              >
-                <Edit3 size={12} strokeWidth={2.4} className="text-ink-muted" />
-              </motion.button>
-              <motion.button
-                whileTap={tap}
-                onClick={onRemove}
-                className="h-8 w-8 rounded-full bg-subtle hover:bg-rose-500/15 grid place-items-center transition-colors group/del"
-                title="Remove listing"
-              >
-                <Trash2 size={12} strokeWidth={2.4} className="text-ink-muted group-hover/del:text-rose-500 transition-colors" />
-              </motion.button>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </motion.div>
   );
 };

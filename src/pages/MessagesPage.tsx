@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
+  ChevronLeft,
   Paperclip,
   Search as SearchIcon,
   Send,
@@ -105,6 +106,24 @@ const MessagesPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-bg text-ink flex flex-col">
       <LandingNav />
+      {/* Top action row — page-level "back" so users on /messages can
+          return to wherever they came from without going through the
+          profile sidebar. Hidden once a thread is open on mobile (the
+          chat panel has its own back button to close the thread, which
+          is the more contextual action there). */}
+      <div
+        className={`max-w-[1280px] w-full mx-auto px-3 sm:px-4 lg:px-6 pt-3 ${
+          activePeer ? 'hidden lg:block' : 'block'
+        }`}
+      >
+        <button
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink text-[13px] font-semibold transition-colors"
+        >
+          <ChevronLeft size={14} strokeWidth={2.4} />
+          Back
+        </button>
+      </div>
       <main
         className="max-w-[1280px] w-full mx-auto px-3 sm:px-4 lg:px-6 py-3 flex-1 grid gap-3 lg:grid-cols-[320px_1fr]"
         style={{ minHeight: 'calc(100dvh - 96px)' }}

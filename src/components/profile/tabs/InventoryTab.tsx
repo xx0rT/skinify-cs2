@@ -16,7 +16,7 @@ import { useToastStore } from '../../../store/toastStore';
 import { useAuthStore } from '../../../store/authStore';
 import { useCurrencyStore } from '../../../store/currencyStore';
 import { spring, tap } from '../../../lib/motion';
-import { rarityColor } from '../../ui/SkinCard';
+import { SkinCard } from '../../ui/SkinCard';
 import { ListItemModal, ListingData } from '../../marketplace/ListItemModal';
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -551,6 +551,10 @@ const KpiTile: React.FC<{
   </motion.div>
 );
 
+/* Uses the marketplace SkinCard for the visual so inventory tiles
+   look identical to listings everywhere else on the site. Adds an
+   inventory-only overlay (selection check / listed badge / untradable
+   badge) and a "List" action stacked beneath the card. */
 const ItemCard: React.FC<{
   item: InvItem;
   index: number;
@@ -559,11 +563,18 @@ const ItemCard: React.FC<{
   onList: () => void;
   formatPrice: (n: number) => string;
 }> = ({ item, index, selected, onToggleSelect, onList, formatPrice }) => {
-  const r = rarityColor(item.rarity);
-  /* Untradable or already-listed items can't be selected for the bulk-list
-     flow. Render the card desaturated and skip the hover lift so the disabled
-     state is obvious. */
   const blocked = !item.tradable || item.listed_for_sale;
+  const cardItem = {
+    id: String(item.id),
+    name: item.name,
+    market_name: item.name,
+    image: item.image,
+    price: Number(item.price_estimate || 0),
+    type: item.type,
+    rarity: item.rarity,
+    condition: item.condition,
+    seller: { steamId: '', name: '', online: false },
+  } as any;
   return (
     <motion.div
       layout
@@ -571,98 +582,57 @@ const ItemCard: React.FC<{
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ ...spring, delay: Math.min(index * 0.012, 0.18) }}
-      whileHover={blocked ? {} : { y: -3 }}
-      className={`relative card overflow-hidden group transition-shadow ${
-        blocked ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'
-      } ${selected ? 'ring-2 ring-accent' : ''}`}
-      onClick={onToggleSelect}
-      aria-disabled={blocked || undefined}
+      className={`space-y-2 ${blocked ? 'opacity-70' : ''}`}
     >
-      {/* Top rarity bar */}
       <div
-        className="h-1 w-full"
-        style={{ background: r || 'rgb(var(--accent))' }}
-      />
-
-      {/* Image */}
-      <div className="relative aspect-[5/3.6] bg-subtle/40 grid place-items-center overflow-hidden">
-        <motion.div
-          aria-hidden
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background: `radial-gradient(circle at 50% 50%, ${r || 'rgb(var(--accent))'}22, transparent 65%)`,
+        onClick={blocked ? undefined : onToggleSelect}
+        className={`relative rounded-3xl transition-shadow ${
+          blocked ? 'cursor-not-allowed' : 'cursor-pointer'
+        } ${selected ? 'ring-2 ring-accent ring-offset-2 ring-offset-bg' : ''}`}
+      >
+        <SkinCard
+          variant="tile"
+          item={cardItem}
+          /* Suppress in-card navigation; we want the wrapper's
+             onClick to drive selection instead. */
+          onView={() => {
+            if (!blocked) onToggleSelect();
           }}
+          formatPrice={formatPrice}
         />
-        <img
-          src={item.image}
-          alt={item.name}
-          loading="lazy"
-          className={`relative w-[80%] h-[80%] object-contain transition-transform duration-300 ${
-            blocked ? 'grayscale' : 'group-hover:scale-105'
-          }`}
-        />
-
         {item.listed_for_sale && (
-          <span className="absolute top-2 left-2 pill bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1">
+          <span className="absolute top-3 left-3 pill bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1 z-10">
             <CheckCircle2 size={11} strokeWidth={2.4} />
             Listed
           </span>
         )}
         {!item.tradable && (
-          <span className="absolute top-2 left-2 pill bg-rose-500/15 text-rose-700 dark:text-rose-300">
+          <span className="absolute top-3 left-3 pill bg-rose-500/15 text-rose-700 dark:text-rose-300 z-10">
             Untradable
           </span>
         )}
-
-        {/* Selection check — hidden entirely on blocked items */}
         {!blocked && (
           <div
-            className={`absolute top-2 right-2 w-6 h-6 rounded-full grid place-items-center transition-all ${
+            className={`absolute top-3 right-3 w-6 h-6 rounded-full grid place-items-center transition-all z-10 ${
               selected
-                ? 'bg-accent text-on-accent scale-100'
-                : 'bg-bg/80 text-transparent scale-90 opacity-0 group-hover:opacity-100'
+                ? 'bg-accent text-on-accent'
+                : 'bg-bg/80 text-transparent opacity-0 hover:opacity-100'
             }`}
           >
             <CheckCircle2 size={12} strokeWidth={2.6} />
           </div>
         )}
       </div>
-
-      {/* Body */}
-      <div className="p-3 space-y-1.5">
-        <div className="text-[12px] text-ink-dim font-semibold uppercase tracking-wider truncate">
-          {item.type}
-        </div>
-        <div className="text-[13.5px] font-bold text-ink truncate tracking-tight leading-tight">
-          {item.name}
-        </div>
-        <div className="text-[11.5px] text-ink-muted font-medium truncate">
-          {item.condition}
-        </div>
-
-        <div className="flex items-end justify-between pt-1.5">
-          <div className="min-w-0">
-            <div className="label-meta">Est. value</div>
-            <div className="text-[14px] font-bold tracking-tight tabular-nums text-ink">
-              {item.price_estimate > 0 ? formatPrice(item.price_estimate) : '—'}
-            </div>
-          </div>
-          {!item.listed_for_sale && item.tradable && (
-            <motion.button
-              whileTap={tap}
-              whileHover={{ scale: 1.04 }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onList();
-              }}
-              className="h-8 px-3 rounded-full bg-accent text-on-accent text-[11.5px] font-bold inline-flex items-center gap-1"
-            >
-              <Tag size={11} strokeWidth={2.4} />
-              List
-            </motion.button>
-          )}
-        </div>
-      </div>
+      {!item.listed_for_sale && item.tradable && (
+        <motion.button
+          whileTap={tap}
+          onClick={onList}
+          className="w-full h-9 rounded-full bg-accent text-on-accent text-[12px] font-bold inline-flex items-center justify-center gap-1.5"
+        >
+          <Tag size={12} strokeWidth={2.4} />
+          List item
+        </motion.button>
+      )}
     </motion.div>
   );
 };

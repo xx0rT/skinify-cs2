@@ -28,19 +28,84 @@ import SteamLogin from '../components/auth/SteamLogin';
 import { spring, tap } from '../lib/motion';
 import { openDepositModal } from '../components/DepositModal';
 
-/* Existing sub-components — only the ones still in use by Overview/Inventory/
-   Listings. The redesigned tabs live in ./tabs/*. */
-const SettingsTab = lazy(() => import('../components/profile/SettingsTab'));
+/* Use the retry-aware lazy wrapper from App.tsx so a redeploy doesn't
+   strand users with a blank tab area when their browser holds the
+   pre-deploy chunk hash. The plain `React.lazy` we used before would
+   throw on the missing /assets/X-HASH.js and Suspense would just sit
+   there forever — exactly the "tabs sometimes don't appear" bug. */
+function lazyWithRetry<T extends React.ComponentType<any>>(
+  factory: () => Promise<{ default: T }>,
+) {
+  return lazy(async () => {
+    try {
+      return await factory();
+    } catch (err) {
+      console.warn('[profile-lazy] first attempt failed, retrying:', err);
+      await new Promise((r) => setTimeout(r, 600));
+      try {
+        return await factory();
+      } catch (err2) {
+        console.error('[profile-lazy] retry failed, force-reloading:', err2);
+        try {
+          const key = 'skinify_chunk_reload';
+          const last = Number(sessionStorage.getItem(key) || '0');
+          if (Date.now() - last > 30_000) {
+            sessionStorage.setItem(key, String(Date.now()));
+            window.location.reload();
+          }
+        } catch {
+          /* sessionStorage unavailable — fall through to throw. */
+        }
+        throw err2;
+      }
+    }
+  });
+}
 
-/* Redesigned tab components */
-const TradingPerformanceTab = lazy(() => import('../components/profile/tabs/TradingPerformanceTab'));
-const InventoryTab = lazy(() => import('../components/profile/tabs/InventoryTab'));
-const ListingsTab = lazy(() => import('../components/profile/tabs/ListingsTab'));
-const WishlistTab = lazy(() => import('../components/profile/tabs/WishlistTab'));
-const TradesTab = lazy(() => import('../components/profile/tabs/TradesTab'));
-const BalanceTab = lazy(() => import('../components/profile/tabs/BalanceTab'));
-const MyShopTab = lazy(() => import('../components/profile/tabs/MyShopTab'));
-const ReviewsTab = lazy(() => import('../components/profile/tabs/ReviewsTab'));
+/* TabErrorBoundary — last-resort safety net for the tab content area.
+   If a tab's render throws (chunk-load-after-retry, runtime error in a
+   child), we show a small "Reload" card instead of a blank panel. */
+class TabErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error: unknown) {
+    console.error('[tab-boundary]', error);
+  }
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <div className="card p-8 text-center">
+        <p className="text-[14px] text-ink font-semibold mb-1">
+          Couldn't load this tab
+        </p>
+        <p className="text-[12.5px] text-ink-muted font-medium mb-4">
+          A new version of the site is probably available.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold inline-flex items-center gap-2"
+        >
+          Reload
+        </button>
+      </div>
+    );
+  }
+}
+
+const SettingsTab = lazyWithRetry(() => import('../components/profile/SettingsTab'));
+const TradingPerformanceTab = lazyWithRetry(() => import('../components/profile/tabs/TradingPerformanceTab'));
+const InventoryTab = lazyWithRetry(() => import('../components/profile/tabs/InventoryTab'));
+const ListingsTab = lazyWithRetry(() => import('../components/profile/tabs/ListingsTab'));
+const WishlistTab = lazyWithRetry(() => import('../components/profile/tabs/WishlistTab'));
+const TradesTab = lazyWithRetry(() => import('../components/profile/tabs/TradesTab'));
+const BalanceTab = lazyWithRetry(() => import('../components/profile/tabs/BalanceTab'));
+const MyShopTab = lazyWithRetry(() => import('../components/profile/tabs/MyShopTab'));
+const ReviewsTab = lazyWithRetry(() => import('../components/profile/tabs/ReviewsTab'));
 
 /* ─────────────────────────────────────────────────────────────────────────
    ProfilePage — new shell
@@ -397,7 +462,7 @@ const ProfilePage: React.FC = () => {
               includes activeSub so swapping sub-tabs re-runs the enter
               animation on the new content too. */}
           <div className="min-w-0">
-            {(
+            <TabErrorBoundary>
               <motion.div
                 key={`${activeTab}:${activeSub || ''}`}
                 initial={{ opacity: 0, y: 8 }}
@@ -522,7 +587,7 @@ const ProfilePage: React.FC = () => {
                   </GroupedTab>
                 )}
               </motion.div>
-            )}
+            </TabErrorBoundary>
           </div>
         </div>
       </main>
