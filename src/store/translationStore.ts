@@ -54,8 +54,12 @@ const createTranslations = (lang: string) => {
 interface TranslationState {
   currentLanguage: Language;
   translations: Record<string, string>;
+  /* True until the user explicitly picks a language. Flips to false on
+     manual change so we never overwrite their choice on later auto-
+     detect passes. Mirrors the same pattern the currency store uses. */
+  isAutoDetected: boolean;
   setLanguage: (language: Language) => void;
-  setLanguageByCode: (code: string) => void;
+  setLanguageByCode: (code: string, fromAuto?: boolean) => void;
   t: (key: string) => string;
 }
 
@@ -64,25 +68,32 @@ export const useTranslationStore = create<TranslationState>()(
     (set, get) => ({
       currentLanguage: languages[0],
       translations: createTranslations(languages[0].code),
+      isAutoDetected: true,
 
       setLanguage: (language: Language) => {
         console.log('🔄 Translation Store: Language changed to', language.code, language.nativeName);
         const newTranslations = createTranslations(language.code);
         set({
           currentLanguage: language,
-          translations: newTranslations
+          translations: newTranslations,
+          /* Direct setLanguage call = manual switch (from a picker). */
+          isAutoDetected: false,
         });
       },
 
-      setLanguageByCode: (code: string) => {
+      setLanguageByCode: (code: string, fromAuto = false) => {
         const language = languages.find(lang => lang.code === code);
         if (language) {
           console.log('🔄 Translation Store: Language set to', language.code, language.nativeName);
           const newTranslations = createTranslations(language.code);
-          set({
+          set((prev) => ({
             currentLanguage: language,
-            translations: newTranslations
-          });
+            translations: newTranslations,
+            /* Only flip isAutoDetected to false on a USER action. Auto-
+               detect calls keep it true so a later detection (next visit)
+               can still update if their location changed. */
+            isAutoDetected: fromAuto ? prev.isAutoDetected : false,
+          }));
         } else {
           console.warn('⚠️ Translation Store: Language not found:', code);
         }

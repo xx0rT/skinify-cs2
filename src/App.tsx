@@ -4,7 +4,8 @@ import { useSaleNotifications } from './hooks/useSaleNotifications';
 import { useCurrencyStore } from './store/currencyStore';
 import { useTranslationStore } from './store/translationStore';
 import { useAuthStore } from './store/authStore';
-import { autoDetectAndSetCurrency } from './utils/geolocation';
+import { autoDetectAndSetCurrency, detectGeoForUser, detectVpn } from './utils/geolocation';
+import { useTranslationStore } from './store/translationStore';
 import { memoryOptimizer } from './utils/memoryOptimizer';
 import ToastContainer from './components/ui/ToastContainer';
 import ScrollToTop from './components/ScrollToTop';
@@ -19,6 +20,7 @@ import { ThemeProvider } from './theme/ThemeProvider';
 import LandingPage from './pages/LandingPage';
 import AuthCallback from './pages/AuthCallback';
 import LanguageDetector from './components/LanguageDetector';
+import VpnBanner from './components/VpnBanner';
 
 /* lazyWithRetry — wraps React.lazy with retry-and-recover logic for
    dynamic-import failures.
@@ -125,39 +127,77 @@ export default function App() {
     if (autoDetectAttempted.current) return;
     autoDetectAttempted.current = true;
 
-    // Skip auto-detect entirely if the user already manually picked one
-    // (persisted via zustand-persist). isAutoDetected starts true after
-    // a successful auto-detect; it's only false in two cases: (1) first
-    // ever visit, (2) user manually chose. Read both fields raw so we
-    // don't subscribe to changes.
-    const { isAutoDetected, selectedCurrency } = useCurrencyStore.getState();
-    if (!isAutoDetected && selectedCurrency.code !== 'CZK') {
-      // CZK is the default — anything else means a real prior choice.
-      return;
-    }
+    /* Single geo call that yields currency + language code + country.
+       Cheaper than the historical pair of HTTP requests (currency-only
+       + a second one for language), and means a flaky network only
+       fails one localisation pass instead of two. */
+    detectGeoForUser()
+      .then((geo) => {
+        if (!geo) {
+          /* Geo call failed — fall back to the legacy currency-only
+             detector which has its own multi-provider fallback chain. */
+          return autoDetectAndSetCurrency().then((data) => {
+            if (!data) return;
+            const fresh = useCurrencyStore.getState();
+            if (fresh.isAutoDetected || fresh.selectedCurrency.code === 'CZK') {
+              setAutoDetectedCurrency(data.currency);
+            }
+          });
+        }
 
-    autoDetectAndSetCurrency()
-      .then((data) => {
-        if (!data) return;
-        // Re-check just before writing — the user might have made a
-        // choice while geo-IP was in flight.
-        const fresh = useCurrencyStore.getState();
-        if (fresh.isAutoDetected || fresh.selectedCurrency.code === 'CZK') {
-          setAutoDetectedCurrency(data.currency);
-          if (data.countryCode) {
-            import('./lib/supabaseClient').then(({ supabase }) => {
-              supabase.auth.getUser().then(({ data: { user } }) => {
-                if (!user) return;
-                // Don't write preferred_currency — only the detected
-                // country. The user's explicit pick is the source of
-                // truth for the currency column.
-                supabase
-                  .from('users')
-                  .update({ detected_country: data.countryCode })
-                  .eq('id', user.id);
-              });
-            });
+        /* Currency: only override when the user hasn't picked one
+           manually. Same gate logic as before. */
+        const { isAutoDetected, selectedCurrency } = useCurrencyStore.getState();
+        const currencyEligible =
+          geo.currency &&
+          (isAutoDetected || selectedCurrency.code === 'CZK');
+        if (currencyEligible) {
+          setAutoDetectedCurrency(geo.currency!);
+        }
+
+        /* Language: same rule. Only override when isAutoDetected is
+           true on the translation store, OR the current language is
+           still the default English (which usually means first visit). */
+        if (geo.languageCode) {
+          const { isAutoDetected: langAuto, currentLanguage, setLanguageByCode } =
+            useTranslationStore.getState();
+          const langEligible = langAuto || currentLanguage.code === 'en';
+          if (langEligible && geo.languageCode !== currentLanguage.code) {
+            setLanguageByCode(geo.languageCode, /* fromAuto */ true);
           }
+        }
+
+        /* Best-effort: write the detected country onto the user row so
+           support can see where a user was geolocated. Skips silently
+           when there's no Supabase session. */
+        if (geo.countryCode) {
+          import('./lib/supabaseClient').then(({ supabase }) => {
+            supabase.auth.getUser().then(({ data: { user } }) => {
+              if (!user) return;
+              supabase
+                .from('users')
+                .update({ detected_country: geo.countryCode })
+                .eq('id', user.id);
+            });
+          });
+        }
+      })
+      .catch(() => {
+        /* All paths above silently degrade — never throw to the user. */
+      });
+
+    /* VPN check runs in parallel — it's independent of the geo result
+       (we want to flag even users whose IP geolocated successfully).
+       Fires once per session; the detectVpn helper caches in
+       sessionStorage for 6h so this is free on subsequent navigations. */
+    detectVpn()
+      .then((isVpn) => {
+        if (isVpn === true) {
+          /* The banner reads from this flag. Stored on `window` so any
+             component can pick it up via a tiny `useVpnDetected` hook
+             without piping a context through the tree. */
+          (window as any).__skinifyVpn = true;
+          window.dispatchEvent(new CustomEvent('skinify:vpn-detected', { detail: true }));
         }
       })
       .catch(() => {});
@@ -335,6 +375,11 @@ export default function App() {
 
       {/* Age Verification Modal */}
       <AgeVerificationModal />
+
+      {/* VPN/proxy soft banner — listens for the skinify:vpn-detected
+          event fired by the boot effect, shows a dismissible card.
+          Rendered outside the router so it can sit over any page. */}
+      <VpnBanner />
     </ThemeProvider>
   );
 }
