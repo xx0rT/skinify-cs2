@@ -223,14 +223,15 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Calculate promotion duration (default 24 hours)
-      const durationHours = promoteData.duration_hours || 24;
+      /* Promotion: 49 CZK for a 7-day featured boost. The fee is the
+         fixed CZK figure quoted to sellers in the UI — no FX conversion
+         here so the seller's bill matches what the listing modal
+         showed. The previous $5 USD value was demo-stage and got
+         multiplied by an ancient rate into ~118 CZK. */
+      const durationHours = promoteData.duration_hours || 24 * 7;
       const expiresAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
-
-      // For demo purposes, auto-approve the promotion
-      // In production, process payment first
-      const promotionFee = 5.00; // $5 USD
-      const promotionFeeCZK = Math.round(promotionFee * 23.5); // Convert to CZK (~118 CZK)
+      const promotionFeeCZK = 49;
+      const promotionFee = promotionFeeCZK;
       
       console.log('=== PROCESSING PROMOTION PAYMENT ===');
       console.log(`Fee: ${promotionFee} USD (${promotionFeeCZK} CZK)`);

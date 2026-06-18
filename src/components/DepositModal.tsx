@@ -395,18 +395,56 @@ export const DepositModal: React.FC = () => {
           <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1.05fr_1fr]">
             {/* LEFT — method list (the only scroll surface) */}
             <section
-              className="min-h-0 overflow-y-auto px-5 sm:px-8 py-5 lg:border-r"
+              className="min-h-0 overflow-y-auto px-4 sm:px-8 py-4 sm:py-5 lg:border-r"
               style={{ borderColor: 'rgb(var(--accent) / 0.35)' }}
             >
               <div className="max-w-[640px] mx-auto lg:mx-0">
+                {/* Mobile-only top section — Amount + presets + bonus
+                    summary, rendered ABOVE the method tiles. The desktop
+                    layout shows these in the right rail, but on mobile
+                    the user opens the modal to deposit money so the
+                    amount field should be the first thing they see. */}
+                <div className="lg:hidden space-y-4 mb-5">
+                  {promoActive && (
+                    <PromoBanner onDismiss={() => setPromoActive(false)} />
+                  )}
+                  <AmountField
+                    amount={amount}
+                    animatedAmount={animatedAmount}
+                    belowMin={belowMin}
+                    inputRef={inputRef}
+                    onChange={typeAmount}
+                    source={lastSourceRef.current}
+                  />
+                  <div className="grid grid-cols-3 gap-2">
+                    {QUICK_AMOUNTS.map((v) => {
+                      const active = amount === v;
+                      return (
+                        <motion.button
+                          whileTap={tap}
+                          key={v}
+                          onClick={() => pickPreset(v)}
+                          className={`h-10 rounded-full text-[12.5px] font-bold tabular-nums transition-colors ${
+                            active
+                              ? 'bg-accent text-on-accent'
+                              : 'bg-subtle text-ink-muted hover:bg-bg hover:text-ink'
+                          }`}
+                        >
+                          {formatPrice(v)}
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
                   Payment method
                 </div>
-                <h2 className="text-[18px] sm:text-[20px] font-bold tracking-tight text-ink leading-tight mt-1">
+                <h2 className="text-[16px] sm:text-[20px] font-bold tracking-tight text-ink leading-tight mt-1">
                   Pick how you want to pay
                 </h2>
 
-                <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <div className="mt-3 sm:mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                   {METHOD_TILES.map((tile) => (
                     <MethodCard
                       key={tile.id}
@@ -421,6 +459,33 @@ export const DepositModal: React.FC = () => {
                   Cards flow through our acquirer; crypto deposits confirm
                   on-chain; vouchers and gift cards settle instantly.
                 </p>
+
+                {/* Mobile breakdown — small grid right above the CTA so
+                    the user sees the math before tapping Continue. The
+                    desktop view shows this in the right rail. */}
+                <div className="lg:hidden mt-5 rounded-3xl bg-subtle p-4 space-y-2">
+                  <Row label="You pay" value={formatPrice(safeAmount)} />
+                  <Row
+                    label={`${selectedMethod?.label || 'Method'} fee`}
+                    value={fee > 0 ? `− ${formatPrice(fee)}` : 'No fee'}
+                    tone={fee > 0 ? 'muted' : 'positive'}
+                  />
+                  {promoActive && (
+                    <Row
+                      label={`Bonus · ${PROMO.code}`}
+                      value={`+ ${formatPrice(bonus)}`}
+                      tone="accent"
+                    />
+                  )}
+                  <div
+                    className="h-px my-1"
+                    style={{ background: 'rgb(var(--accent) / 0.30)' }}
+                  />
+                  <Row label="Credited" value={formatPrice(credited)} bold />
+                </div>
+                {/* Bottom spacer so the sticky CTA doesn't overlap the
+                    last row when scrolled to the bottom. */}
+                <div className="lg:hidden h-20" aria-hidden />
               </div>
             </section>
 
@@ -507,76 +572,29 @@ export const DepositModal: React.FC = () => {
               </div>
             </aside>
 
-            {/* MOBILE right pane — stacks below methods in the natural
-                scroll flow. We render this in addition to the desktop one
-                because the desktop version uses flex/overflow rules that
-                only make sense on large screens. */}
-            <aside className="lg:hidden bg-surface/30 px-5 py-5">
-              <div className="space-y-4">
-                {promoActive && (
-                  <PromoBanner onDismiss={() => setPromoActive(false)} />
-                )}
-                <AmountField
-                  amount={amount}
-                  animatedAmount={animatedAmount}
-                  belowMin={belowMin}
-                  inputRef={inputRef}
-                  onChange={typeAmount}
-                  source={lastSourceRef.current}
-                />
-                <div className="grid grid-cols-3 gap-2">
-                  {QUICK_AMOUNTS.map((v) => {
-                    const active = amount === v;
-                    return (
-                      <motion.button
-                        whileTap={tap}
-                        key={v}
-                        onClick={() => pickPreset(v)}
-                        className={`h-11 rounded-2xl text-[13px] font-bold tabular-nums transition-colors ${
-                          active
-                            ? 'bg-accent text-on-accent'
-                            : 'bg-subtle text-ink-muted hover:bg-bg hover:text-ink'
-                        }`}
-                      >
-                        {formatPrice(v)}
-                      </motion.button>
-                    );
-                  })}
-                </div>
-                <div className="rounded-3xl bg-subtle p-4 space-y-2">
-                  <Row label="You pay" value={formatPrice(safeAmount)} />
-                  <Row
-                    label={`${selectedMethod?.label || 'Method'} fee`}
-                    value={fee > 0 ? `− ${formatPrice(fee)}` : 'No fee'}
-                    tone={fee > 0 ? 'muted' : 'positive'}
-                  />
-                  {promoActive && (
-                    <Row
-                      label={`Bonus · ${PROMO.code}`}
-                      value={`+ ${formatPrice(bonus)}`}
-                      tone="accent"
-                    />
-                  )}
-                  <div
-                    className="h-px my-1"
-                    style={{ background: 'rgb(var(--accent) / 0.30)' }}
-                  />
-                  <Row label="Credited" value={formatPrice(credited)} bold />
-                </div>
-                <motion.button
-                  whileTap={tap}
-                  onClick={handleSubmit}
-                  disabled={!canSubmit}
-                  className="w-full h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-opacity hover:opacity-95"
-                >
-                  {submitting
-                    ? 'Processing…'
-                    : safeAmount > 0
-                    ? `Continue · ${formatPrice(safeAmount)}`
-                    : 'Enter an amount'}
-                </motion.button>
-              </div>
-            </aside>
+          </div>
+
+          {/* Mobile-only sticky CTA. Pinned to the bottom of the
+              viewport so the Continue button is always within thumb
+              reach as the user scrolls through method tiles. Hidden on
+              lg+ where the right rail carries the CTA. */}
+          <div
+            className="lg:hidden shrink-0 px-4 pt-2 pb-[max(env(safe-area-inset-bottom),12px)] bg-bg/95 backdrop-blur-md border-t"
+            style={{ borderColor: 'rgb(var(--accent) / 0.30)' }}
+          >
+            <motion.button
+              whileTap={tap}
+              onClick={handleSubmit}
+              disabled={!canSubmit}
+              className="w-full h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-opacity hover:opacity-95"
+              style={{ boxShadow: '0 10px 24px -12px rgb(var(--accent) / 0.65)' }}
+            >
+              {submitting
+                ? 'Processing…'
+                : safeAmount > 0
+                ? `Continue · ${formatPrice(safeAmount)}`
+                : 'Enter an amount'}
+            </motion.button>
           </div>
         </motion.div>
       )}

@@ -25,6 +25,7 @@ interface CurrencyState {
   setAutoDetectedCurrency: (currency: Currency) => void;
   convertPrice: (priceInCZK: number) => number;
   formatPrice: (priceInCZK: number) => string;
+  formatFee: (priceInCZK: number) => string;
 }
 
 export const useCurrencyStore = create<CurrencyState>()(
@@ -89,7 +90,18 @@ export const useCurrencyStore = create<CurrencyState>()(
           minimumFractionDigits: minFrac,
           maximumFractionDigits: maxFrac
         })} ${selectedCurrency.symbol}`;
-      }
+      },
+
+      /* formatFee: like formatPrice but ALWAYS rounded to a whole
+         number in the active currency. Used for fixed-price fees like
+         the 49 CZK promotion charge — the user wants a clean integer
+         in every currency rather than "1.96 €" or "2.04 €". The
+         underlying CZK amount stays exact; we only round at display. */
+      formatFee: (priceInCZK: number) => {
+        const { selectedCurrency, convertPrice } = get();
+        const rounded = Math.max(1, Math.round(convertPrice(priceInCZK)));
+        return `${rounded.toLocaleString('en-US')} ${selectedCurrency.symbol}`;
+      },
     }),
     {
       name: 'currency-storage',

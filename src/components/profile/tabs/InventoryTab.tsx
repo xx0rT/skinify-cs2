@@ -592,6 +592,7 @@ const ItemCard: React.FC<{
       >
         <SkinCard
           variant="tile"
+          hoverLift={false}
           item={cardItem}
           /* Suppress in-card navigation; we want the wrapper's
              onClick to drive selection instead. */
