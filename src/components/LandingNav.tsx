@@ -128,20 +128,21 @@ export const LandingNav: React.FC = () => {
         className="hidden lg:block sticky top-0 z-[55] transition-[transform,background,backdrop-filter] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
       >
         {/* Bottom glow — only visible in the FILLED (not-scrolled)
-            state. Uses `mix-blend-mode: plus-lighter` so it brightens
-            the page beneath rather than overlaying it (the previous
-            version painted accent color on top of content, which is
-            why text / cards looked tinted purple as you scrolled the
-            page). The blend mode is supported on Safari + Chromium;
-            for the few browsers without it, `screen` is a perfectly
-            good visual fallback that also doesn't obscure content. */}
+            state. `plus-lighter` blends the accent color additively so
+            it brightens the page beneath rather than overlaying it.
+            That looks great in dark mode but blows out to near-white
+            on a light background, so on light theme we cut the alpha
+            in half and let the strip be a soft purple halo rather than
+            a glaring bloom. */}
         <div
           aria-hidden
           className="absolute left-0 right-0 top-full h-10 pointer-events-none transition-opacity duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
           style={{
             opacity: scrolled ? 0 : 1,
             background:
-              'radial-gradient(120% 100% at 50% 0%, rgb(var(--accent) / 0.32) 0%, rgb(var(--accent) / 0.10) 35%, transparent 70%)',
+              resolvedMode === 'dark'
+                ? 'radial-gradient(120% 100% at 50% 0%, rgb(var(--accent) / 0.32) 0%, rgb(var(--accent) / 0.10) 35%, transparent 70%)'
+                : 'radial-gradient(120% 100% at 50% 0%, rgb(var(--accent) / 0.14) 0%, rgb(var(--accent) / 0.05) 35%, transparent 70%)',
             mixBlendMode: 'plus-lighter',
           }}
         />
