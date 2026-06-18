@@ -85,6 +85,14 @@ interface SkinCardProps {
    *         with no gap. Used for the dense marketplace grid.
    */
   variant?: 'grid' | 'list' | 'tile';
+  /**
+   * Tile-variant only. When false, the big scale/lift hover is
+   * suppressed and replaced with a soft rarity-accent border. Use
+   * `false` on the profile tabs (inventory, listings) so cards stay
+   * still when the user hovers — they're not "buy now" surfaces, they
+   * have their own actions stacked beneath.
+   */
+  hoverLift?: boolean;
 }
 
 /* Pull "AK-47" out of "AK-47 | Redline (Field-Tested)" — used as a
@@ -124,6 +132,7 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
   wished = false,
   formatPrice,
   variant = 'grid',
+  hoverLift = true,
 }) => {
   const color = rarityColor(item.rarity);
   const name = item.name || item.market_name || '';
@@ -256,21 +265,60 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
     return (
       <motion.article
         whileTap={tap}
-        /* Hover: spring-scale + lift (~22px up) + zIndex bump. Card
-           transforms only — neighbours never reflow. The lift makes
-           visual room ABOVE the next tile so the action bar (anchored
-           below the card edge) appears in the gap rather than over
-           the float row inside. */
-        whileHover={{ scale: 1.03, y: -22, zIndex: 10 }}
+        /* When `hoverLift` is true (default — marketplace): spring up,
+           scale 1.03, lift 22px so the action bar drops into the gap
+           below. When false (profile inventory/listings): no lift, just
+           a rarity-accent ring on hover. Keeps the cards still while
+           still signaling "this is interactive". */
+        whileHover={hoverLift ? { scale: 1.03, y: -22, zIndex: 10 } : undefined}
         transition={{ type: 'spring', stiffness: 380, damping: 26, mass: 0.55 }}
         onClick={onView}
-        className="group relative cursor-pointer bg-surface flex flex-col"
+        className="group relative cursor-pointer bg-surface flex flex-col transition-shadow"
         style={{
-          boxShadow: 'inset 0 0 0 1px rgb(255 255 255 / 0.04), inset 0 -1px 0 0 rgb(255 255 255 / 0.04)',
+          boxShadow: hoverLift
+            ? 'inset 0 0 0 1px rgb(255 255 255 / 0.04), inset 0 -1px 0 0 rgb(255 255 255 / 0.04)'
+            : `inset 0 0 0 1px rgb(255 255 255 / 0.04), inset 0 -1px 0 0 rgb(255 255 255 / 0.04)`,
+          /* CSS variable that the rarity-ring hover rule below reads.
+             Falls back to the accent colour when rarity is unknown. */
+          ['--rarity' as any]: color || 'rgb(var(--accent))',
+        }}
+        onMouseEnter={(e) => {
+          if (hoverLift) return;
+          (e.currentTarget as HTMLElement).style.boxShadow =
+            'inset 0 0 0 2px var(--rarity), 0 8px 22px -10px rgb(0 0 0 / 0.25)';
+        }}
+        onMouseLeave={(e) => {
+          if (hoverLift) return;
+          (e.currentTarget as HTMLElement).style.boxShadow =
+            'inset 0 0 0 1px rgb(255 255 255 / 0.04), inset 0 -1px 0 0 rgb(255 255 255 / 0.04)';
         }}
       >
-        {/* Image area — clean dark surface, no rarity glow */}
+        {/* Image area. The bottom edge carries a sharp 1.5px rarity
+            stripe; just above it, a soft upward fade in the same
+            rarity color washes the bottom ~40% of the image area
+            (strongest at the line, fading to transparent toward the
+            top). Matches the colour treatment used on the categories
+            page so the marketplace tile reads as the same family. */}
         <div className="relative aspect-[5/4] flex items-center justify-center px-5 pt-5 pb-3 overflow-hidden">
+          {/* Rarity gradient + bottom line. Drawn behind the image
+              via two stacked absolutely-positioned divs. Pointer-events
+              none so it never interferes with the card click. */}
+          {color && (
+            <>
+              <div
+                aria-hidden
+                className="absolute inset-x-0 bottom-0 h-[40%] pointer-events-none"
+                style={{
+                  background: `linear-gradient(to top, ${color}59 0%, ${color}26 35%, transparent 100%)`,
+                }}
+              />
+              <div
+                aria-hidden
+                className="absolute inset-x-0 bottom-0 h-[1.5px] pointer-events-none"
+                style={{ background: color }}
+              />
+            </>
+          )}
           {item.special === 'stattrak' && (
             <span className="absolute top-2.5 left-2.5 px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase bg-orange-500/15 text-orange-600 dark:text-orange-300">
               ST
@@ -473,8 +521,12 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
             center via `scaleY(0)`, invisible, no pointer events. On
             hover: `scaleY(1)` expands the bar simultaneously upward
             AND downward from the middle line, fading in over 200ms.
-            Origin is `center` so the growth is symmetric. */}
-        {onAddCart && (
+
+            Only attached when hoverLift is true (the marketplace case).
+            Profile-tab cards (inventory/listings) hide this bar — they
+            don't have an "add to cart" verb and they have their own
+            actions stacked below the card. */}
+        {onAddCart && hoverLift && (
           <div
             className="absolute top-full left-0 right-0 origin-center scale-y-0 opacity-0 pointer-events-none group-hover:scale-y-100 group-hover:opacity-100 group-hover:pointer-events-auto transition-[transform,opacity] duration-200 ease-out z-30"
           >

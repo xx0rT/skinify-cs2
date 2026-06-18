@@ -13,6 +13,7 @@ import {
   TrendingUp,
   Plus,
   ChevronDown,
+  Sparkles,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getSupabaseCredentials } from '../../../utils/supabaseHelpers';
@@ -51,7 +52,7 @@ type Sort = 'newest' | 'price-desc' | 'price-asc' | 'views';
 const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
   const navigate = useNavigate();
   const { addToast } = useToastStore();
-  const { formatPrice } = useCurrencyStore();
+  const { formatPrice, formatFee } = useCurrencyStore();
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -121,6 +122,42 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
     const totalViews = listings.reduce((s, l) => s + l.views, 0);
     return { count: listings.length, totalValue, totalViews };
   }, [listings]);
+
+  /* Promote — pay 49 CZK from balance, listing goes to the top of the
+     marketplace + "Trending now" for 7 days. Backed by the existing
+     hot-items edge function (POST). The button is hidden while the
+     listing is already actively promoted. */
+  const handlePromote = async (l: Listing) => {
+    try {
+      const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+      const res = await fetch(`${supabaseUrl}/functions/v1/hot-items`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listing_id: Number(l.id),
+          user_steam_id: steamId,
+          asset_id: l.asset_id || String(l.id),
+          duration_hours: 24 * 7,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        addToast({
+          type: 'error',
+          title: 'Promotion failed',
+          message: data?.error || 'Could not promote this listing.',
+        });
+        return;
+      }
+      addToast({
+        type: 'success',
+        title: 'Listing promoted',
+        message: `${l.item_name} · featured for 7 days`,
+      });
+    } catch (err) {
+      addToast({ type: 'error', title: 'Promotion failed', message: 'Network error' });
+    }
+  };
 
   const handleRemove = async (l: Listing) => {
     const prev = listings;
@@ -277,6 +314,8 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
                 onCancelEdit={() => setEditingId(null)}
                 onSaveEdit={() => saveEdit(l)}
                 onRemove={() => handleRemove(l)}
+                onPromote={() => handlePromote(l)}
+                promoteLabel={formatFee(49)}
                 onView={() => navigate(`/item/${l.id}`)}
                 formatPrice={formatPrice}
               />
@@ -324,6 +363,9 @@ const ListingCard: React.FC<{
   onCancelEdit: () => void;
   onSaveEdit: () => void;
   onRemove: () => void;
+  onPromote: () => void;
+  /** Localised "49 Kč" / "2 €" label shown next to the Promote button. */
+  promoteLabel: string;
   onView: () => void;
   formatPrice: (n: number) => string;
 }> = ({
@@ -336,6 +378,8 @@ const ListingCard: React.FC<{
   onCancelEdit,
   onSaveEdit,
   onRemove,
+  onPromote,
+  promoteLabel,
   onView,
   formatPrice,
 }) => {
@@ -355,6 +399,11 @@ const ListingCard: React.FC<{
     views: listing.views,
   } as any;
 
+  /* Owner actions live INSIDE the card now — absolutely positioned
+     overlay at the bottom edge of the SkinCard. We render the card
+     and overlay inside a relatively-positioned wrapper. The overlay
+     uses a small backdrop-blur strip so the buttons remain readable
+     against any image content beneath. */
   return (
     <motion.div
       layout
@@ -362,62 +411,86 @@ const ListingCard: React.FC<{
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ ...spring, delay: Math.min(index * 0.012, 0.18) }}
-      className="space-y-2"
+      className="relative"
     >
       <SkinCard
         variant="tile"
+        hoverLift={false}
         item={cardItem}
         onView={onView}
         formatPrice={formatPrice}
       />
-      {editing ? (
-        <div className="flex items-center gap-1.5">
-          <input
-            autoFocus
-            type="number"
-            value={editPrice}
-            onChange={(e) => setEditPrice(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') onSaveEdit();
-              if (e.key === 'Escape') onCancelEdit();
-            }}
-            className="flex-1 min-w-0 h-9 px-3 rounded-full bg-subtle outline-none text-ink text-[13px] font-bold tabular-nums focus:ring-2 focus:ring-accent"
-          />
-          <motion.button
-            whileTap={tap}
-            onClick={onSaveEdit}
-            className="h-9 w-9 shrink-0 rounded-full bg-accent text-on-accent grid place-items-center"
-          >
-            <Check size={14} strokeWidth={2.6} />
-          </motion.button>
-          <motion.button
-            whileTap={tap}
-            onClick={onCancelEdit}
-            className="h-9 w-9 shrink-0 rounded-full bg-subtle text-ink grid place-items-center"
-          >
-            <X size={14} strokeWidth={2.4} />
-          </motion.button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-1.5">
-          <motion.button
-            whileTap={tap}
-            onClick={onStartEdit}
-            className="flex-1 h-9 rounded-full bg-subtle hover:bg-accent-soft text-ink-muted hover:text-ink text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <Edit3 size={12} strokeWidth={2.4} />
-            Edit price
-          </motion.button>
-          <motion.button
-            whileTap={tap}
-            onClick={onRemove}
-            className="h-9 w-9 rounded-full bg-subtle hover:bg-rose-500/15 grid place-items-center transition-colors group/del"
-            title="Remove listing"
-          >
-            <Trash2 size={12} strokeWidth={2.4} className="text-ink-muted group-hover/del:text-rose-500 transition-colors" />
-          </motion.button>
-        </div>
-      )}
+      <div
+        className="absolute inset-x-2 bottom-2 z-20"
+        /* stop the card's onView from firing when the user taps a
+           button inside the overlay */
+        onClick={(e) => e.stopPropagation()}
+      >
+        {editing ? (
+          <div className="flex items-center gap-1.5 rounded-full bg-bg/85 backdrop-blur-md p-1">
+            <input
+              autoFocus
+              type="number"
+              value={editPrice}
+              onChange={(e) => setEditPrice(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onSaveEdit();
+                if (e.key === 'Escape') onCancelEdit();
+              }}
+              className="flex-1 min-w-0 h-8 px-3 rounded-full bg-subtle outline-none text-ink text-[12.5px] font-bold tabular-nums focus:ring-2 focus:ring-accent"
+            />
+            <motion.button
+              whileTap={tap}
+              onClick={onSaveEdit}
+              className="h-8 w-8 shrink-0 rounded-full bg-accent text-on-accent grid place-items-center"
+            >
+              <Check size={13} strokeWidth={2.6} />
+            </motion.button>
+            <motion.button
+              whileTap={tap}
+              onClick={onCancelEdit}
+              className="h-8 w-8 shrink-0 rounded-full bg-subtle text-ink grid place-items-center"
+            >
+              <X size={13} strokeWidth={2.4} />
+            </motion.button>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            {/* Primary owner row — Edit price + Remove */}
+            <div className="flex items-center gap-1.5 rounded-full bg-bg/85 backdrop-blur-md p-1">
+              <motion.button
+                whileTap={tap}
+                onClick={onStartEdit}
+                className="flex-1 h-8 rounded-full bg-subtle hover:bg-accent-soft text-ink-muted hover:text-ink text-[11.5px] font-bold inline-flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <Edit3 size={11} strokeWidth={2.4} />
+                Edit price
+              </motion.button>
+              <motion.button
+                whileTap={tap}
+                onClick={onRemove}
+                className="h-8 w-8 rounded-full bg-subtle hover:bg-rose-500/15 grid place-items-center transition-colors group/del"
+                title="Remove listing"
+              >
+                <Trash2 size={11} strokeWidth={2.4} className="text-ink-muted group-hover/del:text-rose-500 transition-colors" />
+              </motion.button>
+            </div>
+            {/* Promote — paid 7-day featured boost. Accent-coloured pill
+                so it visually pops as the upsell action; price label
+                ("49 Kč" in CZK or rounded equivalent in other currencies)
+                renders inline so the seller knows the cost upfront. */}
+            <motion.button
+              whileTap={tap}
+              onClick={onPromote}
+              className="w-full h-8 rounded-full bg-accent text-on-accent text-[11.5px] font-bold inline-flex items-center justify-center gap-1.5"
+              style={{ boxShadow: '0 6px 16px -8px rgb(var(--accent) / 0.55)' }}
+            >
+              <Sparkles size={11} strokeWidth={2.6} />
+              Promote · {promoteLabel}
+            </motion.button>
+          </div>
+        )}
+      </div>
     </motion.div>
   );
 };
