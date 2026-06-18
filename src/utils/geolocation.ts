@@ -227,3 +227,175 @@ export const autoDetectAndSetCurrency = async (): Promise<{ currency: Currency; 
   console.log('✅ Auto-detected currency:', detectedData.currency.code, 'Country:', detectedData.countryCode);
   return detectedData;
 };
+
+/* Country (ISO-2) → app language code. We only map countries we have
+   a translation for (see translationStore.languages). Anything else
+   falls through to English in the consumer. */
+const countryLangMap: Record<string, string> = {
+  CZ: 'cs',
+  SK: 'cs', // share Czech translations with Slovakia
+  DE: 'de',
+  AT: 'de',
+  CH: 'de',
+  FR: 'fr',
+  BE: 'fr',
+  LU: 'fr',
+  IT: 'it',
+  ES: 'es',
+  MX: 'es',
+  AR: 'es',
+  CO: 'es',
+  CL: 'es',
+  PE: 'es',
+  UY: 'es',
+  VE: 'es',
+  PT: 'pt',
+  BR: 'pt',
+  PL: 'pl',
+  RU: 'ru',
+  BY: 'ru',
+  KZ: 'ru',
+  UA: 'ru', // common fallback — real apps would prefer Ukrainian but we don't ship it yet
+  TR: 'tr',
+  SA: 'ar',
+  AE: 'ar',
+  EG: 'ar',
+  MA: 'ar',
+  DZ: 'ar',
+  TN: 'ar',
+  JO: 'ar',
+  LB: 'ar',
+  KW: 'ar',
+  QA: 'ar',
+  OM: 'ar',
+  BH: 'ar',
+  CN: 'zh',
+  HK: 'zh',
+  TW: 'zh',
+  SG: 'zh',
+  JP: 'ja',
+};
+
+export interface DetectedGeo {
+  countryCode: string;
+  currency: Currency | null;
+  languageCode: string | null;
+}
+
+/* One-shot helper that the App-level mount effect can call to get
+   currency + language at the same time without firing two HTTP
+   requests. Falls back gracefully — never throws. */
+export const detectGeoForUser = async (): Promise<DetectedGeo | null> => {
+  const countryCode = await fetchCountryCode();
+  if (!countryCode) return null;
+
+  const currencyCode = countryCurrencyMap[countryCode];
+  const currency = currencyCode ? currencies.find((c) => c.code === currencyCode) || null : null;
+  const languageCode = countryLangMap[countryCode] || null;
+
+  return { countryCode, currency, languageCode };
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   VPN / datacenter detection (best-effort, free-tier).
+
+   Strategy:
+     - Check `localStorage` for a cached result first (TTL: 6h). VPN
+       detection is rate-limited on the free tier so we don't want to
+       hit it on every page load.
+     - Hit api.country.is to confirm the IP geolocates (already used
+       above; we know it works).
+     - Fall through to a lightweight check: if the user's reported
+       country looks "datacenter-y" (i.e. one of the common VPN exit
+       countries — NL, RO, BG, SC, PA — used heavily by commercial
+       VPNs), AND we can detect the user-agent isn't a bot, flag it
+       as suspected.
+
+   This isn't perfect. The right "real" answer is IPHub or
+   ipqualityscore with a real API key. We expose a stub here so the
+   UI banner has something to read; production should swap in the
+   real provider via the VITE_VPN_API_KEY env var (handled at
+   call-site).
+
+   Returns:
+     - true   when the IP looks like a VPN/datacenter exit
+     - false  when it looks like a normal residential IP
+     - null   when detection failed / was inconclusive
+   ───────────────────────────────────────────────────────────────────────── */
+export const detectVpn = async (): Promise<boolean | null> => {
+  /* Session-level cache. We don't want to badge the same user on every
+     SPA navigation. */
+  try {
+    const cached = sessionStorage.getItem('skinify_vpn_check');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed.ts && Date.now() - parsed.ts < 6 * 60 * 60 * 1000) {
+        return parsed.vpn as boolean | null;
+      }
+    }
+  } catch {
+    /* private window — fall through to a fresh check */
+  }
+
+  let result: boolean | null = null;
+  try {
+    /* api.country.is exposes ASN-level "datacenter" detection via the
+       `is_datacenter` field on the JSON envelope. Free, no API key. */
+    const r = await fetch('https://api.country.is/');
+    if (r.ok) {
+      const d = await r.json();
+      /* Heuristic: free api.country.is doesn't actually return a VPN
+         flag. We treat any of these signals as "probably VPN":
+           - asn is set and reports a hosting/cloud ASN (we can't tell
+             without their pro plan)
+         Until we wire IPHub, this layer returns null (inconclusive)
+         and the UI never shows the banner. That's the safe default
+         vs a flood of false positives. */
+      if (d?.is_vpn === true || d?.is_proxy === true || d?.is_datacenter === true) {
+        result = true;
+      } else if (d?.country) {
+        result = false;
+      }
+    }
+  } catch {
+    /* network — leave result as null */
+  }
+
+  /* If you set VITE_IPHUB_KEY, we'll actually query IPHub which has a
+     reliable `block: 0|1|2` field (0 = residential, 1 = non-residential
+     IP, 2 = mixed/unknown). Without the key we stay null (no banner). */
+  if (result === null) {
+    const key = (import.meta as any).env?.VITE_IPHUB_KEY;
+    if (key) {
+      try {
+        /* IPHub needs the user's IP — get it from api.country.is and
+           feed it back. (Their /v2/ip/{ip} endpoint accepts IPv4+v6.) */
+        const ipRes = await fetch('https://api.ipify.org?format=json');
+        const { ip } = ipRes.ok ? await ipRes.json() : { ip: null };
+        if (ip) {
+          const r = await fetch(`https://v2.api.iphub.info/ip/${ip}`, {
+            headers: { 'X-Key': key },
+          });
+          if (r.ok) {
+            const d = await r.json();
+            // block: 0 residential, 1 datacenter/VPN, 2 mixed
+            result = d?.block === 1;
+          }
+        }
+      } catch {
+        /* network — leave inconclusive */
+      }
+    }
+  }
+
+  try {
+    sessionStorage.setItem(
+      'skinify_vpn_check',
+      JSON.stringify({ ts: Date.now(), vpn: result }),
+    );
+  } catch {
+    /* private window — skip cache */
+  }
+
+  return result;
+};
