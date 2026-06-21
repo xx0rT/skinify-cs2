@@ -20,7 +20,7 @@ import { getSupabaseCredentials } from '../../../utils/supabaseHelpers';
 import { useToastStore } from '../../../store/toastStore';
 import { useCurrencyStore } from '../../../store/currencyStore';
 import { spring, tap } from '../../../lib/motion';
-import { SkinCard } from '../../ui/SkinCard';
+import { rarityColor } from '../../ui/SkinCard';
 
 /* ─────────────────────────────────────────────────────────────────────────
    ListingsTab — redesigned
@@ -45,6 +45,9 @@ interface Listing {
   views: number;
   created_at: string;
   listing_type?: 'standard' | 'auction' | 'private';
+  /** Optional float value (0.0–1.0). May be a string (some endpoints
+      ship it that way) or null. The card parses it defensively. */
+  float?: number | string | null;
 }
 
 type Sort = 'newest' | 'price-desc' | 'price-asc' | 'views';
@@ -417,9 +420,28 @@ const KpiTile: React.FC<{
    stacks a thin owner-only action row beneath it: edit price + remove.
    Keeps the look unified across the site instead of every page
    rolling its own card. */
-/* Card layout matches Inventory tab: marketplace SkinCard for the
-   image / name / price block, then stacked owner actions below.
-   Keeps the visual language consistent across both tabs. */
+/* Fully bespoke listing card — sharp edges, single cohesive surface.
+   Layout:
+     ┌─────────────────────────────────────┐
+     │                                     │
+     │           ITEM IMAGE                │
+     │           (75% height)              │
+     │                                     │
+     │  rarity color stripe (2px sharp)    │
+     ├─────────────────────────────────────┤
+     │  type · float bar                   │
+     │  Name (one line, truncated)         │
+     │  Condition                          │
+     │                                     │
+     │  PRICE (large)                      │
+     │                                     │
+     │  [ Edit ] [ Shop ] [ ✕ ]            │
+     │  [ Promote · 49 Kč ]                │
+     └─────────────────────────────────────┘
+   No rounded pills bleeding through, no gaps, no overlay strip
+   sitting over content. The whole thing is one rectangular tile
+   with sharp 4px corners and a hairline border that warms to the
+   rarity colour on hover. */
 const ListingCard: React.FC<{
   listing: Listing;
   index: number;
@@ -432,7 +454,7 @@ const ListingCard: React.FC<{
   onRemove: () => void;
   onPromote: () => void;
   onAddToShop: () => void;
-  /** Localised "49 Kč" / "2 €" label shown next to the Promote button. */
+  /** Localised "49 Kč" / "2 €" label shown on the Promote button. */
   promoteLabel: string;
   onView: () => void;
   formatPrice: (n: number) => string;
@@ -452,147 +474,234 @@ const ListingCard: React.FC<{
   onView,
   formatPrice,
 }) => {
-  /* Project the Listing row into the shape SkinCard expects. The DB
-     uses snake_case columns; the card uses canonical/camelCase. */
-  const cardItem = {
-    id: String(listing.id),
-    name: listing.item_name,
-    market_name: listing.market_hash_name,
-    image: listing.image_url,
-    price: Number(listing.price),
-    type: listing.item_type,
-    rarity: listing.rarity,
-    condition: listing.condition,
-    seller: { steamId: '', name: '', online: false },
-    views: listing.views,
-  } as any;
+  const r = rarityColor(listing.rarity);
+  /* Float renders as a 0-100% wear bar at the top of the info panel.
+     Skinify stores float as text; parse defensively. */
+  const floatNum =
+    listing.float != null && listing.float !== ''
+      ? Number(listing.float)
+      : null;
+  const floatPct =
+    floatNum != null && Number.isFinite(floatNum)
+      ? Math.max(0, Math.min(1, floatNum)) * 100
+      : null;
 
   return (
-    <motion.div
+    <motion.article
       layout
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ ...spring, delay: Math.min(index * 0.012, 0.18) }}
-      /* Single positioned wrapper now — actions live INSIDE the card
-         as an absolutely-positioned bottom strip rather than stacked
-         below. The card needs `pb-20` worth of empty space at the
-         bottom for the overlay to land cleanly without covering the
-         price row. */
-      className="relative"
+      whileHover={{ y: -2 }}
+      /* Sharp 4px corners (rounded-md) instead of the soft 24px on the
+         marketplace card — matches the user's "sharp edges" ask while
+         still hiding any subpixel image bleed. Single surface, no
+         nested cards. */
+      className="group relative bg-surface rounded-md overflow-hidden flex flex-col transition-shadow"
+      style={{
+        boxShadow: 'inset 0 0 0 1px rgb(var(--ink) / 0.08)',
+        ['--rarity' as any]: r || 'rgb(var(--accent))',
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.boxShadow =
+          'inset 0 0 0 1.5px var(--rarity), 0 12px 28px -16px rgb(0 0 0 / 0.35)';
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.boxShadow =
+          'inset 0 0 0 1px rgb(var(--ink) / 0.08)';
+      }}
     >
-      <SkinCard
-        variant="tile"
-        hoverLift={false}
-        item={cardItem}
-        onView={onView}
-        formatPrice={formatPrice}
-      />
-
-      {/* Listing-type pill — auction / private — overlaid on the
-          card's top-left. Matches Inventory "Listed" badge placement. */}
-      {listing.listing_type === 'auction' && (
-        <span className="absolute top-3 left-3 pill bg-amber-500/15 text-amber-700 dark:text-amber-300 z-10">
-          Auction
-        </span>
-      )}
-      {listing.listing_type === 'private' && (
-        <span className="absolute top-3 left-3 pill bg-purple-500/15 text-purple-700 dark:text-purple-300 z-10">
-          Private
-        </span>
-      )}
-      {listing.views > 0 && (
-        <span className="absolute top-3 right-3 inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-bg/80 text-ink-muted tabular-nums z-10">
-          <Eye size={10} strokeWidth={2.6} />
-          {listing.views}
-        </span>
-      )}
-
-      {/* Owner actions overlaid INSIDE the card at the bottom edge.
-          Translucent backdrop-blur strip so the buttons stay legible
-          over any image area beneath. stopPropagation on the wrapper
-          so taps on buttons don't also trigger the card's onView. */}
-      <div
-        className="absolute inset-x-2 bottom-2 z-20 rounded-2xl bg-bg/85 backdrop-blur-md p-1.5 space-y-1.5"
-        onClick={(e) => e.stopPropagation()}
+      {/* IMAGE PANEL — fixed aspect ratio so all cards line up; rarity
+          wash from bottom up + a sharp 2px stripe at the bottom edge
+          forming the visual divider between image and info. */}
+      <button
+        type="button"
+        onClick={onView}
+        className="relative aspect-[5/3.4] overflow-hidden bg-gradient-to-b from-subtle/30 to-subtle/60 text-left"
       >
-        {editing ? (
-          <div className="flex items-center gap-1.5">
-            <input
-              autoFocus
-              type="number"
-              value={editPrice}
-              onChange={(e) => setEditPrice(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') onSaveEdit();
-                if (e.key === 'Escape') onCancelEdit();
-              }}
-              className="flex-1 min-w-0 h-8 px-3 rounded-full bg-subtle outline-none text-ink text-[12.5px] font-bold tabular-nums focus:ring-2 focus:ring-accent"
-            />
-            <motion.button
-              whileTap={tap}
-              onClick={onSaveEdit}
-              className="h-8 w-8 shrink-0 rounded-full bg-accent text-on-accent grid place-items-center"
-              title="Save"
-            >
-              <Check size={12} strokeWidth={2.6} />
-            </motion.button>
-            <motion.button
-              whileTap={tap}
-              onClick={onCancelEdit}
-              className="h-8 w-8 shrink-0 rounded-full bg-subtle text-ink grid place-items-center"
-              title="Cancel"
-            >
-              <X size={12} strokeWidth={2.4} />
-            </motion.button>
-          </div>
-        ) : (
+        {r && (
           <>
-            {/* Primary action row — Edit / Add to shop / Remove */}
-            <div className="flex items-center gap-1">
-              <motion.button
-                whileTap={tap}
-                onClick={onStartEdit}
-                className="flex-1 h-8 rounded-full bg-subtle hover:bg-accent-soft text-ink-muted hover:text-ink text-[11.5px] font-bold inline-flex items-center justify-center gap-1 transition-colors"
-                title="Edit price"
-              >
-                <Edit3 size={11} strokeWidth={2.4} />
-                Edit
-              </motion.button>
-              <motion.button
-                whileTap={tap}
-                onClick={onAddToShop}
-                className="flex-1 h-8 rounded-full bg-subtle hover:bg-accent-soft text-ink-muted hover:text-ink text-[11.5px] font-bold inline-flex items-center justify-center gap-1 transition-colors"
-                title="Add to my shop"
-              >
-                <Store size={11} strokeWidth={2.4} />
-                Shop
-              </motion.button>
-              <motion.button
-                whileTap={tap}
-                onClick={onRemove}
-                className="h-8 w-8 shrink-0 rounded-full bg-subtle hover:bg-rose-500/15 grid place-items-center transition-colors group/del"
-                title="Remove listing"
-              >
-                <Trash2 size={12} strokeWidth={2.4} className="text-ink-muted group-hover/del:text-rose-500 transition-colors" />
-              </motion.button>
-            </div>
-
-            {/* Promote — secondary upsell row. Accent pill so it pops as
-                the "give us money" action without crowding the primary row. */}
-            <motion.button
-              whileTap={tap}
-              whileHover={{ scale: 1.02 }}
-              onClick={onPromote}
-              className="w-full h-8 rounded-full bg-accent text-on-accent text-[11.5px] font-bold inline-flex items-center justify-center"
-              style={{ boxShadow: '0 6px 14px -6px rgb(var(--accent) / 0.55)' }}
-            >
-              Promote · {promoteLabel}
-            </motion.button>
+            <div
+              aria-hidden
+              className="absolute inset-x-0 bottom-0 h-[45%] pointer-events-none"
+              style={{
+                background: `linear-gradient(to top, ${r}59 0%, ${r}22 40%, transparent 100%)`,
+              }}
+            />
+            {/* Sharp 2px rarity stripe — the divider between image &
+                info area. This is the "sharp edge" the design hinges on. */}
+            <div
+              aria-hidden
+              className="absolute inset-x-0 bottom-0 h-[2px] pointer-events-none"
+              style={{ background: r }}
+            />
           </>
         )}
+        <img
+          src={listing.image_url}
+          alt={listing.item_name}
+          loading="lazy"
+          className="absolute inset-0 m-auto max-h-[85%] max-w-[85%] object-contain transition-transform duration-300 group-hover:scale-[1.04]"
+        />
+        {/* Top meta row — listing type pill (left) + views (right) */}
+        <div className="absolute top-0 inset-x-0 p-2 flex items-start justify-between gap-2 z-10">
+          <div className="flex items-center gap-1.5">
+            {listing.listing_type === 'auction' && (
+              <span className="px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase rounded-sm bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                Auction
+              </span>
+            )}
+            {listing.listing_type === 'private' && (
+              <span className="px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase rounded-sm bg-purple-500/15 text-purple-700 dark:text-purple-300">
+                Private
+              </span>
+            )}
+          </div>
+          {listing.views > 0 && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-bg/75 backdrop-blur-sm text-ink-muted tabular-nums">
+              <Eye size={10} strokeWidth={2.6} />
+              {listing.views}
+            </span>
+          )}
+        </div>
+      </button>
+
+      {/* INFO + ACTIONS panel — single padded surface, no nested
+          backgrounds. Everything reads as one block divided from the
+          image only by the 2px rarity stripe above. */}
+      <div className="p-3 space-y-3 flex-1 flex flex-col">
+        {/* Float bar (when known) — slim wear gauge above the name */}
+        {floatPct != null && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-2 text-[9.5px] font-bold uppercase tracking-wider text-ink-dim">
+              <span>{listing.item_type}</span>
+              <span className="font-mono tabular-nums text-ink">
+                {floatNum!.toFixed(4)}
+              </span>
+            </div>
+            <div className="relative h-[3px] bg-subtle rounded-sm overflow-hidden">
+              <div
+                className="absolute inset-y-0 left-0"
+                style={{
+                  width: `${floatPct}%`,
+                  background:
+                    'linear-gradient(90deg, #22c55e 0%, #84cc16 25%, #eab308 50%, #f97316 75%, #ef4444 100%)',
+                  backgroundSize: `${10000 / floatPct}% 100%`,
+                  backgroundPosition: 'left center',
+                }}
+              />
+            </div>
+          </div>
+        )}
+        {floatPct == null && (
+          <div className="text-[9.5px] font-bold uppercase tracking-wider text-ink-dim">
+            {listing.item_type}
+          </div>
+        )}
+
+        {/* Name + condition */}
+        <div className="min-w-0 -mt-1">
+          <div className="text-[13.5px] font-bold text-ink tracking-tight leading-tight truncate">
+            {listing.item_name}
+          </div>
+          <div className="text-[11px] text-ink-muted font-medium truncate mt-0.5">
+            {listing.condition}
+          </div>
+        </div>
+
+        {/* Price */}
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="text-[18px] font-bold text-ink tracking-tight tabular-nums leading-none">
+            {formatPrice(listing.price)}
+          </div>
+        </div>
+
+        {/* ACTIONS — pinned at the bottom via mt-auto so the panel
+            grows to fill any leftover vertical space; actions are
+            always at the same Y coordinate across the grid. */}
+        <div className="mt-auto space-y-1.5" onClick={(e) => e.stopPropagation()}>
+          {editing ? (
+            <div className="flex items-center gap-1">
+              <input
+                autoFocus
+                type="number"
+                value={editPrice}
+                onChange={(e) => setEditPrice(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') onSaveEdit();
+                  if (e.key === 'Escape') onCancelEdit();
+                }}
+                className="flex-1 min-w-0 h-8 px-2.5 rounded-sm bg-subtle outline-none text-ink text-[12.5px] font-bold tabular-nums focus:ring-2 focus:ring-accent"
+              />
+              <motion.button
+                whileTap={tap}
+                onClick={onSaveEdit}
+                className="h-8 w-8 shrink-0 rounded-sm bg-accent text-on-accent grid place-items-center"
+                title="Save"
+              >
+                <Check size={12} strokeWidth={2.6} />
+              </motion.button>
+              <motion.button
+                whileTap={tap}
+                onClick={onCancelEdit}
+                className="h-8 w-8 shrink-0 rounded-sm bg-subtle text-ink grid place-items-center"
+                title="Cancel"
+              >
+                <X size={12} strokeWidth={2.4} />
+              </motion.button>
+            </div>
+          ) : (
+            <>
+              {/* Primary row — Edit + Shop + Remove. Sharp-cornered
+                  buttons matching the card. */}
+              <div className="flex items-stretch gap-1">
+                <motion.button
+                  whileTap={tap}
+                  onClick={onStartEdit}
+                  className="flex-1 h-8 rounded-sm bg-subtle hover:bg-bg text-ink text-[11.5px] font-bold inline-flex items-center justify-center gap-1 transition-colors"
+                >
+                  <Edit3 size={11} strokeWidth={2.4} />
+                  Edit
+                </motion.button>
+                <motion.button
+                  whileTap={tap}
+                  onClick={onAddToShop}
+                  className="flex-1 h-8 rounded-sm bg-subtle hover:bg-bg text-ink text-[11.5px] font-bold inline-flex items-center justify-center gap-1 transition-colors"
+                  title="Add to your shop"
+                >
+                  <Store size={11} strokeWidth={2.4} />
+                  Shop
+                </motion.button>
+                <motion.button
+                  whileTap={tap}
+                  onClick={onRemove}
+                  className="h-8 w-8 shrink-0 rounded-sm bg-subtle hover:bg-rose-500/15 grid place-items-center transition-colors group/del"
+                  title="Remove listing"
+                >
+                  <Trash2
+                    size={12}
+                    strokeWidth={2.4}
+                    className="text-ink-muted group-hover/del:text-rose-500 transition-colors"
+                  />
+                </motion.button>
+              </div>
+
+              {/* Promote — sharp accent pill with subtle elevation */}
+              <motion.button
+                whileTap={tap}
+                whileHover={{ scale: 1.01 }}
+                onClick={onPromote}
+                className="w-full h-8 rounded-sm bg-accent text-on-accent text-[11.5px] font-bold inline-flex items-center justify-center"
+                style={{ boxShadow: '0 4px 12px -6px rgb(var(--accent) / 0.55)' }}
+              >
+                Promote · {promoteLabel}
+              </motion.button>
+            </>
+          )}
+        </div>
       </div>
-    </motion.div>
+    </motion.article>
   );
 };
 
