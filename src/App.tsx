@@ -155,13 +155,14 @@ export default function App() {
           setAutoDetectedCurrency(geo.currency!);
         }
 
-        /* Language: same rule. Only override when isAutoDetected is
-           true on the translation store, OR the current language is
-           still the default English (which usually means first visit). */
+        /* Language: only override when isAutoDetected is true on the
+           translation store, OR the current language is still the
+           default Czech (which usually means first visit by a non-CZ
+           user we want to localise away from the default). */
         if (geo.languageCode) {
           const { isAutoDetected: langAuto, currentLanguage, setLanguageByCode } =
             useTranslationStore.getState();
-          const langEligible = langAuto || currentLanguage.code === 'en';
+          const langEligible = langAuto || currentLanguage.code === 'cs';
           if (langEligible && geo.languageCode !== currentLanguage.code) {
             setLanguageByCode(geo.languageCode, /* fromAuto */ true);
           }
