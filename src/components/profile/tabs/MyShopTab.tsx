@@ -454,14 +454,14 @@ const MyShopTab: React.FC<{ onNavigateToListings: () => void }> = ({
         </div>
       </div>
 
-      {/* Customisation entry — opens the full-screen modal editor.
-          We keep the customise-shop CTA visually distinct from the
-          quick-actions list above because it leads to a much heavier
-          workflow than the other shortcuts. */}
+      {/* Customisation lives on the public shop page now (open
+          /shop/<slug>?edit=1). We surface a single CTA here that
+          jumps to the sandbox editor in a new context instead of
+          embedding a second editor in the profile dashboard. */}
       <motion.button
         whileTap={tap}
         whileHover={{ y: -2 }}
-        onClick={() => setEditorOpen(true)}
+        onClick={() => navigate(`/shop/${shop.shop_url}?edit=1`)}
         className="w-full card p-5 md:p-6 text-left flex items-center gap-4 transition-shadow hover:ring-2 hover:ring-accent/40"
       >
         <div className="icon-chip-lg bg-accent text-on-accent shrink-0">
@@ -470,21 +470,14 @@ const MyShopTab: React.FC<{ onNavigateToListings: () => void }> = ({
         <div className="flex-1 min-w-0">
           <span className="label-eyebrow">Customize</span>
           <div className="text-[16px] font-bold tracking-tight text-ink leading-none mt-1">
-            Shop appearance & layout
+            Open shop editor
           </div>
           <div className="text-[12.5px] text-ink-muted font-medium mt-1.5">
-            Banner, theme, sections, About, custom domain — all in one place.
+            Sandbox-style customise screen with live preview — banner, theme, layout, sections.
           </div>
         </div>
         <ChevronRight size={16} strokeWidth={2.4} className="text-ink-muted shrink-0" />
       </motion.button>
-
-      <ShopEditorModal
-        open={editorOpen}
-        onClose={() => setEditorOpen(false)}
-        shop={shop}
-        onSaved={(patch) => setShop({ ...shop, ...patch })}
-      />
     </div>
   );
 };

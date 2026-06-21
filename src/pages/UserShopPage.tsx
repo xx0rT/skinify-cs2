@@ -461,33 +461,70 @@ const UserShopPage: React.FC = () => {
             animate={{ x: 0 }}
             exit={{ x: '110%' }}
             transition={{ type: 'spring', stiffness: 280, damping: 32 }}
-            className="fixed right-3 top-3 bottom-3 z-50 w-[360px] max-w-[92vw] rounded-3xl bg-[rgb(20,20,24)] text-white overflow-y-auto"
-            style={{ boxShadow: '0 28px 60px -22px rgba(0,0,0,0.6)' }}
+            /* Wider on lg+ so the colour pickers and CSS editor have room
+               to breathe — the previous 360px felt cramped. Sandbox-style
+               implies the editor should look like a real workspace, not
+               a settings dialog. */
+            className="fixed right-3 top-3 bottom-3 z-50 w-[420px] max-w-[94vw] rounded-3xl bg-[rgb(18,18,22)] text-white overflow-hidden flex flex-col"
+            style={{ boxShadow: '0 28px 60px -22px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)' }}
           >
-            <div className="sticky top-0 z-10 bg-[rgb(20,20,24)] px-5 pt-5 pb-3 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-2xl bg-white/10 grid place-items-center">
-                  <Palette size={16} strokeWidth={2.4} />
-                </div>
-                <div>
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-white/55">
-                    Editor
+            {/* Header — eyebrow + close. Preview-as-visitor toggle is
+                surfaced in the actions row at the bottom of the header
+                so users can A/B-flip into "what visitors see" any time. */}
+            <div className="shrink-0 bg-[rgb(18,18,22)] px-5 pt-5 pb-3 border-b border-white/6">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-fuchsia-500/30 to-indigo-500/30 grid place-items-center ring-1 ring-white/10">
+                    <Palette size={16} strokeWidth={2.4} className="text-fuchsia-300" />
                   </div>
-                  <div className="text-[14.5px] font-bold leading-none mt-1">
-                    Customize your shop
+                  <div>
+                    <div className="text-[10.5px] font-bold uppercase tracking-wider text-white/55">
+                      Sandbox editor
+                    </div>
+                    <div className="text-[15px] font-bold leading-none mt-1">
+                      Design your shop
+                    </div>
                   </div>
                 </div>
+                <button
+                  onClick={exitEdit}
+                  className="h-9 w-9 rounded-full bg-white/8 hover:bg-white/14 grid place-items-center transition-colors"
+                  aria-label="Close editor"
+                >
+                  <X size={15} strokeWidth={2.4} />
+                </button>
               </div>
-              <button
-                onClick={exitEdit}
-                className="h-9 w-9 rounded-full bg-white/8 hover:bg-white/14 grid place-items-center"
-              >
-                <X size={15} strokeWidth={2.4} />
-              </button>
+
+              {/* Tab strip — jump between scopes. The body is still one
+                  long scroll so users can mix-and-match without losing
+                  context, but the strip scrolls to the matching group. */}
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+                {(
+                  [
+                    { id: 'identity', label: 'Identity' },
+                    { id: 'theme',    label: 'Theme' },
+                    { id: 'layout',   label: 'Layout' },
+                    { id: 'contact',  label: 'Contact' },
+                    { id: 'css',      label: 'CSS' },
+                  ] as const
+                ).map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => {
+                      const el = document.getElementById(`editor-group-${t.id}`);
+                      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    className="h-8 px-3 rounded-full bg-white/6 hover:bg-white/12 text-[11.5px] font-bold tracking-tight whitespace-nowrap transition-colors"
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="px-5 pb-28 space-y-6">
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-6 scrollbar-thin">
               {/* Identity */}
+              <div id="editor-group-identity" />
               <Group title="Identity">
                 <Field label="Shop name">
                   <input
@@ -523,6 +560,7 @@ const UserShopPage: React.FC = () => {
               </Group>
 
               {/* Presets */}
+              <div id="editor-group-theme" />
               <Group title="Presets">
                 <div className="grid grid-cols-2 gap-2">
                   {PRESETS.map((p) => (
@@ -571,6 +609,7 @@ const UserShopPage: React.FC = () => {
               </Group>
 
               {/* Layout */}
+              <div id="editor-group-layout" />
               <Group title="Layout">
                 <div className="grid grid-cols-3 gap-1.5">
                   {(['grid', 'list', 'masonry'] as const).map((l) => {
@@ -591,6 +630,7 @@ const UserShopPage: React.FC = () => {
               </Group>
 
               {/* Social / contact */}
+              <div id="editor-group-contact" />
               <Group title="Contact">
                 <Field label="Email" Icon={Mail}>
                   <input
@@ -630,6 +670,7 @@ const UserShopPage: React.FC = () => {
               </Group>
 
               {/* Custom CSS */}
+              <div id="editor-group-css" />
               <Group title="Custom CSS">
                 <button
                   onClick={() => setShowCSS((v) => !v)}
@@ -699,18 +740,21 @@ const UserShopPage: React.FC = () => {
               </Group>
             </div>
 
-            {/* Sticky save bar */}
-            <div className="sticky bottom-0 left-0 right-0 px-5 py-3 bg-[rgb(20,20,24)] border-t border-white/8 flex gap-2">
+            {/* Sticky save bar — sibling of the scroll container in
+                the flex-col layout above, so it stays pinned to the
+                bottom of the drawer no matter how long the body gets. */}
+            <div className="shrink-0 px-5 py-3 bg-[rgb(18,18,22)] border-t border-white/8 flex gap-2">
               <button
                 onClick={exitEdit}
-                className="h-11 px-4 rounded-full bg-white/8 hover:bg-white/14 text-[13px] font-semibold"
+                className="h-11 px-4 rounded-full bg-white/8 hover:bg-white/14 text-[13px] font-semibold transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 h-11 rounded-full bg-white text-black font-bold text-[13.5px] inline-flex items-center justify-center gap-2 disabled:opacity-60"
+                className="flex-1 h-11 rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-500 hover:from-fuchsia-400 hover:to-indigo-400 text-white font-bold text-[13.5px] inline-flex items-center justify-center gap-2 disabled:opacity-60 transition-colors"
+                style={{ boxShadow: '0 10px 24px -10px rgba(217, 70, 239, 0.55)' }}
               >
                 <Save size={14} strokeWidth={2.4} />
                 {saving ? 'Saving…' : 'Save changes'}
