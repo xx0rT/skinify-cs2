@@ -37,15 +37,22 @@ interface InspectParams {
 }
 
 function parseInspectLink(link: string): InspectParams {
-  // Steam inspect links look like:
-  // steam://rungame/730/76561202255233023/+csgo_econ_action_preview%20S<s>A<a>D<d>
-  // or  M<m>A<a>D<d>
+  /* Steam inspect links look like:
+     steam://rungame/730/76561202255233023/+csgo_econ_action_preview%20S<owner_steamid>A<assetid>D<dcode>
+     or                                                                M<market_id>A<assetid>D<dcode>
+
+     The previous regex required a whitespace/S/s/M/m BEFORE the literal
+     letter (`[\sSs]S(\d+)`) which silently failed on URL-decoded links
+     because there's no `\s` between `%20` (decoded → space) and `S` —
+     wait, there IS one. The real failure was on raw uppercase-prefixed
+     anchors. The clean rule: each token is "letter + digits" preceded
+     by anything except a digit. */
   const decoded = decodeURIComponent(link);
   const out: InspectParams = {};
-  const sMatch = decoded.match(/[\sSs]S(\d+)/);
-  const mMatch = decoded.match(/[\sMm]M(\d+)/);
-  const aMatch = decoded.match(/[\sAa]A(\d+)/);
-  const dMatch = decoded.match(/[\sDd]D(\d+)/);
+  const sMatch = decoded.match(/(?:^|[^0-9])S(\d+)/);
+  const mMatch = decoded.match(/(?:^|[^0-9])M(\d+)/);
+  const aMatch = decoded.match(/(?:^|[^0-9])A(\d+)/);
+  const dMatch = decoded.match(/(?:^|[^0-9])D(\d+)/);
   if (sMatch) out.s = sMatch[1];
   if (mMatch) out.m = mMatch[1];
   if (aMatch) out.a = aMatch[1];
