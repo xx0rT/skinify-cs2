@@ -22,7 +22,13 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
-    const { action, shopId, listingId, steamId } = body;
+    /* shopId is now OPTIONAL — if the client doesn't know its shop id
+       (Listings tab calls this without one), we resolve it server-side
+       from the steamId. Saves the client a round-trip and avoids the
+       RLS issue where Steam-OpenID users can't query user_shops with
+       auth.uid() because they have no Supabase session. */
+    const { action, listingId, steamId } = body;
+    let { shopId } = body;
 
     console.log('Toggle shop item request:', body);
     console.log('Parsed values:', { action, shopId, listingId, steamId });
@@ -31,8 +37,8 @@ Deno.serve(async (req: Request) => {
       throw new Error('Steam ID is required');
     }
 
-    if (!action || !shopId || !listingId) {
-      throw new Error(`Missing required fields: action=${action}, shopId=${shopId}, listingId=${listingId}`);
+    if (!action || !listingId) {
+      throw new Error(`Missing required fields: action=${action}, listingId=${listingId}`);
     }
 
     // Verify the shop belongs to the user
@@ -52,9 +58,29 @@ Deno.serve(async (req: Request) => {
       throw new Error(`User not found for Steam ID: ${steamId}`);
     }
 
+    /* If the caller didn't supply shopId, resolve it from the user
+       record. Steam-linked users own at most one shop (UNIQUE constraint
+       on user_id), so this is unambiguous. */
+    if (!shopId) {
+      const { data: ownShop, error: ownShopErr } = await supabase
+        .from('user_shops')
+        .select('id')
+        .eq('user_id', userRecord.id)
+        .maybeSingle();
+      if (ownShopErr) {
+        throw new Error(`Database error finding your shop: ${ownShopErr.message}`);
+      }
+      if (!ownShop) {
+        throw new Error(
+          'You don\'t have a shop yet. Open Profile → Listings → My shop to create one.',
+        );
+      }
+      shopId = ownShop.id;
+    }
+
     const { data: shop, error: shopError } = await supabase
       .from('user_shops')
-      .select('id, user_id')
+      .select('id, user_id, shop_url')
       .eq('id', shopId)
       .eq('user_id', userRecord.id)
       .maybeSingle();
@@ -86,6 +112,16 @@ Deno.serve(async (req: Request) => {
         .select();
 
       if (error) {
+        /* Unique constraint = already attached. Treat as success so the
+           client UI can be idempotent (re-clicking "Add to shop" on an
+           item already in the shop shouldn't show an error). */
+        if (String(error.code) === '23505') {
+          console.log('Item already in shop — idempotent success.');
+          return new Response(
+            JSON.stringify({ success: true, alreadyAdded: true, shopUrl: shop.shop_url }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
         console.error('Insert error details:', {
           message: error.message,
           details: error.details,
@@ -98,7 +134,7 @@ Deno.serve(async (req: Request) => {
       console.log('Successfully added item to shop:', data);
 
       return new Response(
-        JSON.stringify({ success: true, data }),
+        JSON.stringify({ success: true, data, shopUrl: shop.shop_url }),
         {
           headers: {
             ...corsHeaders,
