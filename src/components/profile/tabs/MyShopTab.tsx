@@ -19,12 +19,18 @@ import {
   MessageSquareText,
   Info,
   Save,
+  ChevronRight,
+  Palette,
+  Sparkles,
+  X as XIcon,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabaseClient';
 import { useAuthStore } from '../../../store/authStore';
 import { useToastStore } from '../../../store/toastStore';
 import { useCurrencyStore } from '../../../store/currencyStore';
 import { spring, tap } from '../../../lib/motion';
+import { useBodyScrollLock } from '../../../hooks/useBodyScrollLock';
+import { AnimatePresence } from 'framer-motion';
 
 /* ─────────────────────────────────────────────────────────────────────────
    MyShopTab
@@ -80,6 +86,72 @@ const SECTION_LABELS: Record<ShopSection['id'], { label: string; sub: string }> 
   about:    { label: 'About me',        sub: 'Free-form text block (markdown)' },
 };
 
+/* Theme presets — one-click looks for the public shop page. Each maps
+   to an accent + a card-style preference. Sellers can still fine-tune
+   afterwards in the Theme tab; presets are the fast path. The preview
+   thumbnail is a mini-mockup rendered inline rather than a screenshot
+   (no asset to host, looks crisp at any DPI). */
+interface ThemePreset {
+  id: string;
+  name: string;
+  sub: string;
+  accent: string;
+  cardStyle: NonNullable<ShopLayout['card_style']>;
+  /** Tailwind-compatible CSS for the preview thumbnail's background. */
+  previewBg: string;
+}
+
+const THEME_PRESETS: ThemePreset[] = [
+  {
+    id: 'midnight',
+    name: 'Midnight',
+    sub: 'Dark, purple accent',
+    accent: '#7c3aed',
+    cardStyle: 'tile',
+    previewBg: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #4c1d95 100%)',
+  },
+  {
+    id: 'neon',
+    name: 'Neon',
+    sub: 'Cyber accent, high contrast',
+    accent: '#22d3ee',
+    cardStyle: 'tile',
+    previewBg: 'linear-gradient(135deg, #042f2e 0%, #134e4a 60%, #06b6d4 100%)',
+  },
+  {
+    id: 'ember',
+    name: 'Ember',
+    sub: 'Warm orange, premium feel',
+    accent: '#f97316',
+    cardStyle: 'compact',
+    previewBg: 'linear-gradient(135deg, #1c1917 0%, #44403c 60%, #f97316 100%)',
+  },
+  {
+    id: 'forest',
+    name: 'Forest',
+    sub: 'Calm green, organic',
+    accent: '#10b981',
+    cardStyle: 'tile',
+    previewBg: 'linear-gradient(135deg, #064e3b 0%, #065f46 60%, #10b981 100%)',
+  },
+  {
+    id: 'rose',
+    name: 'Rose',
+    sub: 'Playful pink, soft pastels',
+    accent: '#ec4899',
+    cardStyle: 'tile',
+    previewBg: 'linear-gradient(135deg, #4c0519 0%, #831843 60%, #ec4899 100%)',
+  },
+  {
+    id: 'mono',
+    name: 'Mono',
+    sub: 'Minimalist, neutral accent',
+    accent: '#94a3b8',
+    cardStyle: 'list',
+    previewBg: 'linear-gradient(135deg, #18181b 0%, #3f3f46 50%, #71717a 100%)',
+  },
+];
+
 const MyShopTab: React.FC<{ onNavigateToListings: () => void }> = ({
   onNavigateToListings,
 }) => {
@@ -92,6 +164,7 @@ const MyShopTab: React.FC<{ onNavigateToListings: () => void }> = ({
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [name, setName] = useState('');
 
   useEffect(() => {
@@ -381,22 +454,36 @@ const MyShopTab: React.FC<{ onNavigateToListings: () => void }> = ({
         </div>
       </div>
 
-      {/* Layout editor — banner, accent, sections, card style. Save
-          writes to user_shops.layout (JSONB). */}
-      <ShopLayoutEditor
-        shopId={shop.id}
-        initialLayout={shop.layout || null}
-        onSaved={(layout) => setShop({ ...shop, layout })}
-      />
+      {/* Customisation entry — opens the full-screen modal editor.
+          We keep the customise-shop CTA visually distinct from the
+          quick-actions list above because it leads to a much heavier
+          workflow than the other shortcuts. */}
+      <motion.button
+        whileTap={tap}
+        whileHover={{ y: -2 }}
+        onClick={() => setEditorOpen(true)}
+        className="w-full card p-5 md:p-6 text-left flex items-center gap-4 transition-shadow hover:ring-2 hover:ring-accent/40"
+      >
+        <div className="icon-chip-lg bg-accent text-on-accent shrink-0">
+          <Edit3 size={22} strokeWidth={2.4} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <span className="label-eyebrow">Customize</span>
+          <div className="text-[16px] font-bold tracking-tight text-ink leading-none mt-1">
+            Shop appearance & layout
+          </div>
+          <div className="text-[12.5px] text-ink-muted font-medium mt-1.5">
+            Banner, theme, sections, About, custom domain — all in one place.
+          </div>
+        </div>
+        <ChevronRight size={16} strokeWidth={2.4} className="text-ink-muted shrink-0" />
+      </motion.button>
 
-      {/* Custom domain manager — placeholder for now. UI shows the
-          current value + a help link explaining the DNS step. Wiring
-          the actual provisioning (Vercel domain API) is a follow-up. */}
-      <CustomDomainCard
-        shopId={shop.id}
-        initialDomain={shop.custom_domain || null}
-        shopUrl={shop.shop_url}
-        onSaved={(domain) => setShop({ ...shop, custom_domain: domain })}
+      <ShopEditorModal
+        open={editorOpen}
+        onClose={() => setEditorOpen(false)}
+        shop={shop}
+        onSaved={(patch) => setShop({ ...shop, ...patch })}
       />
     </div>
   );
@@ -464,11 +551,440 @@ const ActionRow: React.FC<{
    to keep the implementation small. Adding react-beautiful-dnd or
    dnd-kit later is a drop-in replacement of the section list.
    ───────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────
+   ShopEditorModal — full-screen wrapper around the shop editor.
+
+   Three tabs in a left sidebar:
+     • Theme   — preset picker + accent + banner + tagline + card style
+     • Sections — visibility + reorder + About body
+     • Domain   — custom domain setup
+
+   Mobile collapses to a top tab strip + scrollable body. The save
+   button lives in the bottom-right action bar and stays sticky across
+   tabs so the user never loses access to it.
+   ───────────────────────────────────────────────────────────────────────── */
+type EditorTab = 'theme' | 'sections' | 'domain';
+const EDITOR_TABS: Array<{ id: EditorTab; label: string; Icon: React.ComponentType<any> }> = [
+  { id: 'theme',    label: 'Theme',    Icon: Palette },
+  { id: 'sections', label: 'Sections', Icon: Layers },
+  { id: 'domain',   label: 'Domain',   Icon: Globe },
+];
+
+const ShopEditorModal: React.FC<{
+  open: boolean;
+  onClose: () => void;
+  shop: Shop;
+  onSaved: (patch: Partial<Shop>) => void;
+}> = ({ open, onClose, shop, onSaved }) => {
+  useBodyScrollLock(open);
+  const [tab, setTab] = useState<EditorTab>('theme');
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          key="shop-editor-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18 }}
+          className="fixed inset-0 z-[80] bg-ink/55 dark:bg-black/70 backdrop-blur-md"
+          onClick={onClose}
+        >
+          <motion.div
+            key="shop-editor-card"
+            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+            transition={spring}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute inset-3 sm:inset-6 lg:inset-10 card-elevated flex flex-col overflow-hidden"
+            style={{
+              boxShadow:
+                '0 40px 80px -30px rgba(20,16,40,0.6), 0 12px 30px -10px rgba(20,16,40,0.4)',
+            }}
+          >
+            {/* Header */}
+            <div className="shrink-0 px-5 sm:px-7 pt-5 pb-4 border-b border-line/70 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-2xl bg-accent-soft grid place-items-center shrink-0">
+                  <Sparkles size={17} strokeWidth={2.4} className="text-accent" />
+                </div>
+                <div className="min-w-0">
+                  <span className="label-eyebrow">Customize shop</span>
+                  <h2 className="text-[18px] sm:text-[20px] font-bold text-ink tracking-tight leading-none mt-1 truncate">
+                    {shop.shop_name}
+                  </h2>
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                aria-label="Close"
+                className="h-10 w-10 shrink-0 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors"
+              >
+                <XIcon size={16} strokeWidth={2.4} />
+              </button>
+            </div>
+
+            {/* Body — sidebar nav on lg+, top tab strip on smaller */}
+            <div className="flex-1 min-h-0 grid lg:grid-cols-[220px_1fr]">
+              {/* Sidebar (lg+) */}
+              <aside className="hidden lg:flex flex-col gap-1 p-3 border-r border-line/70 bg-subtle/30">
+                {EDITOR_TABS.map((t) => {
+                  const active = tab === t.id;
+                  return (
+                    <motion.button
+                      whileTap={tap}
+                      key={t.id}
+                      onClick={() => setTab(t.id)}
+                      className={`relative h-11 px-3 rounded-2xl flex items-center gap-2.5 text-[13.5px] font-bold text-left transition-colors ${
+                        active ? 'text-ink' : 'text-ink-muted hover:bg-subtle hover:text-ink'
+                      }`}
+                    >
+                      {active && (
+                        <motion.span
+                          layoutId="shop-editor-pill"
+                          className="absolute inset-0 rounded-2xl bg-accent-soft"
+                          transition={spring}
+                        />
+                      )}
+                      <t.Icon size={15} strokeWidth={2.4} className="relative" />
+                      <span className="relative">{t.label}</span>
+                    </motion.button>
+                  );
+                })}
+              </aside>
+
+              {/* Top tab strip (sub-lg) */}
+              <div className="lg:hidden border-b border-line/70 p-2 flex items-center gap-1 overflow-x-auto scrollbar-hide">
+                {EDITOR_TABS.map((t) => {
+                  const active = tab === t.id;
+                  return (
+                    <motion.button
+                      whileTap={tap}
+                      key={t.id}
+                      onClick={() => setTab(t.id)}
+                      className={`relative h-9 px-3.5 rounded-full text-[12.5px] font-bold whitespace-nowrap transition-colors ${
+                        active ? 'text-on-accent' : 'text-ink-muted hover:text-ink'
+                      }`}
+                    >
+                      {active && (
+                        <motion.span
+                          layoutId="shop-editor-pill-mobile"
+                          className="absolute inset-0 rounded-full bg-accent"
+                          transition={spring}
+                        />
+                      )}
+                      <span className="relative inline-flex items-center gap-1.5">
+                        <t.Icon size={12} strokeWidth={2.4} />
+                        {t.label}
+                      </span>
+                    </motion.button>
+                  );
+                })}
+              </div>
+
+              {/* Tab content */}
+              <div className="min-h-0 overflow-y-auto p-5 sm:p-6 lg:col-start-2">
+                {tab === 'theme' && (
+                  <ThemeAndBrandingTab
+                    shop={shop}
+                    onSaved={(layout) => onSaved({ layout })}
+                  />
+                )}
+                {tab === 'sections' && (
+                  <ShopLayoutEditor
+                    shopId={shop.id}
+                    initialLayout={shop.layout || null}
+                    onSaved={(layout) => onSaved({ layout })}
+                    /* Sectioned editor renders without the surrounding
+                       card chrome inside the modal (the modal already
+                       provides a card surface). */
+                    embedded
+                  />
+                )}
+                {tab === 'domain' && (
+                  <CustomDomainCard
+                    shopId={shop.id}
+                    initialDomain={shop.custom_domain || null}
+                    shopUrl={shop.shop_url}
+                    onSaved={(domain) => onSaved({ custom_domain: domain })}
+                    embedded
+                  />
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   ThemeAndBrandingTab — picks a preset theme, then exposes accent /
+   banner / tagline / card-style fine-tuners. Saves to the same
+   user_shops.layout JSON the Sections tab writes to (so the two tabs
+   are eventually-consistent: switching tabs after a save shows the
+   latest layout).
+   ───────────────────────────────────────────────────────────────────────── */
+const ThemeAndBrandingTab: React.FC<{
+  shop: Shop;
+  onSaved: (layout: ShopLayout) => void;
+}> = ({ shop, onSaved }) => {
+  const { addToast } = useToastStore();
+  const initial = shop.layout || {};
+  const [bannerUrl, setBannerUrl] = useState(initial.banner_url || '');
+  const [accent, setAccent] = useState(initial.accent || '#7c3aed');
+  const [tagline, setTagline] = useState(initial.tagline || '');
+  const [cardStyle, setCardStyle] = useState<NonNullable<ShopLayout['card_style']>>(
+    initial.card_style || 'tile',
+  );
+  const [activePreset, setActivePreset] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    setDirty(true);
+  }, [bannerUrl, accent, tagline, cardStyle]);
+  useEffect(() => {
+    setDirty(false);
+  }, []);
+
+  const applyPreset = (p: ThemePreset) => {
+    setActivePreset(p.id);
+    setAccent(p.accent);
+    setCardStyle(p.cardStyle);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const layout: ShopLayout = {
+        ...(shop.layout || {}),
+        banner_url: bannerUrl.trim() || undefined,
+        accent,
+        tagline: tagline.trim() || undefined,
+        card_style: cardStyle,
+      };
+      const { error } = await supabase
+        .from('user_shops')
+        .update({ layout, updated_at: new Date().toISOString() })
+        .eq('id', shop.id);
+      if (error) throw error;
+      onSaved(layout);
+      setDirty(false);
+      addToast({
+        type: 'success',
+        title: 'Theme saved',
+        message: 'Your changes are live on the public shop page.',
+      });
+    } catch (err: any) {
+      addToast({ type: 'error', title: 'Could not save', message: err?.message || 'Try again' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-7 max-w-[820px]">
+      {/* PRESETS */}
+      <section>
+        <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+          <div>
+            <span className="label-eyebrow">Themes</span>
+            <h3 className="text-[16px] font-bold tracking-tight text-ink mt-1 leading-none">
+              Start from a preset
+            </h3>
+          </div>
+          <p className="text-[11.5px] text-ink-dim font-medium">
+            One click applies accent + card style. Fine-tune below.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          {THEME_PRESETS.map((p) => {
+            const active = activePreset === p.id || accent.toLowerCase() === p.accent.toLowerCase();
+            return (
+              <motion.button
+                key={p.id}
+                whileTap={tap}
+                whileHover={{ y: -2 }}
+                onClick={() => applyPreset(p)}
+                className={`group relative text-left rounded-2xl overflow-hidden bg-surface transition-shadow ${
+                  active ? 'ring-2 ring-accent ring-offset-2 ring-offset-bg' : 'ring-1 ring-line'
+                }`}
+              >
+                <div
+                  className="aspect-[16/9] relative"
+                  style={{ background: p.previewBg }}
+                  aria-hidden
+                >
+                  {/* Mini-mockup: faux card thumbnails to communicate
+                      the look without a real screenshot. */}
+                  <div className="absolute inset-0 p-3 grid grid-cols-3 gap-1.5 items-end">
+                    {[0, 1, 2].map((i) => (
+                      <div
+                        key={i}
+                        className="rounded-md bg-white/15 backdrop-blur-sm"
+                        style={{
+                          height: ['38%', '64%', '50%'][i],
+                          boxShadow: `inset 0 -2px 0 ${p.accent}`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                  {active && (
+                    <span className="absolute top-2 right-2 w-6 h-6 rounded-full bg-accent text-on-accent grid place-items-center text-[11px] font-bold shadow-md">
+                      ✓
+                    </span>
+                  )}
+                </div>
+                <div className="p-3">
+                  <div className="text-[13px] font-bold text-ink tracking-tight">{p.name}</div>
+                  <div className="text-[11px] text-ink-muted font-medium mt-0.5 truncate">
+                    {p.sub}
+                  </div>
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* BANNER */}
+      <FieldGroup
+        label="Banner image"
+        hint="Direct image URL (PNG/JPG). Recommended size 1600×400."
+      >
+        <div className="flex items-center gap-2">
+          <div className="w-11 h-11 rounded-2xl bg-subtle grid place-items-center shrink-0 overflow-hidden">
+            {bannerUrl ? (
+              <img src={bannerUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <ImageIcon size={15} strokeWidth={2.4} className="text-ink-muted" />
+            )}
+          </div>
+          <input
+            value={bannerUrl}
+            onChange={(e) => setBannerUrl(e.target.value)}
+            placeholder="https://i.imgur.com/your-banner.jpg"
+            className="flex-1 h-11 px-3.5 rounded-full bg-subtle outline-none text-ink text-[13px] font-medium placeholder:text-ink-dim focus:ring-2 focus:ring-accent transition-shadow"
+          />
+        </div>
+        {bannerUrl && (
+          <div className="mt-3 aspect-[4/1] rounded-2xl bg-subtle overflow-hidden">
+            <img
+              src={bannerUrl}
+              alt="Banner preview"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          </div>
+        )}
+      </FieldGroup>
+
+      {/* ACCENT */}
+      <FieldGroup
+        label="Accent color"
+        hint="Used for buttons, badges, and active states on your shop."
+      >
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={accent}
+            onChange={(e) => {
+              setActivePreset(null);
+              setAccent(e.target.value);
+            }}
+            className="w-11 h-11 rounded-2xl bg-subtle border-0 cursor-pointer shrink-0"
+          />
+          <input
+            value={accent}
+            onChange={(e) => {
+              setActivePreset(null);
+              setAccent(e.target.value);
+            }}
+            placeholder="#7c3aed"
+            className="flex-1 h-11 px-3.5 rounded-full bg-subtle outline-none text-ink font-mono text-[13px] uppercase focus:ring-2 focus:ring-accent transition-shadow"
+            maxLength={7}
+          />
+        </div>
+      </FieldGroup>
+
+      {/* TAGLINE */}
+      <FieldGroup label="Tagline" hint="One-liner shown under your shop name.">
+        <input
+          value={tagline}
+          onChange={(e) => setTagline(e.target.value)}
+          placeholder="Boutique CS2 skins · low floats · fair prices"
+          maxLength={80}
+          className="w-full h-11 px-4 rounded-full bg-subtle outline-none text-ink text-[13.5px] font-medium placeholder:text-ink-dim focus:ring-2 focus:ring-accent transition-shadow"
+        />
+        <div className="text-[10.5px] text-ink-dim font-bold tabular-nums mt-1 text-right">
+          {tagline.length}/80
+        </div>
+      </FieldGroup>
+
+      {/* CARD STYLE */}
+      <FieldGroup
+        label="Card style"
+        hint="How the listings grid is laid out on your shop."
+      >
+        <div className="grid grid-cols-3 gap-2">
+          {(
+            [
+              { id: 'tile',    label: 'Tile',    sub: 'Large image cards' },
+              { id: 'compact', label: 'Compact', sub: 'Dense grid' },
+              { id: 'list',    label: 'List',    sub: 'Horizontal rows' },
+            ] as const
+          ).map((c) => {
+            const active = cardStyle === c.id;
+            return (
+              <motion.button
+                whileTap={tap}
+                key={c.id}
+                onClick={() => setCardStyle(c.id)}
+                className={`text-left p-3 rounded-2xl border-2 transition-colors ${
+                  active ? 'border-accent bg-accent-soft' : 'border-line bg-subtle hover:bg-bg'
+                }`}
+              >
+                <div className="text-[13px] font-bold text-ink tracking-tight">{c.label}</div>
+                <div className="text-[11px] text-ink-muted font-medium mt-0.5">{c.sub}</div>
+              </motion.button>
+            );
+          })}
+        </div>
+      </FieldGroup>
+
+      {/* SAVE BAR */}
+      <div className="flex items-center justify-end gap-2 pt-2">
+        <motion.button
+          whileTap={tap}
+          whileHover={!saving && dirty ? { scale: 1.02 } : undefined}
+          onClick={save}
+          disabled={saving || !dirty}
+          className="h-11 px-5 rounded-full bg-accent text-on-accent text-[13.5px] font-bold inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+          style={dirty ? { boxShadow: '0 10px 24px -12px rgb(var(--accent) / 0.6)' } : undefined}
+        >
+          <Save size={14} strokeWidth={2.4} />
+          {saving ? 'Saving…' : dirty ? 'Save theme' : 'Saved'}
+        </motion.button>
+      </div>
+    </div>
+  );
+};
+
 const ShopLayoutEditor: React.FC<{
   shopId: string;
   initialLayout: ShopLayout | null;
   onSaved: (layout: ShopLayout) => void;
-}> = ({ shopId, initialLayout, onSaved }) => {
+  /** When true, render only the Sections + About blocks (no outer
+      `card`, no duplicate banner/accent/tagline/card-style fields).
+      Used by the modal where the Theme tab owns those fields. */
+  embedded?: boolean;
+}> = ({ shopId, initialLayout, onSaved, embedded = false }) => {
   const { addToast } = useToastStore();
   /* Seed local state from the saved layout, padded with any sections
      that aren't in the saved blob (e.g. shops that saved before we
@@ -568,16 +1084,18 @@ const ShopLayoutEditor: React.FC<{
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={spring}
-      className="card p-5 md:p-6 space-y-5"
+      className={embedded ? 'space-y-5' : 'card p-5 md:p-6 space-y-5'}
     >
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <span className="label-eyebrow">Customize</span>
-          <h3 className="text-[17px] font-bold tracking-tight text-ink mt-1.5 leading-none">
-            Shop layout & branding
+          {!embedded && <span className="label-eyebrow">Customize</span>}
+          <h3 className={`font-bold tracking-tight text-ink leading-none ${embedded ? 'text-[16px]' : 'text-[17px] mt-1.5'}`}>
+            {embedded ? 'Page sections' : 'Shop layout & branding'}
           </h3>
           <p className="text-[12.5px] text-ink-muted font-medium mt-1.5">
-            Banner, accent color, sections — everything buyers see on your public page.
+            {embedded
+              ? 'Toggle sections, reorder them, and edit the About body.'
+              : 'Banner, accent color, sections — everything buyers see on your public page.'}
           </p>
         </div>
         <motion.button
@@ -593,7 +1111,10 @@ const ShopLayoutEditor: React.FC<{
         </motion.button>
       </div>
 
-      {/* Banner + accent + tagline */}
+      {/* Banner + accent + tagline + card style — only when this editor
+          stands alone (My Shop tab). Inside the modal, the Theme tab
+          owns these fields. */}
+      {!embedded && (<>
       <div className="grid md:grid-cols-2 gap-4">
         <FieldGroup
           label="Banner image URL"
@@ -711,6 +1232,7 @@ const ShopLayoutEditor: React.FC<{
           })}
         </div>
       </FieldGroup>
+      </>)}
 
       {/* Sections — toggle + reorder */}
       <FieldGroup
@@ -836,7 +1358,9 @@ const CustomDomainCard: React.FC<{
   initialDomain: string | null;
   shopUrl: string;
   onSaved: (domain: string | null) => void;
-}> = ({ shopId, initialDomain, shopUrl, onSaved }) => {
+  /** Strip the outer `card` chrome when rendered inside the modal. */
+  embedded?: boolean;
+}> = ({ shopId, initialDomain, shopUrl, onSaved, embedded = false }) => {
   const { addToast } = useToastStore();
   const [domain, setDomain] = useState(initialDomain || '');
   const [saving, setSaving] = useState(false);
@@ -888,7 +1412,7 @@ const CustomDomainCard: React.FC<{
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={spring}
-      className="card p-5 md:p-6 space-y-4"
+      className={embedded ? 'space-y-4' : 'card p-5 md:p-6 space-y-4'}
     >
       <div className="flex items-center gap-3">
         <div className="icon-chip bg-accent-soft">
