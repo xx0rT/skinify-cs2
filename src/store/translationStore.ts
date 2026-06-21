@@ -66,8 +66,15 @@ interface TranslationState {
 export const useTranslationStore = create<TranslationState>()(
   persist(
     (set, get) => ({
-      currentLanguage: languages[0],
-      translations: createTranslations(languages[0].code),
+      /* Default to Czech — Skinify s.r.o. is a Czech business, the
+         majority of traffic comes from CZ/SK, and the legal entity +
+         PayU billing are CZK-denominated. IP-based geo detection in
+         App.tsx can still override this to another language for non-CZ
+         visitors before they see the first paint, but if detection
+         fails (offline / blocked / ad-blocker), CZ is the right
+         default rather than English. */
+      currentLanguage: languages[1], // 'cs'
+      translations: createTranslations(languages[1].code),
       isAutoDetected: true,
 
       setLanguage: (language: Language) => {
