@@ -103,6 +103,7 @@ const DeveloperDocsPage = lazyWithRetry(() => import('./pages/DeveloperDocsPage'
 const ChangelogPage = lazyWithRetry(() => import('./pages/ChangelogPage'));
 const BlogDetailPage = lazyWithRetry(() => import('./pages/BlogDetailPage'));
 const NotFoundPage = lazyWithRetry(() => import('./pages/NotFoundPage'));
+const SeoLandingPage = lazyWithRetry(() => import('./pages/SeoLandingPage'));
 const OnboardingPage = lazyWithRetry(() => import('./pages/OnboardingPage'));
 const SignInPage = lazyWithRetry(() => import('./pages/SignInPage'));
 const SignUpPage = lazyWithRetry(() => import('./pages/SignUpPage'));
@@ -353,6 +354,17 @@ export default function App() {
 
             <Route path="/shop/:shopUrl" element={<UserShopPage />} />
             <Route path={`/:lang(${LANG_PATTERN})/shop/:shopUrl`} element={<UserShopPage />} />
+
+            {/* ─── SEO landing pages ──────────────────────────────────
+                Long-form, statically-rendered pages targeting specific
+                search queries (buy-cs2-skins, cs2-skiny-koupit, vs/*).
+                Content lives in src/data/seoLandingPages.ts; the
+                SeoLandingPage component reads it via slug. */}
+            <Route path="/buy-cs2-skins" element={<SeoLandingPage />} />
+            <Route path="/cs2-sell-skins" element={<SeoLandingPage />} />
+            <Route path="/cs2-skiny-koupit" element={<SeoLandingPage />} />
+            <Route path="/cs2-nuze-koupit" element={<SeoLandingPage />} />
+            <Route path="/vs/:slug" element={<SeoLandingPage />} />
 
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
