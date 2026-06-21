@@ -6,6 +6,31 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 };
 
+/* Resolve %owner_steamid% / %assetid% placeholders in a Steam inspect
+   link to real values. Old listings (before the user-inventory fix
+   landed) captured the link with placeholders intact; the Steam
+   client refuses to open those. This is idempotent — already-resolved
+   links pass through unchanged. */
+function resolveInspectLink(
+  link: string | null | undefined,
+  ownerSteamId: string | null | undefined,
+  assetId: string | null | undefined,
+): string | null {
+  if (!link) return null;
+  let out = link;
+  if (ownerSteamId) {
+    out = out.replace(/%owner_steamid%/g, String(ownerSteamId));
+  }
+  if (assetId) {
+    out = out.replace(/%assetid%/g, String(assetId));
+  }
+  /* If after substitution any placeholder remains (e.g. assetId
+     wasn't supplied), drop the link — a templated URL would just
+     fail in Steam and we'd rather surface "inspect unavailable". */
+  if (out.includes('%') && /%[a-z_]+%/i.test(out)) return null;
+  return out;
+}
+
 interface CreateListingRequest {
   steam_id: string;
   asset_id: string;
@@ -196,6 +221,14 @@ Deno.serve(async (req) => {
           description: listing.description,
           listing_type: listing.listing_type,
           share_token: listing.share_token,
+          /* Resolve placeholders the same way the bulk listing
+             endpoint does so the share-link page also gets a working
+             inspect URL when available. */
+          inspect_link: resolveInspectLink(
+            listing.inspect_link,
+            listing.steam_id,
+            listing.asset_id,
+          ),
           private_buyer_steam_id: listing.private_buyer_steam_id
         };
 
@@ -339,8 +372,17 @@ Deno.serve(async (req) => {
         private_buyer_steam_id: listing.private_buyer_steam_id,
         share_token: listing.share_token,
         /* Surface inspect_link to the client so the marketplace card
-           hook can call /functions/v1/skin-float with real params. */
-        inspect_link: listing.inspect_link || null,
+           hook can call /functions/v1/skin-float with real params.
+           Some old rows still have the raw Steam template with
+           `%owner_steamid%` / `%assetid%` placeholders (captured before
+           the user-inventory fix that substitutes them at insert
+           time). Resolve at response time so the client always gets a
+           working URL. */
+        inspect_link: resolveInspectLink(
+          listing.inspect_link,
+          listing.steam_id,
+          listing.asset_id,
+        ),
       }));
 
       console.log(`=== FORMATTED LISTINGS ===`);

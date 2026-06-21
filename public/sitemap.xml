@@ -184,6 +184,20 @@
     <priority>0.75</priority>
   </url>
 
+  <!-- FAQ detail pages — one indexable URL per question. -->
+  <url><loc>https://skinify.gg/faq/what-is-skinify</loc><lastmod>2026-06-21</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/faq/how-does-escrow-work</loc><lastmod>2026-06-21</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/faq/what-are-the-fees</loc><lastmod>2026-06-21</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/faq/is-skinify-safe</loc><lastmod>2026-06-21</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/faq/how-long-does-trade-take</loc><lastmod>2026-06-21</lastmod><changefreq>monthly</changefreq><priority>0.75</priority></url>
+  <url><loc>https://skinify.gg/faq/how-to-sell-cs2-skins</loc><lastmod>2026-06-21</lastmod><changefreq>monthly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/faq/how-to-withdraw-money</loc><lastmod>2026-06-21</lastmod><changefreq>monthly</changefreq><priority>0.75</priority></url>
+  <url><loc>https://skinify.gg/faq/do-i-need-mobile-authenticator</loc><lastmod>2026-06-21</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://skinify.gg/faq/what-if-trade-fails</loc><lastmod>2026-06-21</lastmod><changefreq>monthly</changefreq><priority>0.75</priority></url>
+  <url><loc>https://skinify.gg/faq/skinify-vs-steam-market</loc><lastmod>2026-06-21</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/faq/does-skinify-ask-steam-password</loc><lastmod>2026-06-21</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://skinify.gg/faq/how-to-contact-support</loc><lastmod>2026-06-21</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
   <!-- Blog posts — seeded by the 20260618130000 migration. -->
   <url>
     <loc>https://skinify.gg/blog/skinify-vs-steam-market-poplatky-2026</loc>
