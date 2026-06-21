@@ -21,7 +21,6 @@ import { useToastStore } from '../../../store/toastStore';
 import { useCurrencyStore } from '../../../store/currencyStore';
 import { spring, tap } from '../../../lib/motion';
 import { SkinCard } from '../../ui/SkinCard';
-import { supabase } from '../../../lib/supabaseClient';
 
 /* ─────────────────────────────────────────────────────────────────────────
    ListingsTab — redesigned
@@ -124,67 +123,65 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
     return { count: listings.length, totalValue, totalViews };
   }, [listings]);
 
-  /* Add to shop — attach a listing to the user's public storefront
-     (user_shops/shop_items). The shop dashboard renders attached items
-     on the seller's public /shop/<slug> URL. Idempotent: re-clicking
-     a listing that's already attached silently no-ops (caught by the
-     shop_items unique constraint on shop_id + listing_id). */
+  /* Add to shop — attach a listing to the user's public storefront.
+     Goes through the toggle-shop-item edge function (service role) so
+     the RLS-restricted shop_items INSERT works for Steam-OpenID users
+     who don't have a Supabase auth.uid(). The function resolves the
+     user's shop server-side from steamId, so we only send steamId +
+     listingId. Idempotent on duplicate (the function returns
+     `alreadyAdded: true` on the unique-constraint hit). */
   const handleAddToShop = async (l: Listing) => {
     if (!steamId) {
       addToast({ type: 'warning', title: 'Sign in first' });
       return;
     }
     try {
-      /* Resolve the user's row + their shop in one round-trip. */
-      const { data: userRow, error: userErr } = await supabase
-        .from('users')
-        .select('id')
-        .eq('steam_id', steamId)
-        .maybeSingle();
-      if (userErr || !userRow) throw new Error('User not found');
-
-      const { data: shopRow, error: shopErr } = await supabase
-        .from('user_shops')
-        .select('id, shop_url')
-        .eq('user_id', userRow.id)
-        .maybeSingle();
-      if (shopErr) throw shopErr;
-      if (!shopRow) {
+      const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+      const res = await fetch(`${supabaseUrl}/functions/v1/toggle-shop-item`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'add',
+          steamId,
+          listingId: l.id,
+          /* shopId omitted — the edge function looks it up from the
+             user's row, so we don't have to query user_shops here
+             (which would also 401 for Steam-OpenID users). */
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
         addToast({
-          type: 'warning',
-          title: 'Create a shop first',
-          message: 'Open Profile → Listings → My shop to set up your storefront.',
+          type: 'error',
+          title: 'Could not add to shop',
+          message: data?.error || `HTTP ${res.status}`,
         });
         return;
       }
-
-      const { error: insertErr } = await supabase.from('shop_items').insert({
-        shop_id: shopRow.id,
-        listing_id: Number(l.id),
-        display_order: 0,
-      });
-      if (insertErr) {
-        /* Unique constraint = already added. Treat as success. */
-        if (String(insertErr.code) === '23505') {
-          addToast({
-            type: 'info',
-            title: 'Already in your shop',
-            message: `${l.item_name} is already on /shop/${shopRow.shop_url}`,
-          });
-          return;
-        }
-        throw insertErr;
+      const shopUrl = data?.shopUrl;
+      if (data?.alreadyAdded) {
+        addToast({
+          type: 'info',
+          title: 'Already in your shop',
+          message: shopUrl ? `${l.item_name} · /shop/${shopUrl}` : l.item_name,
+        });
+      } else {
+        addToast({
+          type: 'success',
+          title: 'Added to your shop',
+          message: shopUrl
+            ? `${l.item_name} now appears on /shop/${shopUrl}`
+            : l.item_name,
+        });
       }
-      addToast({
-        type: 'success',
-        title: 'Added to your shop',
-        message: `${l.item_name} now appears on /shop/${shopRow.shop_url}`,
-      });
     } catch (err: any) {
       addToast({
         type: 'error',
         title: 'Could not add to shop',
-        message: err?.message || 'Try again.',
+        message: err?.message || 'Network error.',
       });
     }
   };
@@ -477,114 +474,124 @@ const ListingCard: React.FC<{
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ ...spring, delay: Math.min(index * 0.012, 0.18) }}
-      className="space-y-2"
+      /* Single positioned wrapper now — actions live INSIDE the card
+         as an absolutely-positioned bottom strip rather than stacked
+         below. The card needs `pb-20` worth of empty space at the
+         bottom for the overlay to land cleanly without covering the
+         price row. */
+      className="relative"
     >
-      <div className="relative">
-        <SkinCard
-          variant="tile"
-          hoverLift={false}
-          item={cardItem}
-          onView={onView}
-          formatPrice={formatPrice}
-        />
-        {/* Listing-type pill — auction / private — overlaid on the
-            card's top-left. Matches the Inventory "Listed" badge
-            placement. */}
-        {listing.listing_type === 'auction' && (
-          <span className="absolute top-3 left-3 pill bg-amber-500/15 text-amber-700 dark:text-amber-300 z-10">
-            Auction
-          </span>
-        )}
-        {listing.listing_type === 'private' && (
-          <span className="absolute top-3 left-3 pill bg-purple-500/15 text-purple-700 dark:text-purple-300 z-10">
-            Private
-          </span>
-        )}
-        {listing.views > 0 && (
-          <span className="absolute top-3 right-3 inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-bg/80 text-ink-muted tabular-nums z-10">
-            <Eye size={10} strokeWidth={2.6} />
-            {listing.views}
-          </span>
-        )}
-      </div>
+      <SkinCard
+        variant="tile"
+        hoverLift={false}
+        item={cardItem}
+        onView={onView}
+        formatPrice={formatPrice}
+      />
 
-      {/* Owner actions stacked below the card. When editing, the price
-          input replaces this row inline. */}
-      {editing ? (
-        <div className="flex items-center gap-1.5">
-          <input
-            autoFocus
-            type="number"
-            value={editPrice}
-            onChange={(e) => setEditPrice(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') onSaveEdit();
-              if (e.key === 'Escape') onCancelEdit();
-            }}
-            className="flex-1 min-w-0 h-9 px-3 rounded-full bg-subtle outline-none text-ink text-[13px] font-bold tabular-nums focus:ring-2 focus:ring-accent"
-          />
-          <motion.button
-            whileTap={tap}
-            onClick={onSaveEdit}
-            className="h-9 w-9 shrink-0 rounded-full bg-accent text-on-accent grid place-items-center"
-            title="Save"
-          >
-            <Check size={13} strokeWidth={2.6} />
-          </motion.button>
-          <motion.button
-            whileTap={tap}
-            onClick={onCancelEdit}
-            className="h-9 w-9 shrink-0 rounded-full bg-subtle text-ink grid place-items-center"
-            title="Cancel"
-          >
-            <X size={13} strokeWidth={2.4} />
-          </motion.button>
-        </div>
-      ) : (
-        <>
-          {/* Primary action row — Edit / Add to shop / Remove */}
+      {/* Listing-type pill — auction / private — overlaid on the
+          card's top-left. Matches Inventory "Listed" badge placement. */}
+      {listing.listing_type === 'auction' && (
+        <span className="absolute top-3 left-3 pill bg-amber-500/15 text-amber-700 dark:text-amber-300 z-10">
+          Auction
+        </span>
+      )}
+      {listing.listing_type === 'private' && (
+        <span className="absolute top-3 left-3 pill bg-purple-500/15 text-purple-700 dark:text-purple-300 z-10">
+          Private
+        </span>
+      )}
+      {listing.views > 0 && (
+        <span className="absolute top-3 right-3 inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-bg/80 text-ink-muted tabular-nums z-10">
+          <Eye size={10} strokeWidth={2.6} />
+          {listing.views}
+        </span>
+      )}
+
+      {/* Owner actions overlaid INSIDE the card at the bottom edge.
+          Translucent backdrop-blur strip so the buttons stay legible
+          over any image area beneath. stopPropagation on the wrapper
+          so taps on buttons don't also trigger the card's onView. */}
+      <div
+        className="absolute inset-x-2 bottom-2 z-20 rounded-2xl bg-bg/85 backdrop-blur-md p-1.5 space-y-1.5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {editing ? (
           <div className="flex items-center gap-1.5">
+            <input
+              autoFocus
+              type="number"
+              value={editPrice}
+              onChange={(e) => setEditPrice(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onSaveEdit();
+                if (e.key === 'Escape') onCancelEdit();
+              }}
+              className="flex-1 min-w-0 h-8 px-3 rounded-full bg-subtle outline-none text-ink text-[12.5px] font-bold tabular-nums focus:ring-2 focus:ring-accent"
+            />
             <motion.button
               whileTap={tap}
-              onClick={onStartEdit}
-              className="flex-1 h-9 rounded-full bg-subtle hover:bg-accent-soft text-ink-muted hover:text-ink text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition-colors"
-              title="Edit price"
+              onClick={onSaveEdit}
+              className="h-8 w-8 shrink-0 rounded-full bg-accent text-on-accent grid place-items-center"
+              title="Save"
             >
-              <Edit3 size={12} strokeWidth={2.4} />
-              Edit
+              <Check size={12} strokeWidth={2.6} />
             </motion.button>
             <motion.button
               whileTap={tap}
-              onClick={onAddToShop}
-              className="flex-1 h-9 rounded-full bg-subtle hover:bg-accent-soft text-ink-muted hover:text-ink text-[12px] font-bold inline-flex items-center justify-center gap-1.5 transition-colors"
-              title="Add to my shop"
+              onClick={onCancelEdit}
+              className="h-8 w-8 shrink-0 rounded-full bg-subtle text-ink grid place-items-center"
+              title="Cancel"
             >
-              <Store size={12} strokeWidth={2.4} />
-              Add to shop
-            </motion.button>
-            <motion.button
-              whileTap={tap}
-              onClick={onRemove}
-              className="h-9 w-9 shrink-0 rounded-full bg-subtle hover:bg-rose-500/15 grid place-items-center transition-colors group/del"
-              title="Remove listing"
-            >
-              <Trash2 size={13} strokeWidth={2.4} className="text-ink-muted group-hover/del:text-rose-500 transition-colors" />
+              <X size={12} strokeWidth={2.4} />
             </motion.button>
           </div>
+        ) : (
+          <>
+            {/* Primary action row — Edit / Add to shop / Remove */}
+            <div className="flex items-center gap-1">
+              <motion.button
+                whileTap={tap}
+                onClick={onStartEdit}
+                className="flex-1 h-8 rounded-full bg-subtle hover:bg-accent-soft text-ink-muted hover:text-ink text-[11.5px] font-bold inline-flex items-center justify-center gap-1 transition-colors"
+                title="Edit price"
+              >
+                <Edit3 size={11} strokeWidth={2.4} />
+                Edit
+              </motion.button>
+              <motion.button
+                whileTap={tap}
+                onClick={onAddToShop}
+                className="flex-1 h-8 rounded-full bg-subtle hover:bg-accent-soft text-ink-muted hover:text-ink text-[11.5px] font-bold inline-flex items-center justify-center gap-1 transition-colors"
+                title="Add to my shop"
+              >
+                <Store size={11} strokeWidth={2.4} />
+                Shop
+              </motion.button>
+              <motion.button
+                whileTap={tap}
+                onClick={onRemove}
+                className="h-8 w-8 shrink-0 rounded-full bg-subtle hover:bg-rose-500/15 grid place-items-center transition-colors group/del"
+                title="Remove listing"
+              >
+                <Trash2 size={12} strokeWidth={2.4} className="text-ink-muted group-hover/del:text-rose-500 transition-colors" />
+              </motion.button>
+            </div>
 
-          {/* Promote — secondary upsell, accent pill so it pops as the
-              "give us money" action without crowding the primary row. */}
-          <motion.button
-            whileTap={tap}
-            whileHover={{ scale: 1.02 }}
-            onClick={onPromote}
-            className="w-full h-9 rounded-full bg-accent text-on-accent text-[12px] font-bold inline-flex items-center justify-center"
-            style={{ boxShadow: '0 8px 18px -8px rgb(var(--accent) / 0.55)' }}
-          >
-            Promote · {promoteLabel}
-          </motion.button>
-        </>
-      )}
+            {/* Promote — secondary upsell row. Accent pill so it pops as
+                the "give us money" action without crowding the primary row. */}
+            <motion.button
+              whileTap={tap}
+              whileHover={{ scale: 1.02 }}
+              onClick={onPromote}
+              className="w-full h-8 rounded-full bg-accent text-on-accent text-[11.5px] font-bold inline-flex items-center justify-center"
+              style={{ boxShadow: '0 6px 14px -6px rgb(var(--accent) / 0.55)' }}
+            >
+              Promote · {promoteLabel}
+            </motion.button>
+          </>
+        )}
+      </div>
     </motion.div>
   );
 };
