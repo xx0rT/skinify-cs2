@@ -337,16 +337,39 @@ function extractWearCategory(descriptions: any[]): string {
 }
 
 /**
- * Extract inspect link from actions array
+ * Extract inspect link from actions array. Steam's inventory endpoint
+ * returns the link with `%owner_steamid%` + `%assetid%` placeholder
+ * tokens — CSFloat needs the resolved form, so we substitute the real
+ * values before storing.
+ *
+ * Two shapes Steam ships, both handled here:
+ *   1. S<owner>A<asset>D<dcode>   — owned items the owner is inspecting
+ *   2. M<market_id>A<asset>D<dcode> — market listings
+ *
+ * Returns the resolved link, or null if the action is missing.
  */
-function extractInspectLink(actions: any[]): string | null {
+function extractInspectLink(
+  actions: any[],
+  ownerSteamId?: string,
+  assetId?: string,
+): string | null {
   if (!actions) return null;
-  
-  const inspectAction = actions.find(action => 
-    action.link && action.link.includes('csgo_econ_action_preview')
+  const inspectAction = actions.find(
+    (action) => action.link && action.link.includes('csgo_econ_action_preview'),
   );
-  
-  return inspectAction ? inspectAction.link : null;
+  if (!inspectAction) return null;
+  let link: string = inspectAction.link;
+  /* Resolve placeholders if we have the values. We resolve %assetid%
+     in both encoded (%25assetid%25) and bare forms because Steam
+     sometimes encodes one but not the other depending on the
+     endpoint flavour. */
+  if (ownerSteamId) {
+    link = link.replace(/%owner_steamid%/g, ownerSteamId);
+  }
+  if (assetId) {
+    link = link.replace(/%assetid%/g, assetId);
+  }
+  return link;
 }
 
 /**
@@ -393,7 +416,12 @@ function extractFloatFromAssetProperties(assetProperties?: Array<{ propertyid: n
  * @param assetProperties - Asset properties containing float/pattern
  * @returns Processed item object
  */
-function parseCS2Item(asset: any, description: any, assetProperties?: any[]): any {
+function parseCS2Item(
+  asset: any,
+  description: any,
+  assetProperties?: any[],
+  ownerSteamId?: string,
+): any {
   vlog('=== PARSING CS2 ITEM ===');
   vlog('Asset:', { assetid: asset.assetid, classid: asset.classid, instanceid: asset.instanceid });
   vlog('Description:', { name: description.name, market_name: description.market_name });
@@ -425,8 +453,13 @@ function parseCS2Item(asset: any, description: any, assetProperties?: any[]): an
   // Extract wear category
   const wearCategory = extractWearCategory(description.descriptions || []);
 
-  // Extract inspect link
-  const inspectLink = extractInspectLink(description.actions || []);
+  /* Resolve the inspect link with the real owner SteamID + assetid.
+     Stored on the listing later so CSFloat can look up float/seed. */
+  const inspectLink = extractInspectLink(
+    description.actions || [],
+    ownerSteamId,
+    asset.assetid,
+  );
 
   // Extract float and pattern from asset_properties (most accurate)
   const { float: assetFloat, pattern: assetPattern } = extractFloatFromAssetProperties(assetProperties);
@@ -850,8 +883,16 @@ Deno.serve(async (req) => {
             // Get asset properties for this specific asset
             const assetProps = assetPropertiesMap.get(asset.assetid);
 
-            // Use the new CS2 item parser with asset properties
-            const processedItem = parseCS2Item(asset, description, assetProps);
+            /* Pass the resolved owner SteamID through so the inspect
+               link's %owner_steamid% placeholder gets substituted with
+               a real value — CSFloat can't look up float/seed from a
+               template-shaped URL. */
+            const processedItem = parseCS2Item(
+              asset,
+              description,
+              assetProps,
+              steamId64,
+            );
 
             // Validate the processed item before adding
             if (processedItem && processedItem.name && processedItem.image) {
