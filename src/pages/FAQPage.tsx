@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronDown,
+  ChevronRight,
   Search,
   ShieldCheck,
   Coins,
@@ -96,6 +97,22 @@ const FAQ: FAQItem[] = [
   { id: '24', category: 'Support',  question: 'How fast does support respond?',
     answer: 'Live chat: under 5 minutes during peak hours, under 30 minutes off-peak. Email: under 4 hours on average. Trade disputes: under 24 hours. VIP users get a dedicated queue with priority response times.' },
 ];
+
+/* Map FAQ index id → detail-page slug. We only have detail pages for
+   the questions worth deep-linking; the rest stay accordion-only.
+   Add more here as we write more detail pages. */
+const FAQ_TO_DETAIL: Record<string, string> = {
+  '1':  'what-is-skinify',
+  '2':  'how-to-sell-cs2-skins',
+  '3':  'is-skinify-safe',
+  '4':  'how-does-escrow-work',
+  '5':  'what-are-the-fees',
+  '7':  'how-long-does-trade-take',
+  '10': 'how-to-withdraw-money',
+  '11': 'how-to-contact-support',
+  '13': 'do-i-need-mobile-authenticator',
+  '16': 'does-skinify-ask-steam-password',
+};
 
 const FAQPage: React.FC = () => {
   const navigate = useNavigate();
@@ -271,9 +288,29 @@ const FAQPage: React.FC = () => {
                           transition={{ duration: 0.26, ease: [0.2, 0.8, 0.2, 1] }}
                           className="overflow-hidden"
                         >
-                          <p className="text-[13.5px] sm:text-[14px] text-ink-muted leading-relaxed font-medium pb-5 pr-12 max-w-3xl">
-                            {f.answer}
-                          </p>
+                          <div className="pb-5 pr-12 max-w-3xl">
+                            <p className="text-[13.5px] sm:text-[14px] text-ink-muted leading-relaxed font-medium">
+                              {f.answer}
+                            </p>
+                            {/* If we shipped a detail page for this
+                                question, surface a "read more" link.
+                                Detail pages have ~5x the content + are
+                                indexable per-question — both better SEO
+                                and a better user experience. */}
+                            {(() => {
+                              const detail = FAQ_TO_DETAIL[f.id];
+                              if (!detail) return null;
+                              return (
+                                <button
+                                  onClick={() => navigate(`/faq/${detail}`)}
+                                  className="mt-3 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-accent hover:underline"
+                                >
+                                  Read the full answer
+                                  <ChevronRight size={12} strokeWidth={2.6} />
+                                </button>
+                              );
+                            })()}
+                          </div>
                         </motion.div>
                       )}
                     </AnimatePresence>

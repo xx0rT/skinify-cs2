@@ -104,6 +104,7 @@ const ChangelogPage = lazyWithRetry(() => import('./pages/ChangelogPage'));
 const BlogDetailPage = lazyWithRetry(() => import('./pages/BlogDetailPage'));
 const NotFoundPage = lazyWithRetry(() => import('./pages/NotFoundPage'));
 const SeoLandingPage = lazyWithRetry(() => import('./pages/SeoLandingPage'));
+const FaqDetailPage = lazyWithRetry(() => import('./pages/FaqDetailPage'));
 const OnboardingPage = lazyWithRetry(() => import('./pages/OnboardingPage'));
 const SignInPage = lazyWithRetry(() => import('./pages/SignInPage'));
 const SignUpPage = lazyWithRetry(() => import('./pages/SignUpPage'));
@@ -306,6 +307,8 @@ export default function App() {
 
             <Route path="/faq" element={<FAQPage />} />
             <Route path={`/:lang(${LANG_PATTERN})/faq`} element={<FAQPage />} />
+            <Route path="/faq/:slug" element={<FaqDetailPage />} />
+            <Route path={`/:lang(${LANG_PATTERN})/faq/:slug`} element={<FaqDetailPage />} />
 
             <Route path="/security-tips" element={<SecurityTipsPage />} />
             <Route path={`/:lang(${LANG_PATTERN})/security-tips`} element={<SecurityTipsPage />} />
