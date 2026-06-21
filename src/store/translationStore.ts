@@ -113,6 +113,30 @@ export const useTranslationStore = create<TranslationState>()(
     }),
     {
       name: 'translation-storage',
+      version: 2,
+      /* Migration v1 → v2: bump default language to Czech. Visitors who
+         hit the site before this change have a persisted English state
+         even though they never explicitly picked it (we defaulted to en
+         in v1). For those users — isAutoDetected still true AND current
+         language is English — we reset to Czech so the new default
+         takes effect. Anyone who *manually* picked English keeps it
+         (their isAutoDetected is false). */
+      migrate: (persisted: any, fromVersion: number) => {
+        if (!persisted) return persisted;
+        if (fromVersion < 2) {
+          const isAuto = persisted?.isAutoDetected !== false;
+          const onEnglishByDefault = persisted?.currentLanguage?.code === 'en';
+          if (isAuto && onEnglishByDefault) {
+            return {
+              ...persisted,
+              currentLanguage: languages[1],
+              translations: createTranslations(languages[1].code),
+              isAutoDetected: true,
+            };
+          }
+        }
+        return persisted;
+      },
     }
   )
 );
