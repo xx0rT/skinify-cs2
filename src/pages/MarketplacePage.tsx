@@ -777,7 +777,17 @@ const MarketplacePage: React.FC = () => {
               <div
                 className={
                   view === 'grid'
-                    ? 'market-grid grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 isolate'
+                    ? `market-grid grid grid-cols-2 sm:grid-cols-3 isolate ${
+                      /* With filters open: sidebar takes ~280px of horizontal
+                         space → max 5 columns on xl screens. With filters
+                         closed: the grid spans the full width → 6 columns
+                         on xl. Tracking these against `filtersOpen` keeps
+                         the cards a consistent visual size regardless of
+                         the sidebar state. */
+                      filtersOpen
+                        ? 'lg:grid-cols-4 xl:grid-cols-5'
+                        : 'lg:grid-cols-5 xl:grid-cols-6'
+                    }`
                     : 'space-y-2'
                 }
               >

@@ -170,9 +170,10 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
   if (variant === 'list') {
     return (
       <motion.article
+        translate="no"
         whileTap={tap}
         onClick={onView}
-        className="card group relative flex items-center gap-4 p-3 pr-4 cursor-pointer contain-card"
+        className="notranslate card group relative flex items-center gap-4 p-3 pr-4 cursor-pointer contain-card"
       >
         <div
           className="absolute left-3 top-3 bottom-3 w-[3px] rounded-full"
@@ -265,6 +266,13 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
     return (
       <motion.article
         whileTap={tap}
+        /* Block automatic translation of the card's contents — skin
+           names ("Karambit | Doppler"), conditions ("Factory New"),
+           prices ("$0.04"), float values, and item types should stay
+           in English regardless of the user's chosen UI language.
+           Google Translate honours both translate="no" and the
+           notranslate class; we set both for cross-browser safety. */
+        translate="no"
         /* When `hoverLift` is true (default — marketplace): spring up,
            scale 1.03, lift 22px so the action bar drops into the gap
            below. When false (profile inventory/listings): no lift, just
@@ -273,7 +281,10 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
         whileHover={hoverLift ? { scale: 1.03, y: -22, zIndex: 10 } : undefined}
         transition={{ type: 'spring', stiffness: 380, damping: 26, mass: 0.55 }}
         onClick={onView}
-        className="group relative cursor-pointer bg-surface flex flex-col transition-shadow"
+        /* `notranslate` class is the legacy Google Translate selector;
+           the `translate="no"` HTML attribute above is the modern one.
+           Setting both covers older crawler versions. */
+        className="notranslate group relative cursor-pointer bg-surface flex flex-col transition-shadow"
         style={{
           boxShadow: hoverLift
             ? 'inset 0 0 0 1px rgb(255 255 255 / 0.04), inset 0 -1px 0 0 rgb(255 255 255 / 0.04)'
@@ -542,9 +553,10 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
 
   return (
     <motion.article
+      translate="no"
       whileTap={tap}
       onClick={onView}
-      className="card group relative cursor-pointer contain-card overflow-hidden"
+      className="notranslate card group relative cursor-pointer contain-card overflow-hidden"
     >
       {/* image area — rarity gradient bg + sharp rarity bottom edge */}
       <div

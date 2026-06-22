@@ -222,43 +222,85 @@
       ]
     }
     </script>
-    <!-- Google Translate -->
-    <script type="text/javascript">
-      function googleTranslateElementInit() {
-        // Initialize translate widget in header
-        if (document.getElementById('google_translate_element')) {
-          new google.translate.TranslateElement(
-            {
-              pageLanguage: 'en',
-              includedLanguages: 'en,cs,de,es,fr,pl,ru,zh-CN,ja,ko,pt,it,tr,ar',
-              layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
-              autoDisplay: false
-            },
-            'google_translate_element'
-          );
-        }
+    <!-- Google Translate — auto-fires when our persisted translation
+         store has a non-English language. We use Google's
+         `googtrans` cookie convention: setting `/en/<target>` BEFORE
+         the element.js script loads tells the widget to translate
+         the page on first paint, so users don't see a flicker from
+         English → their language. Skin names, prices, and other
+         per-listing content are tagged with `translate="no"` on the
+         server side so the bot leaves them alone.
 
-        // Initialize translate widget in landing page settings
-        setTimeout(function() {
-          if (document.getElementById('google_translate_element_landing')) {
-            new google.translate.TranslateElement(
-              {
-                pageLanguage: 'en',
-                layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
-                autoDisplay: false
-              },
-              'google_translate_element_landing'
-            );
+         The element is hidden via CSS — we use Google Translate as a
+         silent translation engine, not as a visible widget. The
+         language picker in the LandingNav UI (our own component)
+         drives the cookie, which Google Translate then honours. -->
+    <script type="text/javascript">
+      (function () {
+        try {
+          // Read the persisted translation store (zustand-persist key)
+          // and translate to the matching Google-Translate language code.
+          var raw = localStorage.getItem('translation-storage');
+          var langCode = null;
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            langCode = parsed && parsed.state && parsed.state.currentLanguage && parsed.state.currentLanguage.code;
           }
-        }, 500);
+          // Google Translate uses zh-CN / pt-BR style codes; map our
+          // short codes to theirs where they differ.
+          var GT_MAP = {
+            cs: 'cs', de: 'de', es: 'es', fr: 'fr', pl: 'pl',
+            ru: 'ru', it: 'it', pt: 'pt', tr: 'tr', ar: 'ar',
+            zh: 'zh-CN', ja: 'ja'
+          };
+          var target = GT_MAP[langCode];
+          if (target && target !== 'en') {
+            // Setting both forms covers Google's cookie-name variations
+            // across subdomains / origins.
+            document.cookie = 'googtrans=/en/' + target + '; path=/';
+            document.cookie = 'googtrans=/en/' + target + '; path=/; domain=.skinify.gg';
+          } else {
+            // Explicitly clear so a previously translated user can
+            // revert to English by picking it in our UI.
+            document.cookie = 'googtrans=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+            document.cookie = 'googtrans=; path=/; domain=.skinify.gg; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+          }
+        } catch (e) {
+          /* localStorage / JSON parse failures — fall back to English */
+        }
+      })();
+
+      function googleTranslateElementInit() {
+        // One hidden mount point. The widget translates the whole
+        // <body> regardless of which element it's attached to.
+        new google.translate.TranslateElement(
+          {
+            pageLanguage: 'en',
+            includedLanguages: 'cs,de,es,fr,pl,ru,zh-CN,ja,it,pt,tr,ar',
+            layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
+            autoDisplay: false
+          },
+          'google_translate_element'
+        );
       }
     </script>
+    <style>
+      /* Hide the Google Translate UI entirely — we use it headless. */
+      #google_translate_element, .skiptranslate { display: none !important; }
+      body { top: 0 !important; } /* Google adds top:40px when toolbar shows; pin to 0 */
+      .goog-te-banner-frame { display: none !important; }
+      .goog-tooltip, .goog-tooltip:hover { display: none !important; }
+    </style>
     <!-- Pinned to https:// — a protocol-relative URL resolves to http:// on
          the dev server, which our CSP correctly blocks (script-src only
          allows the https variant). -->
     <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
   </head>
   <body>
+    <!-- Hidden mount point for Google Translate. The widget translates
+         the whole document regardless of where it attaches, so this
+         is just a stable element id the init script can find. -->
+    <div id="google_translate_element" aria-hidden="true"></div>
     <!--
       ─── Crawler-visible hero ──────────────────────────────────────────
       This block ships in the raw HTML response. Googlebot and other
