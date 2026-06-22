@@ -198,12 +198,6 @@ const LandingPage: React.FC = () => {
   );
 
   const portfolio = useMemo(() => Number(balance || 0), [balance]);
-
-  /* Promoted wall — real listings, no mocks. We sort `promoted` items
-     to the front (paid 7-day boosts), then pad with the freshest live
-     listings up to 100 entries. If the live feed is empty we render
-     nothing rather than fall back to demo data — the section just
-     hides until there are real items. */
   const promotedItems = useMemo(() => {
     const live = Array.isArray(marketplaceItems) ? marketplaceItems : [];
     if (live.length === 0) return [] as any[];

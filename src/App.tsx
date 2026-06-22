@@ -5,7 +5,6 @@ import { useCurrencyStore } from './store/currencyStore';
 import { useTranslationStore } from './store/translationStore';
 import { useAuthStore } from './store/authStore';
 import { autoDetectAndSetCurrency, detectGeoForUser, detectVpn } from './utils/geolocation';
-import { useTranslationStore } from './store/translationStore';
 import { memoryOptimizer } from './utils/memoryOptimizer';
 import ToastContainer from './components/ui/ToastContainer';
 import ScrollToTop from './components/ScrollToTop';
