@@ -161,47 +161,14 @@ const MessagesPage: React.FC = () => {
                 const unread = t.messages.filter((m) => !m.read).length;
                 const isActive = t.peerSteamId === activePeer;
                 return (
-                  <li key={t.peerSteamId}>
-                    <button
-                      onClick={() => setActivePeer(t.peerSteamId)}
-                      className={`w-full text-left px-3 py-3 flex items-center gap-3 transition-colors border-l-2 ${
-                        isActive
-                          ? 'bg-accent-soft border-l-accent'
-                          : 'border-l-transparent hover:bg-subtle/60'
-                      }`}
-                    >
-                      <div className="w-11 h-11 rounded-2xl bg-accent text-on-accent grid place-items-center font-bold shrink-0 overflow-hidden">
-                        {t.peerAvatar ? (
-                          <img src={t.peerAvatar} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-[14px]">{t.peerName.charAt(0).toUpperCase()}</span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-[13px] font-bold text-ink truncate tracking-tight">
-                            {t.peerName}
-                          </div>
-                          <div className="text-[10.5px] text-ink-dim tabular-nums shrink-0">
-                            {new Date(t.lastActivity).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between gap-2 mt-0.5">
-                          <div className="text-[11.5px] text-ink-muted truncate font-medium">
-                            {lastMsg?.text || lastMsg?.attachments?.[0]?.name || 'No messages yet'}
-                          </div>
-                          {unread > 0 && (
-                            <span className="shrink-0 bg-accent text-on-accent text-[10px] font-bold rounded-full px-1.5 tabular-nums">
-                              {unread}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  </li>
+                  <ThreadRow
+                    key={t.peerSteamId}
+                    thread={t}
+                    lastMsg={lastMsg}
+                    unread={unread}
+                    isActive={isActive}
+                    onClick={() => setActivePeer(t.peerSteamId)}
+                  />
                 );
               })
             )}
@@ -239,6 +206,167 @@ const MessagesPage: React.FC = () => {
     </div>
   );
 };
+
+/* ─────────────────────────────────────────────────────────────────────────
+   ThreadRow — one entry in the conversation sidebar.
+
+   Adds two things on top of the original button:
+     1. Lazy avatar fetch from /functions/v1/user-profile when the
+        thread's peerAvatar is null. Steam avatars persist on the
+        users table after first login, so this is the source of
+        truth. Cached on window so the same peer doesn't refetch
+        across thread re-renders.
+     2. Presence dot on the avatar (green = online <5 min ago,
+        amber = within last hour, gray = away). The "last_seen"
+        column on users is updated by user-profile on every fetch,
+        so we use that as a rough heuristic.
+   ───────────────────────────────────────────────────────────────────────── */
+const ThreadRow: React.FC<{
+  thread: ReturnType<typeof useDMStore.getState>['threads'][string];
+  lastMsg: DMMessage | undefined;
+  unread: number;
+  isActive: boolean;
+  onClick: () => void;
+}> = ({ thread: t, lastMsg, unread, isActive, onClick }) => {
+  const [avatar, setAvatar] = useState<string | null>(t.peerAvatar || null);
+  const [presence, setPresence] = useState<'online' | 'recent' | 'away'>('away');
+  const [lastSeen, setLastSeen] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!t.peerSteamId) return;
+    /* Process-wide cache so siblings sharing a peer don't refetch. */
+    const cache = ((window as any).__skinifyPeerProfileCache ||= new Map<
+      string,
+      { avatar: string | null; lastSeen: string | null }
+    >());
+    const apply = (data: { avatar: string | null; lastSeen: string | null }) => {
+      if (data.avatar) setAvatar(data.avatar);
+      setLastSeen(data.lastSeen);
+      setPresence(computePresence(data.lastSeen));
+    };
+    if (cache.has(t.peerSteamId)) {
+      apply(cache.get(t.peerSteamId)!);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
+        const supabaseKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
+        if (!supabaseUrl || !supabaseKey) return;
+        const res = await fetch(
+          `${supabaseUrl}/functions/v1/user-profile?steam_id=${encodeURIComponent(t.peerSteamId)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${supabaseKey}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        );
+        if (!res.ok) return;
+        const json = await res.json();
+        const data = {
+          avatar: json?.user?.avatar_url || json?.avatar_url || null,
+          lastSeen: json?.user?.last_login || json?.last_login || null,
+        };
+        cache.set(t.peerSteamId, data);
+        if (!cancelled) apply(data);
+      } catch {
+        /* network — leave defaults */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [t.peerSteamId]);
+
+  const initial = t.peerName.charAt(0).toUpperCase();
+  const presenceColor =
+    presence === 'online' ? 'bg-emerald-500'
+    : presence === 'recent' ? 'bg-amber-500'
+    : 'bg-ink-dim';
+
+  return (
+    <li>
+      <button
+        onClick={onClick}
+        className={`w-full text-left px-3 py-3 flex items-center gap-3 transition-colors border-l-2 ${
+          isActive ? 'bg-accent-soft border-l-accent' : 'border-l-transparent hover:bg-subtle/60'
+        }`}
+      >
+        <div className="relative w-11 h-11 rounded-2xl bg-accent text-on-accent grid place-items-center font-bold shrink-0 overflow-hidden">
+          {avatar ? (
+            <img src={avatar} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-[14px]">{initial}</span>
+          )}
+          {/* Presence dot — bottom-right of the avatar */}
+          <span
+            className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-bg ${presenceColor}`}
+            title={
+              presence === 'online'
+                ? 'Online now'
+                : lastSeen
+                ? `Last seen ${formatRelative(lastSeen)}`
+                : 'Offline'
+            }
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[13px] font-bold text-ink truncate tracking-tight">
+              {t.peerName}
+            </div>
+            <div className="text-[10.5px] text-ink-dim tabular-nums shrink-0">
+              {new Date(t.lastActivity).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-2 mt-0.5">
+            <div className="text-[11.5px] text-ink-muted truncate font-medium">
+              {presence === 'online'
+                ? 'Online'
+                : lastSeen
+                ? `Last seen ${formatRelative(lastSeen)}`
+                : (lastMsg?.text || lastMsg?.attachments?.[0]?.name || 'No messages yet')}
+            </div>
+            {unread > 0 && (
+              <span className="shrink-0 bg-accent text-on-accent text-[10px] font-bold rounded-full px-1.5 tabular-nums">
+                {unread}
+              </span>
+            )}
+          </div>
+        </div>
+      </button>
+    </li>
+  );
+};
+
+function computePresence(lastSeen: string | null): 'online' | 'recent' | 'away' {
+  if (!lastSeen) return 'away';
+  const ts = new Date(lastSeen).getTime();
+  if (!Number.isFinite(ts)) return 'away';
+  const delta = Date.now() - ts;
+  if (delta < 5 * 60 * 1000) return 'online';
+  if (delta < 60 * 60 * 1000) return 'recent';
+  return 'away';
+}
+
+function formatRelative(iso: string): string {
+  const ts = new Date(iso).getTime();
+  if (!Number.isFinite(ts)) return 'recently';
+  const delta = Date.now() - ts;
+  const min = Math.floor(delta / 60_000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min}m ago`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
 
 /* ─────────────────────────────────────────────────────────────────────────
    ChatPanel — header + scrollable messages + composer with attachments.
