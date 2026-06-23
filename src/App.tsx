@@ -104,6 +104,7 @@ const BlogDetailPage = lazyWithRetry(() => import('./pages/BlogDetailPage'));
 const NotFoundPage = lazyWithRetry(() => import('./pages/NotFoundPage'));
 const SeoLandingPage = lazyWithRetry(() => import('./pages/SeoLandingPage'));
 const FaqDetailPage = lazyWithRetry(() => import('./pages/FaqDetailPage'));
+const DevelopersPage = lazyWithRetry(() => import('./pages/DevelopersPage'));
 const OnboardingPage = lazyWithRetry(() => import('./pages/OnboardingPage'));
 const SignInPage = lazyWithRetry(() => import('./pages/SignInPage'));
 const SignUpPage = lazyWithRetry(() => import('./pages/SignUpPage'));
@@ -367,6 +368,9 @@ export default function App() {
             <Route path="/cs2-skiny-koupit" element={<SeoLandingPage />} />
             <Route path="/cs2-nuze-koupit" element={<SeoLandingPage />} />
             <Route path="/vs/:slug" element={<SeoLandingPage />} />
+
+            <Route path="/developers" element={<DevelopersPage />} />
+            <Route path={`/:lang(${LANG_PATTERN})/developers`} element={<DevelopersPage />} />
 
             <Route path="*" element={<NotFoundPage />} />
           </Routes>

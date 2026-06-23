@@ -184,6 +184,15 @@
     <priority>0.75</priority>
   </url>
 
+  <!-- Developer API documentation — high-leverage for backlinks
+       from integrators. -->
+  <url>
+    <loc>https://skinify.gg/developers</loc>
+    <lastmod>2026-06-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+  </url>
+
   <!-- FAQ detail pages — one indexable URL per question. -->
   <url><loc>https://skinify.gg/faq/what-is-skinify</loc><lastmod>2026-06-21</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://skinify.gg/faq/how-does-escrow-work</loc><lastmod>2026-06-21</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
