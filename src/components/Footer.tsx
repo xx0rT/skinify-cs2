@@ -89,6 +89,7 @@ const footerColumns = [
       { label: 'FAQ', to: '/faq' },
       { label: 'Trading guide', to: '/trading-guide' },
       { label: 'Security tips', to: '/security-tips' },
+      { label: 'Developer API', to: '/developers' },
       { label: 'Support', to: '/support' },
       { label: 'Contact', to: '/contact' },
     ],
