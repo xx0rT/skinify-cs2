@@ -11,6 +11,7 @@ import { useCartStore } from '../store/cartStore';
 import { useWishlistStore } from '../store/wishlistStore';
 import { useCurrencyStore } from '../store/currencyStore';
 import { useBalanceStore } from '../store/balanceStore';
+import { useT } from '../lib/useT';
 import { useMarketplaceItems } from '../hooks/useMarketplaceItems';
 import { useHotItems } from '../hooks/useHotItems';
 import { weaponCategories } from '../data/weaponCategories';
@@ -106,6 +107,7 @@ const LandingPage: React.FC = () => {
   });
 
   const navigate = useNavigate();
+  const t = useT();
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
   const { addItem } = useCartStore();
@@ -305,7 +307,9 @@ const LandingPage: React.FC = () => {
                 chart sits at the top of the card. */}
             <div className="flex items-center justify-between mb-1">
               <span className="label-eyebrow">
-                {user ? 'Your portfolio' : 'Marketplace volume'}
+                {user
+                  ? t('landing.portfolio.eyebrow.signedIn', 'Your portfolio')
+                  : t('landing.portfolio.eyebrow.signedOut', 'Marketplace volume')}
               </span>
               <span className="pill bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
                 +2.4%
@@ -315,28 +319,30 @@ const LandingPage: React.FC = () => {
               {user ? formatPrice(portfolio) : formatPrice(36714736)}
             </div>
             <div className="text-[13px] text-ink-muted font-medium mt-1.5 mb-4">
-              {user ? 'Available balance' : 'Total volume traded'}
+              {user
+                ? t('landing.portfolio.balance', 'Available balance')
+                : t('landing.portfolio.volume', 'Total volume traded')}
             </div>
 
             {/* 4-cell stats grid — bumped from 2 to 4 tiles so the
                 bottom of the card fills cleanly. */}
             <div className="grid grid-cols-2 gap-2">
               <div className="card-flat px-3 py-2.5">
-                <div className="label-meta">Fee</div>
+                <div className="label-meta">{t('landing.stat.fee', 'Fee')}</div>
                 <div className="text-[15px] font-bold text-ink mt-0.5 tabular-nums">0%</div>
               </div>
               <div className="card-flat px-3 py-2.5">
-                <div className="label-meta">Listings</div>
+                <div className="label-meta">{t('landing.stat.listings', 'Listings')}</div>
                 <div className="text-[15px] font-bold text-ink mt-0.5 tabular-nums">
                   {(marketplaceItems?.length || 60794).toLocaleString()}
                 </div>
               </div>
               <div className="card-flat px-3 py-2.5">
-                <div className="label-meta">Escrow</div>
+                <div className="label-meta">{t('landing.stat.escrow', 'Escrow')}</div>
                 <div className="text-[15px] font-bold text-ink mt-0.5 tabular-nums">8d</div>
               </div>
               <div className="card-flat px-3 py-2.5">
-                <div className="label-meta">Avg delivery</div>
+                <div className="label-meta">{t('landing.stat.avgDelivery', 'Avg delivery')}</div>
                 <div className="text-[15px] font-bold text-ink mt-0.5 tabular-nums">{'<1m'}</div>
               </div>
             </div>
@@ -358,16 +364,18 @@ const LandingPage: React.FC = () => {
         <Reveal className="mb-10">
           <div className="flex items-end justify-between mb-4 px-1">
             <div>
-              <h2 className="text-[17px] font-bold text-ink tracking-tight">Trending now</h2>
+              <h2 className="text-[17px] font-bold text-ink tracking-tight">
+                {t('landing.section.trending.title', 'Trending now')}
+              </h2>
               <p className="text-[12.5px] text-ink-muted mt-0.5 font-medium">
-                Most watched skins in the last 24h
+                {t('landing.section.trending.lead', 'Most watched skins in the last 24h')}
               </p>
             </div>
             <button
               onClick={() => navigate('/marketplace')}
               className="hidden sm:flex items-center gap-1 text-[13px] text-ink-muted hover:text-ink font-semibold transition-colors"
             >
-              View all <ArrowRight size={13} />
+              {t('landing.viewAll', 'View all')} <ArrowRight size={13} />
             </button>
           </div>
 
@@ -434,9 +442,11 @@ const LandingPage: React.FC = () => {
         <Reveal className="mb-12">
           <div className="flex items-end justify-between mb-5 px-1 flex-wrap gap-3">
             <div>
-              <h2 className="text-[17px] font-bold text-ink tracking-tight">Browse the market</h2>
+              <h2 className="text-[17px] font-bold text-ink tracking-tight">
+                {t('landing.section.browse.title', 'Browse the market')}
+              </h2>
               <p className="text-[12.5px] text-ink-muted mt-0.5 font-medium">
-                Curated listings across every category
+                {t('landing.section.browse.lead', 'Curated listings across every category')}
               </p>
             </div>
             <motion.button
@@ -445,14 +455,17 @@ const LandingPage: React.FC = () => {
               onClick={() => navigate('/marketplace')}
               className="h-10 px-4 rounded-full bg-subtle text-ink text-[13px] font-semibold flex items-center gap-1.5 transition-colors"
             >
-              Open marketplace <ArrowRight size={13} strokeWidth={2.4} />
+              {t('landing.openMarketplace', 'Open marketplace')} <ArrowRight size={13} strokeWidth={2.4} />
             </motion.button>
           </div>
 
           {/* category pills with motion underline */}
           <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-3 mb-5 -mx-1 px-1">
             {categoryKeys.map((key) => {
-              const label = key === 'featured' ? 'Featured' : weaponCategories[key]?.name || key;
+              const label =
+                key === 'featured'
+                  ? t('landing.section.browse.featured', 'Featured')
+                  : weaponCategories[key]?.name || key;
               const active = activeCat === key;
               return (
                 <motion.button
@@ -487,7 +500,7 @@ const LandingPage: React.FC = () => {
           ) : visibleItems.length === 0 ? (
             <div className="card p-12 text-center">
               <p className="text-[14px] text-ink-muted font-medium">
-                No listings in this category yet.
+                {t('landing.empty.category', 'No listings in this category yet.')}
               </p>
             </div>
           ) : (

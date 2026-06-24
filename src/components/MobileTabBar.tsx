@@ -13,6 +13,7 @@ import { openSearchPalette } from './SearchPalette';
 import { openDepositModal } from './DepositModal';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
+import { useT } from '../lib/useT';
 
 /**
  * MobileTabBar — bottom-anchored primary navigation, iOS-style.
@@ -39,6 +40,7 @@ const MobileTabBar: React.FC = () => {
   const { getItemCount } = useCartStore();
   const { user } = useAuthStore();
   const cartCount = getItemCount();
+  const t = useT();
 
   const isActive = (path: string) =>
     pathname === path || pathname.startsWith(`${path}/`);
@@ -51,13 +53,13 @@ const MobileTabBar: React.FC = () => {
       <div className="flex items-center justify-between max-w-[480px] mx-auto">
         <TabButton
           Icon={Home}
-          label="Home"
+          label={t('tabbar.home', 'Home')}
           to="/"
           active={pathname === '/' || /^\/[a-z]{2}\/?$/.test(pathname)}
         />
         <TabButton
           Icon={Search}
-          label="Search"
+          label={t('tabbar.search', 'Search')}
           onClick={openSearchPalette}
         />
 
@@ -65,7 +67,7 @@ const MobileTabBar: React.FC = () => {
         <motion.button
           whileTap={tap}
           onClick={openDepositModal}
-          aria-label="Add funds"
+          aria-label={t('tabbar.addFunds', 'Add funds')}
           className="-mt-7 w-14 h-14 rounded-full bg-accent text-on-accent grid place-items-center shrink-0"
           style={{
             boxShadow:
@@ -77,14 +79,14 @@ const MobileTabBar: React.FC = () => {
 
         <TabButton
           Icon={ShoppingBag}
-          label="Cart"
+          label={t('tabbar.cart', 'Cart')}
           to="/cart"
           active={isActive('/cart')}
           badge={cartCount}
         />
         <TabButton
           Icon={UserIcon}
-          label={user ? 'Profile' : 'Sign in'}
+          label={user ? t('tabbar.profile', 'Profile') : t('tabbar.signin', 'Sign in')}
           to="/profile"
           active={isActive('/profile')}
         />
