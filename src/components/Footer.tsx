@@ -603,18 +603,17 @@ const LANGUAGES: Array<{ code: string; label: string }> = [
 /* Combined language + currency switcher.
    Single rounded pill, two native <select>s separated by a hairline.
    Reused in the footer brand row (always visible) AND inside the
-   popular-tags card (on landing/marketplace where the card renders). */
+   popular-tags card (on landing/marketplace where the card renders).
+
+   Language picks go straight into the translation store; the React
+   tree re-renders without a page reload. The previous Google Translate
+   cookie+reload flow was retired alongside the GT widget. */
 const LangCurrencySwitcher: React.FC = () => {
   const { selectedCurrency, setSelectedCurrency } = useCurrencyStore();
+  const { currentLanguage, setLanguageByCode } = useTranslationStore();
 
   const setLanguage = (code: string) => {
-    try {
-      document.cookie = `googtrans=/en/${code}; path=/`;
-      document.cookie = `googtrans=/en/${code}; domain=.skinify.gg; path=/`;
-    } catch {
-      /* ignore */
-    }
-    window.location.reload();
+    setLanguageByCode(code);
   };
 
   const onCurrency = (code: string) => {
@@ -622,11 +621,7 @@ const LangCurrencySwitcher: React.FC = () => {
     if (next) setSelectedCurrency(next);
   };
 
-  const activeLang = (() => {
-    if (typeof document === 'undefined') return 'en';
-    const m = document.cookie.match(/googtrans=\/en\/([a-zA-Z-]+)/);
-    return m ? m[1] : 'en';
-  })();
+  const activeLang = currentLanguage?.code || 'en';
 
   return (
     <div className="inline-flex items-stretch h-9 rounded-full bg-subtle overflow-hidden ring-1 ring-line">
@@ -634,7 +629,7 @@ const LangCurrencySwitcher: React.FC = () => {
         <Globe size={11} strokeWidth={2.4} className="text-ink-muted" />
         <select
           onChange={(e) => setLanguage(e.target.value)}
-          defaultValue={activeLang}
+          value={activeLang}
           aria-label="Language"
           className="bg-transparent outline-none text-ink text-[12px] font-semibold cursor-pointer pr-1"
         >

@@ -91,28 +91,52 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   createOrder: async (orderData) => {
     try {
       const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
-      
+
       const response = await fetch(`${supabaseUrl}/functions/v1/orders`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
+          Authorization: `Bearer ${supabaseKey}`,
           'Content-Type': 'application/json',
+          apikey: supabaseKey,
         },
-        body: JSON.stringify(orderData)
+        body: JSON.stringify(orderData),
       });
-      
-      if (response.ok) {
-        const result = await response.json();
 
-        // Refresh orders after creating new one
+      if (response.ok) {
+        await response.json().catch(() => null);
         await get().fetchOrders(orderData.buyer_steam_id);
         return true;
       }
-      
+
+      /* Capture the server's actual error envelope so the UI shows
+         something useful instead of "Failed to create order". The
+         orders function returns { error, detail, timestamp } on
+         failure — both fields are worth surfacing. */
+      let serverMessage = `Server returned ${response.status}`;
+      let serverDetail: string | undefined;
+      try {
+        const body = await response.json();
+        if (body?.error) serverMessage = String(body.error);
+        if (body?.detail) serverDetail = String(body.detail);
+      } catch {
+        try {
+          const text = await response.text();
+          if (text) serverMessage = text.slice(0, 300);
+        } catch {
+          /* nothing to log */
+        }
+      }
+      console.error('[createOrder] server rejected:', serverMessage, serverDetail);
+      set({ error: serverMessage });
       return false;
     } catch (error) {
-      console.error('Failed to create order:', error);
-      set({ error: error instanceof Error ? error.message : 'Failed to create order' });
+      console.error('[createOrder] threw:', error);
+      set({
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to create order',
+      });
       return false;
     }
   },
