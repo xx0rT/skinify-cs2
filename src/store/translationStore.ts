@@ -20,34 +20,34 @@ const GT_LANG_MAP: Record<string, string> = {
   ja: 'ja',
 };
 
-/* Set the Google Translate cookie + reload so the widget picks up the
-   new target. We *have* to reload — the widget can't retranslate live
-   once it's mounted; cookie change only takes effect on next page
-   load. The reload happens with the cookie already set, so the user
-   sees the translated page on first paint, no English flash. */
+/* Google Translate widget has been removed — see index.html for the
+   bootstrap that wipes any leftover `googtrans=` cookies. The store
+   now drives translation purely via our own dictionary (data/translations.ts)
+   and a React re-render. No reload required.
+
+   We still expose `applyGoogleTranslate` as a thin no-op so callsites
+   that pre-date the removal don't break. Anything that used to depend
+   on the page reload (e.g. <html lang="…">) gets updated below. */
 function applyGoogleTranslate(code: string) {
   if (typeof window === 'undefined') return;
-  const target = GT_LANG_MAP[code];
+  /* Keep the cookie clean so a returning user with a stale cookie
+     doesn't see Google Translate try to retranslate them on the next
+     load — index.html already clears it on boot but this re-clears
+     after a manual language change too. */
   try {
-    if (target && target !== 'en') {
-      document.cookie = `googtrans=/en/${target}; path=/`;
-      document.cookie = `googtrans=/en/${target}; path=/; domain=.skinify.gg`;
-    } else {
-      /* Clear cookies so English is restored on reload. */
-      document.cookie = 'googtrans=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-      document.cookie = 'googtrans=; path=/; domain=.skinify.gg; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-    }
-    /* Don't reload during the initial hydration when the cookie
-       already matches the target — only when the user actively picks
-       a different language. We detect "active change" by reading the
-       current cookie and comparing. */
-    const current = document.cookie.match(/googtrans=\/en\/([^;]+)/)?.[1];
-    const desired = target && target !== 'en' ? target : '';
-    if (current !== desired) {
-      window.location.reload();
-    }
+    document.cookie = 'googtrans=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    document.cookie = 'googtrans=; path=/; domain=.skinify.gg; expires=Thu, 01 Jan 1970 00:00:00 GMT';
   } catch {
-    /* private mode / cookies disabled — fall through silently */
+    /* private mode — ignore */
+  }
+  /* Mirror the chosen language to <html lang="…"> so screen readers
+     and Google's crawler see the right value. This is the only side
+     effect we need; the React tree re-renders via the zustand state
+     update automatically. */
+  try {
+    document.documentElement.lang = code || 'en';
+  } catch {
+    /* extremely defensive — DOM should always be available here */
   }
 }
 
