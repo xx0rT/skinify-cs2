@@ -103,6 +103,7 @@ const ChangelogPage = lazyWithRetry(() => import('./pages/ChangelogPage'));
 const BlogDetailPage = lazyWithRetry(() => import('./pages/BlogDetailPage'));
 const BlogIndexPage = lazyWithRetry(() => import('./pages/BlogIndexPage'));
 const SitemapPage = lazyWithRetry(() => import('./pages/SitemapPage'));
+const DocsPage = lazyWithRetry(() => import('./pages/DocsPage'));
 const NotFoundPage = lazyWithRetry(() => import('./pages/NotFoundPage'));
 const SeoLandingPage = lazyWithRetry(() => import('./pages/SeoLandingPage'));
 const FaqDetailPage = lazyWithRetry(() => import('./pages/FaqDetailPage'));
@@ -381,14 +382,14 @@ export default function App() {
             <Route path="/developers" element={<DevelopersPage />} />
             <Route path={`/:lang(${LANG_PATTERN})/developers`} element={<DevelopersPage />} />
 
-            {/* /docs and /api aliases — both route to the same Developers
-                page so external links (docs.skinify.gg → /docs) and the
-                conventional /api documentation URL both land on the
-                full API reference. */}
-            <Route path="/docs" element={<DevelopersPage />} />
-            <Route path={`/:lang(${LANG_PATTERN})/docs`} element={<DevelopersPage />} />
-            <Route path="/docs/api" element={<DevelopersPage />} />
-            <Route path="/api/docs" element={<DevelopersPage />} />
+            {/* /developers is the marketing preview (above). /docs is the
+                full multi-section API reference (Cohere-docs / Stripe-docs
+                style). External links to docs.skinify.gg should rewrite
+                to /docs at the host layer. */}
+            <Route path="/docs" element={<DocsPage />} />
+            <Route path={`/:lang(${LANG_PATTERN})/docs`} element={<DocsPage />} />
+            <Route path="/docs/api" element={<DocsPage />} />
+            <Route path="/api/docs" element={<DocsPage />} />
 
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
