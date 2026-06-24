@@ -189,75 +189,20 @@ interface FooterProps {
 
 const Footer: React.FC<FooterProps> = ({ slim = false }) => {
   const currentYear = new Date().getFullYear();
+  const [seoOpen, setSeoOpen] = useState(false);
 
   return (
     <footer className="max-w-[1480px] mx-auto px-4 sm:px-6 pb-8">
-      {/* Merged footer card — Popular tags + Accepted payments + Link
-          columns + Brand are stacked inside one card with internal
-          dividers so the page reads as a single landing platform
-          instead of three disconnected boxes. */}
-      <section className="card p-6 md:p-8">
-        {!slim && (
-          <>
-            {/* ===== POPULAR TAGS + LANGUAGE SWITCHER ===== */}
-            <div className="flex flex-col gap-5">
-              <div className="flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <span className="label-eyebrow">Popular tags</span>
-                  <h2 className="text-[18px] sm:text-[20px] font-bold tracking-tight text-ink mt-1 leading-none">
-                    What people are looking for
-                  </h2>
-                </div>
-                <LangCurrencySwitcher />
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {POPULAR_TAGS.map((t) => (
-                  <Link
-                    key={t.to}
-                    to={t.to}
-                    className="px-3 h-8 rounded-full bg-subtle hover:bg-accent-soft hover:text-accent text-ink text-[12px] font-semibold inline-flex items-center transition-colors"
-                  >
-                    {t.label}
-                  </Link>
-                ))}
-              </div>
-            </div>
-
-            {/* ===== ACCEPTED PAYMENTS ===== */}
-            <div className="mt-8 pt-7 border-t border-line">
-              <div className="label-eyebrow mb-3">Accepted payments</div>
-              <div className="relative overflow-hidden h-12 rounded-2xl bg-subtle/40">
-                <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-bg to-transparent z-10" />
-                <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-bg to-transparent z-10" />
-                <motion.div
-                  animate={{ x: ['0%', '-50%'] }}
-                  transition={{ duration: 60, repeat: Infinity, ease: 'linear' }}
-                  className="flex items-center gap-8 h-full px-6 will-change-transform"
-                  style={{ width: 'max-content' }}
-                >
-                  {[...paymentMethods, ...paymentMethods].map((m, i) => (
-                    <img
-                      key={`${m}-${i}`}
-                      src={`/${m}.svg`}
-                      alt={m}
-                      className="h-6 w-auto opacity-50 hover:opacity-100 transition-opacity grayscale hover:grayscale-0"
-                      loading="lazy"
-                    />
-                  ))}
-                </motion.div>
-              </div>
-            </div>
-
-          </>
-        )}
-
-        {/* ===== LINK COLUMNS + BRAND — always rendered, including
-            slim mode (Profile). The top border only kicks in when
-            there's something above to separate from. */}
-        <div className={!slim ? 'mt-8 pt-7 border-t border-line' : ''}>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
-          <div className="col-span-2 md:col-span-1">
-            <div className="flex items-center gap-2.5 mb-4">
+      <section className="card overflow-hidden">
+        {/* ╔════════════════════════════════════════════════════════════
+            TIER 1 — Brand + main link columns. Dense but airy:
+            brand block on the left (logo, tagline, socials, lang),
+            four link columns on the right. On mobile everything stacks.
+            ════════════════════════════════════════════════════════════ */}
+        <div className="p-6 md:p-8 grid grid-cols-1 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)] gap-8 lg:gap-12">
+          {/* Brand block */}
+          <div>
+            <div className="flex items-center gap-2.5">
               <div className="icon-chip bg-accent text-on-accent">
                 <img
                   src="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png"
@@ -265,76 +210,70 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
                   className="w-6 h-6"
                 />
               </div>
-              <span className="text-[16px] font-bold text-ink tracking-tight">Skinify</span>
+              <span className="text-[17px] font-bold text-ink tracking-tight">Skinify</span>
             </div>
-            <p className="text-[13px] text-ink-muted leading-relaxed font-medium max-w-[240px]">
-              A premium peer-to-peer marketplace for CS2 skins. Built for collectors and traders.
+            <p className="text-[13.5px] text-ink-muted leading-relaxed font-medium mt-4 max-w-[300px]">
+              The peer-to-peer marketplace for CS2 skins. 0% buyer fees,
+              escrow-protected trades, instant Steam delivery.
             </p>
-            <div className="flex items-center gap-2 mt-5">
+
+            {/* Socials */}
+            <div className="flex items-center gap-1.5 mt-5">
               {[
-                { Icon: MessageCircle, href: '#', label: 'Discord' },
-                { Icon: Twitter, href: '#', label: 'Twitter' },
-                { Icon: Github, href: '#', label: 'Github' },
+                { Icon: MessageCircle, href: 'https://discord.gg/skinify', label: 'Discord' },
+                { Icon: Twitter, href: 'https://twitter.com/SkinifyCS2', label: 'Twitter' },
+                { Icon: Github, href: 'https://github.com/skinify', label: 'Github' },
               ].map(({ Icon, href, label }) => (
                 <a
                   key={label}
                   href={href}
+                  target="_blank"
+                  rel="noopener"
                   aria-label={label}
-                  className="icon-chip hover:bg-bg transition-colors"
+                  className="icon-chip hover:bg-bg hover:text-ink transition-colors"
                 >
-                  <Icon size={16} className="text-ink-muted" />
+                  <Icon size={15} className="text-ink-muted" />
                 </a>
               ))}
             </div>
 
-            {/* DMCA Protection badge */}
+            {/* Language + currency switcher */}
+            {!slim && (
+              <div className="mt-5">
+                <LangCurrencySwitcher />
+              </div>
+            )}
+
+            {/* DMCA badge */}
             <a
               href="//www.dmca.com/Protection/Status.aspx?ID=9cb1cfc0-5c9d-4546-981d-bc8d34bc4c7d"
               title="DMCA.com Protection Status"
-              className="dmca-badge inline-block mt-4 opacity-80 hover:opacity-100 transition-opacity"
+              className="dmca-badge inline-block mt-5 opacity-70 hover:opacity-100 transition-opacity"
               target="_blank"
               rel="noreferrer"
             >
               <img
                 src="https://images.dmca.com/Badges/dmca-badge-w200-5x1-08.png?ID=9cb1cfc0-5c9d-4546-981d-bc8d34bc4c7d"
                 alt="DMCA.com Protection Status"
-                className="h-7 w-auto"
+                className="h-6 w-auto"
                 loading="lazy"
               />
             </a>
           </div>
 
-          {footerColumns.map((col) => (
-            <div key={col.title}>
-              <div className="label-eyebrow mb-4">{col.title}</div>
-              <ul className="space-y-2.5">
-                {col.links.map((l) => (
-                  <li key={l.label}>
-                    <Link
-                      to={l.to}
-                      className="text-[13.5px] text-ink-muted hover:text-ink font-medium transition-colors"
-                    >
-                      {l.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-
-        {/* SEO discovery sections — popular weapons, knives, rarities */}
-        <div className="mt-8 pt-7 border-t border-line">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-7">
-            {seoSections.map((s) => (
-              <div key={s.title}>
-                <div className="label-eyebrow mb-3">{s.title}</div>
+          {/* Link columns — 4 columns at lg, 2 at md, 1 at sm. We split
+              "Company" out into a 5th column at xl so dense desktop
+              viewports get a wider visual canvas. */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-7 min-w-0">
+            {footerColumns.map((col) => (
+              <div key={col.title} className="min-w-0">
+                <div className="label-eyebrow mb-3.5">{col.title}</div>
                 <ul className="space-y-2">
-                  {s.links.map((l) => (
+                  {col.links.map((l) => (
                     <li key={l.label}>
                       <Link
                         to={l.to}
-                        className="text-[12.5px] text-ink-muted hover:text-ink font-medium transition-colors"
+                        className="text-[13px] text-ink-muted hover:text-ink font-medium transition-colors"
                       >
                         {l.label}
                       </Link>
@@ -346,17 +285,147 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
           </div>
         </div>
 
-        <div className="mt-8 pt-5 border-t border-line flex flex-wrap items-center justify-between gap-3 text-[12.5px] text-ink-muted font-medium">
-          <div>© {currentYear} Skinify. Not affiliated with Valve Corp. or Steam.</div>
-          <div className="flex flex-wrap items-center gap-4">
+        {/* ╔════════════════════════════════════════════════════════════
+            TIER 2 — Popular tags strip + accepted-payments carousel.
+            Skinned in subtle so it visually segments from the main
+            link grid above. Hidden in slim mode (profile pages).
+            ════════════════════════════════════════════════════════════ */}
+        {!slim && (
+          <div className="border-t border-line bg-subtle/30 px-6 md:px-8 py-6">
+            <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
+              <div>
+                <span className="label-eyebrow">Popular tags</span>
+                <h2 className="text-[16px] sm:text-[17px] font-bold tracking-tight text-ink mt-1 leading-tight">
+                  What people are looking for right now
+                </h2>
+              </div>
+              <Link
+                to="/marketplace"
+                className="text-[12.5px] font-bold text-accent hover:opacity-80 transition-opacity inline-flex items-center gap-1"
+              >
+                Browse marketplace →
+              </Link>
+            </div>
+            <div className="flex flex-wrap gap-1.5 mb-6">
+              {POPULAR_TAGS.map((t) => (
+                <Link
+                  key={t.to}
+                  to={t.to}
+                  className="px-3 h-8 rounded-full bg-bg hover:bg-accent-soft hover:text-accent text-ink text-[12px] font-semibold inline-flex items-center transition-colors"
+                >
+                  {t.label}
+                </Link>
+              ))}
+            </div>
+
+            {/* Accepted payments — narrower, calmer than before */}
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="label-eyebrow shrink-0">Accepted payments</div>
+              <div className="relative flex-1 min-w-[260px] overflow-hidden h-9 rounded-xl bg-bg">
+                <div className="pointer-events-none absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-bg to-transparent z-10" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-bg to-transparent z-10" />
+                <motion.div
+                  animate={{ x: ['0%', '-50%'] }}
+                  transition={{ duration: 60, repeat: Infinity, ease: 'linear' }}
+                  className="flex items-center gap-6 h-full px-4 will-change-transform"
+                  style={{ width: 'max-content' }}
+                >
+                  {[...paymentMethods, ...paymentMethods].map((m, i) => (
+                    <img
+                      key={`${m}-${i}`}
+                      src={`/${m}.svg`}
+                      alt={m}
+                      className="h-5 w-auto opacity-50 hover:opacity-100 transition-opacity grayscale hover:grayscale-0"
+                      loading="lazy"
+                    />
+                  ))}
+                </motion.div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ╔════════════════════════════════════════════════════════════
+            TIER 3 — Collapsible SEO link clusters. Closed by default
+            so the footer doesn't dominate the viewport; expand reveals
+            the long-tail keyword link grid. Crawlers still hit the
+            links because they're in the rendered HTML once toggled
+            open server-side OR after the user expands them.
+            ════════════════════════════════════════════════════════════ */}
+        {!slim && (
+          <div className="border-t border-line px-6 md:px-8 py-4">
+            <button
+              type="button"
+              onClick={() => setSeoOpen((v) => !v)}
+              className="w-full flex items-center justify-between gap-3 group"
+              aria-expanded={seoOpen}
+            >
+              <span className="inline-flex items-center gap-2 text-[12.5px] font-bold tracking-tight text-ink">
+                <span className="label-eyebrow">Browse by category</span>
+                <span className="text-ink-muted font-medium">
+                  Rifles · Pistols · Knives · SMGs · Rarity
+                </span>
+              </span>
+              <motion.span
+                animate={{ rotate: seoOpen ? 180 : 0 }}
+                transition={{ duration: 0.2 }}
+                className="icon-chip-sm bg-subtle group-hover:bg-bg transition-colors"
+              >
+                <ChevronDown size={14} className="text-ink-muted" />
+              </motion.span>
+            </button>
+            <AnimatePresence initial={false}>
+              {seoOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                  className="overflow-hidden"
+                >
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-6 pt-5">
+                    {seoSections.map((s) => (
+                      <div key={s.title} className="min-w-0">
+                        <div className="label-eyebrow mb-3">{s.title}</div>
+                        <ul className="space-y-1.5">
+                          {s.links.map((l) => (
+                            <li key={l.label}>
+                              <Link
+                                to={l.to}
+                                className="text-[12.5px] text-ink-muted hover:text-ink font-medium transition-colors"
+                              >
+                                {l.label}
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
+        {/* ╔════════════════════════════════════════════════════════════
+            TIER 4 — Slim legal bar.
+            Copyright on the left, condensed secondary nav on the right.
+            ════════════════════════════════════════════════════════════ */}
+        <div className="border-t border-line px-6 md:px-8 py-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[12px] text-ink-muted font-medium">
+          <div className="inline-flex items-center gap-1.5">
+            <span>© {currentYear} Skinify.</span>
+            <span className="text-ink-dim">Not affiliated with Valve Corp. or Steam.</span>
+          </div>
+          <nav className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <Link to="/blog" className="hover:text-ink transition-colors">Blog</Link>
             <Link to="/docs" className="hover:text-ink transition-colors">API docs</Link>
             <Link to="/sitemap" className="hover:text-ink transition-colors">Sitemap</Link>
+            <Link to="/changelog" className="hover:text-ink transition-colors">Changelog</Link>
             <Link to="/terms" className="hover:text-ink transition-colors">Terms</Link>
             <Link to="/privacy" className="hover:text-ink transition-colors">Privacy</Link>
             <Link to="/refund-policy" className="hover:text-ink transition-colors">Refunds</Link>
-          </div>
-        </div>
+          </nav>
         </div>
       </section>
     </footer>
