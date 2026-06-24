@@ -355,37 +355,112 @@ export const DepositModal: React.FC = () => {
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
-          key="deposit-root"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Add funds"
-          /* Use dvh on supporting browsers so iOS Safari's URL bar doesn't
-             push the bottom CTA off-screen. */
-          className="fixed inset-0 z-[90] bg-bg text-ink flex flex-col overflow-hidden"
-          style={{ height: '100dvh' }}
-        >
+        <>
+          {/* Mobile-only dimmed backdrop. On lg+ the modal is full-screen
+              so a backdrop would be invisible — we skip rendering it. */}
+          <motion.div
+            key="deposit-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => !submitting && setOpen(false)}
+            className="lg:hidden fixed inset-0 z-[89] bg-black/55"
+            aria-hidden
+          />
+
+          <motion.div
+            key="deposit-root"
+            /* Two entrance/exit recipes:
+                 - mobile (<lg) : slide up from the bottom like a native
+                                  sheet (Revolut/Apple Wallet style).
+                 - lg+         : the original fade-in full-screen pane.
+                We let framer-motion's variant `custom` switch between
+                them by reading a CSS class at runtime would be brittle,
+                so instead we use `initial`/`animate`/`exit` with a `y`
+                value and let the lg styles override `transform: none`
+                (set via Tailwind's `lg:!translate-y-0`). The opacity
+                doubles as the lg-fade. */
+            initial={{ opacity: 0, y: '100%' }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: '100%' }}
+            transition={{ type: 'spring', stiffness: 360, damping: 36, mass: 0.9 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Add funds"
+            /* Drag-to-dismiss on mobile. Constrained to downward drag
+               only; releasing past 120px or with sufficient downward
+               velocity dismisses. lg+ ignores the drag (we lock with
+               dragListener=false via media query won't work — instead
+               we set dragConstraints={{top:0,bottom:0}} to zero
+               on lg via dragControls when on desktop). Simplest cross-
+               breakpoint approach: only enable drag in a narrow window
+               via dragListener — but framer doesn't expose a clean per-
+               breakpoint toggle. So we cap the drag at top=0 and only
+               accept it as a dismiss when the viewport is below lg. */
+            drag="y"
+            dragDirectionLock
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.6 }}
+            onDragEnd={(_, info) => {
+              if (submitting) return;
+              const isMobile = window.matchMedia('(max-width: 1023px)').matches;
+              if (!isMobile) return;
+              if (info.offset.y > 120 || info.velocity.y > 600) {
+                setOpen(false);
+              }
+            }}
+            /* Mobile: rounded top corners, anchored to bottom of viewport
+                       at ~92dvh tall so a sliver of the backdrop stays
+                       visible at the top — that little gap is the visual
+                       cue that this is a sheet you can swipe down.
+               Desktop: original full-screen pane. The lg: utility classes
+                        override the mobile defaults. */
+            className="deposit-modal-root fixed inset-x-0 bottom-0 z-[90] bg-bg text-ink flex flex-col overflow-hidden rounded-t-[28px] shadow-[0_-24px_60px_-12px_rgba(0,0,0,0.5)] lg:inset-0 lg:rounded-none lg:shadow-none"
+          >
+            {/* Scoped style — mobile height is 92dvh (sheet), lg is full
+                viewport. Doing this in CSS rather than inline lets the
+                lg breakpoint actually override the mobile height. */}
+            <style>{`
+              .deposit-modal-root { height: 92dvh; }
+              @media (min-width: 1024px) {
+                .deposit-modal-root { height: 100dvh; }
+              }
+            `}</style>
+
+            {/* Drag handle — mobile only. The grab pill at the top of
+                the sheet that tells the user this is draggable. Tapping
+                it is also a dismiss affordance for users who don't
+                discover the swipe gesture. */}
+            <div className="lg:hidden shrink-0 pt-2.5 pb-1 grid place-items-center">
+              <button
+                type="button"
+                onClick={() => !submitting && setOpen(false)}
+                aria-label="Close"
+                className="w-10 h-1.5 rounded-full bg-ink-dim/35 hover:bg-ink-dim/55 transition-colors"
+              />
+            </div>
+
           {/* Top bar */}
           <header
-            className="shrink-0 flex items-center justify-between px-5 sm:px-8 h-14 sm:h-16 border-b"
+            className="shrink-0 flex items-center justify-between px-5 sm:px-8 h-12 lg:h-16 border-b"
             style={{ borderColor: 'rgb(var(--accent) / 0.35)' }}
           >
-            <div>
+            <div className="min-w-0">
               <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
                 Wallet
               </div>
-              <div className="text-[14px] sm:text-[16px] font-bold tracking-tight text-ink leading-none mt-0.5">
+              <div className="text-[14px] sm:text-[16px] font-bold tracking-tight text-ink leading-none mt-0.5 truncate">
                 Add funds to your Skinify balance
               </div>
             </div>
+            {/* Close X — kept on lg+ as the primary dismiss affordance.
+                Hidden on mobile where the drag handle + backdrop tap
+                both close the sheet. */}
             <button
               onClick={() => !submitting && setOpen(false)}
               aria-label="Close"
-              className="h-10 w-10 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors"
+              className="hidden lg:grid h-10 w-10 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink place-items-center transition-colors"
             >
               <X size={16} strokeWidth={2.4} />
             </button>
@@ -596,7 +671,8 @@ export const DepositModal: React.FC = () => {
                 : 'Enter an amount'}
             </motion.button>
           </div>
-        </motion.div>
+          </motion.div>
+        </>
       )}
     </AnimatePresence>
   );

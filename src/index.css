@@ -153,7 +153,11 @@ body {
   background: rgb(var(--bg));
   color: rgb(var(--ink));
   min-height: 100vh;
-  /* iOS safe areas */
+  /* iOS safe areas — desktop browsers report 0 so this is a no-op there.
+     The mobile breakpoint below adds a small extra buffer on top so the
+     first row of content sits visibly *below* the dynamic island / status
+     bar instead of flush against it (Apple's HIG recommends at least 8pt
+     of breathing room below the system UI). */
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
   /* `clip` not `hidden` — clip is non-scrolling so sticky positioning
@@ -166,9 +170,17 @@ body {
 /* Mobile bottom tab bar clearance: at <md viewports we reserve 80px at the
    bottom of the body so page content never sits under the fixed tab bar.
    Pages that have their own sticky bottom CTA (e.g. ItemDetailPage) keep
-   their own pb-32 to layer above this. */
+   their own pb-32 to layer above this.
+
+   Top: stack an extra 10px on top of `env(safe-area-inset-top)` so on
+   iPhone 14 Pro and newer the first row of UI sits slightly below the
+   dynamic island instead of crowding it. On devices without a
+   dynamic-island / notch the inset is 0 and the buffer becomes a small
+   top margin — still desirable so the content doesn't bump into the
+   battery/time row on standard iPhones and Androids. */
 @media (max-width: 767px) {
   body {
+    padding-top: calc(env(safe-area-inset-top) + 10px);
     padding-bottom: calc(env(safe-area-inset-bottom) + 80px);
   }
 }
