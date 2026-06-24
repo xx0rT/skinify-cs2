@@ -44,47 +44,95 @@ interface ApiKey {
   lastUsedAt?: string;
 }
 
-/* Local-storage backed list of API keys. The real backend would store
-   only a hash + the last 4 chars; this client-side version keeps the
-   masked display string and a fake last-used timestamp so the UI is
-   complete while the backend endpoint is being wired. When the edge
-   function ships, swap this for a Supabase-backed list — no UI changes
-   needed. */
-const KEYS_STORAGE_KEY = 'skinify-api-keys';
+/* The edge function ships full-key creation, masked listing, and
+   soft-revoke. We hit it via the standard Supabase function URL pattern.
+   `supabaseUrl` + the user's access token from authStore both come
+   from existing helpers — no new infra. */
+import { supabase } from '../../lib/supabaseClient';
+import { getSupabaseCredentials } from '../../utils/supabaseHelpers';
 
-function loadKeys(): ApiKey[] {
-  try {
-    const raw = localStorage.getItem(KEYS_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as ApiKey[]) : [];
-  } catch {
-    return [];
-  }
-}
-function saveKeys(keys: ApiKey[]) {
-  try {
-    localStorage.setItem(KEYS_STORAGE_KEY, JSON.stringify(keys));
-  } catch {
-    /* private mode — fall through */
-  }
+/* Server response shape from /functions/v1/api-keys (GET list). */
+interface ServerKeyRow {
+  id: string;
+  name: string;
+  masked: string;
+  is_active: boolean;
+  created_at: string;
+  last_used_at?: string | null;
 }
 
-/* Generate a key in the canonical sk_live_<48 hex> shape. Uses
-   crypto.getRandomValues for entropy; falls back to Math.random in
-   environments without it (only legacy / sandboxed browsers). */
-function generateKey(): string {
-  const bytes = new Uint8Array(24);
-  try {
-    crypto.getRandomValues(bytes);
-  } catch {
-    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+async function fetchKeys(): Promise<ApiKey[]> {
+  const { supabaseUrl } = getSupabaseCredentials();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('Not signed in');
   }
-  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-  return `sk_live_${hex}`;
+  const res = await fetch(`${supabaseUrl}/functions/v1/api-keys`, {
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(body?.error?.message || `Server error (${res.status})`);
+  }
+  const rows: ServerKeyRow[] = body?.data || [];
+  /* Only surface active keys in the UI. Revoked ones stay in the
+     audit trail server-side. */
+  return rows
+    .filter((r) => r.is_active)
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      masked: r.masked,
+      createdAt: r.created_at,
+      lastUsedAt: r.last_used_at || undefined,
+    }));
 }
 
-function maskKey(key: string): string {
-  const last4 = key.slice(-4);
-  return `sk_live_${'•'.repeat(24)}${last4}`;
+interface CreatedKey {
+  id: string;
+  name: string;
+  /* Full plaintext value — only returned on creation. */
+  key: string;
+  masked: string;
+}
+
+async function createKey(name: string): Promise<CreatedKey> {
+  const { supabaseUrl } = getSupabaseCredentials();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('Not signed in');
+  }
+  const res = await fetch(`${supabaseUrl}/functions/v1/api-keys`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    /* Surface the server's structured error so the verification
+       message / key-limit message read clearly. */
+    throw new Error(body?.error?.message || `Server error (${res.status})`);
+  }
+  return body.data as CreatedKey;
+}
+
+async function revokeKey(id: string): Promise<void> {
+  const { supabaseUrl } = getSupabaseCredentials();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('Not signed in');
+  }
+  const res = await fetch(`${supabaseUrl}/functions/v1/api-keys/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.error?.message || `Server error (${res.status})`);
+  }
 }
 
 /**
@@ -118,12 +166,39 @@ const SettingsTab: React.FC = () => {
     weeklyDigest: false,
   });
 
-  /* API keys local state. We seed from localStorage so a refresh keeps
-     the list visible (until the real backend ships). */
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>(() => loadKeys());
+  /* API keys — backed by the api-keys edge function. Fetch on mount;
+     re-fetch after create/revoke so the list stays accurate. While the
+     initial fetch is in-flight we render a tiny loading state. */
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  const [apiKeysLoading, setApiKeysLoading] = useState(true);
+  const [apiKeysError, setApiKeysError] = useState<string | null>(null);
   const [newKeyName, setNewKeyName] = useState('');
+  const [creatingKey, setCreatingKey] = useState(false);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
   const [justCreated, setJustCreated] = useState<{ id: string; key: string } | null>(null);
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    setApiKeysLoading(true);
+    setApiKeysError(null);
+    fetchKeys()
+      .then((rows) => {
+        if (!cancelled) setApiKeys(rows);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setApiKeysError(err?.message || 'Failed to load API keys');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setApiKeysLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   /* Verification gate. The UI shows the section either way, but
      creation is disabled (with a clear CTA to deposit) when the user
@@ -142,7 +217,10 @@ const SettingsTab: React.FC = () => {
     }
   }, [searchParams]);
 
-  const handleCreateKey = () => {
+  const handleCreateKey = async () => {
+    if (creatingKey) return;
+    /* Client-side gate so the verification message shows instantly,
+       but the server enforces it again — never trust the client. */
     if (!isVerified) {
       addToast({
         type: 'warning',
@@ -160,35 +238,65 @@ const SettingsTab: React.FC = () => {
       });
       return;
     }
-    const fullKey = generateKey();
-    const newKey: ApiKey = {
-      id: `key_${Date.now()}`,
-      name: newKeyName.trim() || `Key ${apiKeys.length + 1}`,
-      masked: maskKey(fullKey),
-      createdAt: new Date().toISOString(),
-    };
-    const next = [newKey, ...apiKeys];
-    setApiKeys(next);
-    saveKeys(next);
-    setJustCreated({ id: newKey.id, key: fullKey });
-    setNewKeyName('');
-    addToast({
-      type: 'success',
-      title: 'API key created',
-      message: 'Copy it now — you won\'t see the full value again.',
-      duration: 6000,
-    });
+    setCreatingKey(true);
+    try {
+      const created = await createKey(newKeyName.trim());
+      /* Insert the new (masked) row at the top of the list so the UI
+         shows it before the server response settles. The full key
+         lives only in the `justCreated` reveal panel. */
+      setApiKeys((prev) => [
+        {
+          id: created.id,
+          name: created.name,
+          masked: created.masked,
+          createdAt: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
+      setJustCreated({ id: created.id, key: created.key });
+      setNewKeyName('');
+      addToast({
+        type: 'success',
+        title: 'API key created',
+        message: 'Copy it now — you won\'t see the full value again.',
+        duration: 6000,
+      });
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'Could not create key',
+        message: err?.message || 'Unknown error.',
+        duration: 6000,
+      });
+    } finally {
+      setCreatingKey(false);
+    }
   };
 
-  const handleRevokeKey = (id: string) => {
+  const handleRevokeKey = async (id: string) => {
+    if (revokingId) return;
     if (!confirm('Revoke this key? Any app using it will start getting 401s immediately.')) {
       return;
     }
-    const next = apiKeys.filter((k) => k.id !== id);
-    setApiKeys(next);
-    saveKeys(next);
+    setRevokingId(id);
+    /* Optimistic remove — restore on error. */
+    const snapshot = apiKeys;
+    setApiKeys((prev) => prev.filter((k) => k.id !== id));
     if (justCreated?.id === id) setJustCreated(null);
-    addToast({ type: 'success', title: 'Key revoked' });
+    try {
+      await revokeKey(id);
+      addToast({ type: 'success', title: 'Key revoked' });
+    } catch (err: any) {
+      setApiKeys(snapshot);
+      addToast({
+        type: 'error',
+        title: 'Could not revoke',
+        message: err?.message || 'Unknown error.',
+        duration: 6000,
+      });
+    } finally {
+      setRevokingId(null);
+    }
   };
 
   const handleCopyKey = async (id: string, text: string) => {
@@ -559,11 +667,11 @@ const SettingsTab: React.FC = () => {
             <motion.button
               whileTap={tap}
               onClick={handleCreateKey}
-              disabled={!isVerified}
+              disabled={!isVerified || creatingKey}
               className="h-10 px-4 rounded-full bg-accent text-on-accent text-[12.5px] font-bold inline-flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Key size={13} strokeWidth={2.4} />
-              Create API key
+              {creatingKey ? 'Creating…' : 'Create API key'}
             </motion.button>
           </div>
 
@@ -609,7 +717,20 @@ const SettingsTab: React.FC = () => {
           )}
 
           {/* Existing keys list */}
-          {apiKeys.length === 0 ? (
+          {apiKeysLoading ? (
+            <div className="rounded-2xl bg-subtle/30 p-6 text-center">
+              <p className="text-[12.5px] text-ink-muted font-medium">Loading your keys…</p>
+            </div>
+          ) : apiKeysError ? (
+            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4 text-center">
+              <p className="text-[12.5px] text-rose-600 dark:text-rose-400 font-semibold">
+                {apiKeysError}
+              </p>
+              <p className="text-[11px] text-ink-muted font-medium mt-1">
+                Refresh the page to try again.
+              </p>
+            </div>
+          ) : apiKeys.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-line p-6 text-center">
               <p className="text-[13px] text-ink-muted font-medium">
                 {isVerified
@@ -636,10 +757,11 @@ const SettingsTab: React.FC = () => {
                   </div>
                   <button
                     onClick={() => handleRevokeKey(k.id)}
-                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-[12px] font-bold transition-colors"
+                    disabled={revokingId === k.id}
+                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-[12px] font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Trash2 size={12} strokeWidth={2.4} />
-                    Revoke
+                    {revokingId === k.id ? 'Revoking…' : 'Revoke'}
                   </button>
                 </li>
               ))}

@@ -1859,6 +1859,9 @@ export const ApiChangelogDoc: React.FC = () => (
       <DocsTable
         headers={['Date', 'Change']}
         rows={[
+          ['2026-06-24', 'Public API live — every documented endpoint now backed by /functions/v1/public-api. /v1/listings supports filters, sort, cursor pagination; /v1/search has alias support; /v1/trends, /v1/floor, /v1/inventory, /v1/shops live.'],
+          ['2026-06-24', 'API key creation works end-to-end. New /functions/v1/api-keys edge function backs the Settings UI; server enforces $10 verification gate + 5-key cap.'],
+          ['2026-06-24', 'Currency conversion server-side on every price-returning endpoint (?currency=CZK/EUR/USD/GBP/PLN/HUF).'],
           ['2026-06-24', 'Docs: Shop CSS customization section added (6 pages — overview, structure, variables, selectors, examples, publishing).'],
           ['2026-06-24', 'Docs: Right-rail "On this page" now renders a stretched indicator line that tracks the active section as the user scrolls.'],
           ['2026-06-24', 'API-key gating: keys can now only be issued to accounts with ≥ $10 lifetime deposits.'],

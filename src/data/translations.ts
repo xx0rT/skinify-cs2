@@ -255,6 +255,21 @@ export const translations: Record<string, Record<string, string>> = {
     'minimal.wear': 'Minimal Wear',
     'factory.new': 'Factory New',
 
+    // Footer
+    'footer.brand.tagline': 'The peer-to-peer marketplace for CS2 skins. 0% buyer fees, escrow-protected trades, instant Steam delivery.',
+    'footer.popularTags.eyebrow': 'Popular tags',
+    'footer.popularTags.title': 'What people are looking for right now',
+    'footer.popularTags.cta': 'Browse marketplace',
+    'footer.payments.label': 'Accepted payments',
+    'footer.seo.label': 'Browse by category',
+    'footer.seo.summary': 'Rifles · Pistols · Knives · SMGs · Rarity',
+    'footer.legal.notAffiliated': 'Not affiliated with Valve Corp. or Steam.',
+    'footer.col.marketplace': 'Marketplace',
+    'footer.col.account': 'Account',
+    'footer.col.help': 'Help',
+    'footer.col.legal': 'Legal',
+    'footer.col.company': 'Company',
+
     // Changelog page
     'changelog.title': 'Changelog',
     'changelog.heading': 'What\'s new on Skinify',
@@ -556,6 +571,21 @@ export const translations: Record<string, Record<string, string>> = {
     'well.worn': 'Well-Worn',
     'minimal.wear': 'Minimal Wear',
     'factory.new': 'Factory New',
+
+    // Footer
+    'footer.brand.tagline': 'Peer-to-peer tržiště pro skiny CS2. 0% poplatek pro kupující, escrow chráněné obchody, okamžité doručení přes Steam.',
+    'footer.popularTags.eyebrow': 'Oblíbené tagy',
+    'footer.popularTags.title': 'Co lidé právě teď hledají',
+    'footer.popularTags.cta': 'Procházet tržiště',
+    'footer.payments.label': 'Přijímané platby',
+    'footer.seo.label': 'Procházet podle kategorie',
+    'footer.seo.summary': 'Pušky · Pistole · Nože · SMG · Vzácnost',
+    'footer.legal.notAffiliated': 'Není přidružena společnosti Valve Corp. ani Steam.',
+    'footer.col.marketplace': 'Tržiště',
+    'footer.col.account': 'Účet',
+    'footer.col.help': 'Pomoc',
+    'footer.col.legal': 'Právní',
+    'footer.col.company': 'Společnost',
 
     // Changelog
     'changelog.title': 'Změny',

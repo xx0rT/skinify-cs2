@@ -144,6 +144,27 @@ interface ApiChangeEntry {
 const API_CHANGELOG: ApiChangeEntry[] = [
   {
     date: '2026-06-24',
+    kind: 'addition',
+    title: 'Public API live — every documented endpoint now wired',
+    detail:
+      '/v1/prices, /v1/listings (+ filters / sort / cursor), /v1/listings/:id, /v1/search (alias-aware), /v1/render, /v1/trends (7/30/90/180/365d), /v1/floor (bulk), /v1/inventory/:steamId, /v1/shops/:url, /v1/shops/:url/listings. Anonymous 60 rpm, keyed 600 rpm. Every response carries X-RateLimit-* + X-Request-Id.',
+  },
+  {
+    date: '2026-06-24',
+    kind: 'addition',
+    title: 'API key creation now works end-to-end',
+    detail:
+      'New /functions/v1/api-keys edge function (GET list, POST create, DELETE revoke). Settings → API access calls it directly; keys are generated with crypto.getRandomValues, shown once at creation, and stored masked thereafter. Server enforces the $10 verification gate + 5-key cap.',
+  },
+  {
+    date: '2026-06-24',
+    kind: 'improvement',
+    title: 'Currency parameter on every price-returning endpoint',
+    detail:
+      'Pass currency=CZK/EUR/USD/GBP/PLN/HUF. Conversion done server-side so floor/median/max share the same rate.',
+  },
+  {
+    date: '2026-06-24',
     kind: 'docs',
     title: 'Shop CSS customization docs added',
     detail:
