@@ -89,7 +89,8 @@ const footerColumns = [
       { label: 'FAQ', to: '/faq' },
       { label: 'Trading guide', to: '/trading-guide' },
       { label: 'Security tips', to: '/security-tips' },
-      { label: 'Developer API', to: '/developers' },
+      { label: 'Blog', to: '/blog' },
+      { label: 'API docs', to: '/docs' },
       { label: 'Support', to: '/support' },
       { label: 'Contact', to: '/contact' },
     ],
@@ -109,6 +110,7 @@ const footerColumns = [
       { label: 'About Skinify', to: '/about' },
       { label: 'Press kit', to: '/press' },
       { label: 'Changelog', to: '/changelog' },
+      { label: 'Sitemap', to: '/sitemap' },
     ],
   },
 ];
@@ -347,6 +349,9 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
         <div className="mt-8 pt-5 border-t border-line flex flex-wrap items-center justify-between gap-3 text-[12.5px] text-ink-muted font-medium">
           <div>© {currentYear} Skinify. Not affiliated with Valve Corp. or Steam.</div>
           <div className="flex flex-wrap items-center gap-4">
+            <Link to="/blog" className="hover:text-ink transition-colors">Blog</Link>
+            <Link to="/docs" className="hover:text-ink transition-colors">API docs</Link>
+            <Link to="/sitemap" className="hover:text-ink transition-colors">Sitemap</Link>
             <Link to="/terms" className="hover:text-ink transition-colors">Terms</Link>
             <Link to="/privacy" className="hover:text-ink transition-colors">Privacy</Link>
             <Link to="/refund-policy" className="hover:text-ink transition-colors">Refunds</Link>

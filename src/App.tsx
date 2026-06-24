@@ -101,6 +101,8 @@ const CSSPresetsPage = lazyWithRetry(() => import('./pages/CSSPresetsPage'));
 const DeveloperDocsPage = lazyWithRetry(() => import('./pages/DeveloperDocsPage'));
 const ChangelogPage = lazyWithRetry(() => import('./pages/ChangelogPage'));
 const BlogDetailPage = lazyWithRetry(() => import('./pages/BlogDetailPage'));
+const BlogIndexPage = lazyWithRetry(() => import('./pages/BlogIndexPage'));
+const SitemapPage = lazyWithRetry(() => import('./pages/SitemapPage'));
 const NotFoundPage = lazyWithRetry(() => import('./pages/NotFoundPage'));
 const SeoLandingPage = lazyWithRetry(() => import('./pages/SeoLandingPage'));
 const FaqDetailPage = lazyWithRetry(() => import('./pages/FaqDetailPage'));
@@ -354,8 +356,13 @@ export default function App() {
             <Route path="/changelog" element={<ChangelogPage />} />
             <Route path={`/:lang(${LANG_PATTERN})/changelog`} element={<ChangelogPage />} />
 
+            <Route path="/blog" element={<BlogIndexPage />} />
+            <Route path={`/:lang(${LANG_PATTERN})/blog`} element={<BlogIndexPage />} />
             <Route path="/blog/:slug" element={<BlogDetailPage />} />
             <Route path={`/:lang(${LANG_PATTERN})/blog/:slug`} element={<BlogDetailPage />} />
+
+            <Route path="/sitemap" element={<SitemapPage />} />
+            <Route path={`/:lang(${LANG_PATTERN})/sitemap`} element={<SitemapPage />} />
 
             <Route path="/shop/:shopUrl" element={<UserShopPage />} />
             <Route path={`/:lang(${LANG_PATTERN})/shop/:shopUrl`} element={<UserShopPage />} />
@@ -373,6 +380,15 @@ export default function App() {
 
             <Route path="/developers" element={<DevelopersPage />} />
             <Route path={`/:lang(${LANG_PATTERN})/developers`} element={<DevelopersPage />} />
+
+            {/* /docs and /api aliases — both route to the same Developers
+                page so external links (docs.skinify.gg → /docs) and the
+                conventional /api documentation URL both land on the
+                full API reference. */}
+            <Route path="/docs" element={<DevelopersPage />} />
+            <Route path={`/:lang(${LANG_PATTERN})/docs`} element={<DevelopersPage />} />
+            <Route path="/docs/api" element={<DevelopersPage />} />
+            <Route path="/api/docs" element={<DevelopersPage />} />
 
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
