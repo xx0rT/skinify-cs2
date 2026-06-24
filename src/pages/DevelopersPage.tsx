@@ -216,9 +216,19 @@ const DevelopersPage: React.FC = () => {
               <motion.button
                 whileTap={tap}
                 whileHover={{ scale: 1.02 }}
-                onClick={() => navigate('/profile?tab=settings&sub=api')}
+                onClick={() => navigate('/docs')}
                 className="h-12 px-5 rounded-full bg-accent text-on-accent text-[13.5px] font-bold inline-flex items-center gap-2"
                 style={{ boxShadow: '0 12px 26px -12px rgb(var(--accent) / 0.6)' }}
+              >
+                <Code2 size={14} strokeWidth={2.4} />
+                Read the full docs
+                <ArrowRight size={13} strokeWidth={2.6} />
+              </motion.button>
+              <motion.button
+                whileTap={tap}
+                whileHover={{ scale: 1.02 }}
+                onClick={() => navigate('/profile?tab=settings&sub=api')}
+                className="h-12 px-5 rounded-full bg-subtle hover:bg-bg text-ink text-[13.5px] font-bold inline-flex items-center gap-2 transition-colors"
               >
                 <Key size={14} strokeWidth={2.4} />
                 Generate API key
