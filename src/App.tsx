@@ -413,6 +413,12 @@ export default function App() {
               <Route path="webhooks/overview" element={<DocsPages.WebhooksOverviewDoc />} />
               <Route path="webhooks/events" element={<DocsPages.WebhooksEventsDoc />} />
               <Route path="webhooks/signatures" element={<DocsPages.WebhooksSignaturesDoc />} />
+              <Route path="shop/overview" element={<DocsPages.ShopOverviewDoc />} />
+              <Route path="shop/structure" element={<DocsPages.ShopStructureDoc />} />
+              <Route path="shop/variables" element={<DocsPages.ShopVariablesDoc />} />
+              <Route path="shop/selectors" element={<DocsPages.ShopSelectorsDoc />} />
+              <Route path="shop/examples" element={<DocsPages.ShopExamplesDoc />} />
+              <Route path="shop/publishing" element={<DocsPages.ShopPublishingDoc />} />
               <Route path="sdks" element={<DocsPages.SdksDoc />} />
               <Route path="guides/price-ticker" element={<DocsPages.PriceTickerGuideDoc />} />
               <Route path="guides/price-alerts" element={<DocsPages.PriceAlertsGuideDoc />} />

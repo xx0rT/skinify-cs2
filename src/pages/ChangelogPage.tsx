@@ -31,6 +31,20 @@ interface ApiChangeEntry {
 const API_CHANGELOG: ApiChangeEntry[] = [
   {
     date: '2026-06-24',
+    kind: 'docs',
+    title: 'Shop CSS customization docs added',
+    detail:
+      'New "Shop styling" section under /docs covering CSS overview, page structure, variable reference, selector reference, three example themes, and the preset-publishing flow.',
+  },
+  {
+    date: '2026-06-24',
+    kind: 'docs',
+    title: 'Right-rail TOC: stretched indicator line',
+    detail:
+      'The right "On this page" rail now renders a Cohere-style vertical track with an accent segment that animates between active headings as the user scrolls.',
+  },
+  {
+    date: '2026-06-24',
     kind: 'improvement',
     title: 'API-key creation now requires verified account',
     detail:

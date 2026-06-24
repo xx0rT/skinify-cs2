@@ -83,6 +83,17 @@ export const DOCS_NAV: DocsNavSection[] = [
     ],
   },
   {
+    title: 'Shop styling',
+    items: [
+      { slug: 'shop/overview', label: 'CSS customization' },
+      { slug: 'shop/structure', label: 'Shop structure' },
+      { slug: 'shop/variables', label: 'CSS variables' },
+      { slug: 'shop/selectors', label: 'Selectors reference' },
+      { slug: 'shop/examples', label: 'Example themes' },
+      { slug: 'shop/publishing', label: 'Publishing presets' },
+    ],
+  },
+  {
     title: 'SDKs & guides',
     items: [
       { slug: 'sdks', label: 'Official SDKs' },
@@ -322,6 +333,76 @@ export const DOCS_PAGES: Record<string, DocsPageMeta> = {
       { id: 'signature-format', label: 'Signature format', level: 2 },
       { id: 'verification', label: 'Verification examples', level: 2 },
       { id: 'replay-protection', label: 'Replay protection', level: 2 },
+    ],
+  },
+
+  'shop/overview': {
+    slug: 'shop/overview',
+    title: 'Shop CSS customization',
+    description: 'Restyle your seller shop with custom CSS — colors, fonts, layouts, animations.',
+    summary: 'Your CSS is injected into your shop page as a scoped style tag. Only YOUR shop is affected.',
+    headings: [
+      { id: 'what-it-is', label: 'What it is', level: 2 },
+      { id: 'quick-start', label: 'Quick start', level: 2 },
+      { id: 'first-snippet', label: 'First snippet', level: 2 },
+      { id: 'limits', label: 'Limits & sandboxing', level: 2 },
+    ],
+  },
+  'shop/structure': {
+    slug: 'shop/structure',
+    title: 'Shop page structure',
+    description: 'The DOM tree of a Skinify shop — class names, nesting, where to hook your selectors.',
+    summary: 'shop-page → shop-header / shop-stats / shop-items-grid → item-card → item-image / item-name / item-details.',
+    headings: [
+      { id: 'tree', label: 'DOM tree', level: 2 },
+      { id: 'header', label: 'Header section', level: 2 },
+      { id: 'grid', label: 'Items grid', level: 2 },
+      { id: 'item-card', label: 'Item card', level: 2 },
+    ],
+  },
+  'shop/variables': {
+    slug: 'shop/variables',
+    title: 'CSS variables',
+    description: 'The variables the default theme exposes — override them for one-line theming.',
+    summary: 'Override --primary-color, --bg-* and --text-* for consistent theming. Spacing & radius vars too.',
+    headings: [
+      { id: 'available', label: 'Available variables', level: 2 },
+      { id: 'overriding', label: 'Overriding values', level: 2 },
+      { id: 'tips', label: 'Tips', level: 2 },
+    ],
+  },
+  'shop/selectors': {
+    slug: 'shop/selectors',
+    title: 'Selectors reference',
+    description: 'Every class you can target, grouped by what part of the page it belongs to.',
+    summary: 'Layout, item card, header and stats classes — with what they wrap.',
+    headings: [
+      { id: 'layout', label: 'Layout', level: 2 },
+      { id: 'item-card', label: 'Item card', level: 2 },
+      { id: 'header', label: 'Header', level: 2 },
+      { id: 'stats', label: 'Stats', level: 2 },
+    ],
+  },
+  'shop/examples': {
+    slug: 'shop/examples',
+    title: 'Example themes',
+    description: 'Three ready-to-paste themes — dark neon, minimalist clean, premium gold.',
+    summary: 'Three themes to start from. Pick one, paste it, then tweak the variables.',
+    headings: [
+      { id: 'dark-neon', label: 'Dark neon', level: 2 },
+      { id: 'minimalist', label: 'Minimalist clean', level: 2 },
+      { id: 'premium-gold', label: 'Premium gold', level: 2 },
+    ],
+  },
+  'shop/publishing': {
+    slug: 'shop/publishing',
+    title: 'Publishing CSS presets',
+    description: 'Share your shop theme with the community — submission flow + guidelines.',
+    summary: 'Submit on /css-presets. Test before publishing; no malicious selectors or off-site URLs.',
+    headings: [
+      { id: 'how-to-publish', label: 'How to publish', level: 2 },
+      { id: 'guidelines', label: 'Guidelines', level: 2 },
+      { id: 'after-submit', label: 'After you submit', level: 2 },
     ],
   },
 
