@@ -104,6 +104,11 @@ const BlogDetailPage = lazyWithRetry(() => import('./pages/BlogDetailPage'));
 const BlogIndexPage = lazyWithRetry(() => import('./pages/BlogIndexPage'));
 const SitemapPage = lazyWithRetry(() => import('./pages/SitemapPage'));
 const DocsPage = lazyWithRetry(() => import('./pages/DocsPage'));
+/* Docs content pages — re-exported from one module so a single dynamic
+   import pulls in every sub-page bundle the first time the user opens
+   /docs/* . They share the same chunk, which is what we want for a
+   docs site where the user typically clicks across many of them. */
+import * as DocsPages from './pages/docs/_DocsPages';
 const NotFoundPage = lazyWithRetry(() => import('./pages/NotFoundPage'));
 const SeoLandingPage = lazyWithRetry(() => import('./pages/SeoLandingPage'));
 const FaqDetailPage = lazyWithRetry(() => import('./pages/FaqDetailPage'));
@@ -383,13 +388,44 @@ export default function App() {
             <Route path={`/:lang(${LANG_PATTERN})/developers`} element={<DevelopersPage />} />
 
             {/* /developers is the marketing preview (above). /docs is the
-                full multi-section API reference (Cohere-docs / Stripe-docs
-                style). External links to docs.skinify.gg should rewrite
-                to /docs at the host layer. */}
-            <Route path="/docs" element={<DocsPage />} />
-            <Route path={`/:lang(${LANG_PATTERN})/docs`} element={<DocsPage />} />
-            <Route path="/docs/api" element={<DocsPage />} />
-            <Route path="/api/docs" element={<DocsPage />} />
+                full multi-page API reference (Cohere-docs style). The
+                DocsPage shell renders a left nav + outlet + right TOC;
+                each child route below mounts its own content page in
+                the outlet. External links to docs.skinify.gg should
+                rewrite to /docs at the host layer. */}
+            <Route path="/docs" element={<DocsPage />}>
+              <Route index element={<DocsPages.OverviewDoc />} />
+              <Route path="quickstart" element={<DocsPages.QuickstartDoc />} />
+              <Route path="authentication" element={<DocsPages.AuthenticationDoc />} />
+              <Route path="rate-limits" element={<DocsPages.RateLimitsDoc />} />
+              <Route path="errors" element={<DocsPages.ErrorsDoc />} />
+              <Route path="versioning" element={<DocsPages.VersioningDoc />} />
+              <Route path="endpoints/prices" element={<DocsPages.PricesEndpointDoc />} />
+              <Route path="endpoints/listings" element={<DocsPages.ListingsEndpointDoc />} />
+              <Route path="endpoints/listing" element={<DocsPages.ListingEndpointDoc />} />
+              <Route path="endpoints/search" element={<DocsPages.SearchEndpointDoc />} />
+              <Route path="endpoints/render" element={<DocsPages.RenderEndpointDoc />} />
+              <Route path="endpoints/trends" element={<DocsPages.TrendsEndpointDoc />} />
+              <Route path="endpoints/floor" element={<DocsPages.FloorEndpointDoc />} />
+              <Route path="endpoints/inventory" element={<DocsPages.InventoryEndpointDoc />} />
+              <Route path="endpoints/shops" element={<DocsPages.ShopsEndpointDoc />} />
+              <Route path="endpoints/shop-listings" element={<DocsPages.ShopListingsEndpointDoc />} />
+              <Route path="webhooks/overview" element={<DocsPages.WebhooksOverviewDoc />} />
+              <Route path="webhooks/events" element={<DocsPages.WebhooksEventsDoc />} />
+              <Route path="webhooks/signatures" element={<DocsPages.WebhooksSignaturesDoc />} />
+              <Route path="sdks" element={<DocsPages.SdksDoc />} />
+              <Route path="guides/price-ticker" element={<DocsPages.PriceTickerGuideDoc />} />
+              <Route path="guides/price-alerts" element={<DocsPages.PriceAlertsGuideDoc />} />
+              <Route path="api-changelog" element={<DocsPages.ApiChangelogDoc />} />
+              <Route path="support" element={<DocsPages.SupportDoc />} />
+              <Route path="api" element={<DocsPages.OverviewDoc />} />
+            </Route>
+            <Route path={`/:lang(${LANG_PATTERN})/docs/*`} element={<DocsPage />}>
+              <Route index element={<DocsPages.OverviewDoc />} />
+            </Route>
+            <Route path="/api/docs" element={<DocsPage />}>
+              <Route index element={<DocsPages.OverviewDoc />} />
+            </Route>
 
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
