@@ -1,21 +1,42 @@
 # Skinify · robots.txt
 # Goal: maximum organic discovery. Allow everyone that drives traffic
-# (search engines + AI answer engines), block bots that hammer pricing
-# data without sending users back.
+# (search engines + AI answer engines), block bots that scrape pricing
+# without sending users back, and steer crawlers to the high-value
+# public paths via explicit Allow directives.
 
 User-agent: *
+Allow: /
+# Private / account surfaces — never useful in search results.
+Disallow: /profile
+Disallow: /profile/*
+Disallow: /cart
+Disallow: /cart/*
+Disallow: /auth/
+Disallow: /onboarding
+Disallow: /onboarding/*
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /messages
+Disallow: /messages/*
+Disallow: /api/
+# Stale dev/preview surfaces.
+Disallow: /*?edit=1
+Disallow: /*?preview=*
+# Internal redirects with tracking — let canonical absorb the value.
+Disallow: /*?utm_*
+
+# ─── Major search engines ────────────────────────────────────────────
+# Explicit Allow so the engine's own crawler tooling reports "indexable"
+# instead of inheriting the *-block ambiguity some engines apply to
+# unspecified bots.
+
+User-agent: Googlebot
 Allow: /
 Disallow: /profile
 Disallow: /cart
 Disallow: /auth/
-Disallow: /onboarding
 Disallow: /admin
 Disallow: /api/
-Disallow: /*?edit=1
-
-# Major search engines — explicit allow with high crawl budget signals
-User-agent: Googlebot
-Allow: /
 
 User-agent: Googlebot-Image
 Allow: /
@@ -23,21 +44,46 @@ Allow: /
 User-agent: Googlebot-News
 Allow: /
 
+User-agent: Googlebot-Video
+Allow: /
+
+# AdsBot: required Allow if you ever run Google Ads — without it,
+# landing-page quality scores tank because the bot can't crawl.
+User-agent: AdsBot-Google
+Allow: /
+
+User-agent: AdsBot-Google-Mobile
+Allow: /
+
+User-agent: Mediapartners-Google
+Allow: /
+
 User-agent: Bingbot
 Allow: /
+Crawl-delay: 1
 
 User-agent: DuckDuckBot
 Allow: /
 
 User-agent: YandexBot
 Allow: /
+Crawl-delay: 2
 
 User-agent: SeznamBot
 Allow: /
 
-# AI answer engines — allow. People increasingly ask ChatGPT / Perplexity
-# "what's the best CS2 marketplace?" — being indexed there is brand
+User-agent: Slurp
+Allow: /
+
+User-agent: Baiduspider
+Allow: /
+Crawl-delay: 3
+
+# ─── AI answer engines ───────────────────────────────────────────────
+# People increasingly ask ChatGPT / Perplexity / Claude
+# "what's the best CS2 marketplace?" — being cited there is brand
 # awareness we can't get any other way.
+
 User-agent: GPTBot
 Allow: /
 
@@ -77,7 +123,39 @@ Allow: /
 User-agent: cohere-ai
 Allow: /
 
-# Block bots that scrape pricing data without sending users back
+User-agent: Bytespider
+Allow: /
+
+User-agent: Diffbot
+Allow: /
+
+User-agent: FacebookBot
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: LinkedInBot
+Allow: /
+
+User-agent: Discordbot
+Allow: /
+
+User-agent: TelegramBot
+Allow: /
+
+User-agent: WhatsApp
+Allow: /
+
+User-agent: SkypeUriPreview
+Allow: /
+
+# ─── Blocked bots ────────────────────────────────────────────────────
+# SEO-data scrapers that harvest pricing without returning value.
+
 User-agent: SemrushBot
 Disallow: /
 
@@ -93,8 +171,18 @@ Disallow: /
 User-agent: BLEXBot
 Disallow: /
 
-# Sitemap
+User-agent: PetalBot
+Disallow: /
+
+User-agent: serpstatbot
+Disallow: /
+
+User-agent: DataForSeoBot
+Disallow: /
+
+# ─── Sitemaps ────────────────────────────────────────────────────────
 Sitemap: https://skinify.gg/sitemap.xml
+Sitemap: https://skinify.gg/sitemap-blog.xml
 
 # Host hint (helps engines pick the canonical domain)
 Host: https://skinify.gg

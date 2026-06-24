@@ -16,8 +16,14 @@
   # Strict Transport Security (HTTPS only)
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
 
-  # Additional Security
-  X-Robots-Tag: none
+  # Indexing: explicitly tell crawlers the page IS indexable + followable.
+  # Previously this header was `X-Robots-Tag: none` which is identical to
+  # noindex,nofollow and was the reason Google Search Console reported
+  # "Excluded by 'noindex' tag" in X-Robots-Tag for every URL. The
+  # X-Robots HTTP header overrides any <meta name="robots"> in the HTML,
+  # so the page-level public defaults in MetaResetter.tsx were being
+  # silently negated for every crawl.
+  X-Robots-Tag: index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1
 
 /api/*
   # API Rate Limiting Headers
@@ -34,6 +40,33 @@
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  # Auth pages must not be indexed — login/signup flows are private.
+  X-Robots-Tag: noindex, nofollow
+
+# Private routes — explicitly noindex at the header level so search
+# engines never surface user-account pages even if a stale link gets
+# crawled. The HTML meta robots already says the same, but headers
+# override and act as a belt-and-braces guarantee.
+/profile
+  X-Robots-Tag: noindex, nofollow
+/profile/*
+  X-Robots-Tag: noindex, nofollow
+/cart
+  X-Robots-Tag: noindex, nofollow
+/cart/*
+  X-Robots-Tag: noindex, nofollow
+/onboarding
+  X-Robots-Tag: noindex, nofollow
+/onboarding/*
+  X-Robots-Tag: noindex, nofollow
+/admin
+  X-Robots-Tag: noindex, nofollow
+/admin/*
+  X-Robots-Tag: noindex, nofollow
+/messages
+  X-Robots-Tag: noindex, nofollow
+/messages/*
+  X-Robots-Tag: noindex, nofollow
 
 # Image Caching - Cache images for 7 days
 /*.webp
