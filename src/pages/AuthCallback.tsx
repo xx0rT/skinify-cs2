@@ -62,9 +62,9 @@ const classifyError = (raw: unknown, response?: Response | null): FailureInfo =>
       kind: 'network',
       title: 'Connection hiccup — please try again',
       message:
-        "We couldn't reach Steam just now. This is usually a brief connection blip — give it another go.",
+        "We couldn't reach our auth server just now. This is usually a brief connection blip — give it another go.",
       hint:
-        "If it keeps failing, an ad-blocker, VPN, or DNS filter (uBlock, Brave Shields, NextDNS, Pi-hole) might be blocking *.supabase.co. Try an incognito window or disable those for skinify.gg.",
+        "On mobile data this often clears with one retry. If it keeps failing: switch between Wi-Fi and cellular, or disable an ad-blocker / VPN / DNS filter (uBlock, Brave Shields, NextDNS, Pi-hole) that might be blocking *.supabase.co.",
       details: message,
     };
   }
@@ -182,34 +182,65 @@ export default function AuthCallback() {
 
         const authUrl = `${supabaseUrl}/functions/v1/auth${window.location.search}`;
 
-        /* Manual abort controller — AbortSignal.timeout isn't available in
-           older Safari/Chromium and throws synchronously when missing,
-           which the outer catch reads as "Load failed" and confuses
-           users into thinking an extension blocked them. */
-        const controller = new AbortController();
-        const timeoutId = window.setTimeout(() => controller.abort(), 30000);
+        /* Fetch the Steam-verification edge function with one transparent
+           retry. Mobile networks (especially Czech 4G with carrier-grade
+           NAT) drop or stall the initial TCP handshake to Supabase edge
+           more often than Wi-Fi does; a single 1.5s retry rescues most
+           of those failures before the user ever sees an error modal.
+           Manual AbortController (AbortSignal.timeout isn't on every
+           mobile Safari/Chromium yet). */
+        const attemptFetch = async (timeoutMs: number): Promise<Response> => {
+          const controller = new AbortController();
+          const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+          try {
+            return await fetch(authUrl, {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${supabaseKey}`,
+                'Content-Type': 'application/json',
+                apikey: supabaseKey,
+              },
+              credentials: 'omit',
+              mode: 'cors',
+              cache: 'no-store',
+              signal: controller.signal,
+            });
+          } finally {
+            window.clearTimeout(timeoutId);
+          }
+        };
+
         try {
-          response = await fetch(authUrl, {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${supabaseKey}`,
-              'Content-Type': 'application/json',
-              apikey: supabaseKey,
-            },
-            credentials: 'omit',
-            mode: 'cors',
-            cache: 'no-store',
-            signal: controller.signal,
-          });
+          /* Two attempts: 45s primary (edge function cold-starts can take
+             5-10s; 30s wasn't always enough on 4G), then 25s retry. */
+          try {
+            response = await attemptFetch(45_000);
+          } catch (firstError) {
+            if ((firstError as any)?.name === 'AbortError') {
+              throw new Error('Request timed out');
+            }
+            const msg =
+              firstError instanceof Error ? firstError.message : 'Network error';
+            /* Only retry on transient network failures, not auth /
+               protocol errors. AbortError above is handled separately. */
+            if (!/load failed|failed to fetch|network ?error|networkerror|err_/i.test(msg)) {
+              throw firstError;
+            }
+            console.warn('[auth] first attempt failed, retrying once:', msg);
+            await new Promise((r) => setTimeout(r, 1500));
+            response = await attemptFetch(25_000);
+          }
         } catch (fetchError) {
           if ((fetchError as any)?.name === 'AbortError') {
             throw new Error('Request timed out');
           }
-          throw new Error(
-            fetchError instanceof Error ? fetchError.message : 'Network error',
-          );
-        } finally {
-          window.clearTimeout(timeoutId);
+          /* Include effective connection type in the details so future
+             failure reports surface "slow-2g" / "3g" / "4g" alongside
+             the message — useful for tracking down mobile-only issues. */
+          const conn = (navigator as any)?.connection?.effectiveType;
+          const base =
+            fetchError instanceof Error ? fetchError.message : 'Network error';
+          throw new Error(conn ? `${base} (network: ${conn})` : base);
         }
 
         if (!response.ok) {

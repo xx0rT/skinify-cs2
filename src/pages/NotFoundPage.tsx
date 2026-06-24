@@ -1,96 +1,215 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Home, ArrowLeft, Search, User, HelpCircle, Package } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Compass,
+  HelpCircle,
+  Home,
+  Package,
+  Search,
+  Sparkles,
+  User,
+} from 'lucide-react';
+import LandingNav from '../components/LandingNav';
+import Footer from '../components/Footer';
+import useDocumentMeta from '../hooks/useDocumentMeta';
+import { useTranslationStore } from '../store/translationStore';
+import { spring, tap } from '../lib/motion';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   NotFoundPage — redesigned to match the rest of the site.
+
+   The old version was a hard gray-900 / purple-600 island that read like
+   a different product. This rebuild uses theme tokens and inherits the
+   same chrome (LandingNav + Footer) so a 404 still feels like Skinify.
+
+   Layout:
+     - Floating "404" glyph with a soft accent radial behind it.
+     - Headline + supporting copy.
+     - Primary CTA back to home + secondary "go back".
+     - Four quick-link tiles into the most likely intended destinations
+       (Marketplace, FAQ, Profile, Sitemap).
+   ───────────────────────────────────────────────────────────────────────── */
 
 const NotFoundPage: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslationStore();
+
+  useDocumentMeta({
+    title: '404 — page not found · Skinify',
+    description:
+      'The page you\'re looking for doesn\'t exist or has been moved. Browse the marketplace, FAQ, or your profile from here.',
+    noindex: true,
+  });
+
+  const quickLinks = [
+    {
+      Icon: Package,
+      label: t('404.link.marketplace') || 'Marketplace',
+      blurb: t('404.link.marketplaceBlurb') || 'Every active CS2 listing',
+      to: '/marketplace',
+    },
+    {
+      Icon: HelpCircle,
+      label: t('404.link.faq') || 'FAQ',
+      blurb: t('404.link.faqBlurb') || 'How trades, escrow and fees work',
+      to: '/faq',
+    },
+    {
+      Icon: User,
+      label: t('404.link.profile') || 'Profile',
+      blurb: t('404.link.profileBlurb') || 'Your inventory, listings, settings',
+      to: '/profile',
+    },
+    {
+      Icon: Compass,
+      label: t('404.link.sitemap') || 'Sitemap',
+      blurb: t('404.link.sitemapBlurb') || 'Browse every page on the site',
+      to: '/sitemap',
+    },
+  ];
 
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center px-4">
-      <div className="max-w-2xl w-full text-center">
-        {/* 404 Number */}
-        <div className="mb-8">
-          <div className="text-[150px] md:text-[200px] font-bold bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent leading-none">
-            404
+    <div className="min-h-screen bg-bg text-ink flex flex-col">
+      <LandingNav />
+
+      <main className="flex-1 max-w-[1100px] w-full mx-auto px-4 sm:px-6 pt-3 pb-12 flex items-center">
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={spring}
+          className="w-full"
+        >
+          <div className="card relative overflow-hidden p-8 sm:p-12 lg:p-16 text-center">
+            {/* Background accent radial — pulled in from the corners so
+                the glyph reads as the focal point but the surface still
+                feels alive. */}
+            <div
+              aria-hidden
+              className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full pointer-events-none"
+              style={{
+                background:
+                  'radial-gradient(closest-side, rgb(var(--accent) / 0.18), transparent 70%)',
+              }}
+            />
+
+            <div className="relative">
+              {/* 404 glyph with a tracked-tight display weight + accent
+                  gradient mask. */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.94, y: -8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ ...spring, mass: 0.6, delay: 0.08 }}
+                className="font-bold leading-[0.9] tracking-[-0.05em] tabular-nums select-none"
+                style={{
+                  fontSize: 'clamp(96px, 22vw, 200px)',
+                  fontFamily: '"Lexend", system-ui, sans-serif',
+                  background:
+                    'linear-gradient(135deg, rgb(var(--accent)) 0%, rgb(var(--accent) / 0.4) 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}
+              >
+                404
+              </motion.div>
+
+              <div className="label-eyebrow mt-2 inline-flex items-center gap-1.5 justify-center">
+                <Sparkles size={11} strokeWidth={2.4} />
+                {t('404.eyebrow') || 'Lost in the marketplace'}
+              </div>
+
+              <h1 className="text-[28px] sm:text-[36px] font-bold tracking-tight text-ink leading-[1.05] mt-3">
+                {t('404.title') || 'This page doesn\'t exist'}
+              </h1>
+
+              <p className="text-[14px] sm:text-[15px] text-ink-muted font-medium mt-3 leading-relaxed max-w-[520px] mx-auto">
+                {t('404.lead') ||
+                  'The URL might have moved, the listing might have sold, or the link you followed might be broken. Pick a destination below.'}
+              </p>
+
+              {/* CTAs */}
+              <div className="mt-6 flex flex-wrap justify-center gap-2">
+                <motion.button
+                  whileTap={tap}
+                  whileHover={{ scale: 1.02 }}
+                  onClick={() => navigate('/')}
+                  className="h-11 px-5 rounded-full bg-accent text-on-accent text-[13.5px] font-bold inline-flex items-center gap-1.5"
+                  style={{ boxShadow: '0 12px 26px -12px rgb(var(--accent) / 0.6)' }}
+                >
+                  <Home size={14} strokeWidth={2.4} />
+                  {t('404.cta.home') || 'Back to home'}
+                  <ArrowRight size={13} strokeWidth={2.6} />
+                </motion.button>
+                <motion.button
+                  whileTap={tap}
+                  whileHover={{ scale: 1.02 }}
+                  onClick={() => navigate(-1)}
+                  className="h-11 px-5 rounded-full bg-subtle hover:bg-bg text-ink text-[13.5px] font-bold inline-flex items-center gap-1.5 transition-colors"
+                >
+                  <ArrowLeft size={14} strokeWidth={2.4} />
+                  {t('404.cta.back') || 'Go back'}
+                </motion.button>
+                <motion.a
+                  whileTap={tap}
+                  whileHover={{ scale: 1.02 }}
+                  href="/marketplace"
+                  className="h-11 px-5 rounded-full bg-subtle hover:bg-bg text-ink text-[13.5px] font-bold inline-flex items-center gap-1.5 transition-colors"
+                >
+                  <Search size={14} strokeWidth={2.4} />
+                  {t('404.cta.browse') || 'Browse marketplace'}
+                </motion.a>
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Message */}
-        <div className="mb-12">
-          <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
-            Page Not Found
-          </h1>
-          <p className="text-lg text-gray-400">
-            The page you're looking for doesn't exist or has been moved.
+          {/* Quick-link grid */}
+          <div className="mt-5 grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {quickLinks.map(({ Icon, label, blurb, to }) => (
+              <motion.div
+                key={to}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...spring, delay: 0.18 }}
+              >
+                <Link
+                  to={to}
+                  className="card-flat p-4 sm:p-5 flex items-start gap-3 hover:bg-subtle/40 transition-colors group h-full"
+                >
+                  <div className="w-9 h-9 rounded-2xl bg-accent-soft text-accent grid place-items-center shrink-0">
+                    <Icon size={16} strokeWidth={2.2} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13.5px] font-bold text-ink tracking-tight group-hover:text-accent transition-colors">
+                      {label}
+                    </div>
+                    <div className="text-[11.5px] text-ink-muted font-medium mt-0.5 leading-snug">
+                      {blurb}
+                    </div>
+                  </div>
+                  <ArrowRight
+                    size={13}
+                    strokeWidth={2.4}
+                    className="text-ink-dim group-hover:text-accent mt-1 shrink-0 group-hover:translate-x-0.5 transition-all"
+                  />
+                </Link>
+              </motion.div>
+            ))}
+          </div>
+
+          <p className="text-[11.5px] text-ink-dim font-medium mt-6 text-center">
+            {t('404.helpHint') || 'Still lost?'}{' '}
+            <Link to="/contact" className="text-accent hover:underline">
+              {t('404.helpLink') || 'Contact support'}
+            </Link>
+            .
           </p>
-        </div>
+        </motion.section>
+      </main>
 
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-          <button
-            onClick={() => navigate('/')}
-            className="inline-flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-8 py-3 rounded-lg font-medium transition-colors"
-          >
-            <Home size={20} />
-            Go to Homepage
-          </button>
-          <button
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 text-purple-400 px-8 py-3 rounded-lg font-medium border border-purple-500/30 hover:border-purple-500/50 transition-colors"
-          >
-            <ArrowLeft size={20} />
-            Go Back
-          </button>
-        </div>
-
-        {/* Quick Links */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <button
-            onClick={() => navigate('/marketplace')}
-            className="bg-gray-800/50 hover:bg-gray-800 rounded-lg border border-gray-700 hover:border-purple-500/50 p-6 transition-colors group"
-          >
-            <Search className="w-8 h-8 text-purple-400 mb-2 mx-auto" />
-            <div className="text-white font-medium text-sm">Marketplace</div>
-          </button>
-
-          <button
-            onClick={() => navigate('/profile')}
-            className="bg-gray-800/50 hover:bg-gray-800 rounded-lg border border-gray-700 hover:border-purple-500/50 p-6 transition-colors group"
-          >
-            <User className="w-8 h-8 text-purple-400 mb-2 mx-auto" />
-            <div className="text-white font-medium text-sm">Profile</div>
-          </button>
-
-          <button
-            onClick={() => navigate('/rewards')}
-            className="bg-gray-800/50 hover:bg-gray-800 rounded-lg border border-gray-700 hover:border-purple-500/50 p-6 transition-colors group"
-          >
-            <Package className="w-8 h-8 text-purple-400 mb-2 mx-auto" />
-            <div className="text-white font-medium text-sm">Rewards</div>
-          </button>
-
-          <button
-            onClick={() => navigate('/support')}
-            className="bg-gray-800/50 hover:bg-gray-800 rounded-lg border border-gray-700 hover:border-purple-500/50 p-6 transition-colors group"
-          >
-            <HelpCircle className="w-8 h-8 text-purple-400 mb-2 mx-auto" />
-            <div className="text-white font-medium text-sm">Support</div>
-          </button>
-        </div>
-
-        {/* Footer */}
-        <div className="mt-12">
-          <p className="text-gray-500 text-sm">
-            Error Code: 404 | Need help?{' '}
-            <span
-              onClick={() => navigate('/support')}
-              className="text-purple-400 hover:text-purple-300 cursor-pointer underline"
-            >
-              Contact support
-            </span>
-          </p>
-        </div>
-      </div>
+      <Footer />
     </div>
   );
 };

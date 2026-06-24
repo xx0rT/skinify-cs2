@@ -23,6 +23,7 @@ import { useBalanceStore } from '../store/balanceStore';
 import { useCartStore } from '../store/cartStore';
 import { useCurrencyStore } from '../store/currencyStore';
 import { useToastStore } from '../store/toastStore';
+import { useTranslationStore } from '../store/translationStore';
 import SteamLogin from './auth/SteamLogin';
 import UserProfile from './auth/UserProfile';
 import { useTheme } from '../theme/ThemeProvider';
@@ -40,11 +41,13 @@ import { openDepositModal } from './DepositModal';
  * Mobile: collapses to logo + search icon + menu drawer.
  */
 
-const NAV_LINKS = [
-  { label: 'Market', to: '/marketplace' },
-  { label: 'Sell', to: '/profile?tab=inventory' },
-  { label: 'Bonuses', to: '/bonuses' },
-  { label: 'FAQ', to: '/faq' },
+/* Nav links — `key` references a translation key so the label
+   renders in the user's current language. Component reads it via `t()`. */
+const NAV_LINKS: { key: string; fallback: string; to: string }[] = [
+  { key: 'nav.market', fallback: 'Market', to: '/marketplace' },
+  { key: 'nav.sell', fallback: 'Sell', to: '/profile?tab=inventory' },
+  { key: 'nav.bonuses', fallback: 'Bonuses', to: '/bonuses' },
+  { key: 'nav.faq', fallback: 'FAQ', to: '/faq' },
 ];
 
 export const LandingNav: React.FC = () => {
@@ -52,6 +55,7 @@ export const LandingNav: React.FC = () => {
   const { user } = useAuthStore();
   const { getItemCount } = useCartStore();
   const { addToast } = useToastStore();
+  const { t } = useTranslationStore();
   const { resolvedMode, mode, setMode } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
@@ -233,7 +237,7 @@ export const LandingNav: React.FC = () => {
                 >
                   <Plus size={15} strokeWidth={2.6} />
                 </motion.span>
-                <span className="relative">Refill</span>
+                <span className="relative">{t('nav.refill') !== 'nav.refill' ? t('nav.refill') : 'Refill'}</span>
               </motion.button>
 
               <NavIconButton
@@ -379,19 +383,19 @@ export const LandingNav: React.FC = () => {
                 style={{ boxShadow: '0 8px 20px -10px rgb(var(--accent) / 0.6)' }}
               >
                 <Plus size={15} strokeWidth={2.6} />
-                Add funds
+                {t('nav.refill') !== 'nav.refill' ? t('nav.refill') : 'Add funds'}
               </button>
 
               {/* Primary nav */}
               <nav className="space-y-0.5">
                 {NAV_LINKS.map((l) => (
                   <Link
-                    key={l.label}
+                    key={l.key}
                     to={l.to}
                     onClick={() => setMenuOpen(false)}
                     className="h-11 px-3 rounded-2xl flex items-center text-[14.5px] font-semibold text-ink-muted hover:bg-subtle hover:text-ink transition-colors"
                   >
-                    {l.label}
+                    {t(l.key) !== l.key ? t(l.key) : l.fallback}
                   </Link>
                 ))}
               </nav>
@@ -690,6 +694,7 @@ const LogoLink: React.FC = () => {
 };
 
 const NavLinksRow: React.FC = () => {
+  const { t } = useTranslationStore();
   const [hovered, setHovered] = useState<number | null>(null);
   /* Track the previous hovered index so we can choose the underline's
      transform-origin based on direction. Moving rightward → underline
@@ -716,7 +721,7 @@ const NavLinksRow: React.FC = () => {
           active && prevHovered != null && prevHovered > i;
         return (
           <Link
-            key={l.label}
+            key={l.key}
             to={l.to}
             onMouseEnter={() => {
               setPrevHovered(hovered);
@@ -734,7 +739,7 @@ const NavLinksRow: React.FC = () => {
               />
             )}
             <span className="relative inline-flex items-center gap-1.5">
-              {l.label}
+              {t(l.key) !== l.key ? t(l.key) : l.fallback}
               <motion.span
                 aria-hidden
                 className={`absolute -bottom-1 left-0 right-0 h-[2px] rounded-full bg-accent ${
@@ -789,6 +794,7 @@ const NavIconButton: React.FC<
    ───────────────────────────────────────────────────────────────────────── */
 const NavInlineSearch: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslationStore();
   const [q, setQ] = useState('');
   const [focused, setFocused] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -930,7 +936,7 @@ const NavInlineSearch: React.FC = () => {
           onKeyDown={(e) => {
             if (e.key === 'Enter') submitFull();
           }}
-          placeholder="Search skins, weapons, collections…"
+          placeholder={t('nav.search.placeholder') !== 'nav.search.placeholder' ? t('nav.search.placeholder') : 'Search skins, weapons, collections…'}
           className="flex-1 bg-transparent outline-none text-[13.5px] font-medium text-ink placeholder:text-ink-muted min-w-0"
         />
         {q && (
@@ -972,7 +978,7 @@ const NavInlineSearch: React.FC = () => {
                 transition={{ delay: 0.05 }}
                 className="p-4 text-[12.5px] text-ink-muted font-medium text-center"
               >
-                No matches for "{q}"
+                {t('nav.search.noMatches') !== 'nav.search.noMatches' ? t('nav.search.noMatches') : 'No matches for'} "{q}"
               </motion.div>
             ) : (
               <ul className="p-1.5">
@@ -1016,7 +1022,7 @@ const NavInlineSearch: React.FC = () => {
               onClick={() => submitFull()}
               className="w-full px-3 py-2.5 border-t border-line text-[12px] font-bold text-accent hover:bg-subtle transition-colors text-left rounded-b-3xl"
             >
-              See all results for "{q}" →
+              {t('nav.search.seeAll') !== 'nav.search.seeAll' ? t('nav.search.seeAll') : 'See all results for'} "{q}" →
             </button>
           </motion.div>
         )}
@@ -1027,6 +1033,7 @@ const NavInlineSearch: React.FC = () => {
 
 const NavSignInButton: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
   const navigate = useNavigate();
+  const { t } = useTranslationStore();
   return (
     <motion.button
       whileTap={tap}
@@ -1038,7 +1045,7 @@ const NavSignInButton: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) 
       className="h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold inline-flex items-center gap-1.5"
       style={{ boxShadow: '0 10px 22px -12px rgb(var(--accent) / 0.55)' }}
     >
-      Sign in
+      {t('nav.signin') !== 'nav.signin' ? t('nav.signin') : 'Sign in'}
     </motion.button>
   );
 };
