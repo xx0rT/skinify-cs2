@@ -187,21 +187,75 @@ interface FooterProps {
   slim?: boolean;
 }
 
+/* Reusable variants for the scroll-in reveal — each tier fades up as it
+   enters the viewport. We keep the amount low (12px translate) and the
+   duration short so the footer feels alive without dragging the eye. */
+const TIER_VARIANTS = {
+  hidden: { opacity: 0, y: 14 },
+  shown: {
+    opacity: 1,
+    y: 0,
+    transition: { type: 'spring', stiffness: 360, damping: 36, mass: 0.6 },
+  },
+};
+
+/* Staggered children variant for the link columns — when tier 1 reveals,
+   the columns cascade in left-to-right rather than all popping at once. */
+const TIER1_STAGGER = {
+  hidden: {},
+  shown: { transition: { staggerChildren: 0.04, delayChildren: 0.05 } },
+};
+const COL_VARIANTS = {
+  hidden: { opacity: 0, y: 10 },
+  shown: { opacity: 1, y: 0 },
+};
+
 const Footer: React.FC<FooterProps> = ({ slim = false }) => {
   const currentYear = new Date().getFullYear();
   const [seoOpen, setSeoOpen] = useState(false);
 
   return (
-    <footer className="max-w-[1480px] mx-auto px-4 sm:px-6 pb-8">
-      <section className="card overflow-hidden">
-        {/* ╔════════════════════════════════════════════════════════════
-            TIER 1 — Brand + main link columns. Dense but airy:
-            brand block on the left (logo, tagline, socials, lang),
-            four link columns on the right. On mobile everything stacks.
-            ════════════════════════════════════════════════════════════ */}
-        <div className="p-6 md:p-8 grid grid-cols-1 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)] gap-8 lg:gap-12">
+    /* Full-bleed footer: no max-width on the outer element, no padding on
+       the wrapper, no rounded corners. The inner `max-w-[1480px]` boxes
+       inside each tier keep text from sprawling on ultrawide while the
+       backgrounds / borders run edge-to-edge — matches how LandingNav
+       reads as a docked top bar. */
+    <footer
+      className="relative w-full mt-12 border-t border-line"
+      style={{
+        background:
+          'linear-gradient(to bottom, rgb(var(--bg)) 0%, rgb(var(--subtle) / 0.35) 100%)',
+      }}
+    >
+      {/* Soft accent halo at the very top of the footer — mirrors the
+          navbar's "lit from below" glow but inverted (lit from above).
+          Same plus-lighter blend so dark mode glows and light mode reads
+          as a soft lavender wash. */}
+      <div
+        aria-hidden
+        className="absolute left-0 right-0 -top-px h-12 pointer-events-none"
+        style={{
+          background:
+            'radial-gradient(120% 100% at 50% 0%, rgb(var(--accent) / 0.16) 0%, rgb(var(--accent) / 0.05) 40%, transparent 80%)',
+          mixBlendMode: 'plus-lighter',
+        }}
+      />
+
+      {/* ╔════════════════════════════════════════════════════════════
+          TIER 1 — Brand + main link columns. Dense but airy:
+          brand block on the left (logo, tagline, socials, lang),
+          four link columns on the right. On mobile everything stacks.
+          Fades in as the footer scrolls into the viewport.
+          ════════════════════════════════════════════════════════════ */}
+      <motion.div
+        variants={TIER1_STAGGER}
+        initial="hidden"
+        whileInView="shown"
+        viewport={{ once: true, margin: '0px 0px -80px 0px' }}
+        className="max-w-[1480px] mx-auto px-4 sm:px-6 lg:px-8 py-10 lg:py-14 grid grid-cols-1 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)] gap-8 lg:gap-12"
+      >
           {/* Brand block */}
-          <div>
+          <motion.div variants={COL_VARIANTS}>
             <div className="flex items-center gap-2.5">
               <div className="icon-chip bg-accent text-on-accent">
                 <img
@@ -259,39 +313,52 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
                 loading="lazy"
               />
             </a>
-          </div>
+          </motion.div>
 
           {/* Link columns — 4 columns at lg, 2 at md, 1 at sm. We split
               "Company" out into a 5th column at xl so dense desktop
-              viewports get a wider visual canvas. */}
+              viewports get a wider visual canvas. Each column is its
+              own motion child so the stagger cascades across them. */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-7 min-w-0">
             {footerColumns.map((col) => (
-              <div key={col.title} className="min-w-0">
+              <motion.div
+                key={col.title}
+                variants={COL_VARIANTS}
+                className="min-w-0"
+              >
                 <div className="label-eyebrow mb-3.5">{col.title}</div>
                 <ul className="space-y-2">
                   {col.links.map((l) => (
                     <li key={l.label}>
                       <Link
                         to={l.to}
-                        className="text-[13px] text-ink-muted hover:text-ink font-medium transition-colors"
+                        className="text-[13px] text-ink-muted hover:text-ink font-medium transition-colors inline-block hover:translate-x-0.5"
+                        style={{ transitionDuration: '180ms', transitionProperty: 'color, transform' }}
                       >
                         {l.label}
                       </Link>
                     </li>
                   ))}
                 </ul>
-              </div>
+              </motion.div>
             ))}
           </div>
-        </div>
+      </motion.div>
 
-        {/* ╔════════════════════════════════════════════════════════════
-            TIER 2 — Popular tags strip + accepted-payments carousel.
-            Skinned in subtle so it visually segments from the main
-            link grid above. Hidden in slim mode (profile pages).
-            ════════════════════════════════════════════════════════════ */}
-        {!slim && (
-          <div className="border-t border-line bg-subtle/30 px-6 md:px-8 py-6">
+      {/* ╔════════════════════════════════════════════════════════════
+          TIER 2 — Popular tags strip + accepted-payments carousel.
+          Skinned with a soft top border so it visually segments from
+          the main link grid above. Hidden in slim mode (profile pages).
+          ════════════════════════════════════════════════════════════ */}
+      {!slim && (
+        <motion.div
+          variants={TIER_VARIANTS}
+          initial="hidden"
+          whileInView="shown"
+          viewport={{ once: true, margin: '0px 0px -60px 0px' }}
+          className="border-t border-line bg-subtle/40"
+        >
+          <div className="max-w-[1480px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
               <div>
                 <span className="label-eyebrow">Popular tags</span>
@@ -343,17 +410,23 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
               </div>
             </div>
           </div>
-        )}
+        </motion.div>
+      )}
 
-        {/* ╔════════════════════════════════════════════════════════════
-            TIER 3 — Collapsible SEO link clusters. Closed by default
-            so the footer doesn't dominate the viewport; expand reveals
-            the long-tail keyword link grid. Crawlers still hit the
-            links because they're in the rendered HTML once toggled
-            open server-side OR after the user expands them.
-            ════════════════════════════════════════════════════════════ */}
-        {!slim && (
-          <div className="border-t border-line px-6 md:px-8 py-4">
+      {/* ╔════════════════════════════════════════════════════════════
+          TIER 3 — Collapsible SEO link clusters. Closed by default
+          so the footer doesn't dominate the viewport; expand reveals
+          the long-tail keyword link grid.
+          ════════════════════════════════════════════════════════════ */}
+      {!slim && (
+        <motion.div
+          variants={TIER_VARIANTS}
+          initial="hidden"
+          whileInView="shown"
+          viewport={{ once: true, margin: '0px 0px -60px 0px' }}
+          className="border-t border-line"
+        >
+          <div className="max-w-[1480px] mx-auto px-4 sm:px-6 lg:px-8 py-5">
             <button
               type="button"
               onClick={() => setSeoOpen((v) => !v)}
@@ -406,13 +479,22 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
               )}
             </AnimatePresence>
           </div>
-        )}
+        </motion.div>
+      )}
 
-        {/* ╔════════════════════════════════════════════════════════════
-            TIER 4 — Slim legal bar.
-            Copyright on the left, condensed secondary nav on the right.
-            ════════════════════════════════════════════════════════════ */}
-        <div className="border-t border-line px-6 md:px-8 py-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[12px] text-ink-muted font-medium">
+      {/* ╔════════════════════════════════════════════════════════════
+          TIER 4 — Slim legal bar. Copyright on the left, condensed
+          secondary nav on the right. Sits on a slightly darker tint
+          so it reads as a docked baseline.
+          ════════════════════════════════════════════════════════════ */}
+      <motion.div
+        variants={TIER_VARIANTS}
+        initial="hidden"
+        whileInView="shown"
+        viewport={{ once: true, margin: '0px 0px -40px 0px' }}
+        className="border-t border-line bg-subtle/50"
+      >
+        <div className="max-w-[1480px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[12px] text-ink-muted font-medium">
           <div className="inline-flex items-center gap-1.5">
             <span>© {currentYear} Skinify.</span>
             <span className="text-ink-dim">Not affiliated with Valve Corp. or Steam.</span>
@@ -427,7 +509,7 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
             <Link to="/refund-policy" className="hover:text-ink transition-colors">Refunds</Link>
           </nav>
         </div>
-      </section>
+      </motion.div>
     </footer>
   );
 };
