@@ -236,30 +236,10 @@ const DocsPage: React.FC = () => {
               {currentPage && currentPage.headings.length > 0 ? (
                 <>
                   <div className="label-eyebrow mb-3">On this page</div>
-                  <ul className="space-y-1.5">
-                    {currentPage.headings.map((h: DocsHeading) => {
-                      const active = activeHeading === h.id;
-                      return (
-                        <li
-                          key={h.id}
-                          style={{
-                            paddingLeft: h.level === 3 ? 12 : 0,
-                          }}
-                        >
-                          <a
-                            href={`#${h.id}`}
-                            className={`block text-[12px] leading-snug transition-colors ${
-                              active
-                                ? 'text-accent font-bold'
-                                : 'text-ink-muted hover:text-ink font-medium'
-                            }`}
-                          >
-                            {h.label}
-                          </a>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  <DocsTocRail
+                    headings={currentPage.headings}
+                    activeId={activeHeading}
+                  />
                   {currentPage.summary && (
                     <div className="mt-6 pt-5 border-t border-line">
                       <div className="label-eyebrow mb-2">Page summary</div>
@@ -303,6 +283,126 @@ const DocsPage: React.FC = () => {
 
       <Footer />
     </div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   DocsTocRail — right-rail "On this page" with a Cohere-style stretched
+   indicator line.
+
+   How it works:
+     - The whole list is `position: relative` and carries a 1px-wide
+       vertical track on its left edge.
+     - A second 2px-wide accent segment is absolutely positioned ON TOP of
+       the track and animates its `top` / `height` to the bounding rect
+       of the currently active item.
+     - When the user is at the very top of a page (active = first item)
+       the segment sits flush at the top. As they scroll, the segment
+       stretches downward to the active item's vertical centre — which is
+       what the screenshot shows.
+     - Reading the position straight off the DOM (rather than computing
+       from line-height) survives line wrapping on long headings.
+   ───────────────────────────────────────────────────────────────────────── */
+
+const DocsTocRail: React.FC<{
+  headings: DocsHeading[];
+  activeId: string;
+}> = ({ headings, activeId }) => {
+  const listRef = React.useRef<HTMLUListElement | null>(null);
+  const itemRefs = React.useRef<Record<string, HTMLLIElement | null>>({});
+  const [indicator, setIndicator] = React.useState<{ top: number; height: number } | null>(null);
+
+  /* Recompute the indicator's vertical span whenever the active item
+     changes or the layout reflows. We anchor to the active LI's
+     bounding rect inside the list container — that survives line wrap
+     and item additions cleanly. */
+  React.useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) {
+      setIndicator(null);
+      return;
+    }
+    const active = activeId && itemRefs.current[activeId];
+    if (!active) {
+      /* No active item yet — collapse the indicator to the first item's
+         top so the bar reads as "you're at the top of the page". */
+      const first = headings[0] ? itemRefs.current[headings[0].id] : null;
+      if (first) {
+        const lr = list.getBoundingClientRect();
+        const fr = first.getBoundingClientRect();
+        setIndicator({ top: fr.top - lr.top, height: fr.height });
+      } else {
+        setIndicator(null);
+      }
+      return;
+    }
+    const lr = list.getBoundingClientRect();
+    const ar = active.getBoundingClientRect();
+    setIndicator({ top: ar.top - lr.top, height: ar.height });
+  }, [activeId, headings]);
+
+  /* Also recompute on resize — the right rail can re-wrap on viewport
+     changes between breakpoints. */
+  React.useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const ro = new ResizeObserver(() => {
+      const active = activeId && itemRefs.current[activeId];
+      if (!active) return;
+      const lr = list.getBoundingClientRect();
+      const ar = active.getBoundingClientRect();
+      setIndicator({ top: ar.top - lr.top, height: ar.height });
+    });
+    ro.observe(list);
+    return () => ro.disconnect();
+  }, [activeId]);
+
+  return (
+    <ul ref={listRef} className="relative pl-3 py-0.5">
+      {/* Static 1px vertical track that runs the full height of the list.
+          Sits behind the moving accent indicator. */}
+      <span
+        aria-hidden
+        className="absolute left-0 top-0 bottom-0 w-px"
+        style={{ background: 'rgb(var(--line))' }}
+      />
+      {/* Animated accent indicator. We position it via inline style and
+          animate via framer-motion so the transition is smooth between
+          headings without any per-item interpolation. */}
+      {indicator && (
+        <motion.span
+          aria-hidden
+          className="absolute left-0 w-[2px] rounded-full"
+          initial={false}
+          animate={{ top: indicator.top, height: indicator.height }}
+          transition={{ type: 'spring', stiffness: 420, damping: 36, mass: 0.6 }}
+          style={{ background: 'rgb(var(--accent))' }}
+        />
+      )}
+      <div className="space-y-1.5">
+        {headings.map((h) => {
+          const active = activeId === h.id;
+          return (
+            <li
+              key={h.id}
+              ref={(el) => {
+                itemRefs.current[h.id] = el;
+              }}
+              style={{ paddingLeft: h.level === 3 ? 12 : 0 }}
+            >
+              <a
+                href={`#${h.id}`}
+                className={`block text-[12px] leading-snug transition-colors ${
+                  active ? 'text-accent font-bold' : 'text-ink-muted hover:text-ink font-medium'
+                }`}
+              >
+                {h.label}
+              </a>
+            </li>
+          );
+        })}
+      </div>
+    </ul>
   );
 };
 

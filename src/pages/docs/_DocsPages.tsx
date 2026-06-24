@@ -2,11 +2,15 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import {
   Book,
+  FileCode,
   Globe,
   Hash,
   Key,
   Layers,
   Lock,
+  Palette,
+  Share2,
+  Sparkles,
   Terminal,
   Webhook,
   Zap,
@@ -1188,6 +1192,467 @@ def verify(raw_body: bytes, header: str, secret: str) -> bool:
 );
 
 /* ═══════════════════════════════════════════════════════════════════════
+   Shop CSS styling
+   ─ Folded in from the legacy DeveloperDocsPage so the entire developer
+   surface lives under one /docs tree. Lets sellers learn to restyle
+   their shop without leaving the API reference.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+export const ShopOverviewDoc: React.FC = () => (
+  <>
+    <DocsHeader
+      eyebrow="Shop styling"
+      title="CSS customization"
+      description="Restyle your seller shop with custom CSS. Colors, fonts, layouts, animations — all scoped to your shop only."
+    />
+    <Section id="what-it-is" title="What it is" Icon={Palette}>
+      <p>
+        Every Skinify seller shop ships with a default theme that matches
+        the marketplace. Custom CSS lets you replace any of those styles
+        with your own — backgrounds, typography, item-card chrome,
+        animations, even responsive breakpoints. Your snippet is injected
+        as a scoped style tag so it only affects <strong>your</strong>{' '}
+        shop page and nothing else on Skinify.
+      </p>
+      <ul>
+        <li>Standard CSS syntax — flexbox, grid, custom properties, media queries, keyframe animations all work.</li>
+        <li>You can override any default rule on the page.</li>
+        <li>Your CSS is sandboxed to <InlineCode>.shop-page</InlineCode> and its descendants.</li>
+        <li>No JavaScript injection — styling only, by design.</li>
+      </ul>
+    </Section>
+
+    <Section id="quick-start" title="Quick start" Icon={Zap}>
+      <ol className="list-decimal pl-6 space-y-1.5 my-3 text-[14px] text-ink-muted">
+        <li>Open <Link to="/profile?tab=shop">Profile → My Shop</Link>.</li>
+        <li>Click <strong>Advanced Settings</strong> (or <strong>Visual Editor</strong> for the GUI).</li>
+        <li>Find the <strong>Custom CSS</strong> textbox.</li>
+        <li>Paste a snippet (try one of the <Link to="/docs/shop/examples">example themes</Link>).</li>
+        <li>Click <strong>Save Changes</strong> and visit your shop URL to verify.</li>
+      </ol>
+    </Section>
+
+    <Section id="first-snippet" title="First snippet" Icon={FileCode}>
+      <p>A 12-line example that changes the background, retints the item cards, and bumps the item-name typography.</p>
+      <CodeBlock
+        lang="css"
+        filename="custom.css"
+        code={`/* Background gradient on the shop frame */
+.shop-page {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* Item card chrome */
+.item-card {
+  border: 2px solid #a78bfa;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(167, 139, 250, 0.3);
+}
+
+/* Item name typography */
+.item-name {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 18px;
+}`}
+      />
+    </Section>
+
+    <Section id="limits" title="Limits & sandboxing" Icon={Lock}>
+      <ul>
+        <li><strong>Scope.</strong> Your CSS is wrapped in an attribute selector so it can't escape <InlineCode>.shop-page</InlineCode>. Selectors that target <InlineCode>body</InlineCode>, <InlineCode>html</InlineCode>, or other shops are silently dropped.</li>
+        <li><strong>Imports.</strong> <InlineCode>@import url(...)</InlineCode> is blocked. Inline your fonts via <InlineCode>@font-face</InlineCode> from <InlineCode>fonts.gstatic.com</InlineCode> only.</li>
+        <li><strong>Size.</strong> 32 KB hard cap per shop.</li>
+        <li><strong>No JS.</strong> <InlineCode>&lt;script&gt;</InlineCode>, <InlineCode>javascript:</InlineCode> URLs, and <InlineCode>expression()</InlineCode> are stripped at save time.</li>
+      </ul>
+      <Callout tone="warn" Icon={Lock}>
+        Custom CSS that breaks the page (e.g. <InlineCode>* {`{display:none}`}</InlineCode>)
+        is your problem to fix. We never auto-revert — preview before saving.
+      </Callout>
+    </Section>
+
+    <DocsPager slug="shop/overview" />
+  </>
+);
+
+export const ShopStructureDoc: React.FC = () => (
+  <>
+    <DocsHeader
+      eyebrow="Shop styling"
+      title="Shop page structure"
+      description="The class names and DOM nesting your selectors hook into."
+    />
+    <Section id="tree" title="DOM tree" Icon={FileCode}>
+      <p>
+        Every shop renders the same skeleton. Items inside{' '}
+        <InlineCode>.shop-items-grid</InlineCode> repeat once per
+        listing.
+      </p>
+      <CodeBlock
+        lang="html"
+        code={`<div class="shop-page">
+  <div class="shop-header">
+    <div class="shop-banner">…</div>
+    <div class="shop-info">
+      <h1 class="shop-name">…</h1>
+      <p class="shop-description">…</p>
+    </div>
+  </div>
+
+  <div class="shop-stats">
+    <div class="stat-item">
+      <span class="stat-value">…</span>
+      <span class="stat-label">…</span>
+    </div>
+    <!-- repeats -->
+  </div>
+
+  <div class="shop-items-grid">
+    <div class="item-card">
+      <img class="item-image" />
+      <h3 class="item-name">…</h3>
+      <div class="item-details">
+        <span class="item-price">…</span>
+        <span class="item-condition">…</span>
+      </div>
+    </div>
+    <!-- repeats -->
+  </div>
+</div>`}
+      />
+    </Section>
+
+    <Section id="header" title="Header section" Icon={Layers}>
+      <p>
+        <InlineCode>.shop-header</InlineCode> wraps the cover banner and
+        the seller's display name + description. Use grid or flexbox here
+        for a top-of-page hero.
+      </p>
+    </Section>
+
+    <Section id="grid" title="Items grid" Icon={Layers}>
+      <p>
+        <InlineCode>.shop-items-grid</InlineCode> is the listings
+        container. Default layout is CSS Grid with
+        <InlineCode>auto-fill, minmax(220px, 1fr)</InlineCode>. Override
+        the <InlineCode>grid-template-columns</InlineCode> on this
+        element to change density.
+      </p>
+    </Section>
+
+    <Section id="item-card" title="Item card" Icon={Sparkles}>
+      <p>
+        Each listing renders as one <InlineCode>.item-card</InlineCode>
+        with image + name + details. The image lives at the top, the
+        text block at the bottom — restyle either independently.
+      </p>
+    </Section>
+
+    <DocsPager slug="shop/structure" />
+  </>
+);
+
+export const ShopVariablesDoc: React.FC = () => (
+  <>
+    <DocsHeader
+      eyebrow="Shop styling"
+      title="CSS variables"
+      description="Override the default theme variables for one-line, system-wide colour and spacing changes."
+    />
+    <Section id="available" title="Available variables" Icon={Hash}>
+      <p>
+        The default shop styles read from a set of CSS custom
+        properties. Override any of them in a <InlineCode>:root</InlineCode>{' '}
+        (or, scoped tighter, <InlineCode>.shop-page</InlineCode>) block
+        to retheme the whole shop without writing per-element rules.
+      </p>
+      <CodeBlock
+        lang="css"
+        filename="defaults.css"
+        code={`:root {
+  /* Primary brand */
+  --primary-color: #a78bfa;
+  --primary-dark:  #7c3aed;
+  --primary-light: #c4b5fd;
+
+  /* Backgrounds */
+  --bg-primary:   #111827;
+  --bg-secondary: #1f2937;
+  --bg-tertiary:  #374151;
+
+  /* Text */
+  --text-primary:   #ffffff;
+  --text-secondary: #d1d5db;
+  --text-muted:     #9ca3af;
+
+  /* Status accents */
+  --accent-success: #10b981;
+  --accent-warning: #f59e0b;
+  --accent-error:   #ef4444;
+
+  /* Spacing scale */
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+
+  /* Border radius scale */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}`}
+      />
+    </Section>
+
+    <Section id="overriding" title="Overriding values" Icon={FileCode}>
+      <p>One-line retheme: override just the brand color and the page background.</p>
+      <CodeBlock
+        lang="css"
+        code={`.shop-page {
+  --primary-color: #f59e0b;
+  --bg-primary:    #0a0a0a;
+  --bg-secondary:  #1a1a1a;
+}`}
+      />
+    </Section>
+
+    <Section id="tips" title="Tips" Icon={Sparkles}>
+      <ul>
+        <li>Override on <InlineCode>.shop-page</InlineCode> rather than <InlineCode>:root</InlineCode> — that's still inside the scoped style tag so nothing else on Skinify can be affected.</li>
+        <li>Combine variable overrides with media queries to ship light/dark variants without duplicating selectors.</li>
+        <li>The default values shift when Skinify ships a marketplace-wide theme refresh; pin a copy of the variables you depend on inside your own CSS to avoid surprises.</li>
+      </ul>
+    </Section>
+
+    <DocsPager slug="shop/variables" />
+  </>
+);
+
+export const ShopSelectorsDoc: React.FC = () => (
+  <>
+    <DocsHeader
+      eyebrow="Shop styling"
+      title="Selectors reference"
+      description="Every class you can target, what it wraps, and where it sits in the tree."
+    />
+
+    <Section id="layout" title="Layout" Icon={Layers}>
+      <DocsTable
+        headers={['Class', 'What it wraps']}
+        rows={[
+          ['.shop-page', 'Outermost container for the whole shop.'],
+          ['.shop-header', 'Banner + seller info row at the top.'],
+          ['.shop-stats', 'Strip of stat tiles below the header.'],
+          ['.shop-items-grid', 'Grid container for every listing.'],
+        ]}
+      />
+    </Section>
+
+    <Section id="item-card" title="Item card" Icon={Sparkles}>
+      <DocsTable
+        headers={['Class', 'What it wraps']}
+        rows={[
+          ['.item-card', 'One listing tile inside the grid.'],
+          ['.item-image', 'Listing image element.'],
+          ['.item-name', 'Listing name / weapon line.'],
+          ['.item-details', 'Footer row inside the card.'],
+          ['.item-price', 'Numeric price inside the details row.'],
+          ['.item-condition', 'Condition / wear label inside the details row.'],
+        ]}
+      />
+    </Section>
+
+    <Section id="header" title="Header" Icon={Layers}>
+      <DocsTable
+        headers={['Class', 'What it wraps']}
+        rows={[
+          ['.shop-banner', 'Top banner image (full bleed).'],
+          ['.shop-info', 'Title + description column inside the header.'],
+          ['.shop-name', 'H1 with the seller display name.'],
+          ['.shop-description', 'Optional bio paragraph.'],
+        ]}
+      />
+    </Section>
+
+    <Section id="stats" title="Stats" Icon={Sparkles}>
+      <DocsTable
+        headers={['Class', 'What it wraps']}
+        rows={[
+          ['.stat-item', 'One stat tile (trades, rating, etc.).'],
+          ['.stat-value', 'Big numeric value inside the tile.'],
+          ['.stat-label', 'Caption underneath the value.'],
+        ]}
+      />
+    </Section>
+
+    <DocsPager slug="shop/selectors" />
+  </>
+);
+
+export const ShopExamplesDoc: React.FC = () => (
+  <>
+    <DocsHeader
+      eyebrow="Shop styling"
+      title="Example themes"
+      description="Three ready-to-paste themes. Drop one into the Custom CSS textbox, save, done."
+    />
+
+    <Section id="dark-neon" title="Dark neon" Icon={Sparkles}>
+      <p>Cyberpunk vibes — radial backdrop, cyan/magenta accents, glowing item titles.</p>
+      <CodeBlock
+        lang="css"
+        filename="dark-neon.css"
+        code={`/* Dark neon cyberpunk theme */
+.shop-page {
+  background: #000000;
+  background-image:
+    radial-gradient(circle at 20% 50%, rgba(120, 119, 198, 0.3), transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(255, 77, 109, 0.3), transparent 50%);
+}
+
+.item-card {
+  background: rgba(20, 20, 40, 0.8);
+  border: 1px solid #00ffff;
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+.item-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 0 30px rgba(255, 0, 255, 0.5);
+  border-color: #ff00ff;
+}
+
+.item-name {
+  color: #00ffff;
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+}
+
+.item-price {
+  color: #ff00ff;
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(255, 0, 255, 0.5);
+}`}
+      />
+    </Section>
+
+    <Section id="minimalist" title="Minimalist clean" Icon={Sparkles}>
+      <p>White surface, single accent, restrained shadows — sells calm and trust.</p>
+      <CodeBlock
+        lang="css"
+        filename="minimalist.css"
+        code={`/* Clean minimal design */
+.shop-page {
+  background: #ffffff;
+  font-family: 'Inter', sans-serif;
+}
+
+.item-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.item-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.item-name {
+  color: #1f2937;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.item-price {
+  color: #6366f1;
+  font-size: 18px;
+  font-weight: 700;
+}`}
+      />
+    </Section>
+
+    <Section id="premium-gold" title="Premium gold" Icon={Sparkles}>
+      <p>Luxury vibes — charcoal background, gold borders, tracking-wide titles.</p>
+      <CodeBlock
+        lang="css"
+        filename="premium-gold.css"
+        code={`/* Luxury gold theme */
+.shop-page {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+}
+
+.item-card {
+  background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+  border: 2px solid #d4af37;
+  box-shadow: 0 4px 20px rgba(212, 175, 55, 0.2);
+}
+
+.item-name {
+  color: #d4af37;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.item-price {
+  background: linear-gradient(135deg, #ffd700 0%, #d4af37 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: 20px;
+  font-weight: 800;
+}`}
+      />
+    </Section>
+
+    <DocsPager slug="shop/examples" />
+  </>
+);
+
+export const ShopPublishingDoc: React.FC = () => (
+  <>
+    <DocsHeader
+      eyebrow="Shop styling"
+      title="Publishing CSS presets"
+      description="Share your shop theme with the community. Submission flow, guidelines, what happens after you submit."
+    />
+
+    <Section id="how-to-publish" title="How to publish" Icon={Share2}>
+      <ol className="list-decimal pl-6 space-y-1.5 my-3 text-[14px] text-ink-muted">
+        <li>Go to <Link to="/css-presets">CSS Presets</Link>.</li>
+        <li>Click <strong>Submit Your Preset</strong>.</li>
+        <li>Fill in: name, description, category (Dark / Light / Colorful / Themed), CSS body.</li>
+        <li>Use the live <strong>Preview</strong> pane to verify the snippet renders correctly.</li>
+        <li>Hit <strong>Submit</strong>. Moderation usually takes a few hours.</li>
+      </ol>
+    </Section>
+
+    <Section id="guidelines" title="Guidelines" Icon={Lock}>
+      <ul>
+        <li>Test on at least three different shops (1, 10, 100+ listings) before publishing.</li>
+        <li>No malicious selectors — anything that hides Skinify's report / contact UI is rejected.</li>
+        <li>No off-domain URLs except <InlineCode>fonts.gstatic.com</InlineCode>.</li>
+        <li>Use clear comments — other sellers will fork your preset.</li>
+        <li>Pick a category that actually matches; mislabelled submissions get bumped to <em>Other</em>.</li>
+      </ul>
+    </Section>
+
+    <Section id="after-submit" title="After you submit" Icon={Zap}>
+      <ul>
+        <li>Your preset lands in the public gallery once a moderator approves it.</li>
+        <li>You can edit metadata (name, description, category) any time; the CSS body is locked after first install.</li>
+        <li>Want to ship an updated version? Submit it as a new preset and link the old one in the description.</li>
+        <li>Top presets are featured on <Link to="/css-presets">/css-presets</Link> and inside the shop editor's "Browse community" tab.</li>
+      </ul>
+    </Section>
+
+    <DocsPager slug="shop/publishing" />
+  </>
+);
+
+/* ═══════════════════════════════════════════════════════════════════════
    SDKs + Guides + Changelog + Support
    ═══════════════════════════════════════════════════════════════════════ */
 
@@ -1394,6 +1859,8 @@ export const ApiChangelogDoc: React.FC = () => (
       <DocsTable
         headers={['Date', 'Change']}
         rows={[
+          ['2026-06-24', 'Docs: Shop CSS customization section added (6 pages — overview, structure, variables, selectors, examples, publishing).'],
+          ['2026-06-24', 'Docs: Right-rail "On this page" now renders a stretched indicator line that tracks the active section as the user scrolls.'],
           ['2026-06-24', 'API-key gating: keys can now only be issued to accounts with ≥ $10 lifetime deposits.'],
           ['2026-06-24', 'Docs restructured into multi-page tree (/docs, /docs/authentication, /docs/endpoints/*, …).'],
           ['2026-06-24', 'Code samples in 5 languages added across every endpoint and guide.'],
