@@ -133,6 +133,12 @@
   <url><loc>https://skinify.gg/about</loc>      <lastmod>2026-06-02</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://skinify.gg/changelog</loc>  <lastmod>2026-06-02</lastmod><changefreq>weekly</changefreq><priority>0.5</priority></url>
 
+  <!-- Blog index + visual sitemap + docs aliases (added 2026-06-24) -->
+  <url><loc>https://skinify.gg/blog</loc>       <lastmod>2026-06-24</lastmod><changefreq>weekly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/sitemap</loc>    <lastmod>2026-06-24</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://skinify.gg/docs</loc>       <lastmod>2026-06-24</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/docs/api</loc>   <lastmod>2026-06-24</lastmod><changefreq>weekly</changefreq><priority>0.75</priority></url>
+
   <!-- Press / brand assets — high-leverage for earned backlinks -->
   <url><loc>https://skinify.gg/press</loc>      <lastmod>2026-06-02</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
 

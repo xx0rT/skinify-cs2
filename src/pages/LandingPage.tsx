@@ -96,12 +96,12 @@ const LANDING_FAQ = [
 
 const LandingPage: React.FC = () => {
   useDocumentMeta({
-    title: 'CS2 Marketplace · Buy & Sell CS2 Skins · 0% Fees · Skinify',
+    title: 'Skinify — CS2 Marketplace · 0% Buyer Fees · Instant Trades',
     description:
-      'Buy and sell CS2 skins on Skinify. 0% buyer fees, escrow-protected trades, instant Steam delivery. AK-47, AWP, Karambit, knives, gloves & cases.',
+      'The peer-to-peer CS2 marketplace with 0% buyer fees. Escrow-protected trades, sub-60-second Steam delivery, real-money payouts. Buy AK-47, AWP, Karambit, M9 Bayonet, gloves and rare patterns from verified sellers.',
     canonical: 'https://skinify.gg/',
     keywords:
-      'cs2 marketplace, cs2 skins, buy cs2 skins, sell cs2 skins, counter-strike 2 marketplace, ak-47 skins, awp skins, karambit, p2p cs2 trading, 0 fee cs2 marketplace',
+      'cs2 marketplace, cs2 skins, buy cs2 skins, sell cs2 skins, counter-strike 2 marketplace, ak-47 redline, awp dragon lore, karambit doppler, m9 bayonet fade, sport gloves, butterfly knife, p2p cs2 trading, 0 fee cs2 marketplace, escrow cs2, instant steam delivery, cs2 skin prices',
     jsonLd: faqJsonLd(LANDING_FAQ),
   });
 
