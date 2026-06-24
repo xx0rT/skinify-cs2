@@ -10,6 +10,18 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useCurrencyStore, currencies as currencyList } from '../store/currencyStore';
+import { useTranslationStore } from '../store/translationStore';
+
+/* Resolve a translation key against the current language with a
+   guaranteed fallback. Mirrors the pattern used in LandingNav so all
+   `t()` callsites read consistently across the app. */
+const useResolve = () => {
+  const { t } = useTranslationStore();
+  return (key: string, fallback: string) => {
+    const value = t(key);
+    return value === key ? fallback : value;
+  };
+};
 
 const paymentMethods = [
   'Visa', 'MasterCard', 'Paypal', 'Apple', 'GoogleWallet',
@@ -62,9 +74,14 @@ const faqItems = [
   },
 ];
 
-const footerColumns = [
+/* Column titles read from the translation store. `titleKey` is the
+   translation slug; `title` (set at render time) is the resolved
+   string. We can't `t()` at module scope, so the render path maps
+   `titleKey` → `t(titleKey)` and falls back to the English label. */
+const footerColumns: { titleKey: string; titleFallback: string; links: { label: string; to: string }[] }[] = [
   {
-    title: 'Marketplace',
+    titleKey: 'footer.col.marketplace',
+    titleFallback: 'Marketplace',
     links: [
       { label: 'Browse market', to: '/marketplace' },
       { label: 'Sell items', to: '/profile?tab=inventory' },
@@ -74,7 +91,8 @@ const footerColumns = [
     ],
   },
   {
-    title: 'Account',
+    titleKey: 'footer.col.account',
+    titleFallback: 'Account',
     links: [
       { label: 'Profile', to: '/profile' },
       { label: 'Cart', to: '/cart' },
@@ -84,7 +102,8 @@ const footerColumns = [
     ],
   },
   {
-    title: 'Help',
+    titleKey: 'footer.col.help',
+    titleFallback: 'Help',
     links: [
       { label: 'FAQ', to: '/faq' },
       { label: 'Trading guide', to: '/trading-guide' },
@@ -96,7 +115,8 @@ const footerColumns = [
     ],
   },
   {
-    title: 'Legal',
+    titleKey: 'footer.col.legal',
+    titleFallback: 'Legal',
     links: [
       { label: 'Terms of service', to: '/terms' },
       { label: 'Privacy policy', to: '/privacy' },
@@ -105,7 +125,8 @@ const footerColumns = [
     ],
   },
   {
-    title: 'Company',
+    titleKey: 'footer.col.company',
+    titleFallback: 'Company',
     links: [
       { label: 'About Skinify', to: '/about' },
       { label: 'Press kit', to: '/press' },
@@ -213,6 +234,7 @@ const COL_VARIANTS = {
 const Footer: React.FC<FooterProps> = ({ slim = false }) => {
   const currentYear = new Date().getFullYear();
   const [seoOpen, setSeoOpen] = useState(false);
+  const resolve = useResolve();
 
   return (
     /* Full-bleed footer: no max-width on the outer element, no padding on
@@ -267,8 +289,10 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
               <span className="text-[17px] font-bold text-ink tracking-tight">Skinify</span>
             </div>
             <p className="text-[13.5px] text-ink-muted leading-relaxed font-medium mt-4 max-w-[300px]">
-              The peer-to-peer marketplace for CS2 skins. 0% buyer fees,
-              escrow-protected trades, instant Steam delivery.
+              {resolve(
+                'footer.brand.tagline',
+                'The peer-to-peer marketplace for CS2 skins. 0% buyer fees, escrow-protected trades, instant Steam delivery.',
+              )}
             </p>
 
             {/* Socials */}
@@ -322,11 +346,13 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-7 min-w-0">
             {footerColumns.map((col) => (
               <motion.div
-                key={col.title}
+                key={col.titleKey}
                 variants={COL_VARIANTS}
                 className="min-w-0"
               >
-                <div className="label-eyebrow mb-3.5">{col.title}</div>
+                <div className="label-eyebrow mb-3.5">
+                  {resolve(col.titleKey, col.titleFallback)}
+                </div>
                 <ul className="space-y-2">
                   {col.links.map((l) => (
                     <li key={l.label}>
@@ -361,16 +387,21 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
           <div className="max-w-[1480px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
               <div>
-                <span className="label-eyebrow">Popular tags</span>
+                <span className="label-eyebrow">
+                  {resolve('footer.popularTags.eyebrow', 'Popular tags')}
+                </span>
                 <h2 className="text-[16px] sm:text-[17px] font-bold tracking-tight text-ink mt-1 leading-tight">
-                  What people are looking for right now
+                  {resolve(
+                    'footer.popularTags.title',
+                    'What people are looking for right now',
+                  )}
                 </h2>
               </div>
               <Link
                 to="/marketplace"
                 className="text-[12.5px] font-bold text-accent hover:opacity-80 transition-opacity inline-flex items-center gap-1"
               >
-                Browse marketplace →
+                {resolve('footer.popularTags.cta', 'Browse marketplace')} →
               </Link>
             </div>
             <div className="flex flex-wrap gap-1.5 mb-6">
@@ -387,7 +418,9 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
 
             {/* Accepted payments — narrower, calmer than before */}
             <div className="flex items-center gap-4 flex-wrap">
-              <div className="label-eyebrow shrink-0">Accepted payments</div>
+              <div className="label-eyebrow shrink-0">
+                {resolve('footer.payments.label', 'Accepted payments')}
+              </div>
               <div className="relative flex-1 min-w-[260px] overflow-hidden h-9 rounded-xl bg-bg">
                 <div className="pointer-events-none absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-bg to-transparent z-10" />
                 <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-bg to-transparent z-10" />
@@ -434,9 +467,14 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
               aria-expanded={seoOpen}
             >
               <span className="inline-flex items-center gap-2 text-[12.5px] font-bold tracking-tight text-ink">
-                <span className="label-eyebrow">Browse by category</span>
+                <span className="label-eyebrow">
+                  {resolve('footer.seo.label', 'Browse by category')}
+                </span>
                 <span className="text-ink-muted font-medium">
-                  Rifles · Pistols · Knives · SMGs · Rarity
+                  {resolve(
+                    'footer.seo.summary',
+                    'Rifles · Pistols · Knives · SMGs · Rarity',
+                  )}
                 </span>
               </span>
               <motion.span
@@ -497,7 +535,9 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
         <div className="max-w-[1480px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[12px] text-ink-muted font-medium">
           <div className="inline-flex items-center gap-1.5">
             <span>© {currentYear} Skinify.</span>
-            <span className="text-ink-dim">Not affiliated with Valve Corp. or Steam.</span>
+            <span className="text-ink-dim">
+              {resolve('footer.legal.notAffiliated', 'Not affiliated with Valve Corp. or Steam.')}
+            </span>
           </div>
           <nav className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <Link to="/blog" className="hover:text-ink transition-colors">Blog</Link>
