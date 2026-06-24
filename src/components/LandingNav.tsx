@@ -795,6 +795,22 @@ const NavInlineSearch: React.FC = () => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const { items } = useMarketplaceItems();
 
+  /* While the search dropdown is mounted, disable scroll-anchoring on
+     the document root. Without this, the browser's anchoring algorithm
+     latches onto a stable element and tries to keep it visually still
+     as the dropdown's result list changes height — which means each
+     keystroke (and each letter deleted) nudges window.scrollY a few
+     pixels upward. `overflow-anchor: none` on the wrapper isn't
+     enough; the anchor lives in the document scroll container. */
+  useEffect(() => {
+    if (!focused) return;
+    const prev = document.documentElement.style.overflowAnchor;
+    document.documentElement.style.overflowAnchor = 'none';
+    return () => {
+      document.documentElement.style.overflowAnchor = prev;
+    };
+  }, [focused]);
+
   /* Close the dropdown when the user clicks outside or hits Escape, OR
      when they scroll the page more than a small threshold from the
      scroll position at the moment the dropdown opened. This keeps the
@@ -883,7 +899,24 @@ const NavInlineSearch: React.FC = () => {
         <input
           ref={inputRef}
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => {
+            /* Lock the scroll position around the state update so the
+               browser's scroll-anchoring can't nudge the page when the
+               dropdown's result list grows or shrinks under the input.
+               Without this, each keystroke (typing OR deleting) caused
+               the page to drift upward letter-by-letter because the
+               dropdown's height change repositioned the anchor element.
+               We snap back on the next frame AND once more on the
+               following frame to cover layout-after-paint adjustments. */
+            const y = window.scrollY;
+            setQ(e.target.value);
+            requestAnimationFrame(() => {
+              if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y);
+              requestAnimationFrame(() => {
+                if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y);
+              });
+            });
+          }}
           onFocus={() => {
             setFocused(true);
             /* Defensive: if the browser tries to scroll the input
