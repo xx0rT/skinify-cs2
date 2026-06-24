@@ -377,6 +377,25 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
+# ─── Per-function overrides ────────────────────────────────────────────
+# Supabase's edge gateway rejects requests without an Authorization
+# header (returns UNAUTHORIZED_NO_AUTH_HEADER) BEFORE the function's
+# own code runs. For routes meant to be anonymous-friendly we have to
+# explicitly disable that pre-check via verify_jwt = false.
+#
+# public-api: the public REST surface documented at /docs. Anonymous
+#   browsers, curl examples in the docs, and partner apps without a
+#   Skinify API key all need to reach it without sending Supabase's
+#   project anon key — they authenticate (if at all) via the dedicated
+#   X-Skinify-Key header which the function validates itself.
+#
+# api-keys: this one DOES need a Supabase session (it manages the
+#   caller's developer keys), so we leave verify_jwt at its default
+#   (true) and rely on the dashboard / config.toml default. Listed
+#   here for documentation only — no override needed.
+[functions.public-api]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
