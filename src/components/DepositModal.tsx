@@ -8,6 +8,7 @@ import { spring, tap } from '../lib/motion';
 import { getSupabaseCredentials } from '../utils/supabaseHelpers';
 import { supabase } from '../lib/supabaseClient';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { useT } from '../lib/useT';
 
 /**
  * DepositModal — full-screen, two-pane "add funds" dialog.
@@ -190,6 +191,7 @@ export const DepositModal: React.FC = () => {
   const { formatPrice } = useCurrencyStore();
   const { addToast } = useToastStore();
   const { user } = useAuthStore();
+  const t = useT();
 
   useEffect(() => {
     _openSetter = setOpen;
@@ -448,10 +450,10 @@ export const DepositModal: React.FC = () => {
           >
             <div className="min-w-0">
               <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
-                Wallet
+                {t('wallet', 'Wallet')}
               </div>
               <div className="text-[14px] sm:text-[16px] font-bold tracking-tight text-ink leading-none mt-0.5 truncate">
-                Add funds to your Skinify balance
+                {t('deposit.title', 'Add funds to your Skinify balance')}
               </div>
             </div>
             {/* Close X — kept on lg+ as the primary dismiss affordance.
@@ -459,7 +461,7 @@ export const DepositModal: React.FC = () => {
                 both close the sheet. */}
             <button
               onClick={() => !submitting && setOpen(false)}
-              aria-label="Close"
+              aria-label={t('common.close', 'Close')}
               className="hidden lg:grid h-10 w-10 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink place-items-center transition-colors"
             >
               <X size={16} strokeWidth={2.4} />
@@ -513,10 +515,10 @@ export const DepositModal: React.FC = () => {
                 </div>
 
                 <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
-                  Payment method
+                  {t('deposit.method', 'Payment method')}
                 </div>
                 <h2 className="text-[16px] sm:text-[20px] font-bold tracking-tight text-ink leading-tight mt-1">
-                  Pick how you want to pay
+                  {t('deposit.method.pick', 'Pick how you want to pay')}
                 </h2>
 
                 <div className="mt-3 sm:mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2.5">
@@ -539,15 +541,15 @@ export const DepositModal: React.FC = () => {
                     the user sees the math before tapping Continue. The
                     desktop view shows this in the right rail. */}
                 <div className="lg:hidden mt-5 rounded-3xl bg-subtle p-4 space-y-2">
-                  <Row label="You pay" value={formatPrice(safeAmount)} />
+                  <Row label={t('deposit.summary.youPay', 'You pay')} value={formatPrice(safeAmount)} />
                   <Row
-                    label={`${selectedMethod?.label || 'Method'} fee`}
-                    value={fee > 0 ? `− ${formatPrice(fee)}` : 'No fee'}
+                    label={`${selectedMethod?.label || t('deposit.method', 'Method')} ${t('deposit.summary.fee', 'fee').toLowerCase()}`}
+                    value={fee > 0 ? `− ${formatPrice(fee)}` : t('deposit.summary.noFee', 'No fee')}
                     tone={fee > 0 ? 'muted' : 'positive'}
                   />
                   {promoActive && (
                     <Row
-                      label={`Bonus · ${PROMO.code}`}
+                      label={`${t('deposit.summary.bonus', 'Bonus')} · ${PROMO.code}`}
                       value={`+ ${formatPrice(bonus)}`}
                       tone="accent"
                     />
@@ -556,7 +558,7 @@ export const DepositModal: React.FC = () => {
                     className="h-px my-1"
                     style={{ background: 'rgb(var(--accent) / 0.30)' }}
                   />
-                  <Row label="Credited" value={formatPrice(credited)} bold />
+                  <Row label={t('deposit.summary.credited', 'Credited')} value={formatPrice(credited)} bold />
                 </div>
                 {/* Bottom spacer so the sticky CTA doesn't overlap the
                     last row when scrolled to the bottom. */}
@@ -605,15 +607,15 @@ export const DepositModal: React.FC = () => {
 
                 {/* Summary */}
                 <div className="rounded-3xl bg-subtle p-4 space-y-2">
-                  <Row label="You pay" value={formatPrice(safeAmount)} />
+                  <Row label={t('deposit.summary.youPay', 'You pay')} value={formatPrice(safeAmount)} />
                   <Row
-                    label={`${selectedMethod?.label || 'Method'} fee`}
-                    value={fee > 0 ? `− ${formatPrice(fee)}` : 'No fee'}
+                    label={`${selectedMethod?.label || t('deposit.method', 'Method')} ${t('deposit.summary.fee', 'fee').toLowerCase()}`}
+                    value={fee > 0 ? `− ${formatPrice(fee)}` : t('deposit.summary.noFee', 'No fee')}
                     tone={fee > 0 ? 'muted' : 'positive'}
                   />
                   {promoActive && (
                     <Row
-                      label={`Bonus · ${PROMO.code}`}
+                      label={`${t('deposit.summary.bonus', 'Bonus')} · ${PROMO.code}`}
                       value={`+ ${formatPrice(bonus)}`}
                       tone="accent"
                     />
@@ -622,7 +624,7 @@ export const DepositModal: React.FC = () => {
                     className="h-px my-1"
                     style={{ background: 'rgb(var(--accent) / 0.30)' }}
                   />
-                  <Row label="Credited" value={formatPrice(credited)} bold />
+                  <Row label={t('deposit.summary.credited', 'Credited')} value={formatPrice(credited)} bold />
                 </div>
 
                 {/* CTA */}
@@ -634,15 +636,17 @@ export const DepositModal: React.FC = () => {
                   className="w-full h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-opacity hover:opacity-95"
                 >
                   {submitting
-                    ? 'Processing…'
+                    ? t('deposit.cta.processing', 'Processing…')
                     : safeAmount > 0
-                    ? `Continue · ${formatPrice(safeAmount)}`
-                    : 'Enter an amount'}
+                    ? `${t('deposit.cta.continue', 'Continue')} · ${formatPrice(safeAmount)}`
+                    : t('deposit.cta.enterAmount', 'Enter an amount')}
                 </motion.button>
 
                 <p className="text-[10.5px] text-ink-dim font-medium leading-relaxed text-center mt-auto">
-                  Skinify never sees your card details. Payments are encrypted
-                  and processed by your provider.
+                  {t(
+                    'deposit.disclaimer',
+                    'Skinify never sees your card details. Payments are encrypted and processed by your provider.',
+                  )}
                 </p>
               </div>
             </aside>

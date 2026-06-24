@@ -585,32 +585,54 @@ Deno.serve(async (req) => {
       // let orders = allOrders || [];
 
       if (type === 'sales') {
-        // For sales only: also include orders where user is seller in items but not main seller_steam_id
-        const { data: multiSellerOrders, error: multiError } = await supabase
-          .from('orders')
-          .select('*')
-          .neq('seller_steam_id', steamId)
-          .order('created_at', { ascending: false });
+        /* For sales only: also include orders where the user is a seller
+           inside `items` but not the main seller_steam_id (multi-seller
+           orders). Previously this scanned the WHOLE orders table —
+           without a LIMIT it blew up on large tables and produced
+           memory pressure that surfaced as a 500 on cold instances.
 
-        if (!multiError && multiSellerOrders) {
-          // Filter to only orders where user is seller of at least one item
-          const additionalOrders = multiSellerOrders.filter(order => {
-            if (order.items && Array.isArray(order.items)) {
-              return order.items.some((item: any) => item.seller_steam_id === steamId);
-            }
-            return false;
-          });
+           We now cap at the most-recent 500 rows. Multi-seller orders
+           older than that won't surface in the sales feed, which is
+           acceptable for a notification surface; users still see those
+           older orders via the order detail page directly. */
+        try {
+          const { data: multiSellerOrders, error: multiError } = await supabase
+            .from('orders')
+            .select('id, items, created_at, seller_steam_id, buyer_steam_id, status, total_amount, transaction_id, payment_method, completed_at, tracking_notes, metadata')
+            .neq('seller_steam_id', steamId)
+            .order('created_at', { ascending: false })
+            .limit(500);
 
-          // Merge and deduplicate
-          const allOrderIds = new Set(orders.map(o => o.id));
-          additionalOrders.forEach(order => {
-            if (!allOrderIds.has(order.id)) {
-              orders.push(order);
-            }
-          });
+          if (!multiError && multiSellerOrders) {
+            // Filter to only orders where user is seller of at least one item
+            const additionalOrders = multiSellerOrders.filter((order: any) => {
+              if (order.items && Array.isArray(order.items)) {
+                return order.items.some((item: any) => item.seller_steam_id === steamId);
+              }
+              return false;
+            });
 
-          // Re-sort by created_at
-          orders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            // Merge and deduplicate
+            const allOrderIds = new Set(orders.map((o: any) => o.id));
+            additionalOrders.forEach((order: any) => {
+              if (!allOrderIds.has(order.id)) {
+                orders.push(order);
+              }
+            });
+
+            // Re-sort by created_at
+            orders.sort(
+              (a: any, b: any) =>
+                new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+            );
+          } else if (multiError) {
+            /* Don't fail the whole request if the multi-seller backfill
+               can't complete — the main `sales` query already returned
+               the user's primary-seller orders. Log + continue. */
+            console.warn('Multi-seller backfill failed (non-fatal):', multiError);
+          }
+        } catch (multiSellerErr) {
+          console.warn('Multi-seller backfill threw (non-fatal):', multiSellerErr);
         }
       }
 
