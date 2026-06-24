@@ -826,7 +826,15 @@ const MarketplacePage: React.FC = () => {
                    the original flush layout. Custom class lives in
                    index.css so the gray reads against white tiles
                    without leaking into the dark theme. */
-                className="market-grid grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 isolate"
+                className={`market-grid grid grid-cols-2 sm:grid-cols-3 isolate ${
+                  /* Match the loading skeleton's column counts so the
+                     grid stays the same density when items hydrate.
+                     Filters open  → sidebar eats ~280px → 5 cols at xl.
+                     Filters closed → full width → 6 cols at xl. */
+                  filtersOpen
+                    ? 'lg:grid-cols-4 xl:grid-cols-5'
+                    : 'lg:grid-cols-5 xl:grid-cols-6'
+                }`}
               >
                 {filtered.map((item: any) => (
                   <motion.div
