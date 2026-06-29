@@ -2,93 +2,85 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  Home,
   Search,
-  Plus,
   ShoppingBag,
-  User as UserIcon,
+  Store,
+  Tag,
 } from 'lucide-react';
 import { spring, tap } from '../lib/motion';
 import { openSearchPalette } from './SearchPalette';
-import { openDepositModal } from './DepositModal';
 import { useCartStore } from '../store/cartStore';
-import { useAuthStore } from '../store/authStore';
 import { useT } from '../lib/useT';
 
 /**
- * MobileTabBar — bottom-anchored primary navigation, iOS-style.
+ * MobileTabBar — bottom-anchored primary nav (mobile only).
  *
- * Renders below md only. Five slots:
- *   1. Home    (/)
- *   2. Search  (opens ⌘K palette)
- *   3. Refill  (centered floating "+", primary CTA, opens deposit modal)
- *   4. Cart    (/cart with badge)
- *   5. Account (/profile)
+ * Rebuilt to match the skins.com 4-tab layout the user shipped as
+ * reference: Market · Search · Sell · Cart. Each tab is icon + label,
+ * label sits directly under the icon. Active tab tints both the icon
+ * and the label in the accent colour; inactive tabs stay muted. No
+ * center-floating "+" any more — the design called for a flat tab row.
  *
- * The center "+" is intentionally elevated and larger so it reads as the
- * affirmative action — same pattern Wolt/Strava/Robinhood use.
+ * Layout uses CSS grid (`grid-cols-4`) so every tab gets exactly the
+ * same horizontal slot regardless of label length. That fixes the
+ * uneven spacing the old `justify-between` flex row had when the
+ * "Sign in" label was wider than its peers.
  *
  * Hidden on md+ where LandingNav already does the job at the top.
- *
- * Pages should add `pb-24 md:pb-0` to their main scrollers so content
- * doesn't sit under the bar. (Most reworked pages already have generous
- * pb on mobile.)
  */
 
 const MobileTabBar: React.FC = () => {
   const { pathname } = useLocation();
   const { getItemCount } = useCartStore();
-  const { user } = useAuthStore();
   const cartCount = getItemCount();
   const t = useT();
 
+  /* Helper: does the current URL belong to this tab? */
   const isActive = (path: string) =>
     pathname === path || pathname.startsWith(`${path}/`);
 
+  /* `Market` is active for the landing page AND /marketplace — they're
+     functionally the same destination from the user's perspective. */
+  const marketActive =
+    pathname === '/' ||
+    /^\/[a-z]{2}\/?$/.test(pathname) ||
+    isActive('/marketplace');
+
   return (
     <nav
-      className="md:hidden fixed left-0 right-0 bottom-0 z-30 px-3 pb-[env(safe-area-inset-bottom)] pt-2 bg-bg/95 backdrop-blur-md border-t border-line"
+      className="md:hidden fixed left-0 right-0 bottom-0 z-30 px-2 pb-[env(safe-area-inset-bottom)] pt-2 bg-bg/95 backdrop-blur-md border-t border-line"
       aria-label="Primary"
     >
-      <div className="flex items-center justify-between max-w-[480px] mx-auto">
+      <div className="grid grid-cols-4 items-center max-w-[480px] mx-auto">
         <TabButton
-          Icon={Home}
-          label={t('tabbar.home', 'Home')}
-          to="/"
-          active={pathname === '/' || /^\/[a-z]{2}\/?$/.test(pathname)}
+          Icon={Store}
+          label={t('tabbar.market', 'Market')}
+          to="/marketplace"
+          active={marketActive}
         />
         <TabButton
           Icon={Search}
           label={t('tabbar.search', 'Search')}
           onClick={openSearchPalette}
         />
-
-        {/* Centered floating "+" — refill */}
-        <motion.button
-          whileTap={tap}
-          onClick={openDepositModal}
-          aria-label={t('tabbar.addFunds', 'Add funds')}
-          className="-mt-7 w-14 h-14 rounded-full bg-accent text-on-accent grid place-items-center shrink-0"
-          style={{
-            boxShadow:
-              '0 10px 24px -6px rgb(var(--accent) / 0.65), 0 0 0 4px rgb(var(--bg))',
-          }}
-        >
-          <Plus size={22} strokeWidth={2.6} />
-        </motion.button>
-
+        <TabButton
+          Icon={Tag}
+          label={t('tabbar.sell', 'Sell')}
+          to="/profile?tab=inventory"
+          /* "Sell" is active when on the inventory tab specifically.
+             We can't easily inspect search params here; cheap approximation
+             is `/profile` + the listings/inventory tab routes. */
+          active={
+            isActive('/profile') &&
+            /tab=(inventory|listings)/.test(window.location.search)
+          }
+        />
         <TabButton
           Icon={ShoppingBag}
           label={t('tabbar.cart', 'Cart')}
           to="/cart"
           active={isActive('/cart')}
           badge={cartCount}
-        />
-        <TabButton
-          Icon={UserIcon}
-          label={user ? t('tabbar.profile', 'Profile') : t('tabbar.signin', 'Sign in')}
-          to="/profile"
-          active={isActive('/profile')}
         />
       </div>
     </nav>
@@ -103,13 +95,18 @@ const TabButton: React.FC<{
   active?: boolean;
   badge?: number;
 }> = ({ Icon, label, to, onClick, active, badge }) => {
+  /* Active tabs go full accent on BOTH icon + label (matches the
+     reference). Inactive use ink-muted so they recede. */
+  const iconColor = active ? 'text-accent' : 'text-ink-muted';
+  const labelColor = active ? 'text-accent' : 'text-ink-muted';
+
   const inner = (
     <>
       <div className="relative">
         <Icon
-          size={20}
+          size={22}
           strokeWidth={active ? 2.4 : 2}
-          className={active ? 'text-accent' : 'text-ink-muted'}
+          className={`${iconColor} transition-colors`}
         />
         {badge && badge > 0 ? (
           <span className="absolute -top-1 -right-2 min-w-[16px] h-[16px] px-1 rounded-full bg-accent text-on-accent grid place-items-center text-[9.5px] font-bold">
@@ -118,17 +115,18 @@ const TabButton: React.FC<{
         ) : null}
       </div>
       <span
-        className={`text-[10px] font-bold tracking-tight ${
-          active ? 'text-ink' : 'text-ink-muted'
-        }`}
+        className={`text-[11px] font-semibold tracking-tight ${labelColor} transition-colors`}
       >
         {label}
       </span>
     </>
   );
 
+  /* `flex-col` + `gap-1` is the icon-over-label stack from the
+     reference. Each cell is full-width inside its grid track so the
+     tap target is comfortably large even on small phones. */
   const cls =
-    'flex flex-col items-center justify-center gap-1 w-14 h-14 rounded-2xl active:bg-subtle transition-colors';
+    'flex flex-col items-center justify-center gap-1 py-2 rounded-2xl active:bg-subtle/60 transition-colors';
 
   if (to) {
     return (
@@ -138,7 +136,12 @@ const TabButton: React.FC<{
     );
   }
   return (
-    <motion.button whileTap={tap} onClick={onClick} className={cls} aria-label={label}>
+    <motion.button
+      whileTap={tap}
+      onClick={onClick}
+      className={cls}
+      aria-label={label}
+    >
       {inner}
     </motion.button>
   );

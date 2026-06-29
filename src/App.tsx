@@ -485,6 +485,17 @@ function OnboardingGate() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
 
+  /* Push the authenticated user's steam id into the DM store so it
+     can subscribe to its inbox channel + send messages with the right
+     `from_steam_id`. Pulled in lazily here so the DM store doesn't
+     have to depend on authStore directly (avoids a circular import). */
+  React.useEffect(() => {
+    const sid = user?.steamId || null;
+    import('./store/dmStore').then(({ useDMStore }) => {
+      useDMStore.getState().setMySteamId(sid);
+    });
+  }, [user?.steamId]);
+
   React.useEffect(() => {
     if (!user) return;
     const path = location.pathname || '/';
