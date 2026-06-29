@@ -160,19 +160,40 @@ export default function AuthCallback() {
         /* Link mode — the user is already signed in via email/password
            and is adding Steam to their account. Don't run the fresh
            sign-in path; just attach the steamId to their public.users
-           row and bounce back to the profile. */
+           row and bounce back to the profile.
+
+           Fallback: if attaching fails because there's no Supabase
+           session (cookie expired between starting the OpenID dance
+           and returning, or user opened the link callback URL directly
+           with no prior login), DON'T surface a confusing
+           "no active session to attach Steam to" error. Fall through to
+           the regular Steam sign-in path below, which creates a fresh
+           session from scratch using the same steamId. The user lands
+           on the marketplace as if they'd clicked "Sign in with Steam"
+           on a clean browser. */
         const linkMode = params.get('mode') === 'link';
         if (linkMode) {
           const result = await attachSteamIdToCurrentUser(steamId);
-          if (!result.ok) {
+          if (result.ok) {
+            setUser(result.user);
+            setStatus('success');
+            setTimeout(() => {
+              navigate('/profile?tab=settings&linked=1', { replace: true });
+            }, 1200);
+            return;
+          }
+          /* Only the "no session" case falls through. Other errors
+             (DB write failure, etc.) should still surface so the user
+             knows linking didn't actually take effect. */
+          const sessionMissing =
+            /no active session|not authenticated/i.test(result.error || '');
+          if (!sessionMissing) {
             throw new Error(result.error);
           }
-          setUser(result.user);
-          setStatus('success');
-          setTimeout(() => {
-            navigate('/profile?tab=settings&linked=1', { replace: true });
-          }, 1200);
-          return;
+          console.warn(
+            '[auth-callback] link mode requested but no Supabase session — falling back to fresh Steam sign-in',
+          );
+          /* fall through to the standard Steam-sign-in path */
         }
 
         const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
