@@ -144,6 +144,7 @@ async function ensureAuthUser(
      returns an error and we fall through to signInWithPassword which
      gives us the session for the existing row. */
   let authUserId: string | null = null;
+  let createdFresh = false;
   try {
     const { data: created, error: createError } = await supabase.auth.admin.createUser({
       email,
@@ -153,12 +154,52 @@ async function ensureAuthUser(
     });
     if (!createError && created?.user) {
       authUserId = created.user.id;
+      createdFresh = true;
       console.log('[auth] minted new Supabase Auth user for', steamId);
     } else if (createError && !/already.*registered|already.*exists/i.test(createError.message || '')) {
       console.warn('[auth] createUser failed (continuing to sign-in):', createError.message);
     }
   } catch (e: any) {
     console.warn('[auth] createUser threw (continuing):', e?.message);
+  }
+
+  /* If the auth user already existed (createUser threw "already
+     registered"), we need to look up their id by email so we can
+     update their metadata. Otherwise their JWT will keep being
+     issued without the steam_id claim that auth_steam_id() reads
+     in RLS policies. */
+  if (!authUserId) {
+    try {
+      /* The admin SDK has no direct "get user by email" — we list
+         the first page and filter. Skinify's Steam-minted users all
+         share the @steam.skinify.gg domain so the linear scan is
+         tiny. */
+      const { data: listed } = await supabase.auth.admin.listUsers({
+        page: 1,
+        perPage: 200,
+      });
+      const found = listed?.users?.find((u: any) => u.email === email);
+      if (found?.id) authUserId = found.id;
+    } catch (e: any) {
+      console.warn('[auth] listUsers fallback failed:', e?.message);
+    }
+  }
+
+  /* Stamp / refresh user_metadata.steam_id every sign-in. This is the
+     key fix for the lingering 401 the user is seeing: existing
+     auth.users from earlier deploys never got steam_id in their
+     metadata, so their JWT carried no claim and RLS policies that
+     read auth.jwt() -> 'user_metadata' ->> 'steam_id' fell back to
+     a table lookup that may also have failed. Stamping on EVERY
+     sign-in means the next session token carries the claim. */
+  if (authUserId && !createdFresh) {
+    try {
+      await supabase.auth.admin.updateUserById(authUserId, {
+        user_metadata: { steam_id: steamId, source: 'steam_openid' },
+      });
+    } catch (e: any) {
+      console.warn('[auth] updateUserById metadata stamp failed:', e?.message);
+    }
   }
 
   /* Sign in via a separate anon-key client so we don't pollute the
