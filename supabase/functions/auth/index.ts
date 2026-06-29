@@ -89,6 +89,116 @@ async function fetchSteamUserData(steamId: string, apiKey: string): Promise<Stea
 }
 
 /**
+ * Generate a deterministic password for a Steam user.
+ *
+ * Why this exists: Supabase Auth requires every user to have either a
+ * password or a verified OIDC identity. Steam OpenID isn't an OIDC
+ * provider Supabase knows about, so we mint our own Auth user keyed
+ * by `{steamId}@steam.skinify.gg` and sign them in with a password.
+ *
+ * The password is derived from the steam_id + the Supabase service
+ * role key (a server-only secret), so:
+ *   - It's deterministic — a returning user re-signs in successfully
+ *     without us needing to store the password anywhere.
+ *   - It's unguessable from the outside — the service-role key never
+ *     leaves the function.
+ *
+ * Anyone with the service role key can already do anything with the
+ * project, so leaking this derivation function adds no new attack
+ * surface beyond what the service role itself already controls.
+ */
+async function steamAuthPassword(steamId: string, serviceKey: string): Promise<string> {
+  const data = new TextEncoder().encode(`steam:${steamId}:${serviceKey}`);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  /* 32 base64 chars — Supabase requires ≥ 6, this gives us 256 bits
+     of entropy with zero ambiguity around character set rules. */
+  return btoa(String.fromCharCode(...new Uint8Array(hash))).slice(0, 32);
+}
+
+/* Email convention for Steam-minted Auth users. Looks like a real
+   email so Supabase's validator accepts it, but the steam.skinify.gg
+   domain is owned by us and we never send mail to it. */
+function steamUserEmail(steamId: string): string {
+  return `${steamId}@steam.skinify.gg`;
+}
+
+/**
+ * Ensure there's a Supabase Auth user for this Steam id and the
+ * matching `public.users` row carries `auth_user_id`. Returns a fresh
+ * session (access_token, refresh_token) the frontend can hand to
+ * `supabase.auth.setSession`.
+ *
+ * Idempotent: returning users just sign in.
+ */
+async function ensureAuthUser(
+  supabase: any,
+  supabaseUrl: string,
+  serviceKey: string,
+  steamId: string,
+  publicUsersId: string,
+): Promise<{ access_token: string; refresh_token: string; auth_user_id: string } | null> {
+  const email = steamUserEmail(steamId);
+  const password = await steamAuthPassword(steamId, serviceKey);
+
+  /* Try to create the Auth user. If they already exist, createUser
+     returns an error and we fall through to signInWithPassword which
+     gives us the session for the existing row. */
+  let authUserId: string | null = null;
+  try {
+    const { data: created, error: createError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { steam_id: steamId, source: 'steam_openid' },
+    });
+    if (!createError && created?.user) {
+      authUserId = created.user.id;
+      console.log('[auth] minted new Supabase Auth user for', steamId);
+    } else if (createError && !/already.*registered|already.*exists/i.test(createError.message || '')) {
+      console.warn('[auth] createUser failed (continuing to sign-in):', createError.message);
+    }
+  } catch (e: any) {
+    console.warn('[auth] createUser threw (continuing):', e?.message);
+  }
+
+  /* Sign in via a separate anon-key client so we don't pollute the
+     service-role session. signInWithPassword returns the session
+     tokens we hand back to the browser. */
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+  if (!anonKey) {
+    console.error('[auth] SUPABASE_ANON_KEY missing — cannot sign Steam user in');
+    return null;
+  }
+  const anonClient = createClient(supabaseUrl, anonKey);
+  const { data: signIn, error: signInError } = await anonClient.auth.signInWithPassword({
+    email,
+    password,
+  });
+  if (signInError || !signIn?.session || !signIn?.user) {
+    console.error('[auth] signInWithPassword failed:', signInError?.message);
+    return null;
+  }
+  authUserId = authUserId || signIn.user.id;
+
+  /* Stamp auth_user_id on the public.users row so RLS policies that
+     resolve via auth_steam_id() can find the steam_id. Idempotent —
+     repeat sign-ins just overwrite with the same value. */
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ auth_user_id: authUserId })
+    .eq('id', publicUsersId);
+  if (updateError) {
+    console.warn('[auth] could not stamp auth_user_id on public.users:', updateError.message);
+  }
+
+  return {
+    access_token: signIn.session.access_token,
+    refresh_token: signIn.session.refresh_token,
+    auth_user_id: authUserId,
+  };
+}
+
+/**
  * Store or update user in Supabase database
  * @param supabase - Supabase client
  * @param player - Steam player data
@@ -223,8 +333,22 @@ Deno.serve(async (req) => {
     // Store/update user in database
     console.log('Storing user in database...');
     const userData = await storeUserData(supabase, player);
-    
+
     console.log('User authenticated successfully:', userData.display_name);
+
+    /* Mint (or sign into) the matching Supabase Auth user so the
+       browser ends up with a real JWT. Without this step, RLS policies
+       that key off auth.uid() — like the new direct_messages / api_keys
+       tables — return 401 for Steam-only sessions. Best-effort: if
+       this fails the legacy Steam-only response is still returned and
+       the user is "signed in" from the frontend's perspective. */
+    const authSession = await ensureAuthUser(
+      supabase,
+      supabaseUrl,
+      supabaseServiceKey,
+      player.steamid,
+      userData.id,
+    );
 
     // Return user data for frontend
     const userResponse = {
@@ -240,7 +364,19 @@ Deno.serve(async (req) => {
       referred_by: userData.referred_by,
       referral_code: userData.referral_code,
       authenticated: true,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      /* Supabase Auth session tokens — the client must hand these to
+         supabase.auth.setSession() immediately so subsequent queries
+         carry the right Authorization header and RLS policies resolve.
+         Null when the bridge couldn't be established (logged
+         server-side). */
+      authSession: authSession
+        ? {
+            access_token: authSession.access_token,
+            refresh_token: authSession.refresh_token,
+            auth_user_id: authSession.auth_user_id,
+          }
+        : null,
     };
 
     return new Response(
