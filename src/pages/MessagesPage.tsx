@@ -457,7 +457,10 @@ const ChatPanel: React.FC<{
         addToast({
           type: 'error',
           title: 'Message not delivered',
-          message: 'Tap retry to try again, or check your connection.',
+          message:
+            result.failureReason ||
+            'Tap retry to try again, or check your connection.',
+          duration: 6000,
         });
       }
       setText('');
@@ -696,7 +699,15 @@ const Bubble: React.FC<{ message: DMMessage }> = ({ message }) => {
             <span className="text-ink-dim">· sending…</span>
           )}
           {mine && message.status === 'failed' && (
-            <span className="text-rose-600 dark:text-rose-400">· not sent</span>
+            <span
+              className="text-rose-600 dark:text-rose-400"
+              title={message.failureReason || undefined}
+            >
+              · not sent
+              {message.failureReason ? (
+                <span className="text-ink-dim normal-case"> · {message.failureReason}</span>
+              ) : null}
+            </span>
           )}
         </div>
       </div>
