@@ -63,41 +63,49 @@ export const LandingNav: React.FC = () => {
 
   /* Scroll behaviour — direction-aware "full vs gradient" state.
        - At the very top of the page (≤ 24px): full chrome (solid bg +
-         accent under-glow). Same as before.
+         accent under-glow).
        - Scrolling DOWN past 24px: collapse into the gradient state so
-         the bar fades out underneath the content the user is scrolling
-         past.
+         the bar fades out underneath the content.
        - Scrolling UP anywhere on the page: re-promote to the full
          chrome state, even mid-page. Mirrors the Instagram / Twitter
          pattern — when the user pulls back up they want the controls
          back.
+
      `lastYRef` holds the previous scrollY so we can derive direction
-     without doing a re-render on every pixel. The tiny 4px hysteresis
-     stops a jittery wheel/trackpad from flipping the state every
-     frame. */
+     without re-rendering on every pixel. The 6px hysteresis stops a
+     jittery wheel / trackpad from flipping the state every frame.
+
+     We use the functional form of `setScrolled` so the callback isn't
+     reading a stale captured value of `scrolled` from a previous
+     render — that bug used to cause the bar to "freeze" in whatever
+     state it had on first scroll. */
   const [scrolled, setScrolled] = useState(false);
   const lastYRef = useRef(0);
   const { scrollY } = useScroll();
   useMotionValueEvent(scrollY, 'change', (latest) => {
     const prev = lastYRef.current;
     const delta = latest - prev;
+
     /* Ignore micro-movements so we don't toggle the state on every
-       wheel tick or rubber-band bounce. */
-    if (Math.abs(delta) < 4) return;
+       wheel tick or rubber-band bounce. 6px is comfortable for both
+       trackpads (high-freq small deltas) and mice (chunky deltas). */
+    if (Math.abs(delta) < 6) return;
     lastYRef.current = latest;
 
-    /* At the top: always full chrome. */
+    /* At the top of the page: always full chrome, regardless of
+       direction. Bail early so we don't fight the direction logic. */
     if (latest <= 24) {
-      if (scrolled) setScrolled(false);
+      setScrolled((prevState) => (prevState ? false : prevState));
       return;
     }
-    /* Past the threshold: direction decides the state. */
+
+    /* Past the threshold, direction decides:
+         scroll DOWN  → gradient (translucent fade)
+         scroll UP    → full chrome */
     if (delta > 0) {
-      /* scrolled DOWN → collapse to gradient */
-      if (!scrolled) setScrolled(true);
+      setScrolled((prevState) => (prevState ? prevState : true));
     } else {
-      /* scrolled UP → return to full chrome */
-      if (scrolled) setScrolled(false);
+      setScrolled((prevState) => (prevState ? false : prevState));
     }
   });
 
