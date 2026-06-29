@@ -479,7 +479,17 @@ const MarketplacePage: React.FC = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search skins, weapons, collections…"
-              className="flex-1 bg-transparent outline-none text-ink placeholder:text-ink-dim text-[14px] font-medium"
+              /* Mobile-keyboard hints: `inputMode=search` brings up the
+                 search-style keyboard with a Go key, autoCorrect/auto-
+                 Capitalize off so weapon names like "AK-47" aren't
+                 mangled by iOS auto-correct. */
+              type="search"
+              inputMode="search"
+              enterKeyHint="search"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              className="flex-1 bg-transparent outline-none text-ink placeholder:text-ink-dim text-[14px] font-medium min-w-0"
             />
             {searchQuery && (
               <button

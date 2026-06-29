@@ -401,7 +401,7 @@ const ProfilePage: React.FC = () => {
                anywhere on the page. Horizontal pill scroller on <lg
                (pins under the page top), vertical card on lg+ (pins
                below the LandingNav). */
-            className="card lg:p-2 p-1.5 self-start sticky top-2 lg:top-24 z-20 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto overflow-x-auto scrollbar-hide"
+            className="card lg:p-2 p-1.5 self-start sticky top-14 lg:top-24 z-20 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto overflow-x-auto scrollbar-hide"
           >
             <nav className="flex lg:flex-col gap-1 lg:gap-0.5">
               {TABS.map((t) => {

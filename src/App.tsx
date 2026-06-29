@@ -13,6 +13,7 @@ import AgeVerificationModal from './components/AgeVerificationModal';
 import SearchPalette from './components/SearchPalette';
 import DepositModal from './components/DepositModal';
 import MobileTabBar from './components/MobileTabBar';
+import MobileTopBar from './components/MobileTopBar';
 import { ThemeProvider } from './theme/ThemeProvider';
 
 // Critical pages - loaded immediately
@@ -444,6 +445,12 @@ export default function App() {
         {/* Global Deposit Modal - opens via openDepositModal().
             Inside Router for consistency / future routing-aware behavior. */}
         <DepositModal />
+
+        {/* Mobile top bar — small fixed header with Log In / Sign Up
+            (logged out) or refill + bell + avatar (logged in). Hidden
+            on lg+ where the full LandingNav handles it. Inside Router
+            because its buttons use react-router <Link>. */}
+        <MobileTopBar />
 
         {/* Mobile bottom tab bar — only renders <md. Inside Router because
             tab links use react-router <Link>. */}

@@ -167,20 +167,16 @@ body {
   overflow-x: clip;
 }
 
-/* Mobile bottom tab bar clearance: at <md viewports we reserve 80px at the
-   bottom of the body so page content never sits under the fixed tab bar.
-   Pages that have their own sticky bottom CTA (e.g. ItemDetailPage) keep
-   their own pb-32 to layer above this.
-
-   Top: stack an extra 10px on top of `env(safe-area-inset-top)` so on
-   iPhone 14 Pro and newer the first row of UI sits slightly below the
-   dynamic island instead of crowding it. On devices without a
-   dynamic-island / notch the inset is 0 and the buffer becomes a small
-   top margin — still desirable so the content doesn't bump into the
-   battery/time row on standard iPhones and Androids. */
-@media (max-width: 767px) {
+/* Mobile chrome clearance:
+     - Top: 48px for the MobileTopBar + the iOS safe-area inset so
+       the bar can dock against the dynamic island / notch without
+       overlapping anything.
+     - Bottom: 80px for the MobileTabBar + safe-area inset.
+   Pages that have their own sticky bottom CTA (e.g. ItemDetailPage)
+   keep their own pb-32 to layer above this. */
+@media (max-width: 1023px) {
   body {
-    padding-top: calc(env(safe-area-inset-top) + 10px);
+    padding-top: calc(env(safe-area-inset-top) + 48px);
     padding-bottom: calc(env(safe-area-inset-bottom) + 80px);
   }
 }
