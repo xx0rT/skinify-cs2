@@ -61,15 +61,44 @@ export const LandingNav: React.FC = () => {
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const themeMenuRef = useRef<HTMLDivElement | null>(null);
 
-  // Scroll-shrink: the navbar collapses its vertical padding + fades its
-  // surface into a transparent gradient once you've scrolled past ~24px.
-  // Cheap state flip, no re-render storm because we throttle on a motion
-  // value, not raw scroll.
+  /* Scroll behaviour — direction-aware "full vs gradient" state.
+       - At the very top of the page (≤ 24px): full chrome (solid bg +
+         accent under-glow). Same as before.
+       - Scrolling DOWN past 24px: collapse into the gradient state so
+         the bar fades out underneath the content the user is scrolling
+         past.
+       - Scrolling UP anywhere on the page: re-promote to the full
+         chrome state, even mid-page. Mirrors the Instagram / Twitter
+         pattern — when the user pulls back up they want the controls
+         back.
+     `lastYRef` holds the previous scrollY so we can derive direction
+     without doing a re-render on every pixel. The tiny 4px hysteresis
+     stops a jittery wheel/trackpad from flipping the state every
+     frame. */
   const [scrolled, setScrolled] = useState(false);
+  const lastYRef = useRef(0);
   const { scrollY } = useScroll();
   useMotionValueEvent(scrollY, 'change', (latest) => {
-    const next = latest > 24;
-    if (next !== scrolled) setScrolled(next);
+    const prev = lastYRef.current;
+    const delta = latest - prev;
+    /* Ignore micro-movements so we don't toggle the state on every
+       wheel tick or rubber-band bounce. */
+    if (Math.abs(delta) < 4) return;
+    lastYRef.current = latest;
+
+    /* At the top: always full chrome. */
+    if (latest <= 24) {
+      if (scrolled) setScrolled(false);
+      return;
+    }
+    /* Past the threshold: direction decides the state. */
+    if (delta > 0) {
+      /* scrolled DOWN → collapse to gradient */
+      if (!scrolled) setScrolled(true);
+    } else {
+      /* scrolled UP → return to full chrome */
+      if (scrolled) setScrolled(false);
+    }
   });
 
   // Full-screen modals (listing, etc.) dispatch `skinify:nav-hidden` to
