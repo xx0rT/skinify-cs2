@@ -223,7 +223,13 @@ export const SearchPalette: React.FC = () => {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search skins, pages, settings…"
-                  className="flex-1 bg-transparent outline-none text-ink placeholder:text-ink-dim text-[15px] font-medium"
+                  type="search"
+                  inputMode="search"
+                  enterKeyHint="search"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  className="flex-1 bg-transparent outline-none text-ink placeholder:text-ink-dim text-[15px] font-medium min-w-0"
                 />
                 <button
                   onClick={() => setOpen(false)}
