@@ -19,7 +19,7 @@ import {
 import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import useDocumentMeta, { breadcrumbJsonLd } from '../hooks/useDocumentMeta';
-import { useTranslationStore } from '../store/translationStore';
+import { useT } from '../lib/useT';
 import { spring, tap } from '../lib/motion';
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -274,7 +274,7 @@ const API_KIND_META: Record<ApiChangeEntry['kind'], { label: string; tone: strin
 type TabId = 'all' | 'product' | 'api' | 'status';
 
 const ChangelogPage: React.FC = () => {
-  const { t } = useTranslationStore();
+  const t = useT();
   const location = useLocation();
   const [tab, setTab] = useState<TabId>('all');
   const [query, setQuery] = useState('');
@@ -333,13 +333,13 @@ const ChangelogPage: React.FC = () => {
         >
           <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.18em] text-ink-dim mb-3">
             <Link to="/" className="hover:text-ink transition-colors">
-              {t('nav.home') || 'Home'}
+              {t('nav.home', 'Home')}
             </Link>
             <span>/</span>
-            <span className="text-ink">{t('changelog.title') || 'Changelog'}</span>
+            <span className="text-ink">{t('changelog.title', 'Changelog')}</span>
           </div>
           <h1 className="text-[30px] sm:text-[44px] font-bold tracking-tight text-ink leading-[1.05]">
-            {t('changelog.heading') || 'What\'s new on Skinify'}
+            {t('changelog.heading', 'What\'s new on Skinify')}
           </h1>
           <p className="text-[14px] sm:text-[16px] text-ink-muted font-medium mt-3 max-w-[640px] leading-relaxed">
             {t('changelog.lead') ||
@@ -352,10 +352,10 @@ const ChangelogPage: React.FC = () => {
           <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide -mx-1 px-1">
             {(
               [
-                { id: 'all', label: t('changelog.tab.all') || 'All', Icon: Sparkles },
-                { id: 'product', label: t('changelog.tab.product') || 'Product', Icon: Wrench },
-                { id: 'api', label: t('changelog.tab.api') || 'API', Icon: Code2 },
-                { id: 'status', label: t('changelog.tab.status') || 'Status', Icon: Activity },
+                { id: 'all', label: t('changelog.tab.all', 'All'), Icon: Sparkles },
+                { id: 'product', label: t('changelog.tab.product', 'Product'), Icon: Wrench },
+                { id: 'api', label: t('changelog.tab.api', 'API'), Icon: Code2 },
+                { id: 'status', label: t('changelog.tab.status', 'Status'), Icon: Activity },
               ] as { id: TabId; label: string; Icon: React.ComponentType<any> }[]
             ).map(({ id, label, Icon }) => {
               const active = tab === id;
@@ -394,7 +394,7 @@ const ChangelogPage: React.FC = () => {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder={t('changelog.search') || 'Search changes…'}
+              placeholder={t('changelog.search', 'Search changes…')}
               className="w-full h-10 pl-9 pr-3 rounded-full bg-subtle text-[13px] font-medium text-ink placeholder:text-ink-muted outline-none focus:ring-2 ring-accent/30"
             />
           </div>
@@ -410,8 +410,8 @@ const ChangelogPage: React.FC = () => {
           >
             <SectionHeader
               Icon={Wrench}
-              eyebrow={t('changelog.product.eyebrow') || 'Product'}
-              title={t('changelog.product.title') || 'Release timeline'}
+              eyebrow={t('changelog.product.eyebrow', 'Product')}
+              title={t('changelog.product.title', 'Release timeline')}
               subtitle={
                 t('changelog.product.subtitle') ||
                 'Each version groups its changes into New, Improved, Fixed and Security.'
@@ -527,8 +527,8 @@ const ChangelogPage: React.FC = () => {
           >
             <SectionHeader
               Icon={Activity}
-              eyebrow={t('changelog.status.eyebrow') || 'System status'}
-              title={t('changelog.status.title') || 'All systems operational'}
+              eyebrow={t('changelog.status.eyebrow', 'System status')}
+              title={t('changelog.status.title', 'All systems operational')}
               subtitle={
                 t('changelog.status.subtitle') ||
                 'Lightweight read on platform health. A real-time uptime board ships with the status pipeline.'
@@ -536,7 +536,7 @@ const ChangelogPage: React.FC = () => {
               rightSlot={
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  {t('changelog.status.operational') || 'Operational'}
+                  {t('changelog.status.operational', 'Operational')}
                 </span>
               }
             />
@@ -570,8 +570,8 @@ const ChangelogPage: React.FC = () => {
           >
             <SectionHeader
               Icon={Code2}
-              eyebrow={t('changelog.api.eyebrow') || 'API'}
-              title={t('changelog.api.title') || 'API changelog'}
+              eyebrow={t('changelog.api.eyebrow', 'API')}
+              title={t('changelog.api.title', 'API changelog')}
               subtitle={
                 t('changelog.api.subtitle') ||
                 'Every API-level change, dated. Mirror of /docs/api-changelog.'
@@ -581,7 +581,7 @@ const ChangelogPage: React.FC = () => {
                   to="/docs/api-changelog"
                   className="inline-flex items-center gap-1.5 text-[12px] font-bold text-accent hover:opacity-80 transition-opacity"
                 >
-                  {t('changelog.api.viewDocs') || 'View on docs'}
+                  {t('changelog.api.viewDocs', 'View on docs')}
                   <ExternalLink size={11} strokeWidth={2.6} />
                 </Link>
               }
@@ -590,7 +590,7 @@ const ChangelogPage: React.FC = () => {
               {filteredApi.length === 0 ? (
                 <div className="p-8 text-center">
                   <p className="text-[13px] text-ink-muted font-medium">
-                    {t('changelog.empty') || 'No matching entries.'}
+                    {t('changelog.empty', 'No matching entries.')}
                   </p>
                 </div>
               ) : (
@@ -651,10 +651,10 @@ const ChangelogPage: React.FC = () => {
           />
           <div className="relative max-w-[680px]">
             <div className="label-eyebrow mb-2 inline-flex items-center gap-1.5">
-              <Sparkles size={11} strokeWidth={2.4} /> {t('changelog.stay.eyebrow') || 'Stay updated'}
+              <Sparkles size={11} strokeWidth={2.4} /> {t('changelog.stay.eyebrow', 'Stay updated')}
             </div>
             <h3 className="text-[22px] sm:text-[26px] font-bold tracking-tight text-ink leading-tight">
-              {t('changelog.stay.title') || 'New features, fixes and API tweaks — straight to your inbox'}
+              {t('changelog.stay.title', 'New features, fixes and API tweaks — straight to your inbox')}
             </h3>
             <p className="text-[13.5px] text-ink-muted font-medium mt-2 leading-relaxed">
               {t('changelog.stay.lead') ||
@@ -667,7 +667,7 @@ const ChangelogPage: React.FC = () => {
                 style={{ boxShadow: '0 12px 26px -12px rgb(var(--accent) / 0.6)' }}
               >
                 <Filter size={13} strokeWidth={2.4} />
-                {t('changelog.stay.rss') || 'RSS feed'}
+                {t('changelog.stay.rss', 'RSS feed')}
               </a>
               <a
                 href="https://twitter.com/SkinifyCS2"
@@ -675,7 +675,7 @@ const ChangelogPage: React.FC = () => {
                 rel="noopener"
                 className="h-11 px-5 rounded-full bg-subtle hover:bg-bg text-ink text-[13px] font-bold inline-flex items-center gap-1.5 transition-colors"
               >
-                {t('changelog.stay.twitter') || 'Follow on X'}
+                {t('changelog.stay.twitter', 'Follow on X')}
                 <ExternalLink size={11} strokeWidth={2.4} />
               </a>
             </div>

@@ -939,8 +939,16 @@ Deno.serve(async (req) => {
           .eq('id', buyer.id);
 
         if (buyerBalanceError) {
+          /* Surface the underlying Postgres error to the client so we
+             can diagnose without server-side log access. The previous
+             generic "Failed to process order payment" hid the real
+             cause (e.g. a trigger referencing a missing table). */
           console.error('Failed to deduct buyer balance:', buyerBalanceError);
-          throw new Error('Failed to process order payment');
+          const pgMessage =
+            (buyerBalanceError as any)?.message ||
+            (buyerBalanceError as any)?.details ||
+            'unknown database error';
+          throw new Error(`Failed to process order payment — ${pgMessage}`);
         }
 
         console.log('✅ Buyer balance deducted successfully');

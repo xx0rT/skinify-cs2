@@ -123,6 +123,13 @@ export const useTranslationStore = create<TranslationState>()(
          fails (offline / blocked / ad-blocker), CZ is the right
          default rather than English. */
       currentLanguage: languages[1], // 'cs'
+      /* IMPORTANT: `translations` is RECOMPUTED at runtime from
+         currentLanguage.code (see `partialize` below — we don't
+         persist the dictionary itself). The previous version of this
+         store wrote the whole dict into localStorage, which meant any
+         user who visited before a translation-key shipped saw raw
+         keys ("changelog.title") on later visits because their
+         localStorage carried a stale snapshot. */
       translations: createTranslations(languages[1].code),
       isAutoDetected: true,
 
@@ -164,29 +171,53 @@ export const useTranslationStore = create<TranslationState>()(
     }),
     {
       name: 'translation-storage',
-      version: 2,
-      /* Migration v1 → v2: bump default language to Czech. Visitors who
-         hit the site before this change have a persisted English state
-         even though they never explicitly picked it (we defaulted to en
-         in v1). For those users — isAutoDetected still true AND current
-         language is English — we reset to Czech so the new default
-         takes effect. Anyone who *manually* picked English keeps it
-         (their isAutoDetected is false). */
+      /* Bumped 2 → 3 to invalidate every existing localStorage entry
+         that was storing the stale dictionary. The migrate hook below
+         strips the persisted translations and re-derives them from the
+         current bundle. */
+      version: 3,
+      /* Only persist the user's choice. The translations dictionary
+         is recomputed at hydration time from the (possibly newer)
+         translations.ts bundle, so adding keys never strands existing
+         users on a stale dict. */
+      partialize: (state: any) => ({
+        currentLanguage: state.currentLanguage,
+        isAutoDetected: state.isAutoDetected,
+      }),
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        /* Rehydration writes back only the persisted slice — we have
+           to refill `translations` from the live bundle so the rest of
+           the app sees the latest keys. */
+        const code = state.currentLanguage?.code || 'en';
+        state.translations = createTranslations(code);
+      },
+      /* Migration:
+           v1 → v2: bump default language to Czech (existing logic).
+           v2 → v3: drop the persisted `translations` dict so users on
+             older builds don't see stale UI strings. partialize above
+             prevents future writes; this migrate hook handles already-
+             stored entries on first load after the bump. */
       migrate: (persisted: any, fromVersion: number) => {
         if (!persisted) return persisted;
+        let next = { ...persisted };
         if (fromVersion < 2) {
-          const isAuto = persisted?.isAutoDetected !== false;
-          const onEnglishByDefault = persisted?.currentLanguage?.code === 'en';
+          const isAuto = next?.isAutoDetected !== false;
+          const onEnglishByDefault = next?.currentLanguage?.code === 'en';
           if (isAuto && onEnglishByDefault) {
-            return {
-              ...persisted,
+            next = {
+              ...next,
               currentLanguage: languages[1],
-              translations: createTranslations(languages[1].code),
               isAutoDetected: true,
             };
           }
         }
-        return persisted;
+        if (fromVersion < 3) {
+          /* Strip the stale dictionary; onRehydrateStorage repopulates
+             it from the live bundle. */
+          delete next.translations;
+        }
+        return next;
       },
     }
   )

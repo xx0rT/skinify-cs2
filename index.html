@@ -75,9 +75,14 @@
     <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="alternate" type="application/rss+xml" title="Skinify Changelog" href="https://skinify.gg/changelog.xml" />
-    <link rel="alternate" hrefLang="en" href="https://skinify.gg/" />
-    <link rel="alternate" hrefLang="cs" href="https://skinify.gg/cs" />
-    <link rel="alternate" hrefLang="x-default" href="https://skinify.gg/" />
+    <!-- Lowercase `hreflang` — the W3C HTML spec is case-insensitive
+         on attribute names but Google's documentation explicitly
+         shows lowercase, and several SEO crawlers (Semrush, Screaming
+         Frog) only recognise the lowercase form. Was `hrefLang` (React
+         camelCase leaking into static HTML). -->
+    <link rel="alternate" hreflang="en" href="https://skinify.gg/" />
+    <link rel="alternate" hreflang="cs" href="https://skinify.gg/cs" />
+    <link rel="alternate" hreflang="x-default" href="https://skinify.gg/" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />

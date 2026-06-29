@@ -15,7 +15,7 @@ import {
 import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import useDocumentMeta from '../hooks/useDocumentMeta';
-import { useTranslationStore } from '../store/translationStore';
+import { useT } from '../lib/useT';
 import { spring, tap } from '../lib/motion';
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -35,7 +35,7 @@ import { spring, tap } from '../lib/motion';
 
 const NotFoundPage: React.FC = () => {
   const navigate = useNavigate();
-  const { t } = useTranslationStore();
+  const t = useT();
 
   useDocumentMeta({
     title: '404 — page not found · Skinify',
@@ -47,26 +47,26 @@ const NotFoundPage: React.FC = () => {
   const quickLinks = [
     {
       Icon: Package,
-      label: t('404.link.marketplace') || 'Marketplace',
-      blurb: t('404.link.marketplaceBlurb') || 'Every active CS2 listing',
+      label: t('404.link.marketplace', 'Marketplace'),
+      blurb: t('404.link.marketplaceBlurb', 'Every active CS2 listing'),
       to: '/marketplace',
     },
     {
       Icon: HelpCircle,
-      label: t('404.link.faq') || 'FAQ',
-      blurb: t('404.link.faqBlurb') || 'How trades, escrow and fees work',
+      label: t('404.link.faq', 'FAQ'),
+      blurb: t('404.link.faqBlurb', 'How trades, escrow and fees work'),
       to: '/faq',
     },
     {
       Icon: User,
-      label: t('404.link.profile') || 'Profile',
-      blurb: t('404.link.profileBlurb') || 'Your inventory, listings, settings',
+      label: t('404.link.profile', 'Profile'),
+      blurb: t('404.link.profileBlurb', 'Your inventory, listings, settings'),
       to: '/profile',
     },
     {
       Icon: Compass,
-      label: t('404.link.sitemap') || 'Sitemap',
-      blurb: t('404.link.sitemapBlurb') || 'Browse every page on the site',
+      label: t('404.link.sitemap', 'Sitemap'),
+      blurb: t('404.link.sitemapBlurb', 'Browse every page on the site'),
       to: '/sitemap',
     },
   ];
@@ -118,16 +118,18 @@ const NotFoundPage: React.FC = () => {
 
               <div className="label-eyebrow mt-2 inline-flex items-center gap-1.5 justify-center">
                 <Sparkles size={11} strokeWidth={2.4} />
-                {t('404.eyebrow') || 'Lost in the marketplace'}
+                {t('404.eyebrow', 'Lost in the marketplace')}
               </div>
 
               <h1 className="text-[28px] sm:text-[36px] font-bold tracking-tight text-ink leading-[1.05] mt-3">
-                {t('404.title') || 'This page doesn\'t exist'}
+                {t('404.title', 'This page doesn\'t exist')}
               </h1>
 
               <p className="text-[14px] sm:text-[15px] text-ink-muted font-medium mt-3 leading-relaxed max-w-[520px] mx-auto">
-                {t('404.lead') ||
-                  'The URL might have moved, the listing might have sold, or the link you followed might be broken. Pick a destination below.'}
+                {t(
+                  '404.lead',
+                  'The URL might have moved, the listing might have sold, or the link you followed might be broken. Pick a destination below.',
+                )}
               </p>
 
               {/* CTAs */}
@@ -140,7 +142,7 @@ const NotFoundPage: React.FC = () => {
                   style={{ boxShadow: '0 12px 26px -12px rgb(var(--accent) / 0.6)' }}
                 >
                   <Home size={14} strokeWidth={2.4} />
-                  {t('404.cta.home') || 'Back to home'}
+                  {t('404.cta.home', 'Back to home')}
                   <ArrowRight size={13} strokeWidth={2.6} />
                 </motion.button>
                 <motion.button
@@ -150,7 +152,7 @@ const NotFoundPage: React.FC = () => {
                   className="h-11 px-5 rounded-full bg-subtle hover:bg-bg text-ink text-[13.5px] font-bold inline-flex items-center gap-1.5 transition-colors"
                 >
                   <ArrowLeft size={14} strokeWidth={2.4} />
-                  {t('404.cta.back') || 'Go back'}
+                  {t('404.cta.back', 'Go back')}
                 </motion.button>
                 <motion.a
                   whileTap={tap}
@@ -159,7 +161,7 @@ const NotFoundPage: React.FC = () => {
                   className="h-11 px-5 rounded-full bg-subtle hover:bg-bg text-ink text-[13.5px] font-bold inline-flex items-center gap-1.5 transition-colors"
                 >
                   <Search size={14} strokeWidth={2.4} />
-                  {t('404.cta.browse') || 'Browse marketplace'}
+                  {t('404.cta.browse', 'Browse marketplace')}
                 </motion.a>
               </div>
             </div>
@@ -200,9 +202,9 @@ const NotFoundPage: React.FC = () => {
           </div>
 
           <p className="text-[11.5px] text-ink-dim font-medium mt-6 text-center">
-            {t('404.helpHint') || 'Still lost?'}{' '}
+            {t('404.helpHint', 'Still lost?')}{' '}
             <Link to="/contact" className="text-accent hover:underline">
-              {t('404.helpLink') || 'Contact support'}
+              {t('404.helpLink', 'Contact support')}
             </Link>
             .
           </p>
