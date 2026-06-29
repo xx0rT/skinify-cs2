@@ -378,6 +378,13 @@ const ChatPanel: React.FC<{
 }> = ({ thread, onBack, onDeleteThread }) => {
   const { addToast } = useToastStore();
   const sendMessage = useDMStore((s) => s.sendMessage);
+  const setTyping = useDMStore((s) => s.setTyping);
+  const hydrateThread = useDMStore((s) => s.hydrateThread);
+  /* Subscribe to the live peerTyping map; we re-render when it
+     changes so the "typing…" hint flips on/off automatically. */
+  const peerTypingTs = useDMStore(
+    (s) => s.peerTyping[thread.peerSteamId] || 0,
+  );
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -386,6 +393,14 @@ const ChatPanel: React.FC<{
   const [text, setText] = useState('');
   const [pending, setPending] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
+  /* Tick state every second so the "is the peer still typing" check
+     re-evaluates without us having to thread the ts into a useEffect. */
+  const [, setNowTick] = useState(0);
+  useEffect(() => {
+    const interval = window.setInterval(() => setNowTick((n) => n + 1), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+  const peerIsTyping = Date.now() - peerTypingTs < 3000;
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -393,12 +408,17 @@ const ChatPanel: React.FC<{
     requestAnimationFrame(() => {
       el.scrollTop = el.scrollHeight;
     });
-  }, [thread.messages.length, thread.peerSteamId]);
+  }, [thread.messages.length, thread.peerSteamId, peerIsTyping]);
 
   useEffect(() => {
+    /* Pull history from the server every time we open a thread —
+       the local cache may be stale (e.g. the peer wrote to us from
+       another device). hydrateThread is a no-op if there's no
+       my-steam-id yet. */
+    hydrateThread(thread.peerSteamId);
     /* Re-focus the composer whenever you switch threads. */
     setTimeout(() => inputRef.current?.focus(), 50);
-  }, [thread.peerSteamId]);
+  }, [thread.peerSteamId, hydrateThread]);
 
   const onPickFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -423,12 +443,37 @@ const ChatPanel: React.FC<{
           addToast({ type: 'error', title: 'Upload failed', message: e?.message });
         }
       }
-      sendMessage(thread.peerSteamId, text.trim() || ' ', undefined, attachments);
+      /* Async send — sendMessage optimistic-inserts immediately and
+         then resolves with the persisted row (or `failed` status if
+         the server rejected). We don't need to await visually because
+         the optimistic row is already rendered. */
+      const result = await sendMessage(
+        thread.peerSteamId,
+        text.trim() || ' ',
+        undefined,
+        attachments,
+      );
+      if (result.status === 'failed') {
+        addToast({
+          type: 'error',
+          title: 'Message not delivered',
+          message: 'Tap retry to try again, or check your connection.',
+        });
+      }
       setText('');
       setPending([]);
       setTimeout(() => inputRef.current?.focus(), 0);
     } finally {
       setSending(false);
+    }
+  };
+
+  /* Notify the peer that we're typing. Throttled inside the store to
+     at most one broadcast every 1.2s. */
+  const onTextChange = (value: string) => {
+    setText(value);
+    if (value.trim().length > 0) {
+      setTyping(thread.peerSteamId);
     }
   };
 
@@ -463,8 +508,22 @@ const ChatPanel: React.FC<{
           <div className="text-[14px] font-bold text-ink tracking-tight truncate leading-none">
             {thread.peerName}
           </div>
-          <div className="text-[11px] text-ink-muted font-medium mt-1 leading-none">
-            Direct message
+          {/* Typing hint replaces "Direct message" when the peer is
+              actively typing. The 3-second TTL lives inside
+              peerIsTyping above. */}
+          <div
+            className={`text-[11px] font-medium mt-1 leading-none flex items-center gap-1.5 ${
+              peerIsTyping ? 'text-accent' : 'text-ink-muted'
+            }`}
+          >
+            {peerIsTyping ? (
+              <>
+                <TypingDots />
+                <span>typing…</span>
+              </>
+            ) : (
+              <span>Direct message</span>
+            )}
           </div>
         </div>
         <button
@@ -551,7 +610,7 @@ const ChatPanel: React.FC<{
           <textarea
             ref={inputRef}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => onTextChange(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder="Type a message…"
             rows={1}
@@ -579,7 +638,13 @@ const ChatPanel: React.FC<{
 };
 
 const Bubble: React.FC<{ message: DMMessage }> = ({ message }) => {
-  const mine = message.fromSteamId === 'me';
+  /* "Mine" check: the legacy sentinel `'me'` still appears in older
+     localStorage rows; new rows carry the real Steam id and we compare
+     against the authenticated user. */
+  const mySteamId = useDMStore((s) => s.mySteamId);
+  const mine =
+    message.fromSteamId === 'me' ||
+    (!!mySteamId && message.fromSteamId === mySteamId);
   const time = new Date(message.ts).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
@@ -622,7 +687,18 @@ const Bubble: React.FC<{ message: DMMessage }> = ({ message }) => {
           </div>
         )}
 
-        <div className="text-[10px] text-ink-dim font-medium tabular-nums px-1">{time}</div>
+        <div className="text-[10px] font-medium tabular-nums px-1 flex items-center gap-1.5">
+          <span className="text-ink-dim">{time}</span>
+          {/* Status hint: pending = grey dot, failed = red "not sent".
+              Only shown on our own bubbles. Avoid surfacing on the
+              peer's bubbles where status is meaningless. */}
+          {mine && message.status === 'pending' && (
+            <span className="text-ink-dim">· sending…</span>
+          )}
+          {mine && message.status === 'failed' && (
+            <span className="text-rose-600 dark:text-rose-400">· not sent</span>
+          )}
+        </div>
       </div>
     </motion.div>
   );
@@ -665,5 +741,30 @@ const AttachmentIcon: React.FC<{ mimeType: string }> = ({ mimeType }) => {
     return <ImageIcon size={14} className="text-ink-muted shrink-0" />;
   return <FileText size={14} className="text-ink-muted shrink-0" />;
 };
+
+/* TypingDots — three accent dots bouncing in sequence. Used in the
+   chat header subtitle when the peer is broadcasting "typing" events.
+   Keep it small (4px dots) so it sits naturally on the same baseline
+   as the text next to it. */
+const TypingDots: React.FC = () => (
+  <span
+    className="inline-flex items-center gap-[3px]"
+    aria-hidden
+  >
+    {[0, 1, 2].map((i) => (
+      <motion.span
+        key={i}
+        className="block w-[4px] h-[4px] rounded-full bg-accent"
+        animate={{ y: [0, -3, 0] }}
+        transition={{
+          duration: 0.9,
+          repeat: Infinity,
+          ease: 'easeInOut',
+          delay: i * 0.15,
+        }}
+      />
+    ))}
+  </span>
+);
 
 export default MessagesPage;

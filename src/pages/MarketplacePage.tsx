@@ -329,12 +329,14 @@ const MarketplacePage: React.FC = () => {
           transition={spring}
           className="flex flex-wrap items-end justify-between gap-4 mb-5"
         >
+          {/* Header eyebrow + H1 removed per design — the page chrome
+              (LandingNav + active route) already conveys we're on the
+              marketplace. We keep a small listings-count line as the
+              only inline label, and an `sr-only` H1 so the page still
+              has a heading for screen readers + Google's parser. */}
           <div>
-            <span className="label-eyebrow">Marketplace</span>
-            <h1 className="text-[26px] sm:text-[32px] font-bold text-ink tracking-tight leading-none mt-2">
-              CS2 Skin Marketplace
-            </h1>
-            <p className="text-[13px] sm:text-[14px] text-ink-muted mt-1.5 font-medium">
+            <h1 className="sr-only">CS2 Skin Marketplace</h1>
+            <p className="text-[13px] sm:text-[14px] text-ink-muted font-medium">
               {loading
                 ? 'Loading listings…'
                 : `${filtered.length.toLocaleString()} of ${items.length.toLocaleString()} listings`}

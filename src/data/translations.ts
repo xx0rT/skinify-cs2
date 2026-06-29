@@ -376,7 +376,9 @@ export const translations: Record<string, Record<string, string>> = {
 
     // Mobile tab bar
     'tabbar.home': 'Home',
+    'tabbar.market': 'Market',
     'tabbar.search': 'Search',
+    'tabbar.sell': 'Sell',
     'tabbar.cart': 'Cart',
     'tabbar.profile': 'Profile',
     'tabbar.signin': 'Sign in',
@@ -831,7 +833,9 @@ export const translations: Record<string, Record<string, string>> = {
 
     // Mobile tab bar
     'tabbar.home': 'Domů',
+    'tabbar.market': 'Trh',
     'tabbar.search': 'Hledat',
+    'tabbar.sell': 'Prodat',
     'tabbar.cart': 'Košík',
     'tabbar.profile': 'Profil',
     'tabbar.signin': 'Přihlásit',
