@@ -48,6 +48,10 @@ export interface DMMessage {
       'failed' = server rejected. UI shows a tiny status hint for
       pending / failed. */
   status?: 'pending' | 'sent' | 'failed';
+  /** Underlying error from Supabase when status === 'failed'. Surfaced
+      in the failure toast so the user sees the actual cause (RLS, no
+      session, etc.) instead of a generic "not sent" with no recourse. */
+  failureReason?: string;
 }
 
 export interface DMThread {
@@ -124,7 +128,15 @@ export const useDMStore = create<DMState>()(
       },
 
       ensureThread: (peerSteamId, peerName, peerAvatar) => {
-        const { threads } = get();
+        const { threads, mySteamId } = get();
+        /* You can't DM yourself — the DB enforces this via a CHECK
+           constraint (from_steam_id <> to_steam_id) and would 400.
+           Guard early so the thread never even appears in the list. */
+        if (mySteamId && peerSteamId === mySteamId) {
+          console.warn('[dmStore] ensureThread refused self-thread:', peerSteamId);
+          return;
+        }
+        if (!peerSteamId) return;
         if (threads[peerSteamId]) {
           /* Refresh metadata if the caller has a better name/avatar
              than what we cached (e.g. ItemDetailPage knows the seller
@@ -235,48 +247,63 @@ export const useDMStore = create<DMState>()(
         const trimmed = text.trim();
         const { mySteamId, threads } = get();
 
+        /* Pre-flight guards. We return a failed-status DMMessage rather
+           than throwing so the caller (MessagesPage.send) can show the
+           failure-reason toast without a try/catch ladder. */
+        if (!mySteamId) {
+          const optimistic: DMMessage = makeOptimistic(
+            'me',
+            peerSteamId,
+            trimmed,
+            context,
+            attachments,
+            'failed',
+            'You\'re not signed in — log in via Steam first.',
+          );
+          appendMessage(set, get, peerSteamId, optimistic);
+          return optimistic;
+        }
+        if (peerSteamId === mySteamId) {
+          /* Server-side CHECK would reject this with 400; surface the
+             reason locally so the user sees something sensible. */
+          const optimistic: DMMessage = makeOptimistic(
+            mySteamId,
+            peerSteamId,
+            trimmed,
+            context,
+            attachments,
+            'failed',
+            'You can\'t send a message to yourself.',
+          );
+          appendMessage(set, get, peerSteamId, optimistic);
+          return optimistic;
+        }
+        if (!trimmed && (!attachments || attachments.length === 0)) {
+          const optimistic: DMMessage = makeOptimistic(
+            mySteamId,
+            peerSteamId,
+            trimmed,
+            context,
+            attachments,
+            'failed',
+            'Message is empty.',
+          );
+          appendMessage(set, get, peerSteamId, optimistic);
+          return optimistic;
+        }
+
         /* Optimistic insert so the UI updates immediately. We mark it
            `pending`; the realtime echo (or the insert response) will
            swap it for the server-confirmed row. */
-        const optimistic: DMMessage = {
-          id: newClientId(),
-          fromSteamId: mySteamId || 'me',
-          text: trimmed,
-          itemId: context?.itemId,
-          itemName: context?.itemName,
-          itemImage: context?.itemImage,
+        const optimistic = makeOptimistic(
+          mySteamId,
+          peerSteamId,
+          trimmed,
+          context,
           attachments,
-          ts: Date.now(),
-          read: true,
-          status: 'pending',
-        };
-
-        const existing = threads[peerSteamId];
-        set({
-          threads: {
-            ...threads,
-            [peerSteamId]: existing
-              ? {
-                  ...existing,
-                  messages: [...existing.messages, optimistic],
-                  lastActivity: optimistic.ts,
-                }
-              : {
-                  peerSteamId,
-                  peerName: 'Trader',
-                  messages: [optimistic],
-                  lastActivity: optimistic.ts,
-                },
-          },
-        });
-
-        /* If we don't know our own steam id, we can't persist — keep
-           the optimistic row but mark it failed so the UI shows the
-           "not delivered" state. */
-        if (!mySteamId) {
-          markStatus(set, get, peerSteamId, optimistic.id, 'failed');
-          return optimistic;
-        }
+          'pending',
+        );
+        appendMessage(set, get, peerSteamId, optimistic);
 
         try {
           const { data, error } = await supabase
@@ -293,9 +320,13 @@ export const useDMStore = create<DMState>()(
             .select('id, created_at')
             .single();
           if (error || !data) {
-            console.warn('[dmStore] sendMessage rejected:', error?.message);
-            markStatus(set, get, peerSteamId, optimistic.id, 'failed');
-            return optimistic;
+            const reason = humanizeDmError(error?.message, error?.code);
+            console.warn('[dmStore] sendMessage rejected:', error?.message, error?.code);
+            patchMessage(set, get, peerSteamId, optimistic.id, {
+              status: 'failed',
+              failureReason: reason,
+            });
+            return { ...optimistic, status: 'failed', failureReason: reason };
           }
           /* Promote the optimistic row to "sent" + stamp the server id
              so the realtime echo doesn't duplicate it. */
@@ -306,9 +337,13 @@ export const useDMStore = create<DMState>()(
           });
           return { ...optimistic, serverId: data.id, status: 'sent' };
         } catch (err: any) {
-          console.warn('[dmStore] sendMessage threw:', err?.message);
-          markStatus(set, get, peerSteamId, optimistic.id, 'failed');
-          return optimistic;
+          const reason = humanizeDmError(err?.message);
+          console.warn('[dmStore] sendMessage threw:', err);
+          patchMessage(set, get, peerSteamId, optimistic.id, {
+            status: 'failed',
+            failureReason: reason,
+          });
+          return { ...optimistic, status: 'failed', failureReason: reason };
         }
       },
 
@@ -542,12 +577,77 @@ function patchMessage(
   });
 }
 
-function markStatus(
+/* Build a new optimistic DMMessage. Pulled out of sendMessage so the
+   early-return guards (no session / self-dm / empty) can build the
+   same shape without duplicating the field list. */
+function makeOptimistic(
+  fromSteamId: string,
+  _peerSteamId: string,
+  text: string,
+  context: { itemId?: string; itemName?: string; itemImage?: string } | undefined,
+  attachments: DMAttachment[] | undefined,
+  status: 'pending' | 'failed',
+  failureReason?: string,
+): DMMessage {
+  return {
+    id: newClientId(),
+    fromSteamId,
+    text,
+    itemId: context?.itemId,
+    itemName: context?.itemName,
+    itemImage: context?.itemImage,
+    attachments,
+    ts: Date.now(),
+    read: true,
+    status,
+    failureReason,
+  };
+}
+
+/* Append a message to a thread, creating the thread on the fly if it
+   doesn't already exist. Shared by the optimistic send + realtime
+   incoming paths. */
+function appendMessage(
   set: (partial: Partial<DMState>) => void,
   get: () => DMState,
   peerSteamId: string,
-  clientId: string,
-  status: 'pending' | 'sent' | 'failed',
+  message: DMMessage,
 ) {
-  patchMessage(set, get, peerSteamId, clientId, { status });
+  const threads = get().threads;
+  const existing = threads[peerSteamId];
+  set({
+    threads: {
+      ...threads,
+      [peerSteamId]: existing
+        ? {
+            ...existing,
+            messages: [...existing.messages, message],
+            lastActivity: message.ts,
+          }
+        : {
+            peerSteamId,
+            peerName: 'Trader',
+            messages: [message],
+            lastActivity: message.ts,
+          },
+    },
+  });
+}
+
+/* Map a raw Supabase error into a single line the user can act on. */
+function humanizeDmError(message?: string, code?: string): string {
+  const m = (message || '').toLowerCase();
+  if (code === 'PGRST301' || /jwt|auth\.uid|not authenticated/.test(m)) {
+    return 'Session expired — sign in again.';
+  }
+  if (code === '42501' || /row-level security|policy/.test(m)) {
+    return 'You can\'t message this user (policy denied).';
+  }
+  if (code === '23514' || /check constraint|from_steam_id.*to_steam_id/.test(m)) {
+    return 'You can\'t send a message to yourself.';
+  }
+  if (/network|fetch|failed to fetch/.test(m)) {
+    return 'Network hiccup — try again.';
+  }
+  return message || 'Unknown error sending message.';
 }
