@@ -94,13 +94,25 @@
     <meta name="twitter:image:alt" content="Skinify — CS2 skin marketplace" />
 
     <!-- Additional Meta Tags -->
-    <meta name="theme-color" content="#8B5CF6" />
-    <meta name="msapplication-TileColor" content="#8B5CF6" />
+    <!-- theme-color controls the iOS notch / dynamic-island tint and the
+         Android status-bar colour. Previously was the purple brand
+         accent (#8B5CF6), which iOS rendered as a white-ish band around
+         the notch when blended with the OS chrome. Setting it to the
+         actual page background means the notch reads as a seamless
+         extension of the app. We provide both light + dark variants so
+         the bar matches whichever theme the user picked. */ -->
+    <meta name="theme-color" content="#0a0a0f" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <!-- Fallback for browsers that don't yet honour the `media`
+         attribute on theme-color. Pin to dark since dark mode is our
+         default + the screenshotted environment. -->
+    <meta name="theme-color" content="#0a0a0f" />
+    <meta name="msapplication-TileColor" content="#0a0a0f" />
     <meta name="apple-mobile-web-app-title" content="Skinify" />
     <meta name="application-name" content="Skinify" />
     <meta name="msapplication-tooltip" content="Trade CS2 skins safely on Skinify" />
     <meta name="format-detection" content="telephone=no" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="dark light" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     
     <!-- Discord Embed Enhancement -->

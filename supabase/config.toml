@@ -396,6 +396,29 @@ deno_version = 2
 [functions.public-api]
 verify_jwt = false
 
+# Cron-triggered functions — invoked by pg_net from inside the database
+# with the service-role key. Skip Supabase's gateway JWT verify so the
+# function code can run its own auth check (verifying the bearer matches
+# the service role). We deliberately accept anonymous requests in
+# config so pg_net doesn't need to send an Authorization header at all
+# — the migration's call_edge_function helper still sends one, but if
+# Supabase tightens defaults in the future we want these to keep
+# working.
+[functions.auto-refund-unfulfilled]
+verify_jwt = false
+
+# verify-steam-inventory accepts BOTH manual POSTs (with transaction_id)
+# from the orders flow AND cron-mode POSTs from pg_net. Both paths run
+# their own auth inside the function (the manual path is authed via the
+# orders edge function that forwards the user JWT; the cron path is
+# authed via the service-role key). Bypass the gateway pre-check.
+[functions.verify-steam-inventory]
+verify_jwt = false
+
+# auto-escrow-release likewise runs from cron.
+[functions.auto-escrow-release]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

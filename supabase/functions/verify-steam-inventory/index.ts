@@ -49,7 +49,58 @@ Deno.serve(async (req) => {
     if (req.method === 'POST') {
       console.log('=== VERIFY STEAM INVENTORY ===');
 
-      const { transaction_id, buyer_steam_id, items_to_verify } = await req.json();
+      const body = await req.json().catch(() => ({} as any));
+
+      /* ─── Cron mode ─────────────────────────────────────────────────
+         Called every 60s by pg_cron. Picks ONE pending unverified
+         order at a time and runs the same per-order verification logic
+         as the manual-confirm path. Picking one keeps Steam rate-limit
+         pressure flat; if the queue is hot the cron picks the next one
+         on the next tick.
+
+         Order selection rules:
+           - status='pending', payment_status='completed', trade_verified=false
+           - last_inventory_check_at IS NULL OR < now() - 2 min
+             (throttle so we don't hammer Steam for one slow order)
+           - inventory_check_attempts < 30 (auto-escalate to support
+             after roughly 30 polls = ~30 minutes of trying)
+           - FOR UPDATE SKIP LOCKED so a parallel cron run can't pick
+             the same row.
+
+         When the chosen order verifies, fall through to the existing
+         success path. When it fails, we increment the attempt counter
+         and return a benign 200 so cron logs stay quiet. */
+      if (body.mode === 'cron') {
+        console.log('[verify-steam-inventory] cron tick');
+        const { data: candidate, error: pickError } = await supabase.rpc(
+          'pick_inventory_check_candidate',
+        );
+        if (pickError) {
+          console.error('pick_inventory_check_candidate failed:', pickError);
+          return new Response(
+            JSON.stringify({ ok: true, picked: 0, error: pickError.message }),
+            { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } },
+          );
+        }
+        if (!candidate || candidate.length === 0) {
+          /* Nothing to do this tick — return success so the cron log
+             doesn't fill up with red. */
+          return new Response(
+            JSON.stringify({ ok: true, picked: 0 }),
+            { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } },
+          );
+        }
+        /* `candidate` is a single row [{transaction_id, buyer_steam_id, items}] */
+        const row = Array.isArray(candidate) ? candidate[0] : candidate;
+        /* Re-enter the same path the manual call uses by overriding
+           the variables below. We can't `await req.json()` again so we
+           hand-construct the values. */
+        body.transaction_id = row.transaction_id;
+        body.buyer_steam_id = row.buyer_steam_id;
+        body.items_to_verify = row.items || [];
+      }
+
+      const { transaction_id, buyer_steam_id, items_to_verify } = body;
 
       if (!transaction_id || !buyer_steam_id || !items_to_verify) {
         return new Response(
