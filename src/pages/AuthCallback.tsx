@@ -284,6 +284,24 @@ export default function AuthCallback() {
         const userData = await response.json();
         if (userData.error) throw new Error(userData.error);
 
+        /* If the Steam auth function minted (or signed in) a Supabase
+           Auth user, install the session in the local supabase-js
+           client BEFORE we update authStore. Subsequent queries (DMs,
+           api-keys, settings) will then carry the right JWT and pass
+           RLS policies that key off auth.uid(). Without this, Steam-
+           only users see 401s on every authenticated query. */
+        if (userData.authSession?.access_token && userData.authSession?.refresh_token) {
+          try {
+            const { supabase } = await import('../lib/supabaseClient');
+            await supabase.auth.setSession({
+              access_token: userData.authSession.access_token,
+              refresh_token: userData.authSession.refresh_token,
+            });
+          } catch (sessionErr) {
+            console.warn('[auth-callback] could not install Supabase session:', sessionErr);
+          }
+        }
+
         setUser({
           id: userData.id,
           steamId: userData.steamId,
