@@ -54,6 +54,56 @@ interface ProductVersion {
 
 const PRODUCT_VERSIONS: ProductVersion[] = [
   {
+    version: '1.3.0',
+    date: '2026-07-01',
+    type: 'minor',
+    changes: [
+      {
+        category: 'new',
+        items: [
+          'Direct messages: real Postgres-backed DMs with realtime updates, typing indicators, Steam avatars, unread-count badge on the profile dropdown.',
+          'Cart mini-dropdown in the navbar — Amazon-style preview with thumbnails, subtotal and an Open cart CTA.',
+          'Item detail page: new "Steam data" strip with float meter, wear category, pattern index, sticker breakdown (with per-sticker wear %) and StatTrak flag.',
+          'Mobile top bar with Log In / Sign Up and a bottom-sheet SearchPalette dockable from the on-screen keyboard.',
+          'P2P escrow automation: pg_cron jobs for auto-release, inventory polling and refund-on-non-delivery. Cron-triggered edge functions honour a 60-min unfulfilled-order refund window.',
+          'DM edge functions (dm-send / dm-list) that bypass RLS entirely — DMs work regardless of Supabase JWT state.',
+        ],
+      },
+      {
+        category: 'improved',
+        items: [
+          'Mobile keyboard no longer zooms into inputs on focus (global 16px font-size on all inputs below the lg breakpoint).',
+          'Navbar scroll behaviour: full chrome on scroll-up, translucent gradient on scroll-down, no more oscillation glitch at the bottom of the page (rubber-band bounce zone now freezes the state).',
+          'iPhone notch tint: theme-color meta swapped from brand purple to the page background so the notch band blends with the app.',
+          'Marketplace: removed the redundant "Marketplace" eyebrow + "CS2 Skin Marketplace" H1 (kept sr-only for SEO), listings count remains as an inline label.',
+          'Profile page: denser mobile padding + sticky tab nav offset so it docks under the mobile top bar instead of overlapping it.',
+          'Landing SEO section: full Czech translation of the "Built for traders, not middlemen" block including the right-rail stats and "How buyers save" card.',
+          'DMCA badge now links to the correct dmca.com short URL.',
+        ],
+      },
+      {
+        category: 'fixed',
+        items: [
+          'Order creation "Failed to process order payment" — root-caused to a trigger inserting into a non-existent balance_audit_logs table; created the table + wrapped the trigger in an EXCEPTION block so audit failures never roll back user balance updates.',
+          'Steam auth bridge: Supabase Auth user is now minted (and stamped with app_metadata.steam_id) on every Steam login, and the browser installs the session immediately so RLS-guarded queries carry the right JWT.',
+          '"You can\'t message this user (policy denied)" — DM writes now go through the dm-send edge function running as service_role, eliminating the JWT plumbing dependency for the chat path.',
+          '"No active session to attach Steam to" — the ?mode=link callback path now falls through to a fresh Steam sign-in when there\'s no live Supabase session instead of showing an error modal.',
+          'Mobile login on cellular networks: bumped auth timeout to 45s + added a single 25s transparent retry so 4G cold-starts don\'t trigger the "Connection hiccup" modal.',
+          'Translation store: dropped the persisted translations dict so new keys are picked up on next visit without a stale-cache reload. Fixed t() || fallback pattern that was rendering raw slugs.',
+        ],
+      },
+      {
+        category: 'security',
+        items: [
+          'direct_messages table shipped with full RLS: participants-only read, sender-enforced insert, recipient-only mark-read, either-side delete.',
+          'auth_steam_id() RLS helper now resolves via four fallback branches (JWT app_metadata → user_metadata → users lookup → email extraction) and self-heals auth_user_id stamping on first resolution.',
+          'Cron-scheduled edge functions: verify-steam-inventory, auto-escrow-release, auto-refund-unfulfilled — all use FOR UPDATE SKIP LOCKED so concurrent ticks can\'t double-process an order.',
+          'process_order_payment() SQL function: atomic buyer-balance deduction via FOR UPDATE lock; eliminates the double-deduction race the manual UPDATE + trigger combo used to have.',
+        ],
+      },
+    ],
+  },
+  {
     version: '1.2.0',
     date: '2026-06-24',
     type: 'minor',
@@ -142,6 +192,27 @@ interface ApiChangeEntry {
 }
 
 const API_CHANGELOG: ApiChangeEntry[] = [
+  {
+    date: '2026-07-01',
+    kind: 'addition',
+    title: 'dm-send + dm-list edge functions',
+    detail:
+      'Free-form DM writes / reads now go through /functions/v1/dm-send and /functions/v1/dm-list. Both run as service_role behind an x-steam-id sender-auth header, bypassing RLS on direct_messages. This is the pattern to copy for any new user-owned table when Supabase Auth JWT plumbing is unreliable.',
+  },
+  {
+    date: '2026-07-01',
+    kind: 'addition',
+    title: 'auto-refund-unfulfilled cron function',
+    detail:
+      'Runs every 5 min via pg_cron. Uses pick_refund_candidate() with FOR UPDATE SKIP LOCKED to atomically pick one stale unfulfilled order, flip it to refunded, and credit the buyer via a refund user_transaction (which the update_user_balance trigger applies).',
+  },
+  {
+    date: '2026-07-01',
+    kind: 'improvement',
+    title: 'process_order_payment() SQL function',
+    detail:
+      'Atomic buyer-balance deduction: row-level lock, balance check, and user_transactions INSERT (whose trigger updates current_balance) in one transaction. Replaces the racy manual UPDATE users SET current_balance + INSERT user_transactions pair.',
+  },
   {
     date: '2026-06-24',
     kind: 'addition',

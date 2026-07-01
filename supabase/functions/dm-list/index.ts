@@ -13,11 +13,13 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2.39.0';
 
+/* See dm-send for CORS rationale. */
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
-    'Content-Type, Authorization, X-Client-Info, Apikey, x-steam-id',
+    'authorization, x-client-info, apikey, content-type, x-steam-id',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Max-Age': '3600',
 };
 
 function json(status: number, body: any) {

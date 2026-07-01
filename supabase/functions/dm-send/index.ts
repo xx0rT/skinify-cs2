@@ -45,11 +45,17 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2.39.0';
 
+/* CORS: `*` wildcard is fine here — the function does its own
+   x-steam-id auth. `Access-Control-Max-Age` caches the preflight for
+   an hour so we're not paying for a round-trip on every send. Header
+   names are lowercased because some browsers (Firefox) canonicalise
+   allow-headers to lowercase and reject mixed-case. */
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
-    'Content-Type, Authorization, X-Client-Info, Apikey, x-steam-id',
+    'authorization, x-client-info, apikey, content-type, x-steam-id',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '3600',
 };
 
 function json(status: number, body: any) {
