@@ -500,6 +500,14 @@ function OnboardingGate() {
     const sid = user?.steamId || null;
     import('./store/dmStore').then(({ useDMStore }) => {
       useDMStore.getState().setMySteamId(sid);
+      /* Pull the inbox once so the profile-dropdown unread badge
+         reflects reality on first paint instead of "0 until the
+         user opens /messages". Realtime keeps it fresh after that. */
+      if (sid) {
+        useDMStore.getState().hydrateInbox().catch(() => {
+          /* silently ignore — best effort */
+        });
+      }
     });
   }, [user?.steamId]);
 

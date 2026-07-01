@@ -86,6 +86,10 @@ interface DMState {
     context?: { itemId?: string; itemName?: string; itemImage?: string },
     attachments?: DMAttachment[],
   ) => Promise<DMMessage>;
+  /** Pull every thread the user is a participant in — bulk fetch so
+      the unread badge on the profile dropdown populates as soon as
+      you log in, not only after opening /messages. */
+  hydrateInbox: () => Promise<void>;
   markThreadRead: (peerSteamId: string) => Promise<void>;
   deleteThread: (peerSteamId: string) => Promise<void>;
   totalUnread: () => number;
@@ -170,6 +174,98 @@ export const useDMStore = create<DMState>()(
             },
           },
         });
+      },
+
+      hydrateInbox: async () => {
+        const { mySteamId, threads } = get();
+        if (!mySteamId) return;
+        /* Pull the last 500 messages the user is a participant in,
+           grouped by peer. Cheap for the low-volume tier we're on;
+           when volume grows this should switch to a server RPC that
+           returns per-peer unread counts + latest-preview rows. */
+        const { data, error } = await supabase
+          .from('direct_messages')
+          .select(
+            'id, from_steam_id, to_steam_id, text, item_id, item_name, item_image, attachments, read_at, created_at',
+          )
+          .or(`from_steam_id.eq.${mySteamId},to_steam_id.eq.${mySteamId}`)
+          .order('created_at', { ascending: true })
+          .limit(500);
+        if (error) {
+          /* Silently ignore — the dropdown badge just stays at 0
+             until the user opens a thread manually. */
+          console.warn('[dmStore] hydrateInbox failed:', error.message);
+          return;
+        }
+        /* Group messages by peer steam id. */
+        const grouped = new Map<string, DMMessage[]>();
+        for (const row of data || []) {
+          const peer =
+            row.from_steam_id === mySteamId ? row.to_steam_id : row.from_steam_id;
+          if (!peer || peer === mySteamId) continue;
+          const arr = grouped.get(peer) || [];
+          arr.push({
+            id: `srv_${row.id}`,
+            serverId: row.id,
+            fromSteamId: row.from_steam_id,
+            text: row.text,
+            itemId: row.item_id || undefined,
+            itemName: row.item_name || undefined,
+            itemImage: row.item_image || undefined,
+            attachments: Array.isArray(row.attachments) ? row.attachments : [],
+            ts: new Date(row.created_at).getTime(),
+            read: row.from_steam_id === mySteamId ? true : !!row.read_at,
+            status: 'sent',
+          });
+          grouped.set(peer, arr);
+        }
+        /* Merge into the store — we preserve existing peerName/avatar
+           entries (they may have been enriched by ensureThread) and
+           only overwrite the message list. */
+        const next: Record<string, DMThread> = { ...threads };
+        for (const [peer, msgs] of grouped.entries()) {
+          const existing = next[peer];
+          next[peer] = {
+            peerSteamId: peer,
+            peerName: existing?.peerName || 'Trader',
+            peerAvatar: existing?.peerAvatar,
+            messages: msgs,
+            lastActivity: msgs.length
+              ? msgs[msgs.length - 1].ts
+              : existing?.lastActivity || Date.now(),
+            hydrated: true,
+          };
+        }
+        set({ threads: next });
+
+        /* Best-effort: pull display_name / avatar_url for peers we
+           don't have yet. Batches via `in` so it's one query. */
+        const peersMissingMeta = Array.from(grouped.keys()).filter(
+          (p) => !next[p].peerAvatar || next[p].peerName === 'Trader',
+        );
+        if (peersMissingMeta.length > 0) {
+          try {
+            const { data: peerRows } = await supabase
+              .from('users')
+              .select('steam_id, display_name, avatar_url')
+              .in('steam_id', peersMissingMeta);
+            if (peerRows && peerRows.length > 0) {
+              const cur = { ...get().threads };
+              for (const row of peerRows) {
+                const t = cur[row.steam_id as string];
+                if (!t) continue;
+                cur[row.steam_id as string] = {
+                  ...t,
+                  peerName: row.display_name || t.peerName,
+                  peerAvatar: row.avatar_url || t.peerAvatar,
+                };
+              }
+              set({ threads: cur });
+            }
+          } catch {
+            /* metadata is nice-to-have */
+          }
+        }
       },
 
       hydrateThread: async (peerSteamId) => {
