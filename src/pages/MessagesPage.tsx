@@ -385,6 +385,10 @@ const ChatPanel: React.FC<{
   const peerTypingTs = useDMStore(
     (s) => s.peerTyping[thread.peerSteamId] || 0,
   );
+  /* Whether the peer's steam_id appears in the shared presence
+     channel's roster. Updates live via the same channel used for
+     DM inserts. */
+  const peerOnline = useDMStore((s) => s.onlineSteamIds.has(thread.peerSteamId));
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -500,23 +504,39 @@ const ChatPanel: React.FC<{
         >
           <ArrowLeft size={15} strokeWidth={2.4} />
         </button>
-        <div className="w-10 h-10 rounded-2xl bg-accent text-on-accent grid place-items-center font-bold shrink-0 overflow-hidden">
-          {thread.peerAvatar ? (
-            <img src={thread.peerAvatar} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-[14px]">{initial}</span>
-          )}
+        {/* Avatar with an online-status dot on the bottom-right.
+            Wrapper is non-clipping so the dot bleeds past the avatar's
+            rounded corner; the inner div does the actual clipping. */}
+        <div className="relative shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-accent text-on-accent grid place-items-center font-bold overflow-hidden">
+            {thread.peerAvatar ? (
+              <img src={thread.peerAvatar} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-[14px]">{initial}</span>
+            )}
+          </div>
+          <span
+            className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-bg ${
+              peerOnline ? 'bg-emerald-500' : 'bg-ink-dim/50'
+            }`}
+            aria-label={peerOnline ? 'Online' : 'Offline'}
+          />
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-[14px] font-bold text-ink tracking-tight truncate leading-none">
             {thread.peerName}
           </div>
-          {/* Typing hint replaces "Direct message" when the peer is
-              actively typing. The 3-second TTL lives inside
+          {/* Status line: `typing…` when the peer is broadcasting,
+              `Online` when they're in the presence roster, else
+              `Offline`. The 3-second TTL on typing lives inside
               peerIsTyping above. */}
           <div
             className={`text-[11px] font-medium mt-1 leading-none flex items-center gap-1.5 ${
-              peerIsTyping ? 'text-accent' : 'text-ink-muted'
+              peerIsTyping
+                ? 'text-accent'
+                : peerOnline
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-ink-muted'
             }`}
           >
             {peerIsTyping ? (
@@ -524,8 +544,10 @@ const ChatPanel: React.FC<{
                 <TypingDots />
                 <span>typing…</span>
               </>
+            ) : peerOnline ? (
+              <span>Online</span>
             ) : (
-              <span>Direct message</span>
+              <span>Offline</span>
             )}
           </div>
         </div>
