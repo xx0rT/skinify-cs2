@@ -32,6 +32,7 @@ import { openSearchPalette } from './SearchPalette';
 import { useMarketplaceItems } from '../hooks/useMarketplaceItems';
 import { CachedImage } from './ui/CachedImage';
 import { openDepositModal } from './DepositModal';
+import CartDropdown from './CartDropdown';
 
 /**
  * LandingNav — top-only, no sidebar. Sits on the page background (not
@@ -96,6 +97,18 @@ export const LandingNav: React.FC = () => {
        direction. Bail early so we don't fight the direction logic. */
     if (latest <= 24) {
       setScrolled((prevState) => (prevState ? false : prevState));
+      return;
+    }
+
+    /* At the BOTTOM of the page: don't toggle at all. Both mobile
+       Safari's rubber-band bounce and macOS trackpad inertia cause
+       scrollY to oscillate by a few pixels once you hit the max, and
+       the direction logic below would flip the state on each bounce.
+       Freezing the state as soon as we're within ~64px of the bottom
+       keeps whatever the last real-scroll state was. */
+    const doc = document.documentElement;
+    const maxY = Math.max(0, doc.scrollHeight - doc.clientHeight);
+    if (maxY > 0 && latest >= maxY - 64) {
       return;
     }
 
@@ -295,26 +308,25 @@ export const LandingNav: React.FC = () => {
                 <Heart size={18} strokeWidth={2} className="text-ink-muted group-hover:text-rose-500 transition-colors" />
               </NavIconButton>
 
-              <NavIconButton
-                onClick={() => navigate('/cart')}
-                aria-label="Cart"
-                className="relative"
-              >
-                <ShoppingBag size={18} strokeWidth={2} className="text-ink-muted group-hover:text-ink transition-colors" />
-                {cartCount > 0 && (
-                  <motion.span
-                    key={cartCount}
-                    initial={{ scale: 0.4, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ type: 'spring', stiffness: 520, damping: 16 }}
-                    /* Tucked inside the chip's top-right quadrant so the
-                       badge never bleeds past the navbar's bottom edge. */
-                    className="absolute top-0.5 right-0.5 min-w-[14px] h-[14px] px-1 rounded-full bg-accent text-on-accent grid place-items-center text-[9px] font-bold leading-none ring-2 ring-bg"
-                  >
-                    {cartCount > 9 ? '9+' : cartCount}
-                  </motion.span>
-                )}
-              </NavIconButton>
+              {/* Cart — dropdown preview + "Open cart" CTA. Amazon /
+                  Steam pattern. Clicking the icon toggles the mini
+                  preview; the CTA inside navigates to /cart. */}
+              <CartDropdown>
+                <span className="icon-chip relative overflow-hidden group hover:bg-subtle transition-colors">
+                  <ShoppingBag size={18} strokeWidth={2} className="text-ink-muted group-hover:text-ink transition-colors" />
+                  {cartCount > 0 && (
+                    <motion.span
+                      key={cartCount}
+                      initial={{ scale: 0.4, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: 'spring', stiffness: 520, damping: 16 }}
+                      className="absolute top-0.5 right-0.5 min-w-[14px] h-[14px] px-1 rounded-full bg-accent text-on-accent grid place-items-center text-[9px] font-bold leading-none ring-2 ring-bg"
+                    >
+                      {cartCount > 9 ? '9+' : cartCount}
+                    </motion.span>
+                  )}
+                </span>
+              </CartDropdown>
 
               {/* Theme menu — md+ only (moved into drawer on mobile) */}
               <div className="relative hidden lg:block" ref={themeMenuRef}>

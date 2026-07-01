@@ -320,6 +320,7 @@ export const translations: Record<string, Record<string, string>> = {
 
     // Cart page
     'cart.title': 'Your cart',
+    'cart.openCart': 'Open cart',
     'cart.empty.title': 'Your cart is empty',
     'cart.empty.lead': 'Browse the marketplace and add items you want to buy.',
     'cart.empty.cta': 'Browse marketplace',
@@ -777,6 +778,7 @@ export const translations: Record<string, Record<string, string>> = {
 
     // Cart
     'cart.title': 'Váš košík',
+    'cart.openCart': 'Otevřít košík',
     'cart.empty.title': 'Košík je prázdný',
     'cart.empty.lead': 'Projděte si tržiště a přidejte položky, které chcete koupit.',
     'cart.empty.cta': 'Procházet tržiště',
