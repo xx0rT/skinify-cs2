@@ -144,6 +144,10 @@ interface DMState {
   /** Per-thread "the other person is typing right now" flag, with a
       timestamp so the UI can auto-clear after ~3s of silence. */
   peerTyping: Record<string, number>;
+  /** Steam ids of users currently online (broadcasting presence).
+      Supabase Realtime's presence layer maintains the source of truth;
+      we mirror it here as a plain Set so the UI can `.has(peer)` cheaply. */
+  onlineSteamIds: Set<string>;
 
   setMySteamId: (steamId: string | null) => void;
   ensureThread: (
@@ -184,6 +188,14 @@ const newClientId = () =>
 let realtimeChannel: RealtimeChannel | null = null;
 let realtimeFor: string | null = null;
 
+/* Presence channel — separate from the DM channel because presence
+   is per-user and shared across all clients, while the DM channel is
+   inbound-only. Every logged-in user joins the same `presence:online`
+   channel and tracks themselves; every other client watches the join
+   / leave events to know who's currently online. */
+let presenceChannel: RealtimeChannel | null = null;
+let presenceFor: string | null = null;
+
 /* Typing-broadcast throttle: at most one event every 1200ms per peer. */
 const lastTypingSentAt = new Map<string, number>();
 
@@ -193,6 +205,7 @@ export const useDMStore = create<DMState>()(
       mySteamId: null,
       threads: {},
       peerTyping: {},
+      onlineSteamIds: new Set<string>(),
 
       setMySteamId: (steamId) => {
         set({ mySteamId: steamId });
@@ -563,6 +576,43 @@ export const useDMStore = create<DMState>()(
       },
 
       initRealtime: (mySteamId) => {
+        /* ── Presence — one shared channel for all online users. Joins
+              track our steam_id; syncs update the local onlineSteamIds
+              set. Rejoins are idempotent, so calling initRealtime
+              twice for the same user is a no-op. */
+        if (!presenceChannel || presenceFor !== mySteamId) {
+          if (presenceChannel) {
+            supabase.removeChannel(presenceChannel);
+            presenceChannel = null;
+          }
+          presenceFor = mySteamId;
+          const pc = supabase.channel('presence:online', {
+            config: { presence: { key: mySteamId } },
+          });
+          pc.on('presence', { event: 'sync' }, () => {
+            const state = pc.presenceState();
+            const online = new Set<string>();
+            for (const key of Object.keys(state)) online.add(key);
+            /* Never surface ourselves — the UI only cares about peer
+               online-ness. */
+            online.delete(mySteamId);
+            set({ onlineSteamIds: online });
+          });
+          pc.subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+              try {
+                await pc.track({
+                  steam_id: mySteamId,
+                  online_at: new Date().toISOString(),
+                });
+              } catch {
+                /* server rejected track — presence isn't essential */
+              }
+            }
+          });
+          presenceChannel = pc;
+        }
+
         if (realtimeChannel && realtimeFor === mySteamId) return;
         if (realtimeChannel) {
           /* Different user just logged in — tear down old channel. */
@@ -666,10 +716,17 @@ export const useDMStore = create<DMState>()(
       },
 
       teardownRealtime: () => {
-        if (!realtimeChannel) return;
-        supabase.removeChannel(realtimeChannel);
-        realtimeChannel = null;
-        realtimeFor = null;
+        if (realtimeChannel) {
+          supabase.removeChannel(realtimeChannel);
+          realtimeChannel = null;
+          realtimeFor = null;
+        }
+        if (presenceChannel) {
+          supabase.removeChannel(presenceChannel);
+          presenceChannel = null;
+          presenceFor = null;
+        }
+        set({ onlineSteamIds: new Set<string>() });
       },
     }),
     {

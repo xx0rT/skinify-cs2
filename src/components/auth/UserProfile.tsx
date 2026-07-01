@@ -4,17 +4,20 @@ import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
   ChevronDown,
+  Gift,
   LogOut,
   MessageCircle,
   Package,
   Plus,
   Settings,
+  Shield,
   ShoppingBag,
   TrendingUp,
   User as UserIcon,
   Wallet,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { useAdminAuth } from '../../hooks/useAdminAuth';
 import { useBalanceStore } from '../../store/balanceStore';
 import { useCurrencyStore } from '../../store/currencyStore';
 import { useToastStore } from '../../store/toastStore';
@@ -39,6 +42,7 @@ import { openDepositModal } from '../DepositModal';
 
 const UserProfile: React.FC = () => {
   const { user, logout } = useAuthStore();
+  const { isAdmin } = useAdminAuth();
   const { balance, pendingBalance, fetchBalance } = useBalanceStore();
   const { formatPrice } = useCurrencyStore();
   const { addToast } = useToastStore();
@@ -120,18 +124,23 @@ const UserProfile: React.FC = () => {
           open ? 'bg-subtle' : 'hover:bg-subtle'
         }`}
       >
-        <span className="relative w-9 h-9 rounded-full bg-accent text-on-accent grid place-items-center overflow-hidden shrink-0">
-          {user.avatarUrl ? (
-            <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-[13px] font-bold tracking-tight">{initial}</span>
-          )}
-          {/* Unread badge — preferred over the trade-link dot when there are
-              messages or notifications waiting. Falls back to the status
-              dot when nothing is unread. */}
+        {/* Outer wrapper keeps badge OUTSIDE the avatar's clip mask.
+            The inner span is `overflow-hidden` so a rectangular Steam
+            avatar clips to a circle, but that clip would also swallow
+            the badge — hence the sibling-not-child positioning. */}
+        <span className="relative shrink-0">
+          <span className="block w-9 h-9 rounded-full bg-accent text-on-accent grid place-items-center overflow-hidden">
+            {user.avatarUrl ? (
+              <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-[13px] font-bold tracking-tight">{initial}</span>
+            )}
+          </span>
+          {/* Badge overflows the avatar's top-right corner. Sits at
+              the outer edge so double-digit counts don't crop. */}
           {totalBadge > 0 ? (
             <span
-              className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold grid place-items-center tabular-nums ring-2 ring-bg"
+              className="absolute -top-1 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center tabular-nums ring-2 ring-bg leading-none"
               aria-label={`${totalBadge} unread`}
             >
               {totalBadge > 99 ? '99+' : totalBadge}
@@ -263,7 +272,20 @@ const UserProfile: React.FC = () => {
                 <Item Icon={ShoppingBag} label="Listings"  onClick={() => go('/profile?tab=listings')} />
                 <Item Icon={TrendingUp}  label="Trades"    onClick={() => go('/profile?tab=trades')} />
                 <Item Icon={MessageCircle} label="Messages" badge={messagesUnread} onClick={() => go('/messages')} />
+                <Item Icon={Gift}        label="Referral"  onClick={() => go('/profile?tab=referral')} />
                 <Item Icon={Settings}    label="Settings"  onClick={() => go('/profile?tab=settings')} />
+                {/* Admin entry — only rendered when the caller's
+                    steamId is in the admin allowlist. Icon uses the
+                    accent so the row visibly reads as elevated
+                    access. */}
+                {isAdmin && (
+                  <Item
+                    Icon={Shield}
+                    label="Admin"
+                    onClick={() => go('/admin')}
+                    tone="accent"
+                  />
+                )}
               </nav>
             </div>
 
@@ -304,18 +326,31 @@ const Item: React.FC<{
   label: string;
   onClick: () => void;
   badge?: number;
-}> = ({ Icon, label, onClick, badge }) => (
+  tone?: 'default' | 'accent';
+}> = ({ Icon, label, onClick, badge, tone = 'default' }) => (
   <button
     onClick={onClick}
-    className="w-full h-9 px-2.5 rounded-xl flex items-center gap-3 hover:bg-subtle transition-colors text-left group"
+    className={`w-full h-9 px-2.5 rounded-xl flex items-center gap-3 transition-colors text-left group ${
+      tone === 'accent' ? 'hover:bg-accent-soft/60' : 'hover:bg-subtle'
+    }`}
     role="menuitem"
   >
     <Icon
       size={15}
-      strokeWidth={2}
-      className="text-ink-muted group-hover:text-ink transition-colors shrink-0"
+      strokeWidth={tone === 'accent' ? 2.4 : 2}
+      className={`shrink-0 transition-colors ${
+        tone === 'accent'
+          ? 'text-accent'
+          : 'text-ink-muted group-hover:text-ink'
+      }`}
     />
-    <span className="flex-1 text-[13px] font-semibold text-ink tracking-tight">{label}</span>
+    <span
+      className={`flex-1 text-[13px] font-semibold tracking-tight ${
+        tone === 'accent' ? 'text-accent' : 'text-ink'
+      }`}
+    >
+      {label}
+    </span>
     {badge && badge > 0 ? (
       <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[10.5px] font-bold grid place-items-center tabular-nums shrink-0">
         {badge > 99 ? '99+' : badge}
