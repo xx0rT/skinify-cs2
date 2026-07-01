@@ -880,122 +880,209 @@ export const DeveloperTab: React.FC<{ addToast: any }> = ({ addToast }) => (
 );
 
 export const WithdrawalsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
-  const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState<number | null>(null);
+  /* Import stores lazily so this file doesn't need a new top-level import. */
+  const [adminSteamId, setAdminSteamId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchWithdrawals();
+    /* Pull the admin's steam id from authStore for the review call. */
+    import('../../store/authStore').then(({ useAuthStore }) => {
+      setAdminSteamId(useAuthStore.getState().user?.steamId || null);
+    });
+    fetchRequests();
   }, []);
 
-  const fetchWithdrawals = async () => {
+  const fetchRequests = async () => {
+    setLoading(true);
     try {
-      if (supabase) {
-        const { data, error } = await supabase
-          .from('transactions')
-          .select('*, users(username)')
-          .eq('type', 'withdrawal')
-          .order('created_at', { ascending: false });
-
-        if (error) throw error;
-        setWithdrawals(data || []);
-      }
-    } catch (error) {
-      console.error('Error:', error);
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from('withdraw_requests')
+        .select('*, users(display_name, steam_id)')
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      setRows(data || []);
+    } catch (err: any) {
+      console.error('[admin/withdrawals] fetch failed:', err);
+      addToast({
+        type: 'error',
+        title: 'Load failed',
+        message: err?.message || 'Could not fetch withdrawal requests.',
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleApprove = async (id: string) => {
+  const review = async (id: number, action: 'approve' | 'reject', reason?: string) => {
+    if (processing) return;
+    if (!adminSteamId) {
+      addToast({ type: 'error', title: 'Not signed in as admin' });
+      return;
+    }
+    setProcessing(id);
     try {
-      if (supabase) {
-        await supabase.from('transactions').update({ status: 'completed' }).eq('id', id);
-        addToast({ type: 'success', title: 'Success', message: 'Withdrawal approved' });
-        fetchWithdrawals();
+      const { getSupabaseCredentials } = await import('../../utils/supabaseHelpers');
+      const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+      const res = await fetch(`${supabaseUrl}/functions/v1/withdraw-review`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${supabaseKey}`,
+          apikey: supabaseKey,
+          'Content-Type': 'application/json',
+          'x-admin-steam-id': adminSteamId,
+        },
+        body: JSON.stringify({ request_id: id, action, reason: reason || null }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(body?.error?.message || `Server error (${res.status})`);
       }
-    } catch (error) {
-      addToast({ type: 'error', title: 'Error', message: 'Failed to approve withdrawal' });
+      addToast({
+        type: 'success',
+        title: action === 'approve' ? 'Approved' : 'Rejected',
+        message: `Request #${id} ${action}d.`,
+      });
+      /* Refresh the list from the server so status counters update. */
+      await fetchRequests();
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'Review failed',
+        message: err?.message || 'Unknown error.',
+      });
+    } finally {
+      setProcessing(null);
     }
   };
 
-  const handleReject = async (id: string) => {
-    try {
-      if (supabase) {
-        await supabase.from('transactions').update({ status: 'failed' }).eq('id', id);
-        addToast({ type: 'success', title: 'Success', message: 'Withdrawal rejected' });
-        fetchWithdrawals();
-      }
-    } catch (error) {
-      addToast({ type: 'error', title: 'Error', message: 'Failed to reject withdrawal' });
-    }
+  const promptReject = (id: number) => {
+    const reason = window.prompt('Reason for rejection (shown to the user):');
+    if (!reason || !reason.trim()) return;
+    review(id, 'reject', reason.trim());
   };
+
+  const pending = rows.filter((r) => r.status === 'pending');
+  const approved = rows.filter((r) => r.status === 'approved');
+  const rejected = rows.filter((r) => r.status === 'rejected');
+  const pendingAmount = pending.reduce((s, r) => s + Number(r.amount || 0), 0);
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-        <Wallet className="w-6 h-6 text-green-400" />
-        Withdrawal Management
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+          <Wallet className="w-6 h-6 text-green-400" />
+          Withdrawal requests
+        </h2>
+        <button
+          onClick={fetchRequests}
+          className="text-sm text-gray-400 hover:text-white flex items-center gap-1.5"
+          disabled={loading}
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+      </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
-          <div className="text-2xl font-bold text-yellow-400">{withdrawals.filter(w => w.status === 'pending').length}</div>
-          <div className="text-gray-400 text-sm">Pending</div>
+          <div className="text-2xl font-bold text-yellow-400 tabular-nums">{pending.length}</div>
+          <div className="text-gray-400 text-sm">Pending review</div>
         </div>
         <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
-          <div className="text-2xl font-bold text-green-400">{withdrawals.filter(w => w.status === 'completed').length}</div>
-          <div className="text-gray-400 text-sm">Completed</div>
+          <div className="text-2xl font-bold text-green-400 tabular-nums">{approved.length}</div>
+          <div className="text-gray-400 text-sm">Approved</div>
         </div>
         <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
-          <div className="text-2xl font-bold text-red-400">{withdrawals.filter(w => w.status === 'failed').length}</div>
-          <div className="text-gray-400 text-sm">Failed</div>
+          <div className="text-2xl font-bold text-red-400 tabular-nums">{rejected.length}</div>
+          <div className="text-gray-400 text-sm">Rejected</div>
         </div>
         <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
-          <div className="text-2xl font-bold text-white">
-            {withdrawals.filter(w => w.status === 'pending').reduce((sum, w) => sum + (w.amount || 0), 0).toLocaleString('cs-CZ')} Kč
+          <div className="text-2xl font-bold text-white tabular-nums">
+            {pendingAmount.toLocaleString('cs-CZ')} Kč
           </div>
-          <div className="text-gray-400 text-sm">Pending Amount</div>
+          <div className="text-gray-400 text-sm">Pending amount</div>
         </div>
       </div>
 
-      <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6">
+      <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 overflow-hidden">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-700">
-              <th className="text-left py-3 px-4 text-gray-400">User</th>
-              <th className="text-left py-3 px-4 text-gray-400">Amount</th>
-              <th className="text-left py-3 px-4 text-gray-400">Method</th>
-              <th className="text-left py-3 px-4 text-gray-400">Status</th>
-              <th className="text-right py-3 px-4 text-gray-400">Actions</th>
+            <tr className="border-b border-gray-700 bg-gray-800/70">
+              <th className="text-left py-3 px-4 text-gray-400 text-xs uppercase tracking-wider">User</th>
+              <th className="text-left py-3 px-4 text-gray-400 text-xs uppercase tracking-wider">Amount</th>
+              <th className="text-left py-3 px-4 text-gray-400 text-xs uppercase tracking-wider">Net</th>
+              <th className="text-left py-3 px-4 text-gray-400 text-xs uppercase tracking-wider">Method</th>
+              <th className="text-left py-3 px-4 text-gray-400 text-xs uppercase tracking-wider">Payout details</th>
+              <th className="text-left py-3 px-4 text-gray-400 text-xs uppercase tracking-wider">Status</th>
+              <th className="text-right py-3 px-4 text-gray-400 text-xs uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {withdrawals.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-8 text-gray-400">No withdrawals found</td></tr>
+            {loading ? (
+              <tr>
+                <td colSpan={7} className="text-center py-8 text-gray-400">Loading…</td>
+              </tr>
+            ) : rows.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="text-center py-8 text-gray-400">
+                  No withdrawal requests yet.
+                </td>
+              </tr>
             ) : (
-              withdrawals.map((w) => (
-                <tr key={w.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
-                  <td className="py-3 px-4 text-white">{w.users?.username || 'Unknown'}</td>
-                  <td className="py-3 px-4 text-white font-semibold">{(w.amount || 0).toLocaleString('cs-CZ')} Kč</td>
-                  <td className="py-3 px-4 text-gray-300">{w.payment_method || 'N/A'}</td>
+              rows.map((w) => (
+                <tr key={w.id} className="border-b border-gray-700/50 hover:bg-gray-700/20">
                   <td className="py-3 px-4">
-                    <span className={`px-3 py-1 rounded-full text-xs ${
-                      w.status === 'completed' ? 'bg-green-500/20 text-green-400' :
-                      w.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
-                      'bg-red-500/20 text-red-400'
-                    }`}>
+                    <div className="text-white text-sm">{w.users?.display_name || 'Unknown'}</div>
+                    <div className="text-gray-500 text-xs font-mono">{w.user_steam_id}</div>
+                  </td>
+                  <td className="py-3 px-4 text-white font-semibold tabular-nums">
+                    {Number(w.amount || 0).toLocaleString('cs-CZ')} Kč
+                  </td>
+                  <td className="py-3 px-4 text-gray-300 tabular-nums">
+                    {Number(w.net_amount || 0).toLocaleString('cs-CZ')} Kč
+                  </td>
+                  <td className="py-3 px-4 text-gray-300 text-sm">{w.method}</td>
+                  <td className="py-3 px-4 text-gray-400 text-xs">
+                    <code className="text-[10px] whitespace-pre-wrap">
+                      {JSON.stringify(w.payout_details || {})}
+                    </code>
+                  </td>
+                  <td className="py-3 px-4">
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        w.status === 'approved'
+                          ? 'bg-green-500/20 text-green-400'
+                          : w.status === 'pending'
+                          ? 'bg-yellow-500/20 text-yellow-400'
+                          : 'bg-red-500/20 text-red-400'
+                      }`}
+                    >
                       {w.status}
                     </span>
+                    {w.reason && (
+                      <div className="text-xs text-gray-500 mt-1 max-w-[200px] truncate" title={w.reason}>
+                        {w.reason}
+                      </div>
+                    )}
                   </td>
                   <td className="py-3 px-4 text-right">
                     {w.status === 'pending' && (
                       <div className="flex justify-end gap-2">
                         <button
-                          onClick={() => handleApprove(w.id)}
-                          className="text-green-400 hover:text-green-300 px-3 py-1 rounded bg-green-500/10"
+                          onClick={() => review(w.id, 'approve')}
+                          disabled={processing === w.id}
+                          className="text-green-400 hover:text-green-300 px-3 py-1 rounded bg-green-500/10 hover:bg-green-500/20 text-sm disabled:opacity-50"
                         >
-                          Approve
+                          {processing === w.id ? '…' : 'Approve'}
                         </button>
                         <button
-                          onClick={() => handleReject(w.id)}
-                          className="text-red-400 hover:text-red-300 px-3 py-1 rounded bg-red-500/10"
+                          onClick={() => promptReject(w.id)}
+                          disabled={processing === w.id}
+                          className="text-red-400 hover:text-red-300 px-3 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-sm disabled:opacity-50"
                         >
                           Reject
                         </button>

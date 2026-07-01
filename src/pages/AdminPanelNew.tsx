@@ -195,6 +195,7 @@ const AdminPanelNew: React.FC = () => {
     { name: 'Dashboard', icon: BarChart3, onClick: () => setActiveTab('dashboard') },
     { name: 'Users', icon: Users, onClick: () => setActiveTab('users') },
     { name: 'Finance', icon: DollarSign, onClick: () => setActiveTab('finance') },
+    { name: 'Withdrawals', icon: Wallet, onClick: () => setActiveTab('withdrawals') },
     { name: 'Inventory', icon: Package, onClick: () => setActiveTab('inventory') },
     { name: 'Notifications', icon: Bell, onClick: () => setActiveTab('notifications') },
     { name: 'Analytics', icon: BarChart3, onClick: () => setActiveTab('analytics') },
