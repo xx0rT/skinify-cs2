@@ -96,55 +96,67 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose, onSucces
       console.log('Net amount:', netAmount);
       
       const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
-      
-      // Create withdrawal transaction
-      const response = await fetch(`${supabaseUrl}/functions/v1/balance`, {
+
+      /* New flow: hit the withdraw-submit edge function. It:
+           1. Verifies balance + method.
+           2. Deducts the amount from the user via a hold transaction.
+           3. Inserts a withdraw_requests row (status='pending').
+           4. Fires an admin notification for the review queue.
+         The old /balance direct call bypassed the review step, which
+         meant every withdrawal auto-succeeded — that's the bug this
+         rewrite fixes. */
+      const methodMap: Record<string, string> = {
+        bank: 'bank_transfer',
+        card: 'card',
+        paypal: 'paypal',
+        crypto: 'crypto',
+      };
+      const payoutDetails =
+        withdrawMethod === 'bank'
+          ? { iban: accountDetails.iban, bank_account: accountDetails.bankAccount }
+          : withdrawMethod === 'card'
+          ? { card_number: accountDetails.cardNumber }
+          : withdrawMethod === 'paypal'
+          ? { email: accountDetails.email }
+          : { email: accountDetails.email };
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/withdraw-submit`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
+          Authorization: `Bearer ${supabaseKey}`,
+          apikey: supabaseKey,
           'Content-Type': 'application/json',
+          'x-steam-id': user.steamId,
         },
         body: JSON.stringify({
-          steam_id: user.steamId,
-          type: 'withdrawal',
-          amount: withdrawAmount, // Deduct full amount from balance
-          description: `Withdrawal via ${withdrawMethod} - Fee: ${fee.toLocaleString('cs-CZ')} Kč, Net: ${netAmount.toLocaleString('cs-CZ')} Kč`,
-          reference_id: `withdrawal_${user.steamId}_${Date.now()}`,
-          metadata: {
-            withdrawal_method: withdrawMethod,
-            gross_amount: withdrawAmount,
-            fee_amount: fee,
-            net_amount: netAmount,
-            account_details: withdrawMethod === 'bank' ? accountDetails.iban :
-                           withdrawMethod === 'card' ? accountDetails.cardNumber :
-                           accountDetails.email,
-            processing_time: withdrawMethod === 'bank' ? '1-3 business days' :
-                           withdrawMethod === 'card' ? '1-5 business days' :
-                           'Instant to 24 hours'
-          }
-        })
+          amount: withdrawAmount,
+          method: methodMap[withdrawMethod] || withdrawMethod,
+          payout_details: payoutDetails,
+        }),
       });
-      
+
       if (response.ok) {
         const result = await response.json();
-        console.log('✅ Withdrawal transaction created:', result.transaction_id);
-        
+        console.log('✅ Withdrawal request created:', result.data?.id);
+
         setStep('success');
-        
+
         addToast({
           type: 'success',
-          title: '💸 Withdrawal Initiated!',
-          message: `${netAmount.toLocaleString('cs-CZ')} Kč will be transferred to your ${withdrawMethod} account`,
-          duration: 4000
+          title: 'Withdrawal request submitted',
+          message: `Your request for ${netAmount.toLocaleString('cs-CZ')} Kč is pending admin review.`,
+          duration: 5000,
         });
-      
+
         setTimeout(() => {
           onSuccess();
           resetModal();
         }, 2000);
       } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Withdrawal request failed');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData?.error?.message || errorData?.error || 'Withdrawal request failed',
+        );
       }
 
     } catch (error) {

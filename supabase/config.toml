@@ -427,6 +427,13 @@ verify_jwt = false
 [functions.dm-list]
 verify_jwt = false
 
+# Withdrawals — user submits a request; admin reviews. Same
+# x-steam-id / x-admin-steam-id auth pattern as the DM functions.
+[functions.withdraw-submit]
+verify_jwt = false
+[functions.withdraw-review]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
