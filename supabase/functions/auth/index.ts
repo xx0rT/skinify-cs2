@@ -150,6 +150,12 @@ async function ensureAuthUser(
       email,
       password,
       email_confirm: true,
+      /* `app_metadata` (not `user_metadata`) is the one Supabase
+         automatically copies into every JWT's payload. RLS policies
+         read `auth.jwt() -> 'app_metadata' ->> 'steam_id'`. Keeping
+         user_metadata as well so the frontend can still read it
+         without re-decoding the JWT. */
+      app_metadata: { steam_id: steamId, source: 'steam_openid' },
       user_metadata: { steam_id: steamId, source: 'steam_openid' },
     });
     if (!createError && created?.user) {
@@ -195,6 +201,9 @@ async function ensureAuthUser(
   if (authUserId && !createdFresh) {
     try {
       await supabase.auth.admin.updateUserById(authUserId, {
+        /* Both metadata fields — app_metadata drives the JWT claim
+           that RLS actually reads; user_metadata is for the frontend. */
+        app_metadata: { steam_id: steamId, source: 'steam_openid' },
         user_metadata: { steam_id: steamId, source: 'steam_openid' },
       });
     } catch (e: any) {
