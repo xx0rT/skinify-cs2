@@ -184,11 +184,20 @@ export const SearchPalette: React.FC = () => {
             Outer fixed layer handles the centering with flex; inner motion.div
             only owns the entrance animation.
           */}
-          <div className="fixed inset-x-0 top-[10vh] z-[81] flex justify-center px-3 pointer-events-none">
+          {/* Positioning:
+                - lg+ : top-modal (10vh from the top, centered horizontally)
+                - <lg : bottom sheet (docked to the bottom, edge-to-edge,
+                        rounded top corners). Enter slides UP from the
+                        keyboard so the search input lands right above
+                        the on-screen keyboard on iOS.
+              We swap the entrance animation to a Y=100% slide on mobile
+              via a media-aware variant so the sheet doesn't pop from
+              the top. */}
+          <div className="fixed inset-x-0 z-[81] flex justify-center pointer-events-none top-auto bottom-0 lg:top-[10vh] lg:bottom-auto px-0 lg:px-3">
             <motion.div
-              initial={{ opacity: 0, y: -12, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.98 }}
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 40 }}
               transition={spring}
               className="w-full max-w-[640px] pointer-events-auto"
             >
@@ -214,7 +223,25 @@ export const SearchPalette: React.FC = () => {
                     '0 0 0 1px rgb(var(--accent) / 0.35), 0 0 0 4px rgb(var(--accent) / 0.10), 0 24px 60px -20px rgb(var(--accent) / 0.45)',
                 }}
               />
-              <div className="card-elevated overflow-hidden relative">
+              {/* On mobile: rounded only at the top so the sheet meets
+                  the bottom edge cleanly. On lg+: fully rounded. Also
+                  reserve bottom safe-area padding on mobile so the
+                  home-indicator doesn't overlap the last row. */}
+              <div
+                className="card-elevated overflow-hidden relative rounded-t-3xl rounded-b-none lg:rounded-3xl"
+                style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+              >
+              {/* Drag handle — mobile only, tells the user this is a
+                  sheet they can dismiss by swiping down. Tap also
+                  closes. */}
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close"
+                className="lg:hidden w-full pt-2 pb-1 flex items-center justify-center"
+              >
+                <span className="w-10 h-1.5 rounded-full bg-ink-dim/40" />
+              </button>
               {/* Search input */}
               <div className="flex items-center gap-3 h-14 px-4 border-b border-line">
                 <Search size={18} strokeWidth={2} className="text-accent shrink-0" />

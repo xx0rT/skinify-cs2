@@ -167,6 +167,20 @@ body {
   overflow-x: clip;
 }
 
+/* iOS zoom fix — Safari on iPhone auto-zooms whenever a focused input
+   has a computed font-size below 16px. Every input in our design uses
+   smaller pixel sizes for density, which meant the viewport zoomed
+   in and got stuck at the wrong scale on every field focus. Force
+   16px on inputs across the whole app at <lg viewports; desktop keeps
+   its intended sizing because the media query bails above 1023px. */
+@media (max-width: 1023px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 /* Mobile chrome clearance:
      - Top: 48px for the MobileTopBar + the iOS safe-area inset so
        the bar can dock against the dynamic island / notch without

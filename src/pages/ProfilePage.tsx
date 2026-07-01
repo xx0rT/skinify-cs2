@@ -304,13 +304,16 @@ const ProfilePage: React.FC = () => {
     <div className="min-h-screen bg-bg text-ink">
       <LandingNav />
 
-      <main className="max-w-[1480px] mx-auto px-4 sm:px-6 pt-4 pb-16">
-        {/* ── Profile header card ──────────────────────────────── */}
+      <main className="max-w-[1480px] mx-auto px-3 sm:px-6 pt-2 sm:pt-4 pb-16">
+        {/* ── Profile header card ────────────────────────────────
+             Denser on mobile: p-4 → p-6 stack, so the tiny "Signed
+             in as" label sits closer to the avatar and doesn't waste
+             a full row of vertical space. */}
         <motion.div
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={spring}
-          className="card p-5 sm:p-6 md:p-7 mb-4 relative overflow-hidden"
+          className="card p-4 sm:p-6 md:p-7 mb-3 sm:mb-4 relative overflow-hidden"
         >
           <motion.div
             aria-hidden
