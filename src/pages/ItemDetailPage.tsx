@@ -602,6 +602,14 @@ const ItemDetailPage: React.FC = () => {
               </div>
             </motion.div>
 
+            {/* Steam data strip — surfaces the enriched fields
+                (float, wear category, pattern seed, sticker count,
+                rarity, StatTrak flag) as a compact 2×N grid so
+                buyers see the actual attributes without hunting
+                for them across tabs. Values come from the merged
+                `item` object (listing row + CSFloat lookup). */}
+            <SteamDataStrip item={item} stickers={stickers} />
+
             {/* Mobile-only buy card — surfaces price + Buy / Cart / Wishlist
                 directly under the hero so it's the first thing after the
                 image. Desktop renders the equivalent in the right rail. */}
@@ -2170,5 +2178,187 @@ const SimilarOffersTable: React.FC<{
     </motion.section>
   );
 };
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SteamDataStrip — compact metadata panel shown right below the item
+   header. Surfaces every attribute we can pull from Steam / CSFloat:
+
+     - Float value + linear scale visualising the wear
+     - Wear category (Factory New / Minimal Wear / …)
+     - Pattern index (paint seed) — critical for Doppler / Case Hardened
+     - Rarity + StatTrak flag
+     - Sticker count with a scrollable strip below
+     - Inspect-in-game deep link
+
+   Rendered as a 2-column grid on mobile and 4-column on desktop so
+   every metric is glanceable. Missing fields are hidden so the card
+   never shows blank rows.
+   ───────────────────────────────────────────────────────────────────────── */
+
+function wearCategoryFromFloat(f: number | null | undefined): string | null {
+  if (f == null || !Number.isFinite(Number(f))) return null;
+  const v = Number(f);
+  if (v < 0.07) return 'Factory New';
+  if (v < 0.15) return 'Minimal Wear';
+  if (v < 0.38) return 'Field-Tested';
+  if (v < 0.45) return 'Well-Worn';
+  return 'Battle-Scarred';
+}
+
+const SteamDataStrip: React.FC<{ item: any; stickers: any[] }> = ({ item, stickers }) => {
+  const floatVal =
+    item?.float != null ? Number(item.float) : null;
+  const paintSeed =
+    item?.paintSeed ?? item?.paint_seed ?? item?.patternTemplate ?? null;
+  const wearName = wearCategoryFromFloat(floatVal) || item?.condition || null;
+  const rarity = item?.rarity || null;
+  const inspectLink =
+    (item as any)?.inspectLink ?? (item as any)?.inspect_link ?? null;
+  const isStatTrak = item?.special === 'stattrak';
+
+  /* Nothing to show? Bail out so we don't render an empty card. */
+  const anyValue = floatVal != null || paintSeed != null || wearName || rarity || stickers.length > 0;
+  if (!anyValue) return null;
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ...spring, delay: 0.04 }}
+      className="card p-4 sm:p-5"
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div className="label-eyebrow">Steam data</div>
+        {inspectLink && (
+          <a
+            href={inspectLink}
+            className="text-[11px] font-bold text-accent hover:opacity-80 transition-opacity inline-flex items-center gap-1"
+          >
+            Inspect in-game →
+          </a>
+        )}
+      </div>
+
+      {/* Float meter — full-width scale with the current value marked.
+          Only rendered when we actually have a float value. */}
+      {floatVal != null && (
+        <div className="mb-4">
+          <div className="flex items-baseline justify-between mb-1.5">
+            <span className="text-[11.5px] font-bold uppercase tracking-wider text-ink-muted">
+              Float value
+            </span>
+            <span className="text-[13px] font-bold text-ink font-mono tabular-nums">
+              {floatVal.toFixed(6)}
+            </span>
+          </div>
+          <div className="relative h-1.5 rounded-full overflow-hidden bg-subtle">
+            {/* Scale gradient matches Steam's colour code */}
+            <div
+              className="absolute inset-0"
+              style={{
+                background:
+                  'linear-gradient(to right, #3fbb52 0%, #3fbb52 7%, #dcdc41 7%, #dcdc41 15%, #dd8c1a 15%, #dd8c1a 38%, #dd4a1a 38%, #dd4a1a 45%, #b21f1f 45%, #b21f1f 100%)',
+              }}
+            />
+            {/* Position marker */}
+            <div
+              aria-hidden
+              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white border-2 border-ink shadow-md"
+              style={{
+                left: `calc(${Math.min(100, Math.max(0, floatVal * 100))}% - 6px)`,
+              }}
+            />
+          </div>
+          <div className="flex justify-between mt-1 text-[9.5px] font-bold text-ink-dim tabular-nums">
+            <span>0.00</span>
+            <span>0.07</span>
+            <span>0.15</span>
+            <span>0.38</span>
+            <span>0.45</span>
+            <span>1.00</span>
+          </div>
+        </div>
+      )}
+
+      {/* Attribute grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        {wearName && <SteamStat label="Wear" value={wearName} />}
+        {paintSeed != null && (
+          <SteamStat label="Pattern" value={`#${paintSeed}`} mono />
+        )}
+        {rarity && <SteamStat label="Rarity" value={rarity} />}
+        <SteamStat
+          label="StatTrak™"
+          value={isStatTrak ? 'Yes' : 'No'}
+          tone={isStatTrak ? 'orange' : 'muted'}
+        />
+        {stickers.length > 0 && (
+          <SteamStat label="Stickers" value={String(stickers.length)} mono />
+        )}
+      </div>
+
+      {/* Sticker strip — thumbnails + names, horizontally scrollable
+          on mobile to save vertical space. */}
+      {stickers.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-line">
+          <div className="label-eyebrow mb-2.5">Applied stickers</div>
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1">
+            {stickers.map((s: any, i: number) => (
+              <div
+                key={`${s.name || i}-${i}`}
+                className="card-flat p-2 flex flex-col items-center min-w-[100px] shrink-0"
+              >
+                {s.image ? (
+                  <img
+                    src={s.image}
+                    alt={s.name}
+                    className="w-10 h-10 object-contain"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded bg-subtle grid place-items-center text-[9px] text-ink-dim">
+                    ?
+                  </div>
+                )}
+                <div className="text-[10px] font-bold text-ink text-center mt-1.5 leading-tight line-clamp-2">
+                  {s.name || 'Sticker'}
+                </div>
+                {s.wear != null && Number(s.wear) > 0 && (
+                  <div className="text-[9px] text-ink-muted font-semibold mt-0.5 tabular-nums">
+                    {(Number(s.wear) * 100).toFixed(0)}% wear
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </motion.section>
+  );
+};
+
+const SteamStat: React.FC<{
+  label: string;
+  value: string;
+  mono?: boolean;
+  tone?: 'muted' | 'orange';
+}> = ({ label, value, mono, tone }) => (
+  <div className="card-flat px-3 py-2.5">
+    <div className="label-meta">{label}</div>
+    <div
+      className={`text-[13px] font-bold tracking-tight leading-none mt-1 ${
+        mono ? 'font-mono' : ''
+      } ${
+        tone === 'orange'
+          ? 'text-orange-700 dark:text-orange-300'
+          : tone === 'muted'
+          ? 'text-ink-muted'
+          : 'text-ink'
+      }`}
+    >
+      {value}
+    </div>
+  </div>
+);
 
 export default ItemDetailPage;

@@ -324,7 +324,7 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
 
             {/* DMCA badge */}
             <a
-              href="//www.dmca.com/Protection/Status.aspx?ID=9cb1cfc0-5c9d-4546-981d-bc8d34bc4c7d"
+              href="https://www.dmca.com/r/8mrexyz"
               title="DMCA.com Protection Status"
               className="dmca-badge inline-block mt-5 opacity-70 hover:opacity-100 transition-opacity"
               target="_blank"
