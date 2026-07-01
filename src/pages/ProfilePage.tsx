@@ -6,6 +6,7 @@ import {
   Bell,
   ChevronRight,
   CreditCard,
+  Gift,
   MessageCircle,
   LayoutGrid,
   Package,
@@ -106,6 +107,11 @@ const TradesTab = lazyWithRetry(() => import('../components/profile/tabs/TradesT
 const BalanceTab = lazyWithRetry(() => import('../components/profile/tabs/BalanceTab'));
 const MyShopTab = lazyWithRetry(() => import('../components/profile/tabs/MyShopTab'));
 const ReviewsTab = lazyWithRetry(() => import('../components/profile/tabs/ReviewsTab'));
+/* ReferralTab reuses the standalone ReferralPage content — same
+   commission dashboard, referral link generator, and payout history.
+   Rendering it here lets users manage their referral program without
+   leaving the profile. */
+const ReferralTab = lazyWithRetry(() => import('../components/profile/tabs/ReferralTab'));
 
 /* ─────────────────────────────────────────────────────────────────────────
    ProfilePage — new shell
@@ -124,6 +130,7 @@ type TabId =
   | 'trades'
   | 'balance'
   | 'messages'
+  | 'referral'
   | 'settings';
 
 interface TabDef {
@@ -150,6 +157,7 @@ const TABS: TabDef[] = [
   { id: 'trades',    label: 'Trades',    icon: TrendingUp },
   { id: 'balance',   label: 'Balance',   icon: Wallet },
   { id: 'messages', label: 'Messages', icon: MessageCircle, navigate: '/messages', badge: 'messages' },
+  { id: 'referral',  label: 'Referral',  icon: Gift },
   { id: 'settings',  label: 'Settings',  icon: Settings },
 ];
 
@@ -559,6 +567,20 @@ const ProfilePage: React.FC = () => {
                       ) : (
                         <TradesTab />
                       )}
+                    </Suspense>
+                  </GroupedTab>
+                )}
+
+                {activeTab === 'referral' && (
+                  <GroupedTab
+                    title="Referral"
+                    subtitle="Share your link, earn a cut of every friend's fees for life."
+                    subTabs={[]}
+                    activeSub={activeSub}
+                    onSubChange={setActiveSub}
+                  >
+                    <Suspense fallback={<TabSkeleton />}>
+                      <ReferralTab />
                     </Suspense>
                   </GroupedTab>
                 )}

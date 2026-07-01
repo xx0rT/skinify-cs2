@@ -12,6 +12,7 @@ import { useWishlistStore } from '../store/wishlistStore';
 import { useCurrencyStore } from '../store/currencyStore';
 import { useBalanceStore } from '../store/balanceStore';
 import { useT } from '../lib/useT';
+import { useTranslationStore } from '../store/translationStore';
 import { useMarketplaceItems } from '../hooks/useMarketplaceItems';
 import { useHotItems } from '../hooks/useHotItems';
 import { weaponCategories } from '../data/weaponCategories';
@@ -97,18 +98,27 @@ const LANDING_FAQ = [
 
 const LandingPage: React.FC = () => {
   useDocumentMeta({
-    title: 'Skinify — CS2 Marketplace · 0% Buyer Fees · Instant Trades',
-    description:
-      'The peer-to-peer CS2 marketplace with 0% buyer fees. Escrow-protected trades, sub-60-second Steam delivery, real-money payouts. Buy AK-47, AWP, Karambit, M9 Bayonet, gloves and rare patterns from verified sellers.',
+    title: isCS
+      ? 'Skinify — Tržiště CS2 · 0% poplatek pro kupující · Okamžité obchody'
+      : 'Skinify — CS2 Marketplace · 0% Buyer Fees · Instant Trades',
+    description: isCS
+      ? 'Peer-to-peer tržiště CS2 s 0% poplatkem pro kupující. Obchody chráněné escrowem, doručení přes Steam do 60 sekund, výplaty v reálných penězích. Nakupujte AK-47, AWP, Karambit, M9 Bayonet, rukavice a vzácné patterny od ověřených prodejců.'
+      : 'The peer-to-peer CS2 marketplace with 0% buyer fees. Escrow-protected trades, sub-60-second Steam delivery, real-money payouts. Buy AK-47, AWP, Karambit, M9 Bayonet, gloves and rare patterns from verified sellers.',
     canonical: 'https://skinify.gg/',
+    /* Keyword set expanded with Czech long-tails (cs2 skiny, koupit,
+       tržiště) that non-Google engines (Seznam, Yandex) still read.
+       Google ignores meta keywords entirely so mixing languages here
+       has zero downside for search. */
     keywords:
-      'cs2 marketplace, cs2 skins, buy cs2 skins, sell cs2 skins, counter-strike 2 marketplace, ak-47 redline, awp dragon lore, karambit doppler, m9 bayonet fade, sport gloves, butterfly knife, p2p cs2 trading, 0 fee cs2 marketplace, escrow cs2, instant steam delivery, cs2 skin prices',
+      'cs2 marketplace, cs2 skins, buy cs2 skins, sell cs2 skins, counter-strike 2 marketplace, ak-47 redline, awp dragon lore, karambit doppler, m9 bayonet fade, sport gloves, butterfly knife, p2p cs2 trading, 0 fee cs2 marketplace, escrow cs2, instant steam delivery, cs2 skin prices, cs2 tržiště, cs2 skiny koupit, prodat cs2 skiny, cs2 obchod, cs2 nůž koupit',
     jsonLd: faqJsonLd(LANDING_FAQ),
   });
 
   const navigate = useNavigate();
   const t = useT();
   const { user } = useAuthStore();
+  const langCode = useTranslationStore((s) => s.currentLanguage.code);
+  const isCS = langCode === 'cs';
   const { addToast } = useToastStore();
   const { addItem } = useCartStore();
   const { toggleItem, isInWishlist, fetchWishlist } = useWishlistStore();
@@ -549,96 +559,193 @@ const LandingPage: React.FC = () => {
           <section className="card p-6 sm:p-10 grid lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-8 lg:gap-12">
             <div className="min-w-0">
             <h2 className="text-[20px] sm:text-[24px] font-bold text-ink tracking-tight">
-              The CS2 marketplace built for traders, not middlemen
+              {isCS
+                ? 'Tržiště CS2 postavené pro obchodníky, ne prostředníky'
+                : 'The CS2 marketplace built for traders, not middlemen'}
             </h2>
             <div className="mt-4 text-[14px] sm:text-[15px] text-ink-muted font-medium leading-relaxed space-y-4">
-              <p>
-                Skinify is a peer-to-peer{' '}
-                <a href="/marketplace" className="text-accent hover:underline">
-                  CS2 marketplace
-                </a>{' '}
-                where you buy and sell Counter-Strike 2 skins directly with other
-                players. Every trade is escrow-protected, fees are zero on the
-                buyer side, and items deliver to your Steam inventory the moment
-                you accept the trade offer — typically in under a minute.
-              </p>
-              <p>
-                Looking for a specific weapon? Browse{' '}
-                <a href="/weapons/Rifles/AK-47" className="text-accent hover:underline">
-                  AK-47 skins
-                </a>
-                ,{' '}
-                <a href="/weapons/Rifles/AWP" className="text-accent hover:underline">
-                  AWP skins
-                </a>
-                ,{' '}
-                <a href="/weapons/Rifles/M4A4" className="text-accent hover:underline">
-                  M4A4
-                </a>
-                , and{' '}
-                <a href="/weapons/Rifles/M4A1-S" className="text-accent hover:underline">
-                  M4A1-S
-                </a>{' '}
-                from the rifle category. For pistols, the{' '}
-                <a href="/weapons/Pistols/Desert%20Eagle" className="text-accent hover:underline">
-                  Desert Eagle
-                </a>
-                ,{' '}
-                <a href="/weapons/Pistols/USP-S" className="text-accent hover:underline">
-                  USP-S
-                </a>{' '}
-                and{' '}
-                <a href="/weapons/Pistols/Glock-18" className="text-accent hover:underline">
-                  Glock-18
-                </a>{' '}
-                are the most-listed. Knives and gloves —{' '}
-                <a href="/weapons/Knives/Karambit" className="text-accent hover:underline">
-                  Karambit
-                </a>
-                ,{' '}
-                <a href="/weapons/Knives/M9%20Bayonet" className="text-accent hover:underline">
-                  M9 Bayonet
-                </a>
-                ,{' '}
-                <a href="/weapons/Knives/Butterfly%20Knife" className="text-accent hover:underline">
-                  Butterfly Knife
-                </a>
-                ,{' '}
-                <a href="/weapons/Gloves/Sport%20Gloves" className="text-accent hover:underline">
-                  Sport Gloves
-                </a>{' '}
-                — sit in their own categories with float, pattern and sticker
-                filters built in.
-              </p>
-              <p>
-                Compared to in-game Steam Market trading, Skinify cuts the 15% Valve
-                fee entirely for buyers and pays sellers in real money instead of
-                Steam Wallet credit you can&apos;t cash out. Compared to third-party
-                marketplaces, we keep buyer fees at zero and run a smaller 2% seller
-                fee that drops further with{' '}
-                <a href="/vip" className="text-accent hover:underline">
-                  VIP membership
-                </a>
-                . First-time deposits get a 10% top-up bonus — see the{' '}
-                <a href="/bonuses" className="text-accent hover:underline">
-                  Bonuses
-                </a>{' '}
-                page for details.
-              </p>
-              <p>
-                Every trade is held in escrow for 8 days to cover Steam&apos;s 7-day
-                trade-back window plus a one-day safety margin. If the seller never
-                sends, you&apos;re refunded automatically. If something else goes
-                wrong, our team resolves disputes in under 24 hours. Read the{' '}
-                <a href="/trading-guide" className="text-accent hover:underline">
-                  full trading guide
-                </a>{' '}
-                or jump straight to the{' '}
-                <a href="/faq" className="text-accent hover:underline">
-                  FAQ
-                </a>
-                .
-              </p>
+              {isCS ? (
+                <>
+                  <p>
+                    Skinify je peer-to-peer{' '}
+                    <a href="/marketplace" className="text-accent hover:underline">
+                      tržiště CS2
+                    </a>
+                    , kde kupujete a prodáváte skiny do Counter-Strike 2 přímo
+                    s ostatními hráči. Každý obchod je chráněný escrowem,
+                    poplatky na straně kupujícího jsou nulové a položky se doručí
+                    do vašeho Steam inventáře v okamžiku, kdy přijmete trade offer
+                    — obvykle za méně než minutu.
+                  </p>
+                  <p>
+                    Hledáte konkrétní zbraň? Projděte si{' '}
+                    <a href="/weapons/Rifles/AK-47" className="text-accent hover:underline">
+                      AK-47 skiny
+                    </a>
+                    ,{' '}
+                    <a href="/weapons/Rifles/AWP" className="text-accent hover:underline">
+                      AWP skiny
+                    </a>
+                    ,{' '}
+                    <a href="/weapons/Rifles/M4A4" className="text-accent hover:underline">
+                      M4A4
+                    </a>{' '}
+                    a{' '}
+                    <a href="/weapons/Rifles/M4A1-S" className="text-accent hover:underline">
+                      M4A1-S
+                    </a>{' '}
+                    z kategorie pušek. Z pistolí patří mezi nejnabízenější{' '}
+                    <a href="/weapons/Pistols/Desert%20Eagle" className="text-accent hover:underline">
+                      Desert Eagle
+                    </a>
+                    ,{' '}
+                    <a href="/weapons/Pistols/USP-S" className="text-accent hover:underline">
+                      USP-S
+                    </a>{' '}
+                    a{' '}
+                    <a href="/weapons/Pistols/Glock-18" className="text-accent hover:underline">
+                      Glock-18
+                    </a>
+                    . Nože a rukavice —{' '}
+                    <a href="/weapons/Knives/Karambit" className="text-accent hover:underline">
+                      Karambit
+                    </a>
+                    ,{' '}
+                    <a href="/weapons/Knives/M9%20Bayonet" className="text-accent hover:underline">
+                      M9 Bayonet
+                    </a>
+                    ,{' '}
+                    <a href="/weapons/Knives/Butterfly%20Knife" className="text-accent hover:underline">
+                      Butterfly Knife
+                    </a>
+                    ,{' '}
+                    <a href="/weapons/Gloves/Sport%20Gloves" className="text-accent hover:underline">
+                      Sport Gloves
+                    </a>{' '}
+                    — mají vlastní kategorie s filtry na float, pattern a samolepky.
+                  </p>
+                  <p>
+                    Ve srovnání se Steam Marketem Skinify úplně odstraňuje 15% poplatek
+                    Valve pro kupující a prodávajícím vyplácí skutečné peníze místo
+                    Steam Wallet kreditu, který nemůžete vybrat. Ve srovnání s třetími
+                    stranami držíme nulové poplatky pro kupující a účtujeme jen 2%
+                    prodejcům, které se ještě snižují s{' '}
+                    <a href="/vip" className="text-accent hover:underline">
+                      VIP členstvím
+                    </a>
+                    . První vklad získá 10% bonus — podrobnosti najdete na stránce{' '}
+                    <a href="/bonuses" className="text-accent hover:underline">
+                      Bonusy
+                    </a>
+                    .
+                  </p>
+                  <p>
+                    Každý obchod je držen v escrowu 8 dní, aby pokryl 7denní Steam
+                    trade-back okno plus jednodenní bezpečnostní rezervu. Pokud
+                    prodávající nikdy neodešle, obdržíte automaticky vrácení peněz.
+                    Když se něco jiného pokazí, náš tým řeší spory do 24 hodin.
+                    Přečtěte si{' '}
+                    <a href="/trading-guide" className="text-accent hover:underline">
+                      kompletního průvodce obchodováním
+                    </a>{' '}
+                    nebo přejděte rovnou na{' '}
+                    <a href="/faq" className="text-accent hover:underline">
+                      časté dotazy
+                    </a>
+                    .
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    Skinify is a peer-to-peer{' '}
+                    <a href="/marketplace" className="text-accent hover:underline">
+                      CS2 marketplace
+                    </a>{' '}
+                    where you buy and sell Counter-Strike 2 skins directly with other
+                    players. Every trade is escrow-protected, fees are zero on the
+                    buyer side, and items deliver to your Steam inventory the moment
+                    you accept the trade offer — typically in under a minute.
+                  </p>
+                  <p>
+                    Looking for a specific weapon? Browse{' '}
+                    <a href="/weapons/Rifles/AK-47" className="text-accent hover:underline">
+                      AK-47 skins
+                    </a>
+                    ,{' '}
+                    <a href="/weapons/Rifles/AWP" className="text-accent hover:underline">
+                      AWP skins
+                    </a>
+                    ,{' '}
+                    <a href="/weapons/Rifles/M4A4" className="text-accent hover:underline">
+                      M4A4
+                    </a>
+                    , and{' '}
+                    <a href="/weapons/Rifles/M4A1-S" className="text-accent hover:underline">
+                      M4A1-S
+                    </a>{' '}
+                    from the rifle category. For pistols, the{' '}
+                    <a href="/weapons/Pistols/Desert%20Eagle" className="text-accent hover:underline">
+                      Desert Eagle
+                    </a>
+                    ,{' '}
+                    <a href="/weapons/Pistols/USP-S" className="text-accent hover:underline">
+                      USP-S
+                    </a>{' '}
+                    and{' '}
+                    <a href="/weapons/Pistols/Glock-18" className="text-accent hover:underline">
+                      Glock-18
+                    </a>{' '}
+                    are the most-listed. Knives and gloves —{' '}
+                    <a href="/weapons/Knives/Karambit" className="text-accent hover:underline">
+                      Karambit
+                    </a>
+                    ,{' '}
+                    <a href="/weapons/Knives/M9%20Bayonet" className="text-accent hover:underline">
+                      M9 Bayonet
+                    </a>
+                    ,{' '}
+                    <a href="/weapons/Knives/Butterfly%20Knife" className="text-accent hover:underline">
+                      Butterfly Knife
+                    </a>
+                    ,{' '}
+                    <a href="/weapons/Gloves/Sport%20Gloves" className="text-accent hover:underline">
+                      Sport Gloves
+                    </a>{' '}
+                    — sit in their own categories with float, pattern and sticker
+                    filters built in.
+                  </p>
+                  <p>
+                    Compared to in-game Steam Market trading, Skinify cuts the 15% Valve
+                    fee entirely for buyers and pays sellers in real money instead of
+                    Steam Wallet credit you can&apos;t cash out. Compared to third-party
+                    marketplaces, we keep buyer fees at zero and run a smaller 2% seller
+                    fee that drops further with{' '}
+                    <a href="/vip" className="text-accent hover:underline">
+                      VIP membership
+                    </a>
+                    . First-time deposits get a 10% top-up bonus — see the{' '}
+                    <a href="/bonuses" className="text-accent hover:underline">
+                      Bonuses
+                    </a>{' '}
+                    page for details.
+                  </p>
+                  <p>
+                    Every trade is held in escrow for 8 days to cover Steam&apos;s 7-day
+                    trade-back window plus a one-day safety margin. If the seller never
+                    sends, you&apos;re refunded automatically. If something else goes
+                    wrong, our team resolves disputes in under 24 hours. Read the{' '}
+                    <a href="/trading-guide" className="text-accent hover:underline">
+                      full trading guide
+                    </a>{' '}
+                    or jump straight to the{' '}
+                    <a href="/faq" className="text-accent hover:underline">
+                      FAQ
+                    </a>
+                    .
+                  </p>
+                </>
+              )}
             </div>
             </div>
 
@@ -647,25 +754,56 @@ const LandingPage: React.FC = () => {
                 it stays in view while the user reads. */}
             <aside className="lg:sticky lg:top-24 self-start space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <Stat label="Buyer fees" value="0%" sub="Always" />
-                <Stat label="Seller fee" value="2%" sub="Drops with VIP" />
-                <Stat label="Escrow window" value="8 days" sub="Steam-safe" />
-                <Stat label="Avg delivery" value="<1 min" sub="Trade offer" />
+                <Stat
+                  label={isCS ? 'Poplatek kupujícího' : 'Buyer fees'}
+                  value="0%"
+                  sub={isCS ? 'Vždy' : 'Always'}
+                />
+                <Stat
+                  label={isCS ? 'Poplatek prodávajícího' : 'Seller fee'}
+                  value="2%"
+                  sub={isCS ? 'Klesá s VIP' : 'Drops with VIP'}
+                />
+                <Stat
+                  label={isCS ? 'Escrow' : 'Escrow window'}
+                  value={isCS ? '8 dní' : '8 days'}
+                  sub={isCS ? 'Bezpečné pro Steam' : 'Steam-safe'}
+                />
+                <Stat
+                  label={isCS ? 'Průměrné doručení' : 'Avg delivery'}
+                  value="<1 min"
+                  sub={isCS ? 'Trade offer' : 'Trade offer'}
+                />
               </div>
 
               <div className="card-flat p-5">
-                <div className="label-eyebrow">How buyers save</div>
+                <div className="label-eyebrow">
+                  {isCS ? 'Jak kupující šetří' : 'How buyers save'}
+                </div>
                 <p className="text-[13px] text-ink-muted font-medium leading-relaxed mt-2">
-                  Steam Market charges a <strong className="text-ink">15% fee</strong>{' '}
-                  and pays in non-cashable Wallet credit. Skinify charges{' '}
-                  <strong className="text-ink">0% to buyers</strong> and pays sellers
-                  in real money.
+                  {isCS ? (
+                    <>
+                      Steam Market účtuje{' '}
+                      <strong className="text-ink">15% poplatek</strong> a
+                      vyplácí v nevybíratelném Wallet kreditu. Skinify účtuje{' '}
+                      <strong className="text-ink">0% kupujícím</strong> a
+                      prodávajícím vyplácí skutečné peníze.
+                    </>
+                  ) : (
+                    <>
+                      Steam Market charges a{' '}
+                      <strong className="text-ink">15% fee</strong> and pays in
+                      non-cashable Wallet credit. Skinify charges{' '}
+                      <strong className="text-ink">0% to buyers</strong> and pays
+                      sellers in real money.
+                    </>
+                  )}
                 </p>
                 <a
                   href="/marketplace"
                   className="mt-4 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-accent hover:opacity-80 transition-opacity"
                 >
-                  Browse the marketplace
+                  {isCS ? 'Procházet tržiště' : 'Browse the marketplace'}
                   <ChevronRight size={13} strokeWidth={2.6} />
                 </a>
               </div>
