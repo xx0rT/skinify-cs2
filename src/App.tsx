@@ -14,6 +14,7 @@ import SearchPalette from './components/SearchPalette';
 import DepositModal from './components/DepositModal';
 import MobileTabBar from './components/MobileTabBar';
 import MobileTopBar from './components/MobileTopBar';
+import MobileMenu from './components/MobileMenu';
 import { ThemeProvider } from './theme/ThemeProvider';
 
 // Critical pages - loaded immediately
@@ -451,6 +452,11 @@ export default function App() {
             on lg+ where the full LandingNav handles it. Inside Router
             because its buttons use react-router <Link>. */}
         <MobileTopBar />
+
+        {/* Mobile menu drawer — full-screen panel opened by the top-bar
+            hamburger via openMobileMenu(). Inside Router because its
+            rows navigate. */}
+        <MobileMenu />
 
         {/* Mobile bottom tab bar — only renders <md. Inside Router because
             tab links use react-router <Link>. */}

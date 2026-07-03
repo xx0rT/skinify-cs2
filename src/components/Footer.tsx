@@ -279,7 +279,7 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
           {/* Brand block */}
           <motion.div variants={COL_VARIANTS}>
             <div className="flex items-center gap-2.5">
-              <div className="icon-chip bg-accent text-on-accent">
+              <div className="icon-chip text-on-accent">
                 <img
                   src="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png"
                   alt=""

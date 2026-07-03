@@ -107,6 +107,31 @@ function inferWeaponClass(item: SkinCardItem): string | null {
   return first.replace(/^★\s*/, '').replace(/^StatTrak™\s*/, '').trim() || (item.type || null);
 }
 
+/* "Factory New" → "FN" — compact wear badge used on the mobile tile. */
+const CONDITION_ABBREV: Record<string, string> = {
+  'factory new': 'FN',
+  'minimal wear': 'MW',
+  'field-tested': 'FT',
+  'well-worn': 'WW',
+  'battle-scarred': 'BS',
+};
+function abbrevCondition(condition?: string): string | null {
+  if (!condition) return null;
+  return CONDITION_ABBREV[condition.toLowerCase().trim()] || null;
+}
+
+/* Split "StatTrak™ M4A4 | Howl (Factory New)" into
+   { weapon: "StatTrak™ M4A4", skin: "Howl" } for the stacked
+   two-line mobile title. Keeps the StatTrak™ prefix (the reference
+   shows it as part of the weapon line) but drops the ★. */
+function splitName(item: SkinCardItem): { weapon: string; skin: string | null } {
+  const raw = (item.name || item.market_name || '').replace(/^★\s*/, '');
+  const [first, ...rest] = raw.split('|');
+  const weapon = (first || '').trim();
+  const skin = rest.join('|').replace(/\([^)]*\)\s*$/, '').trim() || null;
+  return { weapon: weapon || raw, skin };
+}
+
 /* Short label for the type ("Covert Knife", "Extraordinary Gloves") */
 function abbrevType(type?: string): string {
   if (!type) return '';
@@ -284,7 +309,7 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
         /* `notranslate` class is the legacy Google Translate selector;
            the `translate="no"` HTML attribute above is the modern one.
            Setting both covers older crawler versions. */
-        className="notranslate group relative cursor-pointer bg-surface flex flex-col transition-shadow"
+        className="notranslate group relative cursor-pointer bg-surface flex flex-col h-full transition-shadow"
         style={{
           boxShadow: hoverLift
             ? 'inset 0 0 0 1px rgb(255 255 255 / 0.04), inset 0 -1px 0 0 rgb(255 255 255 / 0.04)'
@@ -330,13 +355,21 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
               />
             </>
           )}
+          {/* Mobile: wear abbreviation ("FN") in the top-left of the
+              image — matches the reference tile. Hidden on md+ where
+              the condition is spelled out in the meta row instead. */}
+          {abbrevCondition(item.condition) && (
+            <span className="md:hidden absolute top-2.5 left-2.5 text-[11px] font-bold tracking-wide text-ink-muted z-10">
+              {abbrevCondition(item.condition)}
+            </span>
+          )}
           {item.special === 'stattrak' && (
-            <span className="absolute top-2.5 left-2.5 px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase bg-orange-500/15 text-orange-600 dark:text-orange-300">
+            <span className="max-md:hidden absolute top-2.5 left-2.5 px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase bg-orange-500/15 text-orange-600 dark:text-orange-300">
               ST
             </span>
           )}
           {item.special === 'souvenir' && (
-            <span className="absolute top-2.5 left-2.5 px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase bg-yellow-500/15 text-yellow-700 dark:text-yellow-300">
+            <span className="max-md:hidden absolute top-2.5 left-2.5 px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase bg-yellow-500/15 text-yellow-700 dark:text-yellow-300">
               SV
             </span>
           )}
@@ -399,8 +432,65 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
         {/* Content — price, weapon class, item name, condition, float.
             Heights are normalised so every tile is the same height
             regardless of whether the reference price exists. The float
-            row is anchored to the bottom via mt-auto. */}
-        <div className="px-3.5 pt-1 pb-3 flex-1 flex flex-col">
+            row is anchored to the bottom via mt-auto.
+
+            On mobile (<md) the dense rows are swapped for the clean
+            skins.com-style stack: weapon → skin name (rarity-tinted) →
+            price + % badge. */}
+        <div className="px-3 md:px-3.5 pt-2 md:pt-1 pb-3 flex-1 flex flex-col">
+          {/* ── Mobile stack ── */}
+          <div className="md:hidden flex-1 flex flex-col">
+            {(() => {
+              const { weapon, skin } = splitName(item);
+              return (
+                <>
+                  {/* Name block reserves TWO lines even when the item has
+                      no skin name (cases, stickers) so every tile in a
+                      row is the same height and prices align. */}
+                  <div className="min-h-[42px]">
+                    <div className="text-[14px] font-bold text-ink truncate tracking-tight leading-snug">
+                      {weapon}
+                    </div>
+                    {skin && (
+                      <div
+                        className="text-[14px] font-bold truncate tracking-tight leading-snug"
+                        style={{ color }}
+                      >
+                        {skin}
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-auto pt-2 pb-0.5 flex items-center gap-2 flex-wrap">
+                    <span className="text-[17px] font-bold text-ink tracking-tight tabular-nums leading-none">
+                      {item.listing_type === 'auction'
+                        ? formatPrice(item.current_bid ?? item.minimum_bid ?? item.price)
+                        : formatPrice(item.price)}
+                    </span>
+                    {item.listing_type === 'auction' ? (
+                      <AuctionPill endTime={item.auction_end_time} />
+                    ) : (
+                      item.priceChange !== undefined &&
+                      item.priceChange !== 0 && (
+                        <span
+                          className={`inline-flex items-center text-[10.5px] font-bold tabular-nums px-1.5 py-[3px] rounded-md ${
+                            item.priceChange > 0
+                              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                              : 'bg-rose-500/15 text-rose-600 dark:text-rose-400'
+                          }`}
+                        >
+                          {item.priceChange > 0 ? '+' : '-'}
+                          {Math.abs(item.priceChange).toFixed(1)}%
+                        </span>
+                      )
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+
+          {/* ── Desktop rows (unchanged density) ── */}
+          <div className="hidden md:flex md:flex-col md:flex-1">
           {/* Price row + change badge — replaced with current-bid and
               auction-end pill when listing_type === 'auction'. */}
           <div className="flex items-baseline gap-2 flex-wrap">
@@ -414,13 +504,11 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
             )}
             {item.listing_type !== 'auction' && item.priceChange !== undefined && item.priceChange !== 0 && (
               <span
-                className="inline-flex items-center text-[10.5px] font-bold tabular-nums px-1.5 py-[3px] text-white"
-                style={{
-                  background:
-                    item.priceChange > 0
-                      ? 'linear-gradient(90deg, #4f46e5 0%, #06b6d4 100%)'
-                      : 'linear-gradient(90deg, #6366f1 0%, #f97316 100%)',
-                }}
+                className={`inline-flex items-center text-[10.5px] font-bold tabular-nums px-1.5 py-[3px] rounded-md ${
+                  item.priceChange > 0
+                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-rose-500/15 text-rose-600 dark:text-rose-400'
+                }`}
               >
                 {item.priceChange > 0 ? '+' : '−'}
                 {Math.abs(item.priceChange).toFixed(0)}%
@@ -524,6 +612,7 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
                 />
               )}
             </div>
+          </div>
           </div>
         </div>
 

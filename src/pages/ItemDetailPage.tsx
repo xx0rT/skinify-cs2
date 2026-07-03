@@ -7,15 +7,12 @@ import {
   ShoppingBag,
   Share2,
   Eye,
-  Copy,
   CheckCircle2,
   ExternalLink,
   Check,
   Zap,
   Star,
   MessageCircle,
-  Send,
-  X as XIcon,
 } from 'lucide-react';
 import { useMarketplaceItems } from '../hooks/useMarketplaceItems';
 import { MOCK_MARKET_ITEMS, findMockItem } from '../data/mockMarketItems';
@@ -34,18 +31,13 @@ import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import { CachedImage } from '../components/ui/CachedImage';
 import BuyConfirmModal from '../components/marketplace/BuyConfirmModal';
-import { SkinCard, SkinCardSkeleton, rarityColor } from '../components/ui/SkinCard';
+import { rarityColor } from '../components/ui/SkinCard';
 import { useSkinFloat } from '../hooks/useSkinFloat';
 import { spring, tap } from '../lib/motion';
 import { openDepositModal } from '../components/DepositModal';
 import {
-  ItemActionsRow,
   SalesHistoryCard,
-  TagsRow,
-  StickersRow,
-  SellerRatingWidget,
   SimilarItemsRow,
-  buildItemTags,
 } from '../components/item/ItemDetailExtras';
 import AuctionBidPanel from '../components/item/AuctionBidPanel';
 
@@ -56,12 +48,6 @@ import AuctionBidPanel from '../components/item/AuctionBidPanel';
    - Right: sticky buy panel (price, quantity, CTA, balance hint)
    - Bottom: similar items grid
    ───────────────────────────────────────────────────────────────────────── */
-
-const staggerParent = { hidden: {}, shown: { transition: { staggerChildren: 0.05 } } };
-const staggerChild = {
-  hidden: { opacity: 0, y: 10 },
-  shown:  { opacity: 1, y: 0, transition: spring },
-};
 
 const ItemDetailPage: React.FC = () => {
   const { itemId } = useParams<{ itemId: string }>();
@@ -78,10 +64,6 @@ const ItemDetailPage: React.FC = () => {
   const [confirmBuyOpen, setConfirmBuyOpen] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [messageOpen, setMessageOpen] = useState(false);
-  /* Per-seller follow state, persisted in localStorage so the badge
-     survives reload. Backend hook can replace `skinify_following` later. */
-  const [isFollowing, setIsFollowing] = useState(false);
   /* The mobile floating buy chip should only appear when the in-page
      buy panel is NOT visible. We render the panel twice (once inline on
      mobile above the tabs, once in the desktop right rail) and observe
@@ -271,45 +253,31 @@ const ItemDetailPage: React.FC = () => {
     if (user?.steamId) fetchWishlist(user.steamId);
   }, [user?.steamId, fetchWishlist]);
 
-  /* Follow-state per seller, persisted in localStorage. */
-  const sellerKey = item?.seller?.steamId || item?.seller?.name || '';
-  useEffect(() => {
-    if (!sellerKey) {
-      setIsFollowing(false);
+  /* Open (or seed) a DM thread with the seller and jump to /messages.
+     Shared by the desktop rail seller card and the mobile one. */
+  const messageSeller = useCallback(() => {
+    if (!item?.seller) return;
+    if (!user) {
+      addToast({
+        type: 'warning',
+        title: 'Login required',
+        message: 'Sign in to message the seller.',
+      });
       return;
     }
-    try {
-      const raw = localStorage.getItem('skinify_following');
-      const set = new Set<string>(raw ? JSON.parse(raw) : []);
-      setIsFollowing(set.has(sellerKey));
-    } catch {
-      /* private window */
+    const peerId = String(item.seller?.steamId || item.seller?.name || 'unknown');
+    const { ensureThread, sendMessage } = useDMStore.getState();
+    ensureThread(peerId, item.seller?.name || 'Seller', item.seller?.avatar);
+    const existing = useDMStore.getState().threads[peerId];
+    if (!existing || existing.messages.length === 0) {
+      sendMessage(peerId, `Hi! I'm interested in this listing.`, {
+        itemId: String(item.id),
+        itemName: item.name || item.market_name,
+        itemImage: item.image,
+      });
     }
-  }, [sellerKey]);
-
-  const toggleFollow = useCallback(() => {
-    if (!sellerKey) return;
-    try {
-      const raw = localStorage.getItem('skinify_following');
-      const set = new Set<string>(raw ? JSON.parse(raw) : []);
-      if (set.has(sellerKey)) {
-        set.delete(sellerKey);
-        setIsFollowing(false);
-        addToast({ type: 'info', title: 'Unfollowed seller' });
-      } else {
-        set.add(sellerKey);
-        setIsFollowing(true);
-        addToast({
-          type: 'success',
-          title: 'Following seller',
-          message: `You'll be notified when ${item?.seller?.name || 'this seller'} lists new items.`,
-        });
-      }
-      localStorage.setItem('skinify_following', JSON.stringify(Array.from(set)));
-    } catch {
-      /* ignore */
-    }
-  }, [sellerKey, addToast, item?.seller?.name]);
+    navigate(`/messages?peer=${encodeURIComponent(peerId)}`);
+  }, [item, user, addToast, navigate]);
 
   /* useDocumentMeta must run on every render (rules of hooks) — moved
      above the early returns. Title falls back while `item` is still
@@ -602,14 +570,6 @@ const ItemDetailPage: React.FC = () => {
               </div>
             </motion.div>
 
-            {/* Steam data strip — surfaces the enriched fields
-                (float, wear category, pattern seed, sticker count,
-                rarity, StatTrak flag) as a compact 2×N grid so
-                buyers see the actual attributes without hunting
-                for them across tabs. Values come from the merged
-                `item` object (listing row + CSFloat lookup). */}
-            <SteamDataStrip item={item} stickers={stickers} />
-
             {/* Mobile-only buy card — surfaces price + Buy / Cart / Wishlist
                 directly under the hero so it's the first thing after the
                 image. Desktop renders the equivalent in the right rail. */}
@@ -701,20 +661,7 @@ const ItemDetailPage: React.FC = () => {
               )}
             </motion.section>
 
-            {/* Tags row — clickable filter chips that route into the
-                wider marketplace (rarity, weapon, collection, etc.). */}
-            <TagsRow tags={buildItemTags(enrichedItem)} />
-
-            {/* Seller actions: Follow seller · Compare on Steam · Share */}
-            <ItemActionsRow
-              item={item}
-              isFollowing={isFollowing}
-              onToggleFollow={toggleFollow}
-            />
-
-            {/* Tab bar — Details / Stickers / Trust come FIRST so the
-                main column reads as "facts about this listing" before
-                any auxiliary sections (tags, sales chart, similar). */}
+            {/* Tab bar — Details / Stickers / Trust. */}
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -780,39 +727,16 @@ const ItemDetailPage: React.FC = () => {
               formatPrice={formatPrice}
             />
 
-            {/* Recommended stickers slider */}
-            <StickersRow
-              stickers={
-                Array.isArray(item.recommended_stickers) && item.recommended_stickers.length > 0
-                  ? item.recommended_stickers
-                  : [
-                      { name: 'Howling Dawn', price: 250 },
-                      { name: 'Crown (Foil)', price: 1200 },
-                      { name: 'Katowice 2014 Titan', price: 4200 },
-                      { name: 'iBUYPOWER (Holo)', price: 8500 },
-                      { name: 'Reason Gaming', price: 95 },
-                      { name: 'Cloud9 (Holo) Boston 2018', price: 320 },
-                    ]
-              }
-              formatPrice={formatPrice}
-              onAddCart={(s) =>
-                handleAddCart({
-                  id: `sticker-${s.name}`,
-                  name: s.name,
-                  price: s.price ?? 0,
-                  image: s.image,
-                  type: 'Sticker',
-                  rarity: 'Industrial',
-                })
-              }
-              onBuyNow={(s) =>
-                addToast({
-                  type: 'info',
-                  title: 'Coming soon',
-                  message: `Direct sticker checkout for ${s.name} is on the way.`,
-                })
-              }
-            />
+            {/* Seller — mobile only; desktop shows it in the right rail. */}
+            {item.seller?.name && (
+              <div className="lg:hidden">
+                <SellerCard
+                  seller={item.seller}
+                  onView={() => navigate(`/user/${item.seller.steamId}`)}
+                  onMessage={messageSeller}
+                />
+              </div>
+            )}
 
             {/* Similar items slider — uses the actual marketplace tile */}
             {related.length > 0 && (
@@ -924,55 +848,14 @@ const ItemDetailPage: React.FC = () => {
             )}
             </div>
 
-            {/* Seller — expanded with rating, deals count, delivery time */}
+            {/* Seller */}
             {item.seller?.name && (
               <SellerCard
                 seller={item.seller}
                 onView={() => navigate(`/user/${item.seller.steamId}`)}
-                onMessage={() => {
-                  if (!user) {
-                    addToast({
-                      type: 'warning',
-                      title: 'Login required',
-                      message: 'Sign in to message the seller.',
-                    });
-                    return;
-                  }
-                  /* Open the full /messages page. If this is the first
-                     time messaging the seller, seed the thread with a
-                     "buyer is asking about <listing>" context attached
-                     to a placeholder message so the seller sees what
-                     the conversation is about. */
-                  const peerId = String(
-                    item.seller?.steamId || item.seller?.name || 'unknown',
-                  );
-                  const { ensureThread, sendMessage, threads } =
-                    useDMStore.getState();
-                  ensureThread(peerId, item.seller?.name || 'Seller', item.seller?.avatar);
-                  const existing = useDMStore.getState().threads[peerId];
-                  if (!existing || existing.messages.length === 0) {
-                    sendMessage(
-                      peerId,
-                      `Hi! I'm interested in this listing.`,
-                      {
-                        itemId: String(item.id),
-                        itemName: item.name || item.market_name,
-                        itemImage: item.image,
-                      },
-                    );
-                  }
-                  navigate(`/messages?peer=${encodeURIComponent(peerId)}`);
-                }}
+                onMessage={messageSeller}
               />
             )}
-
-            <button
-              onClick={copyLink}
-              className="w-full h-11 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink font-semibold text-[13px] flex items-center justify-center gap-2 transition-colors"
-            >
-              <Copy size={13} strokeWidth={2.2} />
-              Copy listing link
-            </button>
           </motion.aside>
         </div>
       </main>
@@ -1065,265 +948,7 @@ const ItemDetailPage: React.FC = () => {
         formatPrice={formatPrice}
         isProcessing={purchasing}
       />
-
-      <MessageSellerModal
-        isOpen={messageOpen}
-        onClose={() => setMessageOpen(false)}
-        seller={item.seller}
-        item={item}
-      />
     </div>
-  );
-};
-
-/* ─────────────────────────────────────────────────────────────────────────
-   MessageSellerModal — real chat panel backed by the local DM store.
-
-   The thread is persisted in localStorage per seller steamId, so the
-   conversation survives reloads and shows up consistently any time the
-   buyer messages the same seller. Bubbles, timestamps, item context pill
-   for the first message, auto-scroll-to-bottom, enter-to-send (shift+enter
-   for newline). The transport is local-only for now (see dmStore); when
-   a backend lands, the send hook is the only thing that changes.
-   ───────────────────────────────────────────────────────────────────────── */
-const MessageSellerModal: React.FC<{
-  isOpen: boolean;
-  onClose: () => void;
-  seller: any;
-  item: any;
-}> = ({ isOpen, onClose, seller, item }) => {
-  const [text, setText] = useState('');
-  const [sending, setSending] = useState(false);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLTextAreaElement | null>(null);
-
-  const peerSteamId = String(seller?.steamId || seller?.name || 'unknown');
-  const ensureThread = useDMStore((s) => s.ensureThread);
-  const sendMessage = useDMStore((s) => s.sendMessage);
-  const markThreadRead = useDMStore((s) => s.markThreadRead);
-  const thread = useDMStore((s) => s.threads[peerSteamId]);
-  const messages = thread?.messages || [];
-
-  /* Ensure the thread exists the moment the panel opens so the user sees
-     an empty conversation rather than a "no thread" empty state. */
-  useEffect(() => {
-    if (isOpen) {
-      ensureThread(peerSteamId, seller?.name || 'Seller', seller?.avatar);
-      markThreadRead(peerSteamId);
-    }
-  }, [isOpen, peerSteamId, seller?.name, seller?.avatar, ensureThread, markThreadRead]);
-
-  /* Reset composer when closed, autofocus when opened. */
-  useEffect(() => {
-    if (!isOpen) {
-      setText('');
-      setSending(false);
-    } else {
-      setTimeout(() => inputRef.current?.focus(), 60);
-    }
-  }, [isOpen]);
-
-  /* Auto-scroll to the latest message after the layout settles. */
-  useEffect(() => {
-    if (!isOpen) return;
-    const el = scrollRef.current;
-    if (!el) return;
-    requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight;
-    });
-  }, [isOpen, messages.length]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-
-  const send = async () => {
-    const trimmed = text.trim();
-    if (!trimmed || sending) return;
-    setSending(true);
-    setText('');
-    /* Attach item context to the FIRST message only — keeps the bubble
-       cleaner for follow-ups in the same thread. */
-    const isFirst = messages.length === 0;
-    sendMessage(
-      peerSteamId,
-      trimmed,
-      isFirst
-        ? {
-            itemId: String(item?.id || ''),
-            itemName: item?.name || item?.market_name,
-            itemImage: item?.image,
-          }
-        : undefined,
-    );
-    /* Give the optimistic write a moment to settle so the chevron animation
-       doesn't flicker. The store updates synchronously so this is cheap. */
-    await new Promise((r) => setTimeout(r, 60));
-    setSending(false);
-    setTimeout(() => inputRef.current?.focus(), 0);
-  };
-
-  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      send();
-    }
-  };
-
-  const initial = (seller?.name || 'S').charAt(0).toUpperCase();
-
-  return (
-    <AnimatePresence>
-      <motion.div
-        key="dm-backdrop"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.18 }}
-        className="fixed inset-0 z-[80] bg-black/55 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-3"
-        onClick={onClose}
-      >
-        <motion.div
-          key="dm-card"
-          initial={{ opacity: 0, y: 20, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 20, scale: 0.98 }}
-          transition={spring}
-          onClick={(e) => e.stopPropagation()}
-          className="card w-full sm:max-w-md relative flex flex-col"
-          style={{ height: 'min(640px, 92dvh)' }}
-        >
-          {/* Header */}
-          <div className="shrink-0 px-4 sm:px-5 py-3.5 border-b border-line flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-accent text-on-accent grid place-items-center font-bold shrink-0">
-              {seller?.avatar ? (
-                <img src={seller.avatar} alt="" className="w-full h-full object-cover rounded-2xl" />
-              ) : (
-                <span className="text-[14px]">{initial}</span>
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[14px] font-bold text-ink tracking-tight truncate leading-none">
-                {seller?.name || 'Seller'}
-              </div>
-              <div className="text-[11px] text-ink-muted font-medium mt-1 leading-none">
-                Direct message
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              aria-label="Close"
-              className="h-9 w-9 shrink-0 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors"
-            >
-              <XIcon size={15} strokeWidth={2.4} />
-            </button>
-          </div>
-
-          {/* Messages */}
-          <div
-            ref={scrollRef}
-            className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-5 py-4 space-y-2.5"
-          >
-            {messages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center px-6">
-                <div className="w-12 h-12 rounded-2xl bg-accent-soft grid place-items-center mb-3">
-                  <MessageCircle size={20} strokeWidth={2.2} className="text-accent" />
-                </div>
-                <p className="text-[13.5px] font-bold text-ink tracking-tight">
-                  Start the conversation
-                </p>
-                <p className="text-[12px] text-ink-muted font-medium mt-1 leading-relaxed">
-                  Ask about float, stickers, or price. Replies arrive in your
-                  Skinify inbox.
-                </p>
-              </div>
-            ) : (
-              messages.map((m) => <MessageBubble key={m.id} message={m} />)
-            )}
-          </div>
-
-          {/* Composer */}
-          <div className="shrink-0 border-t border-line px-3 sm:px-4 py-3">
-            <div className="flex items-end gap-2">
-              <textarea
-                ref={inputRef}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={onKeyDown}
-                placeholder="Type a message…"
-                rows={1}
-                maxLength={500}
-                className="flex-1 min-h-[40px] max-h-[120px] rounded-2xl bg-subtle px-3.5 py-2.5 text-[13.5px] text-ink font-medium outline-none focus:ring-2 focus:ring-accent/40 resize-none"
-              />
-              <motion.button
-                whileTap={tap}
-                whileHover={text.trim() ? { scale: 1.04 } : undefined}
-                onClick={send}
-                disabled={!text.trim() || sending}
-                aria-label="Send"
-                className="h-10 w-10 rounded-full bg-accent text-on-accent grid place-items-center disabled:opacity-40 disabled:cursor-not-allowed transition-opacity shrink-0"
-              >
-                <Send size={15} strokeWidth={2.4} />
-              </motion.button>
-            </div>
-            <div className="mt-1.5 flex items-center justify-between text-[10.5px] text-ink-dim font-medium">
-              <span>Enter to send · Shift+Enter for newline</span>
-              <span className="tabular-nums">{text.length}/500</span>
-            </div>
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
-  );
-};
-
-const MessageBubble: React.FC<{ message: any }> = ({ message }) => {
-  const mine = message.fromSteamId === 'me';
-  const time = new Date(message.ts).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 6, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ ...spring, mass: 0.5 }}
-      className={`flex ${mine ? 'justify-end' : 'justify-start'}`}
-    >
-      <div className={`max-w-[78%] ${mine ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
-        {message.itemImage && (
-          <div className="card-flat p-2 flex items-center gap-2 text-left">
-            <div className="w-8 h-8 rounded-md bg-subtle grid place-items-center overflow-hidden shrink-0">
-              <img
-                src={message.itemImage}
-                alt=""
-                className="w-[88%] h-[88%] object-contain"
-              />
-            </div>
-            <div className="text-[11.5px] font-semibold text-ink truncate max-w-[180px]">
-              {message.itemName || 'Listed item'}
-            </div>
-          </div>
-        )}
-        <div
-          className={`px-3.5 py-2 rounded-2xl text-[13.5px] font-medium leading-snug whitespace-pre-wrap break-words ${
-            mine
-              ? 'bg-accent text-on-accent rounded-br-md'
-              : 'bg-subtle text-ink rounded-bl-md'
-          }`}
-        >
-          {message.text}
-        </div>
-        <div className="text-[10px] text-ink-dim font-medium tabular-nums px-1">{time}</div>
-      </div>
-    </motion.div>
   );
 };
 
@@ -1415,7 +1040,6 @@ const SellerCard: React.FC<{
   onView: () => void;
   onMessage: () => void;
 }> = ({ seller, onView, onMessage }) => {
-  const { user } = useAuthStore();
   const name = seller?.name || 'Anonymous';
   const initial = name.charAt(0).toUpperCase();
   /* Avatar fallback chain:
@@ -1483,11 +1107,6 @@ const SellerCard: React.FC<{
     return v != null && Number.isFinite(Number(v)) ? Number(v) : null;
   })();
   const memberSince: string = seller?.memberSince || deriveSellerStats(seller).memberSince;
-  /* True when the viewer is also the seller. We surface a clear "Your
-     listing" pill so users don't think the card is rendering them by
-     mistake — same data, intentional indicator. */
-  const isSelf =
-    !!user?.steamId && !!seller?.steamId && String(user.steamId) === String(seller.steamId);
 
   return (
     <motion.section
@@ -1496,32 +1115,21 @@ const SellerCard: React.FC<{
       transition={{ ...spring, delay: 0.12 }}
       className="card p-5"
     >
-      <div className="flex items-center justify-between">
-        <span className="label-eyebrow">Seller</span>
-        {isSelf && (
-          <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-accent-soft text-accent">
-            Your listing
-          </span>
-        )}
-      </div>
+      <span className="label-eyebrow">Seller</span>
       {/* Header — clickable */}
       <button
         onClick={onView}
         className="w-full flex items-center gap-3 p-2 -mx-2 mt-2 rounded-2xl hover:bg-subtle transition-colors group"
       >
-        <div className="relative w-12 h-12 rounded-2xl bg-accent text-on-accent grid place-items-center font-bold shrink-0 overflow-hidden">
+        <div className="w-12 h-12 rounded-2xl bg-accent text-on-accent grid place-items-center font-bold shrink-0 overflow-hidden">
           {avatar ? (
             <img src={avatar} alt="" className="w-full h-full object-cover" />
           ) : (
             <span className="text-[16px]">{initial}</span>
           )}
-          <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 ring-2 ring-surface" />
         </div>
         <div className="text-left min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <div className="text-[14.5px] font-bold text-ink truncate tracking-tight">{name}</div>
-            <span className="pill bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">Verified</span>
-          </div>
+          <div className="text-[14.5px] font-bold text-ink truncate tracking-tight">{name}</div>
           <div className="text-[11.5px] text-ink-muted font-medium mt-0.5">{memberSince}</div>
         </div>
         <ExternalLink
@@ -1577,13 +1185,6 @@ const SellerCard: React.FC<{
           <ChevronRight size={12} strokeWidth={2.6} />
         </motion.button>
       </div>
-
-      {/* Direct seller rating — only shown when the viewer is NOT the
-          seller (no self-rating). Rates the seller, not the listing,
-          and persists per-seller in localStorage. */}
-      {!isSelf && (
-        <SellerRatingWidget sellerKey={seller?.steamId || seller?.name || 'anon'} />
-      )}
     </motion.section>
   );
 };
@@ -1706,48 +1307,31 @@ const DetailsPanel: React.FC<{ item: any }> = ({ item }) => {
     floatNum != null && Number.isFinite(floatNum)
       ? Math.max(0, Math.min(1, floatNum)) * 100
       : null;
-  const stickers: any[] = Array.isArray(item.stickers) ? item.stickers : [];
-  const name = item.name || item.market_name || '';
-  const weapon = inferWeapon(name) || '—';
-  const skinName = inferBaseName(name) || '—';
-  const special =
-    item.special === 'stattrak'
-      ? 'StatTrak™'
-      : item.special === 'souvenir'
-      ? 'Souvenir'
-      : 'Normal';
-  const finish = item.finish || inferCategory(item.type) || '—';
-  const collection = item.collection || '—';
-
-  const tiles: Array<[string, string]> = [
-    ['Float', floatNum != null && Number.isFinite(floatNum) ? floatNum.toFixed(8) : '—'],
-    ['Paint seed', item.paintSeed != null ? `#${String(item.paintSeed)}` : '—'],
-    ['Pattern', item.patternTemplate != null ? String(item.patternTemplate) : '—'],
-    ['Paint index', item.paintIndex != null ? String(item.paintIndex) : '—'],
-    ['Def index', item.defIndex != null ? String(item.defIndex) : '—'],
-    ['Finish', finish],
-    ['Exterior', item.condition || 'Not Painted'],
-    ['Rarity', item.rarity || '—'],
-    ['Type', item.type || '—'],
-    ['Weapon', weapon],
-    ['Skin', skinName],
-    ['Quality', special],
-    ['Collection', collection],
-    ['Stickers', stickers.length > 0 ? `${stickers.length} applied` : 'None'],
-    ['Tradable', item.tradable === false ? 'No' : 'Yes'],
-    ['Marketable', item.marketable === false ? 'No' : 'Yes'],
-    ['Asset ID', item.asset_id || item.itemId || String(item.id || '—')],
+  /* Only the attributes buyers actually check — the exhaustive
+     18-tile dump (def index, asset id, marketable flags…) read as
+     noise. Tiles with no value are dropped entirely instead of
+     rendering a dash. */
+  const tiles: Array<[string, string]> = (
     [
-      'Listed',
-      item.listed_at
-        ? new Date(item.listed_at).toLocaleDateString(undefined, {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-          })
-        : '—',
-    ],
-  ];
+      ['Float', floatNum != null && Number.isFinite(floatNum) ? floatNum.toFixed(8) : null],
+      ['Paint seed', item.paintSeed != null ? `#${String(item.paintSeed)}` : null],
+      ['Pattern', item.patternTemplate != null ? String(item.patternTemplate) : null],
+      ['Exterior', item.condition || null],
+      ['Rarity', item.rarity || null],
+      ['Type', item.type || null],
+      ['Collection', item.collection || null],
+      [
+        'Listed',
+        item.listed_at
+          ? new Date(item.listed_at).toLocaleDateString(undefined, {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })
+          : null,
+      ],
+    ] as Array<[string, string | null]>
+  ).filter((t): t is [string, string] => t[1] != null);
 
   return (
     <section className="card p-5 md:p-6 space-y-5">
@@ -1953,412 +1537,6 @@ const TrustPanel: React.FC = () => (
       ))}
     </ol>
   </section>
-);
-
-/* ─────────────────────────────────────────────────────────────────────────
-   Similar Offers — table-style list with wear-range chips at the top
-   ───────────────────────────────────────────────────────────────────────── */
-
-const WEAR_BUCKETS = ['FN', 'MW', 'FT', 'WW', 'BS'] as const;
-type WearKey = typeof WEAR_BUCKETS[number];
-
-const WEAR_LABELS: Record<WearKey, string> = {
-  FN: 'Factory New',
-  MW: 'Minimal Wear',
-  FT: 'Field-Tested',
-  WW: 'Well-Worn',
-  BS: 'Battle-Scarred',
-};
-
-function wearOf(condition?: string): WearKey | null {
-  if (!condition) return null;
-  const c = condition.toLowerCase();
-  if (c.includes('factory new')) return 'FN';
-  if (c.includes('minimal wear')) return 'MW';
-  if (c.includes('field-tested') || c.includes('field tested')) return 'FT';
-  if (c.includes('well-worn') || c.includes('well worn')) return 'WW';
-  if (c.includes('battle-scarred') || c.includes('battle scarred')) return 'BS';
-  return null;
-}
-
-const SimilarOffersTable: React.FC<{
-  items: any[];
-  currentItem: any;
-  onView: (item: any) => void;
-  onAddCart: (item: any) => void;
-  formatPrice: (n: number) => string;
-}> = ({ items, currentItem, onView, onAddCart, formatPrice }) => {
-  const currentWear = wearOf(currentItem.condition);
-  const [activeWear, setActiveWear] = useState<WearKey | null>(currentWear);
-
-  // Min price per wear bucket
-  const bucketMins = useMemo(() => {
-    const map: Partial<Record<WearKey, number>> = {};
-    items.forEach((it) => {
-      const w = wearOf(it.condition);
-      if (!w) return;
-      const p = Number(it.price || 0);
-      if (!p) return;
-      if (map[w] == null || p < (map[w] as number)) map[w] = p;
-    });
-    return map;
-  }, [items]);
-
-  const filtered = useMemo(() => {
-    if (!activeWear) return items;
-    return items.filter((it) => wearOf(it.condition) === activeWear);
-  }, [items, activeWear]);
-
-  return (
-    <motion.section
-      initial={{ opacity: 0, y: 12 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '0px 0px -80px 0px' }}
-      transition={spring}
-      className="card p-5 md:p-6"
-    >
-      <div className="flex items-end justify-between flex-wrap gap-3 mb-4">
-        <div>
-          <span className="label-eyebrow">More listings</span>
-          <h2 className="text-[17px] font-bold tracking-tight text-ink mt-1.5 leading-none">
-            Similar offers
-          </h2>
-        </div>
-        {/* Wear bucket pills */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {WEAR_BUCKETS.map((w) => {
-            const min = bucketMins[w];
-            const active = activeWear === w;
-            const disabled = min == null;
-            return (
-              <motion.button
-                whileTap={tap}
-                key={w}
-                disabled={disabled}
-                onClick={() => setActiveWear(active ? null : w)}
-                className={`relative h-9 px-3 rounded-full text-[11.5px] font-bold tracking-tight transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                  active ? 'text-on-accent' : 'text-ink-muted hover:text-ink'
-                }`}
-              >
-                {active && (
-                  <motion.span
-                    layoutId="similar-wear-pill"
-                    className="absolute inset-0 rounded-full bg-accent"
-                    transition={spring}
-                  />
-                )}
-                <span className="relative inline-flex items-center gap-1.5">
-                  {w}
-                  <span className={`tabular-nums ${active ? 'text-on-accent/80' : 'text-ink-dim'}`}>
-                    {min != null ? formatPrice(min) : '—'}
-                  </span>
-                </span>
-              </motion.button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Header row */}
-      <div className="hidden md:grid grid-cols-[1.6fr_0.7fr_0.7fr_1fr_0.9fr_auto] gap-3 px-3 pb-2 text-[10.5px] font-bold uppercase tracking-wider text-ink-dim border-b border-line">
-        <span>Name</span>
-        <span>Pattern</span>
-        <span>Float</span>
-        <span>Stickers</span>
-        <span>Seller</span>
-        <span className="text-right pr-12">Price</span>
-      </div>
-
-      <ul className="divide-y divide-line">
-        {filtered.length === 0 ? (
-          <li className="py-10 text-center">
-            <p className="text-[13.5px] text-ink-muted font-medium">
-              No similar offers in that wear.
-            </p>
-          </li>
-        ) : (
-          filtered.slice(0, 8).map((r, i) => {
-            const isCurrent = String(r.id) === String(currentItem.id);
-            const color = rarityColor(r.rarity);
-            const stickers: string[] = Array.isArray(r.stickers) ? r.stickers : [];
-            return (
-              <motion.li
-                key={r.id}
-                initial={{ opacity: 0, y: 6 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ ...spring, delay: Math.min(i * 0.03, 0.18) }}
-                whileHover={{ x: 2 }}
-                className={`grid grid-cols-[1.6fr_auto] md:grid-cols-[1.6fr_0.7fr_0.7fr_1fr_0.9fr_auto] gap-3 items-center px-3 py-3 rounded-2xl hover:bg-subtle/50 transition-colors cursor-pointer ${
-                  isCurrent ? 'bg-accent-soft' : ''
-                }`}
-                onClick={() => onView(r)}
-              >
-                {/* Name + image */}
-                <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className="w-11 h-11 rounded-xl bg-subtle/60 grid place-items-center overflow-hidden shrink-0 relative"
-                  >
-                    <div
-                      className="absolute inset-0"
-                      style={{ background: `radial-gradient(circle at 50% 50%, ${color || 'rgb(var(--accent))'}22, transparent 65%)` }}
-                    />
-                    <CachedImage src={r.image} alt={r.name} className="relative w-[85%] h-[85%] object-contain" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[13.5px] font-bold text-ink truncate tracking-tight leading-tight">
-                      {r.name || r.market_name}
-                    </div>
-                    <div className="text-[11px] text-ink-dim font-semibold uppercase tracking-wider truncate">
-                      {r.rarity || 'Standard'}{r.condition ? ` · ${r.condition}` : ''}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Pattern */}
-                <div className="hidden md:block text-[12.5px] text-ink font-semibold tabular-nums">
-                  {r.patternTemplate ?? '—'}
-                </div>
-
-                {/* Float */}
-                <div className="hidden md:block text-[12.5px] text-ink font-mono">
-                  {r.float != null ? Number(r.float).toFixed(4) : '—'}
-                </div>
-
-                {/* Stickers */}
-                <div className="hidden md:flex items-center gap-1">
-                  {stickers.length === 0 ? (
-                    <span className="text-[12px] text-ink-dim">—</span>
-                  ) : (
-                    stickers.slice(0, 5).map((s, si) => (
-                      <span
-                        key={si}
-                        title={s}
-                        className="w-6 h-6 rounded-md bg-subtle grid place-items-center text-[9px] font-bold text-ink-dim"
-                      >
-                        {String(s).slice(0, 1).toUpperCase()}
-                      </span>
-                    ))
-                  )}
-                </div>
-
-                {/* Seller */}
-                <div className="hidden md:flex items-center gap-2 min-w-0">
-                  <div className="w-6 h-6 rounded-full bg-accent-soft grid place-items-center text-[10px] font-bold text-accent shrink-0">
-                    {r.seller?.name?.[0]?.toUpperCase() || 'A'}
-                  </div>
-                  <span className="text-[12.5px] text-ink-muted font-medium truncate">
-                    {r.seller?.name || 'Anonymous'}
-                  </span>
-                </div>
-
-                {/* Price + buy */}
-                <div className="flex items-center justify-end gap-2 shrink-0">
-                  <div className="text-right">
-                    <div className="text-[14px] font-bold text-ink tabular-nums tracking-tight">
-                      {formatPrice(r.price)}
-                    </div>
-                  </div>
-                  <motion.button
-                    whileTap={tap}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAddCart(r);
-                    }}
-                    className="h-9 px-3.5 rounded-full bg-accent text-on-accent text-[12px] font-bold inline-flex items-center gap-1.5 transition-colors"
-                  >
-                    Buy
-                  </motion.button>
-                </div>
-              </motion.li>
-            );
-          })
-        )}
-      </ul>
-    </motion.section>
-  );
-};
-
-/* ─────────────────────────────────────────────────────────────────────────
-   SteamDataStrip — compact metadata panel shown right below the item
-   header. Surfaces every attribute we can pull from Steam / CSFloat:
-
-     - Float value + linear scale visualising the wear
-     - Wear category (Factory New / Minimal Wear / …)
-     - Pattern index (paint seed) — critical for Doppler / Case Hardened
-     - Rarity + StatTrak flag
-     - Sticker count with a scrollable strip below
-     - Inspect-in-game deep link
-
-   Rendered as a 2-column grid on mobile and 4-column on desktop so
-   every metric is glanceable. Missing fields are hidden so the card
-   never shows blank rows.
-   ───────────────────────────────────────────────────────────────────────── */
-
-function wearCategoryFromFloat(f: number | null | undefined): string | null {
-  if (f == null || !Number.isFinite(Number(f))) return null;
-  const v = Number(f);
-  if (v < 0.07) return 'Factory New';
-  if (v < 0.15) return 'Minimal Wear';
-  if (v < 0.38) return 'Field-Tested';
-  if (v < 0.45) return 'Well-Worn';
-  return 'Battle-Scarred';
-}
-
-const SteamDataStrip: React.FC<{ item: any; stickers: any[] }> = ({ item, stickers }) => {
-  const floatVal =
-    item?.float != null ? Number(item.float) : null;
-  const paintSeed =
-    item?.paintSeed ?? item?.paint_seed ?? item?.patternTemplate ?? null;
-  const wearName = wearCategoryFromFloat(floatVal) || item?.condition || null;
-  const rarity = item?.rarity || null;
-  const inspectLink =
-    (item as any)?.inspectLink ?? (item as any)?.inspect_link ?? null;
-  const isStatTrak = item?.special === 'stattrak';
-
-  /* Nothing to show? Bail out so we don't render an empty card. */
-  const anyValue = floatVal != null || paintSeed != null || wearName || rarity || stickers.length > 0;
-  if (!anyValue) return null;
-
-  return (
-    <motion.section
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ ...spring, delay: 0.04 }}
-      className="card p-4 sm:p-5"
-    >
-      <div className="flex items-center justify-between mb-3">
-        <div className="label-eyebrow">Steam data</div>
-        {inspectLink && (
-          <a
-            href={inspectLink}
-            className="text-[11px] font-bold text-accent hover:opacity-80 transition-opacity inline-flex items-center gap-1"
-          >
-            Inspect in-game →
-          </a>
-        )}
-      </div>
-
-      {/* Float meter — full-width scale with the current value marked.
-          Only rendered when we actually have a float value. */}
-      {floatVal != null && (
-        <div className="mb-4">
-          <div className="flex items-baseline justify-between mb-1.5">
-            <span className="text-[11.5px] font-bold uppercase tracking-wider text-ink-muted">
-              Float value
-            </span>
-            <span className="text-[13px] font-bold text-ink font-mono tabular-nums">
-              {floatVal.toFixed(6)}
-            </span>
-          </div>
-          <div className="relative h-1.5 rounded-full overflow-hidden bg-subtle">
-            {/* Scale gradient matches Steam's colour code */}
-            <div
-              className="absolute inset-0"
-              style={{
-                background:
-                  'linear-gradient(to right, #3fbb52 0%, #3fbb52 7%, #dcdc41 7%, #dcdc41 15%, #dd8c1a 15%, #dd8c1a 38%, #dd4a1a 38%, #dd4a1a 45%, #b21f1f 45%, #b21f1f 100%)',
-              }}
-            />
-            {/* Position marker */}
-            <div
-              aria-hidden
-              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white border-2 border-ink shadow-md"
-              style={{
-                left: `calc(${Math.min(100, Math.max(0, floatVal * 100))}% - 6px)`,
-              }}
-            />
-          </div>
-          <div className="flex justify-between mt-1 text-[9.5px] font-bold text-ink-dim tabular-nums">
-            <span>0.00</span>
-            <span>0.07</span>
-            <span>0.15</span>
-            <span>0.38</span>
-            <span>0.45</span>
-            <span>1.00</span>
-          </div>
-        </div>
-      )}
-
-      {/* Attribute grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        {wearName && <SteamStat label="Wear" value={wearName} />}
-        {paintSeed != null && (
-          <SteamStat label="Pattern" value={`#${paintSeed}`} mono />
-        )}
-        {rarity && <SteamStat label="Rarity" value={rarity} />}
-        <SteamStat
-          label="StatTrak™"
-          value={isStatTrak ? 'Yes' : 'No'}
-          tone={isStatTrak ? 'orange' : 'muted'}
-        />
-        {stickers.length > 0 && (
-          <SteamStat label="Stickers" value={String(stickers.length)} mono />
-        )}
-      </div>
-
-      {/* Sticker strip — thumbnails + names, horizontally scrollable
-          on mobile to save vertical space. */}
-      {stickers.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-line">
-          <div className="label-eyebrow mb-2.5">Applied stickers</div>
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1">
-            {stickers.map((s: any, i: number) => (
-              <div
-                key={`${s.name || i}-${i}`}
-                className="card-flat p-2 flex flex-col items-center min-w-[100px] shrink-0"
-              >
-                {s.image ? (
-                  <img
-                    src={s.image}
-                    alt={s.name}
-                    className="w-10 h-10 object-contain"
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded bg-subtle grid place-items-center text-[9px] text-ink-dim">
-                    ?
-                  </div>
-                )}
-                <div className="text-[10px] font-bold text-ink text-center mt-1.5 leading-tight line-clamp-2">
-                  {s.name || 'Sticker'}
-                </div>
-                {s.wear != null && Number(s.wear) > 0 && (
-                  <div className="text-[9px] text-ink-muted font-semibold mt-0.5 tabular-nums">
-                    {(Number(s.wear) * 100).toFixed(0)}% wear
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </motion.section>
-  );
-};
-
-const SteamStat: React.FC<{
-  label: string;
-  value: string;
-  mono?: boolean;
-  tone?: 'muted' | 'orange';
-}> = ({ label, value, mono, tone }) => (
-  <div className="card-flat px-3 py-2.5">
-    <div className="label-meta">{label}</div>
-    <div
-      className={`text-[13px] font-bold tracking-tight leading-none mt-1 ${
-        mono ? 'font-mono' : ''
-      } ${
-        tone === 'orange'
-          ? 'text-orange-700 dark:text-orange-300'
-          : tone === 'muted'
-          ? 'text-ink-muted'
-          : 'text-ink'
-      }`}
-    >
-      {value}
-    </div>
-  </div>
 );
 
 export default ItemDetailPage;

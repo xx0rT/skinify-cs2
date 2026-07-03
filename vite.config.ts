@@ -22,12 +22,24 @@ export default defineConfig({
     },
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'framer-motion': ['framer-motion'],
-          'stores': ['zustand'],
-          'ui-libs': ['lucide-react'],
-          'charts': ['recharts'],
+        /* One shared vendor chunk instead of per-library splits.
+           The old object-form split (react-vendor / framer-motion /
+           stores / ui-libs) left transitive deps (scheduler,
+           use-sync-external-store…) in other chunks, creating circular
+           chunk imports that intermittently threw "Cannot access 'X'
+           before initialization" on load. recharts stays separate —
+           it's only pulled in by lazy-loaded pages, so the dependency
+           is strictly one-way (charts → vendor) and cycle-free. */
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined;
+          if (
+            id.includes('recharts') ||
+            id.includes('d3-') ||
+            id.includes('victory-vendor')
+          ) {
+            return 'charts';
+          }
+          return 'vendor';
         },
         assetFileNames: (assetInfo) => {
           const info = assetInfo.name.split('.');

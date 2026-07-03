@@ -55,6 +55,14 @@ const MessagesPage: React.FC = () => {
   const threadsMap = useDMStore((s) => s.threads);
   const markThreadRead = useDMStore((s) => s.markThreadRead);
   const deleteThread = useDMStore((s) => s.deleteThread);
+  const hydrateInbox = useDMStore((s) => s.hydrateInbox);
+
+  /* Pull the full inbox from the server as soon as the page opens so
+     every thread (and its latest preview) is already there — no
+     per-thread lazy loading while the user stares at a stale list. */
+  useEffect(() => {
+    hydrateInbox();
+  }, [hydrateInbox]);
 
   const threads = useMemo(
     () => Object.values(threadsMap).sort((a, b) => b.lastActivity - a.lastActivity),
@@ -66,9 +74,18 @@ const MessagesPage: React.FC = () => {
     if (peerFromUrl) setActivePeer(peerFromUrl);
   }, [peerFromUrl]);
 
-  /* Auto-select the first thread on initial load if none selected. */
+  /* Auto-select the first thread on initial load if none selected —
+     desktop only. The lg+ layout is a split view that looks broken
+     with an empty right pane; on mobile the inbox LIST is the landing
+     screen (Instagram-style) and auto-opening a chat would both hide
+     it and break the chat panel's back button. */
   useEffect(() => {
-    if (!activePeer && threads.length > 0) {
+    if (
+      !activePeer &&
+      threads.length > 0 &&
+      typeof window !== 'undefined' &&
+      window.matchMedia('(min-width: 1024px)').matches
+    ) {
       setActivePeer(threads[0].peerSteamId);
     }
   }, [activePeer, threads]);
@@ -104,18 +121,14 @@ const MessagesPage: React.FC = () => {
   const activeThread = threads.find((t) => t.peerSteamId === activePeer);
 
   return (
-    <div className="min-h-screen bg-bg text-ink flex flex-col">
+    <div className="lg:min-h-screen bg-bg text-ink flex flex-col">
       <LandingNav />
       {/* Top action row — page-level "back" so users on /messages can
           return to wherever they came from without going through the
-          profile sidebar. Hidden once a thread is open on mobile (the
-          chat panel has its own back button to close the thread, which
-          is the more contextual action there). */}
-      <div
-        className={`max-w-[1280px] w-full mx-auto px-3 sm:px-4 lg:px-6 pt-3 ${
-          activePeer ? 'hidden lg:block' : 'block'
-        }`}
-      >
+          profile sidebar. Desktop only: on mobile the page is a
+          full-height Instagram-style inbox and the bottom tab bar
+          handles navigation. */}
+      <div className="hidden lg:block max-w-[1280px] w-full mx-auto px-3 sm:px-4 lg:px-6 pt-3">
         <button
           onClick={() => navigate(-1)}
           className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink text-[13px] font-semibold transition-colors"
@@ -124,17 +137,25 @@ const MessagesPage: React.FC = () => {
           Back
         </button>
       </div>
+      {/* On <lg the main pane is FIXED between the top bar and the
+          bottom tab bar (.mobile-chat-viewport in index.css) — the page
+          itself physically cannot scroll; only the thread list / chat
+          log do. That keeps the peer name pinned on screen at all
+          times, Instagram-style. */}
       <main
-        className="max-w-[1280px] w-full mx-auto px-3 sm:px-4 lg:px-6 py-3 flex-1 grid gap-3 lg:grid-cols-[320px_1fr]"
-        style={{ minHeight: 'calc(100dvh - 96px)' }}
+        className="mobile-chat-viewport max-w-[1280px] w-full mx-auto lg:px-6 lg:py-3 flex flex-col lg:grid lg:gap-3 lg:grid-cols-[320px_1fr] lg:flex-1 lg:min-h-[calc(100dvh-96px)]"
       >
         {/* ─── Threads sidebar ─── */}
         <aside
-          className={`card flex flex-col overflow-hidden ${
+          className={`lg:card flex-col overflow-hidden flex-1 min-h-0 ${
             activePeer ? 'hidden lg:flex' : 'flex'
           }`}
         >
-          <div className="p-3 border-b border-line flex items-center gap-2">
+          {/* Mobile inbox title — Instagram-style header, always visible. */}
+          <div className="lg:hidden px-4 pt-3 pb-1 shrink-0">
+            <h1 className="text-[22px] font-bold tracking-tight leading-none">Messages</h1>
+          </div>
+          <div className="p-3 lg:border-b border-line flex items-center gap-2 shrink-0">
             <div className="flex-1 flex items-center gap-2 px-3 h-10 rounded-2xl bg-subtle focus-within:ring-2 focus-within:ring-accent/40 transition-shadow">
               <SearchIcon size={14} className="text-ink-muted shrink-0" />
               <input
@@ -150,13 +171,13 @@ const MessagesPage: React.FC = () => {
               )}
             </div>
           </div>
-          <ul className="flex-1 overflow-y-auto">
+          <ul className="flex-1 overflow-y-auto min-h-0">
             {filteredThreads.length === 0 ? (
               <li className="px-4 py-10 text-center text-[12.5px] text-ink-muted font-medium">
                 No conversations yet. Open a listing and tap "Message" to start one.
               </li>
             ) : (
-              filteredThreads.map((t) => {
+              filteredThreads.map((t, i) => {
                 const lastMsg = t.messages[t.messages.length - 1];
                 const unread = t.messages.filter((m) => !m.read).length;
                 const isActive = t.peerSteamId === activePeer;
@@ -167,6 +188,7 @@ const MessagesPage: React.FC = () => {
                     lastMsg={lastMsg}
                     unread={unread}
                     isActive={isActive}
+                    index={i}
                     onClick={() => setActivePeer(t.peerSteamId)}
                   />
                 );
@@ -177,7 +199,7 @@ const MessagesPage: React.FC = () => {
 
         {/* ─── Active conversation pane ─── */}
         <section
-          className={`card flex flex-col overflow-hidden min-h-0 ${
+          className={`lg:card flex-col overflow-hidden min-h-0 flex-1 ${
             activePeer ? 'flex' : 'hidden lg:flex'
           }`}
         >
@@ -226,8 +248,10 @@ const ThreadRow: React.FC<{
   lastMsg: DMMessage | undefined;
   unread: number;
   isActive: boolean;
+  index?: number;
   onClick: () => void;
-}> = ({ thread: t, lastMsg, unread, isActive, onClick }) => {
+}> = ({ thread: t, lastMsg, unread, isActive, index = 0, onClick }) => {
+  const navigate = useNavigate();
   const [avatar, setAvatar] = useState<string | null>(t.peerAvatar || null);
   const [presence, setPresence] = useState<'online' | 'recent' | 'away'>('away');
   const [lastSeen, setLastSeen] = useState<string | null>(null);
@@ -287,19 +311,45 @@ const ThreadRow: React.FC<{
     : 'bg-ink-dim';
 
   return (
-    <li>
-      <button
+    <motion.li
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ...spring, delay: Math.min(index * 0.04, 0.3) }}
+    >
+      {/* Row is a div (not a button) because the avatar inside is its
+          own tap target — tapping it opens the peer's profile while
+          tapping anywhere else opens the conversation. */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onClick}
-        className={`w-full text-left px-3 py-3 flex items-center gap-3 transition-colors border-l-2 ${
-          isActive ? 'bg-accent-soft border-l-accent' : 'border-l-transparent hover:bg-subtle/60'
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick();
+          }
+        }}
+        className={`w-full text-left px-4 lg:px-3 py-3 flex items-center gap-3 cursor-pointer transition-colors border-l-2 ${
+          isActive ? 'bg-accent-soft border-l-accent' : 'border-l-transparent hover:bg-subtle/60 active:bg-subtle/60'
         }`}
       >
-        <div className="relative w-11 h-11 rounded-2xl bg-accent text-on-accent grid place-items-center font-bold shrink-0 overflow-hidden">
-          {avatar ? (
-            <img src={avatar} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-[14px]">{initial}</span>
-          )}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/user/${t.peerSteamId}`);
+          }}
+          className="relative w-12 h-12 lg:w-11 lg:h-11 rounded-2xl bg-accent text-on-accent grid place-items-center font-bold shrink-0"
+          aria-label={`Open ${t.peerName}'s profile`}
+          title="View profile"
+        >
+          <span className="w-full h-full rounded-2xl overflow-hidden grid place-items-center">
+            {avatar ? (
+              <img src={avatar} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-[15px]">{initial}</span>
+            )}
+          </span>
           {/* Presence dot — bottom-right of the avatar */}
           <span
             className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-bg ${presenceColor}`}
@@ -311,10 +361,10 @@ const ThreadRow: React.FC<{
                 : 'Offline'
             }
           />
-        </div>
+        </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <div className="text-[13px] font-bold text-ink truncate tracking-tight">
+            <div className="text-[14px] lg:text-[13px] font-bold text-ink truncate tracking-tight">
               {t.peerName}
             </div>
             <div className="text-[10.5px] text-ink-dim tabular-nums shrink-0">
@@ -325,7 +375,7 @@ const ThreadRow: React.FC<{
             </div>
           </div>
           <div className="flex items-center justify-between gap-2 mt-0.5">
-            <div className="text-[11.5px] text-ink-muted truncate font-medium">
+            <div className="text-[12px] lg:text-[11.5px] text-ink-muted truncate font-medium">
               {presence === 'online'
                 ? 'Online'
                 : lastSeen
@@ -339,8 +389,8 @@ const ThreadRow: React.FC<{
             )}
           </div>
         </div>
-      </button>
-    </li>
+      </div>
+    </motion.li>
   );
 };
 
@@ -376,6 +426,7 @@ const ChatPanel: React.FC<{
   onBack: () => void;
   onDeleteThread: () => void;
 }> = ({ thread, onBack, onDeleteThread }) => {
+  const navigate = useNavigate();
   const { addToast } = useToastStore();
   const sendMessage = useDMStore((s) => s.sendMessage);
   const setTyping = useDMStore((s) => s.setTyping);
@@ -504,10 +555,17 @@ const ChatPanel: React.FC<{
         >
           <ArrowLeft size={15} strokeWidth={2.4} />
         </button>
-        {/* Avatar with an online-status dot on the bottom-right.
-            Wrapper is non-clipping so the dot bleeds past the avatar's
-            rounded corner; the inner div does the actual clipping. */}
-        <div className="relative shrink-0">
+        {/* Avatar + name are ONE tap target that opens the peer's
+            profile page — same affordance as Instagram DMs. The
+            wrapper is non-clipping so the presence dot bleeds past
+            the avatar's rounded corner; the inner div clips. */}
+        <button
+          type="button"
+          onClick={() => navigate(`/user/${thread.peerSteamId}`)}
+          className="relative shrink-0"
+          aria-label={`Open ${thread.peerName}'s profile`}
+          title="View profile"
+        >
           <div className="w-10 h-10 rounded-2xl bg-accent text-on-accent grid place-items-center font-bold overflow-hidden">
             {thread.peerAvatar ? (
               <img src={thread.peerAvatar} alt="" className="w-full h-full object-cover" />
@@ -521,11 +579,16 @@ const ChatPanel: React.FC<{
             }`}
             aria-label={peerOnline ? 'Online' : 'Offline'}
           />
-        </div>
+        </button>
         <div className="min-w-0 flex-1">
-          <div className="text-[14px] font-bold text-ink tracking-tight truncate leading-none">
+          <button
+            type="button"
+            onClick={() => navigate(`/user/${thread.peerSteamId}`)}
+            className="block max-w-full text-left text-[14px] font-bold text-ink tracking-tight truncate leading-none hover:underline underline-offset-2"
+            title="View profile"
+          >
             {thread.peerName}
-          </div>
+          </button>
           {/* Status line: `typing…` when the peer is broadcasting,
               `Online` when they're in the presence roster, else
               `Offline`. The 3-second TTL on typing lives inside

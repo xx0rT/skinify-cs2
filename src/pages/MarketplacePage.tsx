@@ -334,7 +334,7 @@ const MarketplacePage: React.FC = () => {
               marketplace. We keep a small listings-count line as the
               only inline label, and an `sr-only` H1 so the page still
               has a heading for screen readers + Google's parser. */}
-          <div>
+          <div className="hidden md:block">
             <h1 className="sr-only">CS2 Skin Marketplace</h1>
             <p className="text-[13px] sm:text-[14px] text-ink-muted font-medium">
               {loading
@@ -348,7 +348,102 @@ const MarketplacePage: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* ── Mobile toolbar — compact icon row per the skins.com
+                reference: [filters] [refresh] │ [⇅ Price ▾] │ [Category ▾].
+                The big search card is hidden on mobile (search lives in
+                the bottom tab bar), so this row is the only chrome above
+                the grid. */}
+          <div className="md:hidden w-full flex items-center gap-1">
+            <motion.button
+              whileTap={tap}
+              onClick={() => setFiltersOpen(true)}
+              className="relative w-10 h-10 grid place-items-center text-ink-muted active:text-ink transition-colors"
+              aria-label="Filters"
+            >
+              <SlidersHorizontal size={18} strokeWidth={2.2} />
+              {activeFilterCount > 0 && (
+                <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-accent text-on-accent text-[9.5px] font-bold grid place-items-center">
+                  {activeFilterCount}
+                </span>
+              )}
+            </motion.button>
+            <motion.button
+              whileTap={tap}
+              onClick={refetch}
+              className="w-10 h-10 grid place-items-center text-ink-muted active:text-ink transition-colors"
+              aria-label="Refresh"
+            >
+              <RefreshCw
+                size={17}
+                strokeWidth={2.2}
+                className={loading ? 'animate-spin' : ''}
+              />
+            </motion.button>
+
+            <span className="w-px h-5 bg-line mx-1" aria-hidden />
+
+            <div className="relative">
+              <motion.button
+                whileTap={tap}
+                onClick={() => setSortMenu((v) => !v)}
+                className="h-10 px-2 flex items-center gap-1.5 text-[14px] font-semibold text-ink"
+                aria-label="Sort"
+              >
+                <ArrowUpDown size={15} strokeWidth={2.2} className="text-ink-muted" />
+                <span>
+                  {sort === 'newest' ? 'Newest' : sort.startsWith('price') ? 'Price' : 'Float'}
+                </span>
+                <ChevronDown
+                  size={14}
+                  strokeWidth={2.2}
+                  className={`text-ink-muted transition-transform ${sortMenu ? 'rotate-180' : ''}`}
+                />
+              </motion.button>
+              <AnimatePresence>
+                {sortMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                    transition={{ duration: 0.16 }}
+                    className="card-elevated absolute left-0 mt-2 w-60 p-1.5 z-30"
+                  >
+                    {SORT_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.key}
+                        onClick={() => {
+                          setSort(opt.key);
+                          setSortMenu(false);
+                        }}
+                        className={`w-full h-10 px-3 rounded-2xl text-left text-[13px] font-semibold flex items-center justify-between transition-colors ${
+                          sort === opt.key
+                            ? 'bg-accent-soft text-ink'
+                            : 'text-ink-muted hover:bg-subtle hover:text-ink'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <span className="w-px h-5 bg-line mx-1" aria-hidden />
+
+            <motion.button
+              whileTap={tap}
+              onClick={() => navigate('/weapons')}
+              className="h-10 px-2 flex items-center gap-1.5 text-[14px] font-semibold text-ink"
+              aria-label="Browse categories"
+            >
+              <RefreshCw size={15} strokeWidth={2.2} className="text-ink-muted" />
+              <span>Category</span>
+              <ChevronDown size={14} strokeWidth={2.2} className="text-ink-muted" />
+            </motion.button>
+          </div>
+
+          <div className="hidden md:flex items-center gap-2">
             {/* Categories funnel entry — All categories → Category → Weapon → Skins */}
             <motion.button
               whileTap={tap}
@@ -471,7 +566,7 @@ const MarketplacePage: React.FC = () => {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...spring, delay: 0.06 }}
-          className="card p-2 mb-4 flex items-center gap-2"
+          className="card p-2 mb-4 hidden md:flex items-center gap-2"
         >
           <div className="flex-1 flex items-center gap-3 px-4 h-12">
             <Search size={18} strokeWidth={2} className="text-ink-muted shrink-0" />

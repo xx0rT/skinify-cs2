@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useMemo } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
@@ -6,6 +6,7 @@ import {
   Bell,
   ChevronRight,
   CreditCard,
+  FileCheck,
   Gift,
   MessageCircle,
   LayoutGrid,
@@ -17,6 +18,7 @@ import {
   Users,
   Wallet,
 } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
 import { useAuthStore } from '../store/authStore';
 import { useBalanceStore } from '../store/balanceStore';
 import { useOrderStore } from '../store/orderStore';
@@ -276,6 +278,19 @@ const ProfilePage: React.FC = () => {
     fetchOrders(user.steamId);
   }, [user?.steamId]);
 
+  /* Joined date for the mobile profile card — read once from the
+     users row; silently absent when the row doesn't exist yet. */
+  const [joinedAt, setJoinedAt] = useState<string | null>(null);
+  useEffect(() => {
+    if (!user?.steamId) return;
+    supabase
+      .from('users')
+      .select('created_at')
+      .eq('steam_id', user.steamId)
+      .maybeSingle()
+      .then(({ data }) => setJoinedAt(data?.created_at ?? null));
+  }, [user?.steamId]);
+
   /* ───── Logged-out state ───── */
   if (!user) {
     return (
@@ -321,7 +336,7 @@ const ProfilePage: React.FC = () => {
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={spring}
-          className="card p-4 sm:p-6 md:p-7 mb-3 sm:mb-4 relative overflow-hidden"
+          className="hidden lg:block card p-4 sm:p-6 md:p-7 mb-3 sm:mb-4 relative overflow-hidden"
         >
           <motion.div
             aria-hidden
@@ -394,27 +409,58 @@ const ProfilePage: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* ── Layout: sidebar nav (lg+) / horizontal pill scroller (<lg) + content ── */}
+        {/* ── Mobile tab strip (<lg) — underline tabs with icons, per the
+              skins.com reference. Scrolls horizontally; the active tab
+              gets an accent underline. Sticky under the mobile top bar. */}
+        <div className="lg:hidden sticky sticky-below-topbar z-20 -mx-3 sm:-mx-6 px-4 sm:px-6 mb-4 bg-bg border-b border-line overflow-x-auto scrollbar-hide">
+          <nav className="flex gap-6 min-w-max" aria-label="Profile sections">
+            {TABS.map((t) => {
+              const active = activeTab === t.id;
+              const Icon = t.icon;
+              const badgeCount =
+                t.badge === 'messages' ? messagesUnread :
+                t.badge === 'notifications' ? notificationUnread : 0;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => t.navigate ? navigate(t.navigate) : setActiveTab(t.id)}
+                  className={`relative flex items-center gap-2 py-3.5 shrink-0 transition-colors ${
+                    active ? 'text-ink' : 'text-ink-muted'
+                  }`}
+                >
+                  <Icon size={16} strokeWidth={active ? 2.4 : 2} />
+                  <span className="text-[14px] font-semibold tracking-tight whitespace-nowrap">
+                    {t.id === 'overview' ? 'Profile' : t.label}
+                  </span>
+                  {badgeCount > 0 && (
+                    <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold grid place-items-center tabular-nums">
+                      {badgeCount > 99 ? '99+' : badgeCount}
+                    </span>
+                  )}
+                  {active && (
+                    <motion.span
+                      layoutId="profile-mobile-tab-underline"
+                      className="absolute bottom-0 left-0 right-0 h-[2.5px] rounded-full bg-accent"
+                      transition={spring}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* ── Layout: sidebar nav (lg+) + content ── */}
         <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
-          {/*
-            Tab nav.
-            On lg+ : vertical list in a sticky card sidebar (classic dashboard).
-            On <lg : horizontal scrolling pill bar — same buttons, laid out
-                     left-to-right with `flex` and `overflow-x-auto`. The
-                     `lg:flex-col` + `lg:overflow-y-auto` switch handles both
-                     modes with one nav node.
-          */}
+          {/* Tab nav — vertical list in a sticky card sidebar (lg+ only;
+              mobile uses the underline strip above). */}
           <motion.aside
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={spring}
-            /* Sticky on every breakpoint so the user can jump tabs from
-               anywhere on the page. Horizontal pill scroller on <lg
-               (pins under the page top), vertical card on lg+ (pins
-               below the LandingNav). */
-            className="card lg:p-2 p-1.5 self-start sticky top-14 lg:top-24 z-20 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto overflow-x-auto scrollbar-hide"
+            className="hidden lg:block card p-2 self-start sticky top-24 z-20 max-h-[calc(100vh-7rem)] overflow-y-auto"
           >
-            <nav className="flex lg:flex-col gap-1 lg:gap-0.5">
+            <nav className="flex flex-col gap-0.5">
               {TABS.map((t) => {
                 const active = activeTab === t.id;
                 const Icon = t.icon;
@@ -426,7 +472,7 @@ const ProfilePage: React.FC = () => {
                     whileTap={tap}
                     key={t.id}
                     onClick={() => t.navigate ? navigate(t.navigate) : setActiveTab(t.id)}
-                    className={`relative h-10 lg:h-11 px-3 rounded-2xl flex items-center gap-2.5 lg:gap-3 transition-colors text-left shrink-0 lg:w-full lg:shrink ${
+                    className={`relative h-11 px-3 rounded-2xl flex items-center gap-3 transition-colors text-left w-full ${
                       active ? 'text-ink' : 'text-ink-muted hover:bg-subtle hover:text-ink'
                     }`}
                   >
@@ -445,18 +491,18 @@ const ProfilePage: React.FC = () => {
                       // the parent button.
                       className={`relative shrink-0 ${active ? 'text-accent' : ''}`}
                     />
-                    <span className="relative text-[13px] lg:text-[13.5px] font-semibold tracking-tight whitespace-nowrap lg:flex-1">
+                    <span className="relative text-[13.5px] font-semibold tracking-tight whitespace-nowrap flex-1">
                       {t.label}
                     </span>
                     {badgeCount > 0 && (
-                      <span className="relative ml-auto lg:ml-0 min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[10.5px] font-bold grid place-items-center tabular-nums">
+                      <span className="relative min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[10.5px] font-bold grid place-items-center tabular-nums">
                         {badgeCount > 99 ? '99+' : badgeCount}
                       </span>
                     )}
                     {active && !badgeCount && (
                       <ChevronRight
                         size={14}
-                        className="relative text-ink-muted hidden lg:block"
+                        className="relative text-ink-muted"
                       />
                     )}
                   </motion.button>
@@ -490,6 +536,8 @@ const ProfilePage: React.FC = () => {
                     recentOrders={orders?.slice(0, 4) || []}
                     onGoTo={setActiveTab}
                     formatPrice={formatPrice}
+                    user={user}
+                    joinedAt={joinedAt}
                   />
                 )}
 
@@ -635,13 +683,118 @@ const OverviewTab: React.FC<{
   recentOrders: any[];
   onGoTo: (t: TabId, sub?: string) => void;
   formatPrice: (n: number) => string;
-}> = ({ balance, pendingBalance, totalDeposited, totalSpent, ordersCount, recentOrders, onGoTo, formatPrice }) => {
+  user: { displayName?: string; avatarUrl?: string; steamLinked?: boolean };
+  joinedAt: string | null;
+}> = ({ balance, pendingBalance, totalDeposited, totalSpent, ordersCount, recentOrders, onGoTo, formatPrice, user, joinedAt }) => {
   const earned = Math.max(0, balance + pendingBalance - totalDeposited + totalSpent);
 
   return (
     <div className="space-y-4">
+      {/* ── Mobile profile view (<lg) — clean skins.com-style stack:
+            heading, user card, identity verification, account section.
+            The dense performance/quick-action cards stay desktop-only. */}
+      <div className="lg:hidden space-y-4">
+        <h2 className="text-[26px] font-bold tracking-tight leading-none">Profile</h2>
+
+        {/* User card */}
+        <div className="card p-4 relative overflow-hidden">
+          <div
+            aria-hidden
+            className="absolute inset-0 pointer-events-none opacity-[0.05]"
+            style={{
+              backgroundImage:
+                'radial-gradient(rgb(var(--ink)) 1px, transparent 1px)',
+              backgroundSize: '14px 14px',
+            }}
+          />
+          <div className="relative flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-accent text-on-accent grid place-items-center overflow-hidden font-bold text-[17px] shrink-0">
+              {user.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt={user.displayName || 'avatar'}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                (user.displayName || 'U').charAt(0).toUpperCase()
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className="text-[16px] font-bold text-ink tracking-tight truncate">
+                {user.displayName || 'Trader'}
+              </div>
+              <div className="text-[12.5px] text-ink-muted font-medium mt-0.5">
+                {joinedAt
+                  ? `Joined ${new Date(joinedAt).toLocaleDateString(undefined, {
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}`
+                  : 'Skinify trader'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Identity verification */}
+        <div className="card p-5">
+          <div className="flex items-start gap-3.5">
+            <span className="icon-chip bg-accent-soft shrink-0">
+              <FileCheck size={18} strokeWidth={2.2} className="text-accent" />
+            </span>
+            <div className="min-w-0">
+              <div className="label-eyebrow">Identity Verification</div>
+              <p className="text-[13.5px] text-ink-muted font-medium mt-1.5">
+                Complete KYC to enjoy limitless trading.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onGoTo('settings')}
+            className="mt-4 w-full h-11 rounded-xl bg-subtle active:bg-bg text-ink text-[14px] font-bold transition-colors"
+          >
+            Complete
+          </button>
+        </div>
+
+        {/* Your account */}
+        <div>
+          <div className="label-eyebrow mb-2 mt-6">Your account</div>
+          <div className="card p-5">
+            <div className="flex items-start gap-3.5">
+              <span className="icon-chip shrink-0">
+                <Users size={18} strokeWidth={2.2} className="text-ink-muted" />
+              </span>
+              <div className="min-w-0">
+                <div className="label-eyebrow">Steam</div>
+                <p className="text-[13.5px] text-ink-muted font-medium mt-1.5">
+                  {user.steamLinked
+                    ? 'Your Steam account is linked — P2P trading unlocked.'
+                    : 'Link your Steam account to unlock P2P trading.'}
+                </p>
+              </div>
+            </div>
+            {user.steamLinked ? (
+              <div className="mt-4 w-full h-11 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[14px] font-bold grid place-items-center">
+                Linked
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onGoTo('settings')}
+                className="mt-4 w-full h-11 rounded-xl bg-subtle active:bg-bg text-ink text-[14px] font-bold transition-colors"
+              >
+                Link
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Performance + Quick links */}
-      <div className="grid lg:grid-cols-[1.4fr_1fr] gap-4">
+      <div className="hidden lg:grid lg:grid-cols-[1.4fr_1fr] gap-4">
         <motion.div variants={staggerChild} initial="hidden" animate="shown" className="card p-5 md:p-6 flex flex-col">
           <div className="flex items-end justify-between mb-4">
             <div>
@@ -721,8 +874,9 @@ const OverviewTab: React.FC<{
         </motion.div>
       </div>
 
-      {/* Recent orders */}
-      <motion.div variants={staggerChild} initial="hidden" animate="shown" className="card p-5 md:p-6">
+      {/* Recent orders — desktop only; the mobile overview stays a clean
+          profile card per the reference (orders live under Trades). */}
+      <motion.div variants={staggerChild} initial="hidden" animate="shown" className="hidden lg:block card p-5 md:p-6">
         <div className="flex items-end justify-between mb-4 flex-wrap gap-3">
           <div>
             <span className="label-eyebrow">Activity</span>

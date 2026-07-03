@@ -97,6 +97,9 @@ const LANDING_FAQ = [
 ];
 
 const LandingPage: React.FC = () => {
+  const langCode = useTranslationStore((s) => s.currentLanguage.code);
+  const isCS = langCode === 'cs';
+
   useDocumentMeta({
     title: isCS
       ? 'Skinify — Tržiště CS2 · 0% poplatek pro kupující · Okamžité obchody'
@@ -117,8 +120,6 @@ const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const t = useT();
   const { user } = useAuthStore();
-  const langCode = useTranslationStore((s) => s.currentLanguage.code);
-  const isCS = langCode === 'cs';
   const { addToast } = useToastStore();
   const { addItem } = useCartStore();
   const { toggleItem, isInWishlist, fetchWishlist } = useWishlistStore();

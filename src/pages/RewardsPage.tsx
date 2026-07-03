@@ -141,14 +141,8 @@ const RewardsPage: React.FC = () => {
                   initial={{ width: 0 }}
                   animate={{ width: '42%' }}
                   transition={{ duration: 1.3, ease: [0.6, 0.05, 0.2, 1], delay: 0.3 }}
-                  className="h-full bg-accent rounded-full relative"
-                >
-                  <motion.div
-                    className="absolute inset-0 bg-white/20"
-                    animate={{ x: ['-100%', '200%'] }}
-                    transition={{ duration: 2.4, repeat: Infinity, ease: 'linear', delay: 1.6 }}
-                  />
-                </motion.div>
+                  className="h-full bg-accent rounded-full"
+                />
               </div>
             </div>
 

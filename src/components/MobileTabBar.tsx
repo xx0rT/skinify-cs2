@@ -102,7 +102,20 @@ const TabButton: React.FC<{
 
   const inner = (
     <>
-      <div className="relative">
+      {/* Soft pill glides between tabs via a shared layoutId. */}
+      {active && (
+        <motion.span
+          layoutId="mobile-tabbar-pill"
+          className="absolute inset-x-2 inset-y-0.5 rounded-2xl bg-accent-soft"
+          transition={spring}
+          aria-hidden
+        />
+      )}
+      <motion.div
+        className="relative"
+        animate={active ? { scale: 1.1, y: -1 } : { scale: 1, y: 0 }}
+        transition={spring}
+      >
         <Icon
           size={22}
           strokeWidth={active ? 2.4 : 2}
@@ -113,9 +126,9 @@ const TabButton: React.FC<{
             {badge > 9 ? '9+' : badge}
           </span>
         ) : null}
-      </div>
+      </motion.div>
       <span
-        className={`text-[11px] font-semibold tracking-tight ${labelColor} transition-colors`}
+        className={`relative text-[11px] font-semibold tracking-tight ${labelColor} transition-colors`}
       >
         {label}
       </span>
@@ -126,7 +139,7 @@ const TabButton: React.FC<{
      reference. Each cell is full-width inside its grid track so the
      tap target is comfortably large even on small phones. */
   const cls =
-    'flex flex-col items-center justify-center gap-1 py-2 rounded-2xl active:bg-subtle/60 transition-colors';
+    'relative flex flex-col items-center justify-center gap-1 py-2 rounded-2xl active:bg-subtle/60 transition-colors';
 
   if (to) {
     return (

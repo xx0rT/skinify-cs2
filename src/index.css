@@ -182,7 +182,7 @@ body {
 }
 
 /* Mobile chrome clearance:
-     - Top: 48px for the MobileTopBar + the iOS safe-area inset so
+     - Top: 56px for the MobileTopBar + the iOS safe-area inset so
        the bar can dock against the dynamic island / notch without
        overlapping anything.
      - Bottom: 80px for the MobileTabBar + safe-area inset.
@@ -190,8 +190,29 @@ body {
    keep their own pb-32 to layer above this. */
 @media (max-width: 1023px) {
   body {
-    padding-top: calc(env(safe-area-inset-top) + 48px);
+    padding-top: calc(env(safe-area-inset-top) + 56px);
     padding-bottom: calc(env(safe-area-inset-bottom) + 80px);
+  }
+
+  /* Full-viewport chat shell for /messages. Fixed positioning pins
+     the inbox/chat between the top bar and the bottom tab bar, which
+     makes page-level scrolling impossible — only the thread list and
+     the message log scroll internally (Instagram-style). */
+  .mobile-chat-viewport {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: calc(env(safe-area-inset-top) + 56px);
+    bottom: calc(env(safe-area-inset-bottom) + 76px);
+    height: auto;
+    z-index: 20;
+    background: rgb(var(--bg));
+  }
+
+  /* Sticky helper — anything that should pin directly below the fixed
+     MobileTopBar (breadcrumbs, tab strips) uses this offset. */
+  .sticky-below-topbar {
+    top: calc(env(safe-area-inset-top) + 56px);
   }
 }
 
