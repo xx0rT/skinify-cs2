@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useT } from '../lib/useT';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -138,6 +139,7 @@ const ISSUES: Issue[] = [
 ];
 
 const SupportPage: React.FC = () => {
+  const tr = useT();
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
@@ -165,15 +167,64 @@ const SupportPage: React.FC = () => {
       addToast({ type: 'error', title: 'Missing info', message: 'Add a subject and message before submitting.' });
       return;
     }
+    if (!user) {
+      addToast({ type: 'warning', title: 'Login required', message: 'Sign in to open a support ticket.' });
+      navigate('/auth/signin');
+      return;
+    }
     setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 700));
-    addToast({
-      type: 'success',
-      title: 'Ticket submitted',
-      message: 'We\'ll reply within 4 hours on average.',
-    });
-    setForm({ subject: '', message: '' });
-    setSubmitting(false);
+    try {
+      /* Tickets reference users.id (uuid) — resolve it from the Steam
+         ID the auth store carries. Same pattern as /tickets. */
+      const { supabase } = await import('../lib/supabaseClient');
+      const { data: userRow } = await supabase
+        .from('users')
+        .select('id')
+        .eq('steam_id', user.steamId)
+        .maybeSingle();
+      if (!userRow?.id) {
+        addToast({ type: 'error', title: 'Account not found', message: 'Try re-logging and submitting again.' });
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('support_tickets')
+        .insert([
+          {
+            user_id: userRow.id,
+            subject: form.subject.trim(),
+            description: form.message.trim(),
+            category: 'other',
+            priority: 'medium',
+          },
+        ])
+        .select()
+        .single();
+      if (error) throw error;
+
+      /* Brevo confirmation — fire-and-forget. */
+      if (user.email && data?.id) {
+        import('../utils/emailService').then(({ sendTicketCreatedEmail }) =>
+          sendTicketCreatedEmail({
+            to: user.email!,
+            ticketSubject: form.subject.trim(),
+            ticketId: String(data.id),
+          }),
+        );
+      }
+
+      addToast({
+        type: 'success',
+        title: 'Ticket submitted',
+        message: "We'll reply within 4 hours on average. Track it under My tickets.",
+      });
+      setForm({ subject: '', message: '' });
+      navigate('/tickets');
+    } catch (e: any) {
+      addToast({ type: 'error', title: 'Could not submit', message: e?.message || 'Try again in a moment.' });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -210,25 +261,24 @@ const SupportPage: React.FC = () => {
               <div className="icon-chip-lg bg-accent-soft">
                 <LifeBuoy size={22} className="text-accent" />
               </div>
-              <span className="label-eyebrow">Support center</span>
+              <span className="label-eyebrow">{tr('support.hero.eyebrow', 'Support center')}</span>
             </div>
             <h1 className="text-[28px] sm:text-[40px] font-bold tracking-tight leading-tight">
-              We're here when<br className="hidden sm:block" /> something breaks.
+              {tr('support.hero.title', "We're here when something breaks.")}
             </h1>
             <p className="text-[14px] sm:text-[15px] text-ink-muted font-medium mt-3 max-w-[520px] leading-relaxed">
-              Search common issues, open a ticket, or chat with us live. Trade-blocking issues get a dedicated
-              queue with a 30-minute SLA.
+              {tr('support.hero.lead', 'Search common issues, open a ticket, or chat with us live. Trade-blocking issues get a dedicated queue with a 30-minute SLA.')}
             </p>
             <div className="mt-6 flex flex-wrap gap-2">
               <motion.button
                 whileTap={tap}
                 whileHover={{ scale: 1.02 }}
-                onClick={() => addToast({ type: 'info', title: 'Live chat', message: 'Opening chat — agent will join shortly.' })}
+                onClick={() => navigate('/tickets')}
                 className="h-12 px-5 rounded-full bg-accent text-on-accent font-bold text-[14px] inline-flex items-center gap-2"
                 style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.6)' }}
               >
                 <MessageCircle size={15} strokeWidth={2.4} />
-                Start live chat
+                Open a ticket
               </motion.button>
               <motion.a
                 whileTap={tap}
@@ -299,7 +349,7 @@ const SupportPage: React.FC = () => {
         >
           <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
             <div>
-              <span className="label-eyebrow">Common issues</span>
+              <span className="label-eyebrow">{tr('support.common.eyebrow', 'Common issues')}</span>
               <h2 className="text-[18px] font-bold tracking-tight mt-1.5 leading-none">
                 {filtered.length} {filtered.length === 1 ? 'article' : 'articles'}
               </h2>
@@ -401,9 +451,9 @@ const SupportPage: React.FC = () => {
         >
           <div className="grid md:grid-cols-[1fr_1.2fr] gap-6 md:gap-10">
             <div>
-              <span className="label-eyebrow">Still stuck?</span>
+              <span className="label-eyebrow">{tr('support.stuck.eyebrow', 'Still stuck?')}</span>
               <h2 className="text-[20px] sm:text-[24px] font-bold tracking-tight mt-1.5 leading-tight">
-                Open a ticket
+                {tr('support.stuck.title', 'Open a ticket')}
               </h2>
               <p className="text-[13px] text-ink-muted font-medium mt-2.5 leading-relaxed max-w-[280px]">
                 A human reads every message. Be specific — include order IDs,

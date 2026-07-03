@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
+import { sendTicketCreatedEmail } from '../utils/emailService';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
@@ -54,21 +55,61 @@ const SupportTicketsPage: React.FC = () => {
     priority: 'medium'
   });
 
+  /* The tickets tables reference users.id (uuid) but the auth store
+     only carries the Steam ID, so `user.id` was always undefined and
+     every insert/select silently failed. Resolve the users-row uuid
+     once per session and key all queries off it. */
+  const [dbUserId, setDbUserId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        if (user.steamId) {
+          const { data } = await supabase
+            .from('users')
+            .select('id')
+            .eq('steam_id', user.steamId)
+            .maybeSingle();
+          if (!cancelled && data?.id) {
+            setDbUserId(data.id);
+            return;
+          }
+        }
+        const authUserId = (user as any).authUserId;
+        if (authUserId) {
+          const { data } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', authUserId)
+            .maybeSingle();
+          if (!cancelled && data?.id) setDbUserId(data.id);
+        }
+      } catch (e) {
+        console.error('[support] failed to resolve user id:', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.steamId]);
+
   useEffect(() => {
     if (!user) {
       navigate('/');
       return;
     }
-    fetchTickets();
-  }, [user, filterStatus]);
+    if (dbUserId) fetchTickets();
+  }, [user, dbUserId, filterStatus]);
 
   const fetchTickets = async () => {
+    if (!dbUserId) return;
     try {
       setLoading(true);
       let query = supabase
         .from('support_tickets')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', dbUserId)
         .order('created_at', { ascending: false });
 
       if (filterStatus !== 'all') {
@@ -111,13 +152,17 @@ const SupportTicketsPage: React.FC = () => {
       addToast('Please fill in all fields', 'error');
       return;
     }
+    if (!dbUserId) {
+      addToast('Your account is still loading — try again in a second.', 'error');
+      return;
+    }
 
     try {
       const { data, error } = await supabase
         .from('support_tickets')
         .insert([
           {
-            user_id: user?.id,
+            user_id: dbUserId,
             subject: newTicket.subject,
             description: newTicket.description,
             category: newTicket.category,
@@ -129,18 +174,29 @@ const SupportTicketsPage: React.FC = () => {
 
       if (error) throw error;
 
+      /* Confirmation email via Brevo — fire-and-forget so a mail
+         hiccup never blocks ticket creation. Only when the account
+         has an email on file (Steam-only accounts may not). */
+      if (user?.email && data?.id) {
+        sendTicketCreatedEmail({
+          to: user.email,
+          ticketSubject: newTicket.subject,
+          ticketId: String(data.id),
+        });
+      }
+
       addToast('Support ticket created successfully', 'success');
       setShowCreateModal(false);
       setNewTicket({ subject: '', description: '', category: 'other', priority: 'medium' });
       fetchTickets();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating ticket:', error);
-      addToast('Failed to create ticket', 'error');
+      addToast(error?.message || 'Failed to create ticket', 'error');
     }
   };
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedTicket) return;
+    if (!newMessage.trim() || !selectedTicket || !dbUserId) return;
 
     try {
       setSendingMessage(true);
@@ -149,7 +205,7 @@ const SupportTicketsPage: React.FC = () => {
         .insert([
           {
             ticket_id: selectedTicket.id,
-            user_id: user?.id,
+            user_id: dbUserId,
             message: newMessage.trim(),
             is_staff_reply: false
           }

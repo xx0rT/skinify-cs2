@@ -330,7 +330,7 @@ const ItemDetailPage: React.FC = () => {
       <div className="min-h-screen bg-bg text-ink">
         <LandingNav />
         <main className="max-w-[1480px] mx-auto px-4 sm:px-6 pt-4 pb-16">
-          <div className="card p-16 text-center mt-12 max-w-xl mx-auto">
+          <div className="panel p-16 text-center mt-12 max-w-xl mx-auto">
             <p className="text-[16px] font-bold text-ink">Listing not found</p>
             <p className="text-[13px] text-ink-muted font-medium mt-1.5">
               This item may have sold or been removed.
@@ -488,84 +488,99 @@ const ItemDetailPage: React.FC = () => {
         <div className="grid lg:grid-cols-[1fr_420px] gap-4">
           {/* ════════════ LEFT ════════════ */}
           <div className="space-y-4 min-w-0">
-            {/* Hero */}
+            {/* Hero — flat panel (no border), dotted texture like the
+                skins.com product frame. Float readout rides the top-left
+                corner; wishlist/share top-right. */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={spring}
-              className="card p-6 md:p-10 relative overflow-hidden"
+              className="panel p-6 md:p-8 relative overflow-hidden"
             >
-              {/* Single rarity-tinted top-stripe — no animated bubbles */}
               <div
-                className="absolute top-0 left-0 right-0 h-[3px]"
-                style={{ background: `linear-gradient(90deg, ${color}, ${color}66 60%, transparent)` }}
                 aria-hidden
+                className="absolute inset-0 pointer-events-none opacity-[0.05]"
+                style={{
+                  backgroundImage:
+                    'radial-gradient(rgb(var(--ink)) 1px, transparent 1px)',
+                  backgroundSize: '22px 22px',
+                }}
               />
+
+              {/* Float readout — value + mini wear scale, top-left */}
+              {enrichedItem.float != null && Number.isFinite(Number(enrichedItem.float)) && (
+                <div className="absolute top-5 left-5 md:top-6 md:left-6 flex items-center gap-2.5 z-10">
+                  <span className="text-[13px] font-bold font-mono tabular-nums text-ink">
+                    {Number(enrichedItem.float).toFixed(3)}
+                  </span>
+                  <span className="relative w-[120px] h-[3px] rounded-full overflow-hidden hidden sm:block">
+                    <span
+                      className="absolute inset-0"
+                      style={{
+                        background:
+                          'linear-gradient(90deg, #38bdf8 0%, #22c55e 25%, #eab308 55%, #f97316 78%, #ef4444 100%)',
+                      }}
+                    />
+                    <span
+                      className="absolute -top-[3.5px] w-2 h-2 rounded-full bg-white shadow"
+                      style={{
+                        left: `calc(${Math.min(100, Math.max(0, Number(enrichedItem.float) * 100))}% - 4px)`,
+                        top: '-2.5px',
+                      }}
+                    />
+                  </span>
+                </div>
+              )}
+
+              {/* Wishlist / share — top-right */}
+              <div className="absolute top-4 right-4 md:top-5 md:right-5 flex items-center gap-1 z-10">
+                <motion.button
+                  whileTap={tap}
+                  onClick={() => handleWish(item)}
+                  aria-label="Wishlist"
+                  className="w-10 h-10 grid place-items-center text-ink-muted hover:text-ink transition-colors"
+                >
+                  <Heart
+                    size={18}
+                    strokeWidth={wished ? 2.4 : 2}
+                    className={wished ? 'fill-accent text-accent' : ''}
+                  />
+                </motion.button>
+                <motion.button
+                  whileTap={tap}
+                  onClick={copyLink}
+                  aria-label="Share"
+                  className="w-10 h-10 grid place-items-center text-ink-muted hover:text-ink transition-colors"
+                >
+                  {copied ? (
+                    <Check size={16} strokeWidth={2.4} className="text-emerald-600 dark:text-emerald-400" />
+                  ) : (
+                    <Share2 size={16} strokeWidth={2} />
+                  )}
+                </motion.button>
+              </div>
 
               <HeroImage src={enrichedItem.image} alt={name} />
 
-              <div className="relative mt-6 flex flex-wrap items-end justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span
-                      className="w-2 h-2 rounded-full"
-                      style={{ background: color }}
-                    />
-                    <span
-                      className="label-meta"
-                      style={{ color }}
-                    >
-                      {item.rarity || 'Standard'}
+              <div className="relative mt-6 min-w-0">
+                <span className="label-eyebrow">
+                  {inferWeapon(name) || item.type || 'CS2 Item'}
+                  {item.special === 'stattrak' && (
+                    <span className="ml-2 text-orange-600 dark:text-orange-400">StatTrak™</span>
+                  )}
+                </span>
+                <h1 className="text-[26px] sm:text-[32px] font-bold tracking-tight text-ink leading-none mt-2">
+                  {inferBaseName(name) || name}
+                </h1>
+                <div className="mt-2.5 flex items-center gap-1.5 text-[13px] text-ink-muted font-semibold">
+                  {item.condition && <span>{item.condition}</span>}
+                  {item.condition && item.rarity && <span className="text-ink-dim">•</span>}
+                  {item.rarity && <span style={{ color }}>{item.rarity}</span>}
+                  {item.views != null && (
+                    <span className="ml-2 flex items-center gap-1 text-[12px] font-medium text-ink-dim">
+                      <Eye size={11} /> {Number(item.views).toLocaleString()}
                     </span>
-                    {item.condition && (
-                      <span className="label-meta text-ink-muted">· {item.condition}</span>
-                    )}
-                    {item.special === 'stattrak' && (
-                      <span className="pill bg-orange-500/15 text-orange-700 dark:text-orange-300 text-[10px] uppercase tracking-wider">
-                        StatTrak™
-                      </span>
-                    )}
-                  </div>
-                  <h1 className="text-[26px] sm:text-[32px] font-bold tracking-tight text-ink leading-none">
-                    {name}
-                  </h1>
-                  <div className="mt-2.5 flex items-center gap-3 text-[12px] text-ink-muted font-medium">
-                    {item.float != null && (
-                      <span className="font-mono">Float {Number(item.float).toFixed(4)}</span>
-                    )}
-                    {item.views != null && (
-                      <span className="flex items-center gap-1">
-                        <Eye size={11} /> {Number(item.views).toLocaleString()} views
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <motion.button
-                    whileTap={tap}
-                    onClick={() => handleWish(item)}
-                    aria-label="Wishlist"
-                    className="icon-chip hover:bg-bg transition-colors"
-                  >
-                    <Heart
-                      size={18}
-                      strokeWidth={wished ? 2.4 : 2}
-                      className={wished ? 'fill-accent text-accent' : 'text-ink-muted'}
-                    />
-                  </motion.button>
-                  <motion.button
-                    whileTap={tap}
-                    onClick={copyLink}
-                    aria-label="Share"
-                    className="icon-chip hover:bg-bg transition-colors"
-                  >
-                    {copied ? (
-                      <Check size={16} strokeWidth={2.4} className="text-emerald-600 dark:text-emerald-400" />
-                    ) : (
-                      <Share2 size={16} strokeWidth={2} className="text-ink-muted" />
-                    )}
-                  </motion.button>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -578,7 +593,7 @@ const ItemDetailPage: React.FC = () => {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ ...spring, delay: 0.03 }}
-              className="lg:hidden card p-5"
+              className="lg:hidden panel p-5"
             >
               <span className="label-eyebrow">Listed price</span>
               <div className="text-[30px] sm:text-[34px] font-bold tracking-tight tabular-nums text-ink leading-none mt-2">
@@ -659,6 +674,8 @@ const ItemDetailPage: React.FC = () => {
                   </span>
                 </div>
               )}
+
+              <ListingMeta item={enrichedItem} seller={item.seller} color={color} />
             </motion.section>
 
             {/* Tab bar — Details / Stickers / Trust. */}
@@ -666,7 +683,7 @@ const ItemDetailPage: React.FC = () => {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ ...spring, delay: 0.06 }}
-              className="card p-1.5 inline-flex gap-1"
+              className="panel p-1.5 inline-flex gap-1"
             >
               {(
                 [
@@ -765,7 +782,7 @@ const ItemDetailPage: React.FC = () => {
             {item.listing_type === 'auction' ? (
               <AuctionBidPanel item={item} formatPrice={formatPrice} />
             ) : (
-            <section className="card p-6 relative overflow-hidden">
+            <section className="panel p-6 relative overflow-hidden">
               <div className="relative">
                 <span className="label-eyebrow">Listed price</span>
                 <div className="text-[34px] sm:text-[40px] font-bold tracking-tight tabular-nums text-ink leading-none mt-2">
@@ -843,6 +860,8 @@ const ItemDetailPage: React.FC = () => {
                     </span>
                   </div>
                 )}
+
+                <ListingMeta item={enrichedItem} seller={item.seller} color={color} />
               </div>
             </section>
             )}
@@ -953,6 +972,43 @@ const ItemDetailPage: React.FC = () => {
 };
 
 /* ───── Sub-panels ───── */
+
+/* ListingMeta — skins.com-style flat key-value rows under the buy CTA:
+   RARITY · EXTERIOR · FLOAT · PATTERN · SELLER. No boxes, no tiles —
+   just label-left / value-right lines above a soft divider. */
+const ListingMeta: React.FC<{ item: any; seller?: any; color: string }> = ({
+  item,
+  seller,
+  color,
+}) => {
+  const floatNum =
+    item?.float != null && Number.isFinite(Number(item.float)) ? Number(item.float) : null;
+  const rows: Array<[string, React.ReactNode]> = [];
+  if (item?.rarity) {
+    rows.push([
+      'Rarity',
+      <span key="r" className="inline-flex items-center gap-1.5 uppercase">
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+        {item.rarity}
+      </span>,
+    ]);
+  }
+  if (item?.condition) rows.push(['Exterior', item.condition]);
+  if (floatNum != null) rows.push(['Float', floatNum.toFixed(4)]);
+  if (item?.paintSeed != null) rows.push(['Pattern', `#${String(item.paintSeed)}`]);
+  if (seller?.name) rows.push(['Seller', <span key="s" className="uppercase">{seller.name}</span>]);
+  if (rows.length === 0) return null;
+  return (
+    <div className="mt-5 pt-2 border-t border-line/50">
+      {rows.map(([k, v]) => (
+        <div key={k} className="kv-row">
+          <span className="kv-label">{k}</span>
+          <span className="kv-value truncate">{v}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 const Breadcrumb: React.FC<{
   item: any;
@@ -1113,7 +1169,7 @@ const SellerCard: React.FC<{
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ ...spring, delay: 0.12 }}
-      className="card p-5"
+      className="panel p-5"
     >
       <span className="label-eyebrow">Seller</span>
       {/* Header — clickable */}
@@ -1334,7 +1390,7 @@ const DetailsPanel: React.FC<{ item: any }> = ({ item }) => {
   ).filter((t): t is [string, string] => t[1] != null);
 
   return (
-    <section className="card p-5 md:p-6 space-y-5">
+    <section className="panel p-5 md:p-6 space-y-5">
       {/* Float visualization */}
       <div>
         <div className="flex items-center justify-between mb-2">
@@ -1390,21 +1446,15 @@ const DetailsPanel: React.FC<{ item: any }> = ({ item }) => {
         </div>
       </div>
 
-      {/* All stats */}
+      {/* Attributes — flat key-value rows, no tile boxes. */}
       <div>
-        <span className="label-eyebrow">All attributes</span>
-        <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2">
-          {tiles.map(([k, v]) => (
-            <div key={k} className="card-flat p-3">
-              <div className="label-meta">{k}</div>
-              <div className="text-[14px] font-bold text-ink mt-1 truncate tracking-tight">
-                {v}
-              </div>
-            </div>
-          ))}
-        </div>
+        {tiles.map(([k, v]) => (
+          <div key={k} className="kv-row">
+            <span className="kv-label">{k}</span>
+            <span className="kv-value truncate">{v}</span>
+          </div>
+        ))}
       </div>
-
     </section>
   );
 };
@@ -1420,7 +1470,7 @@ const DetailsPanel: React.FC<{ item: any }> = ({ item }) => {
 const StickersPanel: React.FC<{ stickers: any[] }> = ({ stickers }) => {
   if (stickers.length === 0) {
     return (
-      <section className="card p-5 md:p-6">
+      <section className="panel p-5 md:p-6">
         <div className="py-10 text-center">
           <p className="text-[14px] text-ink-muted font-medium">No stickers applied.</p>
         </div>
@@ -1429,7 +1479,7 @@ const StickersPanel: React.FC<{ stickers: any[] }> = ({ stickers }) => {
   }
 
   return (
-    <section className="card p-5 md:p-6">
+    <section className="panel p-5 md:p-6">
       <div className="flex items-center justify-between mb-4">
         <span className="label-eyebrow">Applied stickers</span>
         <span className="text-[11px] text-ink-dim font-bold uppercase tracking-wider tabular-nums">
@@ -1498,7 +1548,7 @@ const StickersPanel: React.FC<{ stickers: any[] }> = ({ stickers }) => {
 };
 
 const TrustPanel: React.FC = () => (
-  <section className="card p-5 md:p-6">
+  <section className="panel p-5 md:p-6">
     <span className="label-eyebrow">How escrow protects you</span>
     <ol className="mt-4 space-y-4">
       {[

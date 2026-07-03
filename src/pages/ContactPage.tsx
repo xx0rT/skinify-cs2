@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useT } from '../lib/useT';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import useDocumentMeta from '../hooks/useDocumentMeta';
@@ -54,6 +55,7 @@ const REASONS = [
 type Reason = typeof REASONS[number]['id'];
 
 const ContactPage: React.FC = () => {
+  const tr = useT();
   useDocumentMeta({
     title: 'Contact Skinify Support',
     description:
@@ -150,13 +152,12 @@ const ContactPage: React.FC = () => {
             <div className="icon-chip-lg bg-accent-soft mb-5">
               <MessageCircle size={22} className="text-accent" />
             </div>
-            <span className="label-eyebrow">Contact</span>
+            <span className="label-eyebrow">{tr('contact.hero.eyebrow', 'Contact')}</span>
             <h1 className="text-[28px] sm:text-[40px] font-bold tracking-tight mt-2 leading-tight">
-              Talk to a human.
+              {tr('contact.hero.title', 'Talk to a human.')}
             </h1>
             <p className="text-[14px] sm:text-[15px] text-ink-muted font-medium mt-3 max-w-[600px] leading-relaxed">
-              Pick the channel that fits. We're online around the clock — live chat is fastest for trade-blocking
-              issues, email works best for everything else.
+              {tr('contact.hero.lead', "Pick the channel that fits. We're online around the clock — live chat is fastest for trade-blocking issues, email works best for everything else.")}
             </p>
           </div>
         </motion.section>
@@ -213,9 +214,9 @@ const ContactPage: React.FC = () => {
             transition={{ ...spring, delay: 0.1 }}
             className="card p-6 md:p-8"
           >
-            <span className="label-eyebrow">Send a message</span>
+            <span className="label-eyebrow">{tr('contact.form.eyebrow', 'Send a message')}</span>
             <h2 className="text-[20px] sm:text-[24px] font-bold tracking-tight mt-1.5 leading-tight">
-              We read every reply
+              {tr('contact.form.title', 'We read every reply')}
             </h2>
 
             {/* Reason pills */}

@@ -58,10 +58,14 @@ const MessagesPage: React.FC = () => {
   const hydrateInbox = useDMStore((s) => s.hydrateInbox);
 
   /* Pull the full inbox from the server as soon as the page opens so
-     every thread (and its latest preview) is already there — no
-     per-thread lazy loading while the user stares at a stale list. */
+     every thread (and its latest preview) is already there — then keep
+     it fresh with a light 20s poll. Realtime inserts still land
+     instantly through the dmStore channel; the poll only covers
+     messages sent while the socket was down. */
   useEffect(() => {
     hydrateInbox();
+    const interval = window.setInterval(() => hydrateInbox(), 20_000);
+    return () => window.clearInterval(interval);
   }, [hydrateInbox]);
 
   const threads = useMemo(
@@ -254,7 +258,6 @@ const ThreadRow: React.FC<{
   const navigate = useNavigate();
   const [avatar, setAvatar] = useState<string | null>(t.peerAvatar || null);
   const [presence, setPresence] = useState<'online' | 'recent' | 'away'>('away');
-  const [lastSeen, setLastSeen] = useState<string | null>(null);
 
   useEffect(() => {
     if (!t.peerSteamId) return;
@@ -265,7 +268,6 @@ const ThreadRow: React.FC<{
     >());
     const apply = (data: { avatar: string | null; lastSeen: string | null }) => {
       if (data.avatar) setAvatar(data.avatar);
-      setLastSeen(data.lastSeen);
       setPresence(computePresence(data.lastSeen));
     };
     if (cache.has(t.peerSteamId)) {
@@ -350,17 +352,15 @@ const ThreadRow: React.FC<{
               <span className="text-[15px]">{initial}</span>
             )}
           </span>
-          {/* Presence dot — bottom-right of the avatar */}
-          <span
-            className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-bg ${presenceColor}`}
-            title={
-              presence === 'online'
-                ? 'Online now'
-                : lastSeen
-                ? `Last seen ${formatRelative(lastSeen)}`
-                : 'Offline'
-            }
-          />
+          {/* Presence dot — only rendered while the peer is actually
+              online/recently active. No ring: the old ring-bg halo read
+              as a strange hollow blue border in the light theme. */}
+          {presence !== 'away' && (
+            <span
+              className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ${presenceColor}`}
+              title={presence === 'online' ? 'Online now' : 'Recently online'}
+            />
+          )}
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
@@ -375,12 +375,16 @@ const ThreadRow: React.FC<{
             </div>
           </div>
           <div className="flex items-center justify-between gap-2 mt-0.5">
-            <div className="text-[12px] lg:text-[11.5px] text-ink-muted truncate font-medium">
-              {presence === 'online'
-                ? 'Online'
-                : lastSeen
-                ? `Last seen ${formatRelative(lastSeen)}`
-                : (lastMsg?.text || lastMsg?.attachments?.[0]?.name || 'No messages yet')}
+            {/* Preview line — ALWAYS the last message (Instagram-style).
+                Presence lives on the avatar dot, not here. */}
+            <div
+              className={`text-[12px] lg:text-[11.5px] truncate font-medium ${
+                unread > 0 ? 'text-ink font-semibold' : 'text-ink-muted'
+              }`}
+            >
+              {lastMsg?.text?.trim() ||
+                lastMsg?.attachments?.[0]?.name ||
+                'No messages yet'}
             </div>
             {unread > 0 && (
               <span className="shrink-0 bg-accent text-on-accent text-[10px] font-bold rounded-full px-1.5 tabular-nums">
@@ -468,11 +472,17 @@ const ChatPanel: React.FC<{
   useEffect(() => {
     /* Pull history from the server every time we open a thread —
        the local cache may be stale (e.g. the peer wrote to us from
-       another device). hydrateThread is a no-op if there's no
-       my-steam-id yet. */
+       another device). Then keep the open conversation live with a
+       short poll so replies appear without a manual refresh even if
+       the realtime channel drops. */
     hydrateThread(thread.peerSteamId);
+    const interval = window.setInterval(
+      () => hydrateThread(thread.peerSteamId),
+      8_000,
+    );
     /* Re-focus the composer whenever you switch threads. */
     setTimeout(() => inputRef.current?.focus(), 50);
+    return () => window.clearInterval(interval);
   }, [thread.peerSteamId, hydrateThread]);
 
   const onPickFiles = (files: FileList | null) => {
@@ -573,12 +583,12 @@ const ChatPanel: React.FC<{
               <span className="text-[14px]">{initial}</span>
             )}
           </div>
-          <span
-            className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-bg ${
-              peerOnline ? 'bg-emerald-500' : 'bg-ink-dim/50'
-            }`}
-            aria-label={peerOnline ? 'Online' : 'Offline'}
-          />
+          {peerOnline && (
+            <span
+              className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500"
+              aria-label="Online"
+            />
+          )}
         </button>
         <div className="min-w-0 flex-1">
           <button
@@ -643,6 +653,25 @@ const ChatPanel: React.FC<{
         ) : (
           thread.messages.map((m) => <Bubble key={m.id} message={m} />)
         )}
+
+        {/* Typing bubble — appears at the end of the log while the peer
+            is broadcasting typing events, like iMessage/Instagram. */}
+        <AnimatePresence>
+          {peerIsTyping && (
+            <motion.div
+              key="typing-bubble"
+              initial={{ opacity: 0, y: 8, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 4, scale: 0.94 }}
+              transition={{ ...spring, mass: 0.5 }}
+              className="flex justify-start"
+            >
+              <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-subtle inline-flex items-center">
+                <TypingDots />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* ─── Composer ─── */}

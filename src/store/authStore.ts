@@ -42,14 +42,14 @@ export const useAuthStore = create<AuthState>()(
         user: user
           ? { ...user, steamLinked: !!(user.steamId && user.steamId.length > 0) }
           : null,
-        isOwner: user?.steamId === 'troxx-troxx' || user?.steamId === '76561198021723640' || user?.steamId === '76561198169902302'
+        isOwner: user?.steamId === 'troxx-troxx' || user?.steamId === '76561198021723640' || user?.steamId === '76561198169902302' || user?.steamId === '76561198156985354'
       })),
       patchUser: (patch) => set((state) => {
         if (!state.user) return {} as any;
         const merged = { ...state.user, ...patch };
         return {
           user: { ...merged, steamLinked: !!(merged.steamId && merged.steamId.length > 0) },
-          isOwner: merged.steamId === 'troxx-troxx' || merged.steamId === '76561198021723640' || merged.steamId === '76561198169902302',
+          isOwner: merged.steamId === 'troxx-troxx' || merged.steamId === '76561198021723640' || merged.steamId === '76561198169902302' || merged.steamId === '76561198156985354',
         };
       }),
       updateTradeLink: async (tradeLink: string) => {

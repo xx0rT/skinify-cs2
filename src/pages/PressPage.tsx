@@ -1,4 +1,5 @@
 import React from 'react';
+import { useT } from '../lib/useT';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -38,6 +39,7 @@ import { spring, tap } from '../lib/motion';
    link comes along for free.
    ───────────────────────────────────────────────────────────────────────── */
 const PressPage: React.FC = () => {
+  const tr = useT();
   useDocumentMeta({
     title: 'Press Kit · Skinify',
     description:
@@ -107,9 +109,9 @@ const PressPage: React.FC = () => {
           transition={spring}
           className="card p-7 sm:p-10"
         >
-          <span className="label-eyebrow">Press kit</span>
+          <span className="label-eyebrow">{tr('press.hero.eyebrow', 'Press kit')}</span>
           <h1 className="text-[28px] sm:text-[36px] font-bold tracking-tight text-ink leading-tight mt-1.5">
-            Everything you need to write about Skinify
+            {tr('press.hero.title', 'Everything you need to write about Skinify')}
           </h1>
           <p className="text-[14px] sm:text-[15px] text-ink-muted font-medium mt-3 leading-relaxed max-w-[640px]">
             Working on a piece about CS2 trading, peer-to-peer marketplaces, or

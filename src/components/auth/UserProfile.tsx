@@ -21,6 +21,7 @@ import { useAdminAuth } from '../../hooks/useAdminAuth';
 import { useBalanceStore } from '../../store/balanceStore';
 import { useCurrencyStore } from '../../store/currencyStore';
 import { useToastStore } from '../../store/toastStore';
+import { useT } from '../../lib/useT';
 import { useDMStore } from '../../store/dmStore';
 import { useNotificationStore } from '../../store/notificationStore';
 import { spring, tap } from '../../lib/motion';
@@ -46,6 +47,7 @@ const UserProfile: React.FC = () => {
   const { balance, pendingBalance, fetchBalance } = useBalanceStore();
   const { formatPrice } = useCurrencyStore();
   const { addToast } = useToastStore();
+  const tr = useT();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -140,14 +142,14 @@ const UserProfile: React.FC = () => {
               the outer edge so double-digit counts don't crop. */}
           {totalBadge > 0 ? (
             <span
-              className="absolute -top-1 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center tabular-nums ring-2 ring-bg leading-none"
+              className="absolute -top-1 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center tabular-nums leading-none"
               aria-label={`${totalBadge} unread`}
             >
               {totalBadge > 99 ? '99+' : totalBadge}
             </span>
           ) : (
             <span
-              className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-bg ${
+              className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ${
                 tradeReady ? 'bg-emerald-500' : 'bg-amber-500'
               }`}
               aria-hidden
@@ -205,7 +207,7 @@ const UserProfile: React.FC = () => {
                     className="text-left flex-1 min-w-0 group"
                   >
                     <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-muted">
-                      Available balance
+                      {tr('dropdown.availableBalance', 'Available balance')}
                     </div>
                     <div className="text-[22px] font-bold text-ink tabular-nums tracking-tight leading-none mt-1 group-hover:text-accent transition-colors">
                       {formatPrice(Number(balance || 0))}
@@ -228,7 +230,7 @@ const UserProfile: React.FC = () => {
                 </div>
                 {pending > 0 && (
                   <div className="flex items-center justify-between text-[11px] pt-2 border-t border-line">
-                    <span className="text-ink-muted font-medium">Pending release</span>
+                    <span className="text-ink-muted font-medium">{tr('dropdown.pendingRelease', 'Pending release')}</span>
                     <span className="text-ink font-bold tabular-nums">
                       {formatPrice(pending)}
                     </span>
@@ -251,10 +253,10 @@ const UserProfile: React.FC = () => {
                 />
                 <div className="flex-1 min-w-0">
                   <div className="text-[12px] font-bold text-ink leading-tight tracking-tight">
-                    Add your Steam trade URL
+                    {tr('dropdown.tradeUrl.title', 'Add your Steam trade URL')}
                   </div>
                   <div className="text-[10.5px] text-ink-muted font-medium mt-0.5">
-                    Required to receive purchased items
+                    {tr('dropdown.tradeUrl.sub', 'Required to receive purchased items')}
                   </div>
                 </div>
               </button>
@@ -267,13 +269,13 @@ const UserProfile: React.FC = () => {
                 worth surfacing here — keeps the dropdown short. */}
             <div className="px-2 pt-1 pb-1.5 border-t border-line">
               <nav className="space-y-px">
-                <Item Icon={UserIcon}    label="Overview"  onClick={() => go('/profile?tab=overview')} />
-                <Item Icon={Package}     label="Inventory" onClick={() => go('/profile?tab=inventory')} />
-                <Item Icon={ShoppingBag} label="Listings"  onClick={() => go('/profile?tab=listings')} />
-                <Item Icon={TrendingUp}  label="Trades"    onClick={() => go('/profile?tab=trades')} />
-                <Item Icon={MessageCircle} label="Messages" badge={messagesUnread} onClick={() => go('/messages')} />
-                <Item Icon={Gift}        label="Referral"  onClick={() => go('/profile?tab=referral')} />
-                <Item Icon={Settings}    label="Settings"  onClick={() => go('/profile?tab=settings')} />
+                <Item Icon={UserIcon}    label={tr('profile.tab.overview', 'Overview')}  onClick={() => go('/profile?tab=overview')} />
+                <Item Icon={Package}     label={tr('profile.tab.inventory', 'Inventory')} onClick={() => go('/profile?tab=inventory')} />
+                <Item Icon={ShoppingBag} label={tr('profile.tab.listings', 'Listings')}  onClick={() => go('/profile?tab=listings')} />
+                <Item Icon={TrendingUp}  label={tr('profile.tab.trades', 'Trades')}    onClick={() => go('/profile?tab=trades')} />
+                <Item Icon={MessageCircle} label={tr('profile.tab.messages', 'Messages')} badge={messagesUnread} onClick={() => go('/messages')} />
+                <Item Icon={Gift}        label={tr('profile.tab.referral', 'Referral')}  onClick={() => go('/profile?tab=referral')} />
+                <Item Icon={Settings}    label={tr('profile.tab.settings', 'Settings')}  onClick={() => go('/profile?tab=settings')} />
                 {/* Admin entry — only rendered when the caller's
                     steamId is in the admin allowlist. Icon uses the
                     accent so the row visibly reads as elevated
@@ -281,7 +283,7 @@ const UserProfile: React.FC = () => {
                 {isAdmin && (
                   <Item
                     Icon={Shield}
-                    label="Admin"
+                    label={tr('dropdown.admin', 'Admin')}
                     onClick={() => go('/admin')}
                     tone="accent"
                   />
@@ -305,7 +307,7 @@ const UserProfile: React.FC = () => {
                   strokeWidth={2.2}
                   className="shrink-0 group-hover:text-rose-700 dark:group-hover:text-rose-300 transition-colors"
                 />
-                <span className="text-[13px] font-semibold tracking-tight">Sign out</span>
+                <span className="text-[13px] font-semibold tracking-tight">{tr('dropdown.signOut', 'Sign out')}</span>
               </button>
             </div>
           </motion.div>

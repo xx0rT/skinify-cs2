@@ -1,4 +1,5 @@
 import React from 'react';
+import { useT } from '../lib/useT';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Scale, Users, MessageSquare, FileText, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -7,6 +8,7 @@ import Footer from '../components/Footer';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 
 const DisputeResolutionPage: React.FC = () => {
+  const tr = useT();
   useDocumentMeta({
     title: 'Dispute Resolution & Escrow · Skinify',
     description:
@@ -38,10 +40,10 @@ const DisputeResolutionPage: React.FC = () => {
             className="text-center mb-8"
           >
             <h1 className="text-5xl font-bold mb-6 bg-gradient-to-r from-orange-500 to-red-600 bg-clip-text text-transparent">
-              Dispute Resolution
+              {tr('dispute.hero.title', 'Dispute Resolution')}
             </h1>
             <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-              Fair and transparent process for resolving trading disputes on Skinify.
+              {tr('dispute.hero.lead', 'Fair and transparent process for resolving trading disputes on Skinify.')}
             </p>
             <div className="flex items-center justify-center mt-4 text-gray-400">
               <Scale className="w-5 h-5 mr-2" />

@@ -16,6 +16,7 @@ import {
 import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import { spring, tap } from '../lib/motion';
+import { useT } from '../lib/useT';
 import useDocumentMeta, {
   breadcrumbJsonLd,
   faqJsonLd,
@@ -137,6 +138,7 @@ const FAQPage: React.FC = () => {
       ]),
     ],
   });
+  const tr = useT();
   const [openId, setOpenId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
@@ -163,12 +165,12 @@ const FAQPage: React.FC = () => {
           transition={spring}
           className="text-center mt-6 mb-8"
         >
-          <span className="label-eyebrow">Help center</span>
+          <span className="label-eyebrow">{tr('faq.hero.eyebrow', 'Help center')}</span>
           <h1 className="text-[28px] sm:text-[34px] font-bold tracking-tight mt-2 leading-none">
-            How can we help?
+            {tr('faq.hero.title', 'How can we help?')}
           </h1>
           <p className="text-[13.5px] sm:text-[14px] text-ink-muted font-medium mt-3 max-w-md mx-auto">
-            Answers to the most common questions about trading on Skinify.
+            {tr('faq.hero.lead', 'Answers to the most common questions about trading on Skinify.')}
           </p>
         </motion.div>
 

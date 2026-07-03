@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Users, DollarSign, Activity, Package, Shield, TrendingUp, AlertTriangle, Sparkles, Crown, Wallet } from 'lucide-react';
+import { Users, DollarSign, Activity, Package, AlertTriangle, ChevronRight } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
+import { spring, tap } from '../../lib/motion';
 
 interface DashboardStats {
   totalUsers: number;
@@ -21,7 +22,7 @@ interface RecentActivity {
   type: 'user' | 'transaction' | 'alert' | 'system';
 }
 
-const DashboardTab: React.FC = () => {
+const DashboardTab: React.FC<{ onGoTo?: (tab: string) => void }> = ({ onGoTo }) => {
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     activeUsers: 0,
@@ -135,183 +136,184 @@ const DashboardTab: React.FC = () => {
     return `${days} day${days > 1 ? 's' : ''} ago`;
   };
 
-  const getActivityColor = (type: RecentActivity['type']) => {
-    switch (type) {
-      case 'user': return 'purple';
-      case 'transaction': return 'purple';
-      case 'alert': return 'purple';
-      case 'system': return 'purple';
-      default: return 'purple';
-    }
-  };
-
   const statCards = [
     {
       icon: Users,
-      label: 'Total Users',
+      label: 'Total users',
       value: stats.totalUsers.toLocaleString(),
-      change: `${stats.activeUsers} active today`,
-      gradient: 'from-purple-600/20 via-purple-500/20 to-fuchsia-600/20'
+      sub: `${stats.activeUsers} active today`,
     },
     {
       icon: DollarSign,
-      label: 'Total Revenue',
+      label: 'Revenue',
       value: `${(stats.totalRevenue / 1000).toFixed(1)}K CZK`,
-      change: 'All deposits',
-      gradient: 'from-purple-600/20 via-purple-500/20 to-pink-600/20'
+      sub: 'All deposits',
     },
     {
       icon: Activity,
-      label: 'Success Rate',
+      label: 'Success rate',
       value: `${stats.successRate}%`,
-      change: stats.avgResponseTime + ' avg',
-      gradient: 'from-fuchsia-600/20 via-purple-500/20 to-purple-600/20'
+      sub: `${stats.avgResponseTime} avg response`,
     },
     {
       icon: Package,
       label: 'Transactions',
       value: stats.totalTransactions.toLocaleString(),
-      change: 'All time',
-      gradient: 'from-pink-600/20 via-purple-500/20 to-purple-600/20'
-    }
+      sub: 'All time',
+    },
   ];
 
-  return (
-    <motion.div
-      key="dashboard"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="space-y-6"
-    >
-      {loading && (
-        <div className="text-center py-8">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="skel h-28 rounded-[20px]" />
+          ))}
         </div>
-      )}
+        <div className="grid lg:grid-cols-2 gap-4">
+          <div className="skel h-64 rounded-[20px]" />
+          <div className="skel h-64 rounded-[20px]" />
+        </div>
+      </div>
+    );
+  }
 
-      {!loading && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {statCards.map((stat, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className={`relative overflow-hidden bg-gradient-to-br ${stat.gradient} backdrop-blur-sm rounded-xl p-6 border border-purple-500/30 shadow-lg hover:shadow-purple-500/20 transition-all duration-300`}
-                style={{
-                  boxShadow: '0 0 30px rgba(168, 85, 247, 0.15)'
-                }}
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent"></div>
-                <div className="relative z-10">
-                  <stat.icon className="w-8 h-8 text-purple-400 mb-3" />
-                  <div className="text-3xl font-bold text-white mb-1">{stat.value}</div>
-                  <div className="text-purple-300 text-sm font-medium">{stat.label}</div>
-                  <div className="text-purple-400/80 text-xs mt-1">{stat.change}</div>
-                </div>
-              </motion.div>
+  return (
+    <div className="space-y-4">
+      {/* Stat row — flat panels, staggered in */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {statCards.map((stat, index) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring, delay: index * 0.05 }}
+            className="panel p-5"
+          >
+            <stat.icon size={17} strokeWidth={2.2} className="text-accent mb-3" />
+            <div className="text-[22px] font-bold tracking-tight tabular-nums text-ink leading-none">
+              {stat.value}
+            </div>
+            <div className="label-meta mt-2">{stat.label}</div>
+            <div className="text-[11.5px] text-ink-dim font-medium mt-1">{stat.sub}</div>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        {/* System status — flat key-value rows */}
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...spring, delay: 0.1 }}
+          className="panel p-6"
+        >
+          <span className="label-eyebrow">System status</span>
+          <div className="mt-4">
+            {[
+              { label: 'API', status: 'Operational', ok: true },
+              { label: 'Database', status: 'Healthy', ok: true },
+              { label: 'Steam integration', status: 'Connected', ok: true },
+              { label: 'Payment system', status: 'Active', ok: true },
+              {
+                label: 'Pending withdrawals',
+                status: `${stats.pendingWithdrawals} pending`,
+                ok: stats.pendingWithdrawals === 0,
+              },
+              { label: 'Active listings', status: `${stats.activeListings} live`, ok: true },
+            ].map((item) => (
+              <div key={item.label} className="kv-row">
+                <span className="kv-label">{item.label}</span>
+                <span className="kv-value inline-flex items-center gap-1.5">
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      item.ok ? 'bg-emerald-500' : 'bg-amber-500'
+                    }`}
+                  />
+                  {item.status}
+                </span>
+              </div>
             ))}
           </div>
+        </motion.section>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="relative overflow-hidden bg-gradient-to-br from-purple-900/20 via-gray-900/50 to-gray-900/50 rounded-xl border border-purple-500/30 p-6 shadow-lg" style={{ boxShadow: '0 0 30px rgba(168, 85, 247, 0.1)' }}>
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent"></div>
-              <div className="relative z-10">
-                <h3 className="text-xl font-bold mb-6 flex items-center">
-                  <Shield className="w-6 h-6 text-purple-400 mr-2" />
-                  <span className="bg-gradient-to-r from-purple-400 to-fuchsia-400 bg-clip-text text-transparent">
-                    System Status
+        {/* Recent activity */}
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...spring, delay: 0.14 }}
+          className="panel p-6"
+        >
+          <span className="label-eyebrow">Recent activity</span>
+          <div className="mt-4 space-y-1">
+            {recentActivity.length === 0 ? (
+              <div className="py-10 text-center">
+                <Activity size={20} className="mx-auto text-ink-muted mb-2" />
+                <p className="text-[13px] text-ink-muted font-medium">No recent activity.</p>
+              </div>
+            ) : (
+              recentActivity.map((activity, i) => (
+                <motion.div
+                  key={activity.id}
+                  initial={{ opacity: 0, x: 8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ ...spring, delay: 0.16 + i * 0.04 }}
+                  className="flex items-center justify-between gap-3 py-2"
+                >
+                  <span className="text-[13px] text-ink font-semibold truncate">
+                    {activity.message}
                   </span>
-                </h3>
-                <div className="space-y-4">
-                  {[
-                    { label: 'API Status', status: 'Operational', icon: Sparkles },
-                    { label: 'Database', status: 'Healthy', icon: Shield },
-                    { label: 'Steam Integration', status: 'Connected', icon: Crown },
-                    { label: 'Payment System', status: 'Active', icon: Wallet },
-                    { label: 'Pending Withdrawals', status: `${stats.pendingWithdrawals} pending`, icon: AlertTriangle },
-                    { label: 'Active Listings', status: `${stats.activeListings} live`, icon: Package }
-                  ].map((item, index) => (
-                    <div key={index} className="flex justify-between items-center bg-gray-800/30 rounded-lg p-3 border border-purple-500/10">
-                      <div className="flex items-center">
-                        <item.icon className="w-4 h-4 text-purple-400 mr-2" />
-                        <span className="text-gray-300">{item.label}</span>
-                      </div>
-                      <span className="text-purple-400 flex items-center">
-                        <div className="w-2 h-2 bg-purple-500 rounded-full mr-2 animate-pulse shadow-lg shadow-purple-500/50"></div>
-                        {item.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="relative overflow-hidden bg-gradient-to-br from-purple-900/20 via-gray-900/50 to-gray-900/50 rounded-xl border border-purple-500/30 p-6 shadow-lg" style={{ boxShadow: '0 0 30px rgba(168, 85, 247, 0.1)' }}>
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent"></div>
-              <div className="relative z-10">
-                <h3 className="text-xl font-bold mb-6 flex items-center">
-                  <Activity className="w-6 h-6 text-purple-400 mr-2" />
-                  <span className="bg-gradient-to-r from-purple-400 to-fuchsia-400 bg-clip-text text-transparent">
-                    Recent Activity
+                  <span className="text-[11px] text-ink-dim font-medium tabular-nums shrink-0">
+                    {activity.time}
                   </span>
-                </h3>
-                <div className="space-y-3">
-                  {recentActivity.length === 0 ? (
-                    <div className="text-gray-400 text-center py-8">No recent activity</div>
-                  ) : (
-                    recentActivity.map((activity) => (
-                      <div key={activity.id} className="bg-gray-800/30 rounded-lg p-3 border border-purple-500/10 hover:border-purple-500/30 transition-all duration-300">
-                        <div className="flex justify-between items-start">
-                          <span className="text-gray-300 text-sm flex-1">{activity.message}</span>
-                          <span className="text-xs text-purple-400 ml-2">
-                            {activity.time}
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
+                </motion.div>
+              ))
+            )}
           </div>
+        </motion.section>
+      </div>
 
-          <div className="relative overflow-hidden bg-gradient-to-br from-purple-900/20 via-gray-900/50 to-gray-900/50 rounded-xl border border-purple-500/30 p-6 shadow-lg" style={{ boxShadow: '0 0 30px rgba(168, 85, 247, 0.1)' }}>
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent"></div>
-            <div className="relative z-10">
-              <h3 className="text-xl font-bold mb-6 flex items-center">
-                <TrendingUp className="w-6 h-6 text-purple-400 mr-2" />
-                <span className="bg-gradient-to-r from-purple-400 to-fuchsia-400 bg-clip-text text-transparent">
-                  Quick Actions
-                </span>
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                  { icon: Users, label: 'Manage Users' },
-                  { icon: DollarSign, label: 'Transactions' },
-                  { icon: AlertTriangle, label: 'Alerts' },
-                  { icon: Package, label: 'Listings' }
-                ].map((action, index) => (
-                  <button
-                    key={index}
-                    className="group relative overflow-hidden bg-gradient-to-br from-purple-600/10 to-purple-500/5 hover:from-purple-600/20 hover:to-purple-500/10 border border-purple-500/30 hover:border-purple-400/50 rounded-lg p-4 transition-all duration-300 flex flex-col items-center justify-center space-y-2"
-                    style={{
-                      boxShadow: '0 0 20px rgba(168, 85, 247, 0.1)'
-                    }}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500/0 to-purple-500/0 group-hover:from-purple-500/10 group-hover:to-transparent transition-all duration-300"></div>
-                    <action.icon className="relative z-10 w-6 h-6 text-purple-400 group-hover:text-purple-300 transition-colors" />
-                    <span className="relative z-10 text-purple-300 group-hover:text-purple-200 text-sm transition-colors">{action.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-    </motion.div>
+      {/* Quick actions */}
+      <motion.section
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...spring, delay: 0.18 }}
+        className="panel p-6"
+      >
+        <span className="label-eyebrow">Quick actions</span>
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
+          {[
+            { icon: Users, label: 'Manage users', tab: 'users' },
+            { icon: DollarSign, label: 'Transactions', tab: 'finance' },
+            { icon: AlertTriangle, label: 'Monitoring', tab: 'monitoring' },
+            { icon: Package, label: 'Listings', tab: 'inventory' },
+          ].map((action) => (
+            <motion.button
+              key={action.tab}
+              whileTap={tap}
+              whileHover={{ y: -2 }}
+              onClick={() => onGoTo?.(action.tab)}
+              className="group rounded-2xl bg-subtle hover:bg-accent-soft p-4 flex flex-col items-start gap-3 text-left transition-colors"
+            >
+              <action.icon
+                size={17}
+                strokeWidth={2.2}
+                className="text-ink-muted group-hover:text-accent transition-colors"
+              />
+              <span className="text-[13px] font-bold text-ink tracking-tight inline-flex items-center gap-1">
+                {action.label}
+                <ChevronRight
+                  size={12}
+                  strokeWidth={2.6}
+                  className="text-ink-dim group-hover:translate-x-0.5 transition-transform"
+                />
+              </span>
+            </motion.button>
+          ))}
+        </div>
+      </motion.section>
+    </div>
   );
 };
 

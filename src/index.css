@@ -293,6 +293,40 @@ select {
     background: rgb(var(--subtle));
     border-radius: 24px;
   }
+  /* PANEL — flat surface with NO hairline ring and NO shadow. The
+     skins.com-style container: it separates from the page purely by
+     background tone, which reads much cleaner than bordered cards
+     when several sections stack. */
+  .panel {
+    background: rgb(var(--surface));
+    border-radius: 20px;
+  }
+  /* Key-value row — "RARITY ......... COVERT" line used on the item
+     detail page and profile. Label left (uppercase, muted), value
+     right (bold). Flat: separation comes from spacing, not borders. */
+  .kv-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 36px;
+  }
+  .kv-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(var(--ink-dim));
+    flex-shrink: 0;
+  }
+  .kv-value {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+    color: rgb(var(--ink));
+    text-align: right;
+    min-width: 0;
+  }
   .card-elevated {
     background: rgb(var(--elevated));
     border-radius: 24px;

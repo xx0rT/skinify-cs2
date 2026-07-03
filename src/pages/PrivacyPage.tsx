@@ -1,4 +1,5 @@
 import React from 'react';
+import { useT } from '../lib/useT';
 import { Shield } from 'lucide-react';
 import LegalShell, { LegalSection } from '../components/legal/LegalShell';
 import useDocumentMeta from '../hooks/useDocumentMeta';
@@ -149,6 +150,7 @@ const sections: LegalSection[] = [
 ];
 
 const PrivacyPage: React.FC = () => {
+  const tr = useT();
   useDocumentMeta({
     title: 'Privacy Policy · Skinify',
     description:
@@ -158,9 +160,9 @@ const PrivacyPage: React.FC = () => {
   return (
   <LegalShell
     Icon={Shield}
-    eyebrow="Legal"
-    title="Privacy policy"
-    intro="How we collect, use, and safeguard your personal information when you use Skinify."
+    eyebrow={tr('legal.eyebrow', 'Legal')}
+    title={tr('legal.privacy.title', 'Privacy policy')}
+    intro={tr('legal.privacy.intro', 'How we collect, use, and safeguard your personal information when you use Skinify.')}
     lastUpdated="January 15, 2026"
     info={{
       label: 'Data controller',

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useT } from '../lib/useT';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -33,6 +34,7 @@ import UserProfile from '../components/auth/UserProfile';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 
 const AboutPage: React.FC = () => {
+  const tr = useT();
   useDocumentMeta({
     title: 'About Skinify — The Peer-to-Peer CS2 Marketplace',
     description:
@@ -334,11 +336,10 @@ const AboutPage: React.FC = () => {
             className="text-center mb-8"
           >
             <h1 className="text-5xl font-bold mb-6 bg-gradient-to-r from-blue-500 to-blue-700 bg-clip-text text-transparent">
-              About CSMarket
+              {tr('about.hero.title', 'About CSMarket')}
             </h1>
             <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-              The most trusted and secure marketplace for CS2 skins, items, and collectibles. 
-              Join over 1 million traders worldwide in safe, fast, and reliable trading.
+              {tr('about.hero.lead', 'The most trusted and secure marketplace for CS2 skins, items, and collectibles. Join over 1 million traders worldwide in safe, fast, and reliable trading.')}
             </p>
           </motion.div>
 

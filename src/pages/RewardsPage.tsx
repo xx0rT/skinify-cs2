@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useT } from '../lib/useT';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -67,6 +68,7 @@ const CRATES = [
 ];
 
 const RewardsPage: React.FC = () => {
+  const tr = useT();
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
@@ -122,13 +124,12 @@ const RewardsPage: React.FC = () => {
             <div className="icon-chip-lg bg-accent-soft mb-5">
               <Trophy size={22} className="text-accent" />
             </div>
-            <span className="label-eyebrow">Rewards</span>
+            <span className="label-eyebrow">{tr('rewards.hero.eyebrow', 'Rewards')}</span>
             <h1 className="text-[28px] sm:text-[40px] font-bold tracking-tight mt-2 leading-tight">
-              Missions, achievements,<br className="hidden sm:block" /> and crates.
+              {tr('rewards.hero.title', 'Missions, achievements, and crates.')}
             </h1>
             <p className="text-[14px] sm:text-[15px] text-ink-muted font-medium mt-3 max-w-[560px] leading-relaxed">
-              Earn XP every time you trade or log in. Level up to unlock crates packed with credits, badges, and
-              limited-edition items.
+              {tr('rewards.hero.lead', 'Earn XP every time you trade or log in. Level up to unlock crates packed with credits, badges, and limited-edition items.')}
             </p>
 
             <div className="mt-6 max-w-[600px]">
@@ -281,7 +282,7 @@ const RewardsPage: React.FC = () => {
         >
           <div className="flex items-end justify-between flex-wrap gap-3 mb-5">
             <div>
-              <span className="label-eyebrow">Achievements</span>
+              <span className="label-eyebrow">{tr('rewards.achievements.eyebrow', 'Achievements')}</span>
               <h2 className="text-[20px] sm:text-[24px] font-bold tracking-tight mt-1.5 leading-none">
                 Permanent badges
               </h2>
@@ -324,7 +325,7 @@ const RewardsPage: React.FC = () => {
         >
           <div className="flex items-end justify-between flex-wrap gap-3 mb-5">
             <div>
-              <span className="label-eyebrow">Loot crates</span>
+              <span className="label-eyebrow">{tr('rewards.crates.eyebrow', 'Loot crates')}</span>
               <h2 className="text-[20px] sm:text-[24px] font-bold tracking-tight mt-1.5 leading-none">
                 Open or trade
               </h2>

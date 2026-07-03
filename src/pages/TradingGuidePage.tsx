@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useT } from '../lib/useT';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import useDocumentMeta from '../hooks/useDocumentMeta';
@@ -117,6 +118,7 @@ const GLOSSARY = [
 ];
 
 const TradingGuidePage: React.FC = () => {
+  const tr = useT();
   useDocumentMeta({
     title: 'CS2 Trading Guide — Buy & Sell Skins Safely · Skinify',
     description:
@@ -161,13 +163,12 @@ const TradingGuidePage: React.FC = () => {
               <div className="icon-chip-lg bg-accent-soft mb-5">
                 <BookOpen size={22} className="text-accent" />
               </div>
-              <span className="label-eyebrow">Trading guide</span>
+              <span className="label-eyebrow">{tr('trading.hero.eyebrow', 'Trading guide')}</span>
               <h1 className="text-[28px] sm:text-[40px] font-bold tracking-tight mt-2 leading-tight">
-                Trade smarter,<br className="hidden sm:block" /> sell faster.
+                {tr('trading.hero.title', 'Trade smarter, sell faster.')}
               </h1>
               <p className="text-[14px] sm:text-[15px] text-ink-muted font-medium mt-3 max-w-[520px] leading-relaxed">
-                Everything you need to start trading CS2 skins on Skinify — from your first Steam connection to
-                pricing rare patterns like a pro.
+                {tr('trading.hero.lead', 'Everything you need to start trading CS2 skins on Skinify — from your first Steam connection to pricing rare patterns like a pro.')}
               </p>
               {!user && (
                 <div className="mt-5">

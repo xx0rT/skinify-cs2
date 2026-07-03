@@ -46,7 +46,7 @@ const MobileTopBar: React.FC = () => {
 
   return (
     <motion.header
-      className="lg:hidden fixed left-0 right-0 top-0 z-[55] border-b border-line bg-bg/92 backdrop-blur-md"
+      className="lg:hidden fixed left-0 right-0 top-0 z-[55] bg-bg/92 backdrop-blur-md"
       style={{
         /* Stack the iOS safe-area inset on top of our own padding so
            the bar sits below the dynamic island / notch. */
@@ -78,7 +78,7 @@ const MobileTopBar: React.FC = () => {
         {user ? (
           /* ── Logged in — [balance | +] combined pill + bell + menu ── */
           <>
-            <div className="flex items-center h-10 rounded-xl overflow-hidden bg-subtle ring-1 ring-line/60">
+            <div className="flex items-center h-10 rounded-xl overflow-hidden bg-subtle">
               <button
                 type="button"
                 onClick={() => navigate('/profile?tab=balance')}

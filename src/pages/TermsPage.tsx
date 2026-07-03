@@ -1,4 +1,5 @@
 import React from 'react';
+import { useT } from '../lib/useT';
 import { Scale } from 'lucide-react';
 import LegalShell, { LegalSection } from '../components/legal/LegalShell';
 import useDocumentMeta from '../hooks/useDocumentMeta';
@@ -136,7 +137,7 @@ const sections: LegalSection[] = [
         <p>For questions about these Terms, reach us at:</p>
         <ul className="list-none space-y-1.5">
           <li><span className="text-ink-dim">Email:</span> <span className="text-ink font-semibold">legal@skinify.com</span></li>
-          <li><span className="text-ink-dim">Address:</span> Bělehradská 858/23, 120 00 Praha, Česká republika</li>
+          <li><span className="text-ink-dim">Address:</span> Grafická 3365/1, 150 00 Praha 5, Česká republika</li>
           <li><span className="text-ink-dim">Response time:</span> Within 48 hours for legal inquiries</li>
         </ul>
       </>
@@ -145,6 +146,7 @@ const sections: LegalSection[] = [
 ];
 
 const TermsPage: React.FC = () => {
+  const tr = useT();
   useDocumentMeta({
     title: 'Terms of Service · Skinify',
     description:
@@ -154,9 +156,9 @@ const TermsPage: React.FC = () => {
   return (
   <LegalShell
     Icon={Scale}
-    eyebrow="Legal"
-    title="Terms of service"
-    intro="Please read these terms carefully before using Skinify. They govern your account, our marketplace, and the way we resolve disputes."
+    eyebrow={tr('legal.eyebrow', 'Legal')}
+    title={tr('legal.terms.title', 'Terms of service')}
+    intro={tr('legal.terms.intro', 'Please read these terms carefully before using Skinify. They govern your account, our marketplace, and the way we resolve disputes.')}
     lastUpdated="January 15, 2026"
     info={{
       label: 'Service provider',

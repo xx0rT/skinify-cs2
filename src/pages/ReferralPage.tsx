@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useT } from '../lib/useT';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -31,6 +32,7 @@ import { spring, tap } from '../lib/motion';
    ───────────────────────────────────────────────────────────────────────── */
 
 const ReferralPage: React.FC = () => {
+  const tr = useT();
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
@@ -83,13 +85,12 @@ const ReferralPage: React.FC = () => {
             <div className="icon-chip-lg bg-accent-soft mb-5">
               <Share2 size={22} className="text-accent" />
             </div>
-            <span className="label-eyebrow">Refer & earn</span>
+            <span className="label-eyebrow">{tr('referral.hero.eyebrow', 'Refer & earn')}</span>
             <h1 className="text-[28px] sm:text-[40px] font-bold tracking-tight mt-2 leading-tight">
-              Invite friends.<br className="hidden sm:block" /> Get paid for every trade they make.
+              {tr('referral.hero.title', 'Invite friends. Get paid for every trade they make.')}
             </h1>
             <p className="text-[14px] sm:text-[15px] text-ink-muted font-medium mt-3 max-w-[640px] leading-relaxed">
-              You and your friend both get a bonus when they sign up. Earn ongoing commission from every trade they
-              complete — for life.
+              {tr('referral.hero.lead', 'You and your friend both get a bonus when they sign up. Earn ongoing commission from every trade they complete — for life.')}
             </p>
 
             {/* Link */}
@@ -205,7 +206,7 @@ const ReferralPage: React.FC = () => {
           transition={{ ...spring, delay: 0.12 }}
           className="card p-6 md:p-8"
         >
-          <span className="label-eyebrow">How it works</span>
+          <span className="label-eyebrow">{tr('referral.how.eyebrow', 'How it works')}</span>
           <h2 className="text-[20px] sm:text-[24px] font-bold tracking-tight mt-1.5 leading-none mb-5">
             Three steps to start earning
           </h2>
@@ -239,7 +240,7 @@ const ReferralPage: React.FC = () => {
           transition={{ ...spring, delay: 0.18 }}
           className="card p-6 md:p-8"
         >
-          <span className="label-eyebrow">Affiliate tiers</span>
+          <span className="label-eyebrow">{tr('referral.tiers.eyebrow', 'Affiliate tiers')}</span>
           <h2 className="text-[20px] sm:text-[24px] font-bold tracking-tight mt-1.5 leading-none mb-5">
             More referrals, bigger cut
           </h2>

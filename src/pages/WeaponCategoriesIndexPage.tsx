@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
+import { useT } from '../lib/useT';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
@@ -23,6 +24,7 @@ import { spring, tap } from '../lib/motion';
    ───────────────────────────────────────────────────────────────────────── */
 
 const WeaponCategoriesIndexPage: React.FC = () => {
+  const tr = useT();
   const navigate = useNavigate();
   const { items: liveItems } = useMarketplaceItems();
   const { formatPrice } = useCurrencyStore();
@@ -91,7 +93,7 @@ const WeaponCategoriesIndexPage: React.FC = () => {
         >
           <div>
             <h1 className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none">
-              All categories
+              {tr('weapons.hero.title', 'All categories')}
             </h1>
             <p className="text-[13px] text-ink-muted font-medium mt-2">
               {Object.keys(weaponCategories).length} categories

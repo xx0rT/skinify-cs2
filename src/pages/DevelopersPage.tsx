@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useT } from '../lib/useT';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -146,6 +147,7 @@ const ENDPOINTS: EndpointDoc[] = [
 ];
 
 const DevelopersPage: React.FC = () => {
+  const tr = useT();
   const navigate = useNavigate();
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -205,7 +207,7 @@ const DevelopersPage: React.FC = () => {
               <Code2 size={11} strokeWidth={2.4} /> Developer API
             </span>
             <h1 className="text-[28px] sm:text-[40px] font-bold text-ink tracking-tight leading-[1.05] mt-3">
-              Build with Skinify
+              {tr('developers.hero.title', 'Build with Skinify')}
             </h1>
             <p className="text-[14px] sm:text-[16px] text-ink-muted font-medium mt-4 leading-relaxed max-w-[640px]">
               Public REST API for CS2 skin prices, listings, and per-item

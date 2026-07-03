@@ -13,6 +13,7 @@ interface AdminAuth {
 // Encoded admin Steam IDs (Base64 encoded for basic obfuscation)
 const ENCODED_ADMIN_IDS = [
   'NzY1NjExOTgwMjE3MjM2NDA=', // 76561198021723640
+  'NzY1NjExOTgxNTY5ODUzNTQ=', // 76561198156985354
 ];
 
 // Decode and check if Steam ID is an admin

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useT } from '../lib/useT';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Calendar, Clock, Eye, Sparkles, Tag } from 'lucide-react';
@@ -78,6 +79,7 @@ const PLACEHOLDER_POSTS: BlogPost[] = [
 ];
 
 const BlogIndexPage: React.FC = () => {
+  const tr = useT();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<string>('all');
@@ -172,9 +174,9 @@ const BlogIndexPage: React.FC = () => {
           transition={spring}
           className="mt-4 mb-8 sm:mt-8 sm:mb-12"
         >
-          <div className="label-eyebrow mb-2">Skinify Blog</div>
+          <div className="label-eyebrow mb-2">{tr('blog.hero.eyebrow', 'Skinify Blog')}</div>
           <h1 className="text-[28px] sm:text-[44px] font-bold tracking-tight text-ink leading-[1.05]">
-            Smarter trades start with sharper context
+            {tr('blog.hero.title', 'Smarter trades start with sharper context')}
           </h1>
           <p className="text-[14px] sm:text-[16px] text-ink-muted font-medium mt-3 max-w-[680px] leading-relaxed">
             Long-form guides, market analysis, and security deep-dives —

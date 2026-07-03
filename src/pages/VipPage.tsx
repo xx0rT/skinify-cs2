@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useT } from '../lib/useT';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -81,6 +82,7 @@ const TIERS: TierDef[] = [
 ];
 
 const VipPage: React.FC = () => {
+  const tr = useT();
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
@@ -132,13 +134,12 @@ const VipPage: React.FC = () => {
               <div className="icon-chip-lg bg-accent-soft mb-5">
                 <Crown size={22} className="text-accent" />
               </div>
-              <span className="label-eyebrow">VIP membership</span>
+              <span className="label-eyebrow">{tr('vip.hero.eyebrow', 'VIP membership')}</span>
               <h1 className="text-[28px] sm:text-[40px] font-bold tracking-tight mt-2 leading-tight">
-                Trade more, pay less.
+                {tr('vip.hero.title', 'Trade more, pay less.')}
               </h1>
               <p className="text-[14px] sm:text-[15px] text-ink-muted font-medium mt-3 max-w-[520px] leading-relaxed">
-                Skinify VIP rewards loyal traders with lower fees, faster support, and exclusive perks across the
-                marketplace.
+                {tr('vip.hero.lead', 'Skinify VIP rewards loyal traders with lower fees, faster support, and exclusive perks across the marketplace.')}
               </p>
               {!user && (
                 <div className="mt-5">

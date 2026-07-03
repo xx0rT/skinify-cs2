@@ -1,4 +1,5 @@
 import React from 'react';
+import { useT } from '../lib/useT';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Shield, AlertTriangle, CheckCircle, Lock, Eye, UserX, Smartphone } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -7,6 +8,7 @@ import Footer from '../components/Footer';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 
 const SecurityTipsPage: React.FC = () => {
+  const tr = useT();
   useDocumentMeta({
     title: 'CS2 Trading Security Tips · Skinify',
     description:
@@ -40,10 +42,10 @@ const SecurityTipsPage: React.FC = () => {
             className="text-center mb-8"
           >
             <h1 className="text-5xl font-bold mb-6 bg-gradient-to-r from-red-500 to-red-700 bg-clip-text text-transparent">
-              Security Tips
+              {tr('security.hero.title', 'Security Tips')}
             </h1>
             <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-              Essential security practices to protect your account and items while trading on CSMarket.
+              {tr('security.hero.lead', 'Essential security practices to protect your account and items while trading on CSMarket.')}
             </p>
           </motion.div>
 

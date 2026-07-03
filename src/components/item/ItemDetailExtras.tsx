@@ -484,7 +484,7 @@ export const SalesHistoryCard: React.FC<{
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={spring}
-      className="card p-5 sm:p-6"
+      className="panel p-5 sm:p-6"
     >
       <div className="flex items-center justify-between mb-3">
         <div>
@@ -809,7 +809,7 @@ export const SimilarItemsRow: React.FC<{
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={spring}
-      className="card p-4 sm:p-5"
+      className="panel p-4 sm:p-5"
     >
       <div className="flex items-center justify-between mb-3">
         <div>

@@ -29,6 +29,7 @@ import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import SteamLogin from '../components/auth/SteamLogin';
 import { spring, tap } from '../lib/motion';
+import { useT } from '../lib/useT';
 import { openDepositModal } from '../components/DepositModal';
 
 /* Use the retry-aware lazy wrapper from App.tsx so a redeploy doesn't
@@ -218,6 +219,7 @@ const ProfilePage: React.FC = () => {
     useBalanceStore();
   const { orders, fetchOrders } = useOrderStore();
   const { formatPrice } = useCurrencyStore();
+  const tr = useT();
   const dmThreads = useDMStore((s) => s.threads);
   const notificationUnread = useNotificationStore((s) => s.unreadCount);
 
@@ -306,7 +308,7 @@ const ProfilePage: React.FC = () => {
             <div className="icon-chip-lg chip-lilac mx-auto mb-5">
               <Users size={22} strokeWidth={2.2} style={{ color: 'rgb(var(--hue-lilac))' }} />
             </div>
-            <span className="label-eyebrow">Profile</span>
+            <span className="label-eyebrow">{tr('profile.title', 'Profile')}</span>
             <h1 className="text-[26px] sm:text-[32px] font-bold tracking-tight mt-2 leading-none">
               Sign in to access your profile
             </h1>
@@ -336,7 +338,7 @@ const ProfilePage: React.FC = () => {
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={spring}
-          className="hidden lg:block card p-4 sm:p-6 md:p-7 mb-3 sm:mb-4 relative overflow-hidden"
+          className="hidden lg:block panel p-4 sm:p-6 md:p-7 mb-3 sm:mb-4 relative overflow-hidden"
         >
           <motion.div
             aria-hidden
@@ -430,7 +432,9 @@ const ProfilePage: React.FC = () => {
                 >
                   <Icon size={16} strokeWidth={active ? 2.4 : 2} />
                   <span className="text-[14px] font-semibold tracking-tight whitespace-nowrap">
-                    {t.id === 'overview' ? 'Profile' : t.label}
+                    {t.id === 'overview'
+                      ? tr('profile.title', 'Profile')
+                      : tr(`profile.tab.${t.id}`, t.label)}
                   </span>
                   {badgeCount > 0 && (
                     <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold grid place-items-center tabular-nums">
@@ -492,7 +496,7 @@ const ProfilePage: React.FC = () => {
                       className={`relative shrink-0 ${active ? 'text-accent' : ''}`}
                     />
                     <span className="relative text-[13.5px] font-semibold tracking-tight whitespace-nowrap flex-1">
-                      {t.label}
+                      {tr(`profile.tab.${t.id}`, t.label)}
                     </span>
                     {badgeCount > 0 && (
                       <span className="relative min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[10.5px] font-bold grid place-items-center tabular-nums">
@@ -542,7 +546,7 @@ const ProfilePage: React.FC = () => {
                 )}
 
                 {activeTab === 'balance' && (
-                  <SubFrame title="Balance" subtitle="Funds, lifetime totals, and transaction history">
+                  <SubFrame title={tr('profile.tab.balance', 'Balance')} subtitle="Funds, lifetime totals, and transaction history">
                     <Suspense fallback={<TabSkeleton />}>
                       <BalanceTab />
                     </Suspense>
@@ -551,7 +555,7 @@ const ProfilePage: React.FC = () => {
 
                 {activeTab === 'inventory' && (
                   <GroupedTab
-                    title="Inventory"
+                    title={tr('profile.tab.inventory', 'Inventory')}
                     subtitle={
                       activeSub === 'wishlist'
                         ? "Skins you're watching"
@@ -573,7 +577,7 @@ const ProfilePage: React.FC = () => {
 
                 {activeTab === 'listings' && (
                   <GroupedTab
-                    title="Listings"
+                    title={tr('profile.tab.listings', 'Listings')}
                     subtitle={
                       activeSub === 'shop'
                         ? 'Public storefront for your listings'
@@ -595,7 +599,7 @@ const ProfilePage: React.FC = () => {
 
                 {activeTab === 'trades' && (
                   <GroupedTab
-                    title="Trades"
+                    title={tr('profile.tab.trades', 'Trades')}
                     subtitle={
                       activeSub === 'reviews'
                         ? "Feedback from people you've traded with"
@@ -621,7 +625,7 @@ const ProfilePage: React.FC = () => {
 
                 {activeTab === 'referral' && (
                   <GroupedTab
-                    title="Referral"
+                    title={tr('profile.tab.referral', 'Referral')}
                     subtitle="Share your link, earn a cut of every friend's fees for life."
                     subTabs={[]}
                     activeSub={activeSub}
@@ -635,7 +639,7 @@ const ProfilePage: React.FC = () => {
 
                 {activeTab === 'settings' && (
                   <GroupedTab
-                    title="Settings"
+                    title={tr('profile.tab.settings', 'Settings')}
                     subtitle={
                       activeSub === 'notifications'
                         ? 'Recent activity on your account'
@@ -686,6 +690,7 @@ const OverviewTab: React.FC<{
   user: { displayName?: string; avatarUrl?: string; steamLinked?: boolean };
   joinedAt: string | null;
 }> = ({ balance, pendingBalance, totalDeposited, totalSpent, ordersCount, recentOrders, onGoTo, formatPrice, user, joinedAt }) => {
+  const tr = useT();
   const earned = Math.max(0, balance + pendingBalance - totalDeposited + totalSpent);
 
   return (
@@ -694,10 +699,10 @@ const OverviewTab: React.FC<{
             heading, user card, identity verification, account section.
             The dense performance/quick-action cards stay desktop-only. */}
       <div className="lg:hidden space-y-4">
-        <h2 className="text-[26px] font-bold tracking-tight leading-none">Profile</h2>
+        <h2 className="text-[26px] font-bold tracking-tight leading-none">{tr('profile.title', 'Profile')}</h2>
 
         {/* User card */}
-        <div className="card p-4 relative overflow-hidden">
+        <div className="panel p-4 relative overflow-hidden">
           <div
             aria-hidden
             className="absolute inset-0 pointer-events-none opacity-[0.05]"
@@ -726,7 +731,7 @@ const OverviewTab: React.FC<{
               </div>
               <div className="text-[12.5px] text-ink-muted font-medium mt-0.5">
                 {joinedAt
-                  ? `Joined ${new Date(joinedAt).toLocaleDateString(undefined, {
+                  ? `${tr('profile.joined', 'Joined')} ${new Date(joinedAt).toLocaleDateString(undefined, {
                       month: 'long',
                       day: 'numeric',
                       year: 'numeric',
@@ -738,15 +743,15 @@ const OverviewTab: React.FC<{
         </div>
 
         {/* Identity verification */}
-        <div className="card p-5">
+        <div className="panel p-5">
           <div className="flex items-start gap-3.5">
             <span className="icon-chip bg-accent-soft shrink-0">
               <FileCheck size={18} strokeWidth={2.2} className="text-accent" />
             </span>
             <div className="min-w-0">
-              <div className="label-eyebrow">Identity Verification</div>
+              <div className="label-eyebrow">{tr('profile.kyc.title', 'Identity Verification')}</div>
               <p className="text-[13.5px] text-ink-muted font-medium mt-1.5">
-                Complete KYC to enjoy limitless trading.
+                {tr('profile.kyc.text', 'Complete KYC to enjoy limitless trading.')}
               </p>
             </div>
           </div>
@@ -755,14 +760,14 @@ const OverviewTab: React.FC<{
             onClick={() => onGoTo('settings')}
             className="mt-4 w-full h-11 rounded-xl bg-subtle active:bg-bg text-ink text-[14px] font-bold transition-colors"
           >
-            Complete
+            {tr('profile.kyc.cta', 'Complete')}
           </button>
         </div>
 
         {/* Your account */}
         <div>
-          <div className="label-eyebrow mb-2 mt-6">Your account</div>
-          <div className="card p-5">
+          <div className="label-eyebrow mb-2 mt-6">{tr('profile.account.title', 'Your account')}</div>
+          <div className="panel p-5">
             <div className="flex items-start gap-3.5">
               <span className="icon-chip shrink-0">
                 <Users size={18} strokeWidth={2.2} className="text-ink-muted" />
@@ -771,14 +776,14 @@ const OverviewTab: React.FC<{
                 <div className="label-eyebrow">Steam</div>
                 <p className="text-[13.5px] text-ink-muted font-medium mt-1.5">
                   {user.steamLinked
-                    ? 'Your Steam account is linked — P2P trading unlocked.'
-                    : 'Link your Steam account to unlock P2P trading.'}
+                    ? tr('profile.steam.linkedText', 'Your Steam account is linked — P2P trading unlocked.')
+                    : tr('profile.steam.linkText', 'Link your Steam account to unlock P2P trading.')}
                 </p>
               </div>
             </div>
             {user.steamLinked ? (
               <div className="mt-4 w-full h-11 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[14px] font-bold grid place-items-center">
-                Linked
+                {tr('profile.steam.linked', 'Linked')}
               </div>
             ) : (
               <button
@@ -786,19 +791,47 @@ const OverviewTab: React.FC<{
                 onClick={() => onGoTo('settings')}
                 className="mt-4 w-full h-11 rounded-xl bg-subtle active:bg-bg text-ink text-[14px] font-bold transition-colors"
               >
-                Link
+                {tr('profile.steam.link', 'Link')}
               </button>
             )}
           </div>
         </div>
       </div>
 
+      {/* ── Desktop overview — flat skins.com-style panels: a 4-up stat
+            row with the full money picture, then activity + shortcuts.
+            No hairline borders anywhere; separation is tone + spacing. */}
+      <div className="hidden lg:grid grid-cols-4 gap-3">
+        {(
+          [
+            [tr('profile.tab.balance', 'Balance'), formatPrice(balance), 'Available now'],
+            [tr('profile.overview.pending', 'Pending'), formatPrice(pendingBalance), 'In escrow'],
+            [tr('profile.overview.deposited', 'Deposited'), formatPrice(totalDeposited), 'Lifetime top-ups'],
+            [tr('profile.overview.spent', 'Spent'), formatPrice(totalSpent), 'Lifetime purchases'],
+          ] as Array<[string, string, string]>
+        ).map(([label, value, sub], i) => (
+          <motion.div
+            key={label}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring, delay: i * 0.04 }}
+            className="panel p-5"
+          >
+            <div className="label-meta">{label}</div>
+            <div className="text-[22px] font-bold tracking-tight tabular-nums text-ink leading-none mt-2">
+              {value}
+            </div>
+            <div className="text-[11.5px] text-ink-dim font-medium mt-1.5">{sub}</div>
+          </motion.div>
+        ))}
+      </div>
+
       {/* Performance + Quick links */}
       <div className="hidden lg:grid lg:grid-cols-[1.4fr_1fr] gap-4">
-        <motion.div variants={staggerChild} initial="hidden" animate="shown" className="card p-5 md:p-6 flex flex-col">
-          <div className="flex items-end justify-between mb-4">
+        <motion.div variants={staggerChild} initial="hidden" animate="shown" className="panel p-6 flex flex-col">
+          <div className="flex items-end justify-between">
             <div>
-              <span className="label-eyebrow">Performance</span>
+              <span className="label-eyebrow">{tr('profile.overview.performance', 'Performance')}</span>
               <h2 className="text-[17px] font-bold tracking-tight mt-1.5 leading-none">
                 Lifetime
               </h2>
@@ -807,24 +840,20 @@ const OverviewTab: React.FC<{
               +{formatPrice(Math.max(0, earned))} earned
             </span>
           </div>
-          <div className="flex-1 grid grid-cols-2 gap-3">
-            <div className="card-flat p-4">
-              <div className="label-meta">Net flow</div>
-              <div className="text-[22px] font-bold tracking-tight tabular-nums text-ink leading-none mt-1.5">
-                {formatPrice(Math.max(0, earned))}
-              </div>
-              <div className="text-[11.5px] text-ink-dim font-medium mt-1.5">
-                Deposits + sales − purchases
-              </div>
+          <div className="flex-1 mt-4">
+            <div className="kv-row">
+              <span className="kv-label">Net flow</span>
+              <span className="kv-value tabular-nums">{formatPrice(Math.max(0, earned))}</span>
             </div>
-            <div className="card-flat p-4">
-              <div className="label-meta">Activity</div>
-              <div className="text-[22px] font-bold tracking-tight tabular-nums text-ink leading-none mt-1.5">
-                {ordersCount}
-              </div>
-              <div className="text-[11.5px] text-ink-dim font-medium mt-1.5">
-                Orders all-time
-              </div>
+            <div className="kv-row">
+              <span className="kv-label">Orders all-time</span>
+              <span className="kv-value tabular-nums">{ordersCount}</span>
+            </div>
+            <div className="kv-row">
+              <span className="kv-label">Deposits + sales − purchases</span>
+              <span className="kv-value tabular-nums">
+                {formatPrice(totalDeposited)} − {formatPrice(totalSpent)}
+              </span>
             </div>
           </div>
           <motion.button
@@ -836,10 +865,10 @@ const OverviewTab: React.FC<{
           </motion.button>
         </motion.div>
 
-        <motion.div variants={staggerChild} initial="hidden" animate="shown" className="card p-5 md:p-6">
+        <motion.div variants={staggerChild} initial="hidden" animate="shown" className="panel p-6">
           <span className="label-eyebrow">Shortcuts</span>
           <h2 className="text-[17px] font-bold tracking-tight mt-1.5 leading-none mb-4">
-            Quick actions
+            {tr('profile.overview.quickActions', 'Quick actions')}
           </h2>
           <div className="space-y-2">
             <QuickAction
@@ -876,12 +905,12 @@ const OverviewTab: React.FC<{
 
       {/* Recent orders — desktop only; the mobile overview stays a clean
           profile card per the reference (orders live under Trades). */}
-      <motion.div variants={staggerChild} initial="hidden" animate="shown" className="hidden lg:block card p-5 md:p-6">
+      <motion.div variants={staggerChild} initial="hidden" animate="shown" className="hidden lg:block panel p-6">
         <div className="flex items-end justify-between mb-4 flex-wrap gap-3">
           <div>
             <span className="label-eyebrow">Activity</span>
             <h2 className="text-[17px] font-bold tracking-tight mt-1.5 leading-none">
-              Recent orders
+              {tr('profile.overview.recentOrders', 'Recent orders')}
             </h2>
           </div>
           <button
@@ -945,10 +974,12 @@ const SubFrame: React.FC<{
   title: string;
   subtitle?: string;
   children: React.ReactNode;
-}> = ({ title, subtitle, children }) => (
+}> = ({ title, subtitle, children }) => {
+  const trShared = useT();
+  return (
   <div className="space-y-4">
     <div>
-      <span className="label-eyebrow">Profile</span>
+      <span className="label-eyebrow">{trShared('profile.title', 'Profile')}</span>
       <h2 className="text-[22px] sm:text-[26px] font-bold tracking-tight mt-1.5 leading-none">
         {title}
       </h2>
@@ -958,7 +989,8 @@ const SubFrame: React.FC<{
     </div>
     {children}
   </div>
-);
+  );
+};
 
 /* GroupedTab — SubFrame plus a pill row of sub-tabs. Used for the four
    tabs that now host multiple related views (Inventory, Listings,
@@ -971,10 +1003,12 @@ const GroupedTab: React.FC<{
   activeSub?: SubId;
   onSubChange: (sub: SubId) => void;
   children: React.ReactNode;
-}> = ({ title, subtitle, subTabs, activeSub, onSubChange, children }) => (
+}> = ({ title, subtitle, subTabs, activeSub, onSubChange, children }) => {
+  const trShared = useT();
+  return (
   <div className="space-y-4">
     <div>
-      <span className="label-eyebrow">Profile</span>
+      <span className="label-eyebrow">{trShared('profile.title', 'Profile')}</span>
       <h2 className="text-[22px] sm:text-[26px] font-bold tracking-tight mt-1.5 leading-none">
         {title}
       </h2>
@@ -1010,7 +1044,8 @@ const GroupedTab: React.FC<{
     )}
     {children}
   </div>
-);
+  );
+};
 
 const TabSkeleton: React.FC = () => (
   <div className="space-y-3">

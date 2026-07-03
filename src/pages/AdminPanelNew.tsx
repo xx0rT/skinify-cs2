@@ -1,14 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Flipper, Flipped } from 'react-flip-toolkit';
 import { useNavigate } from 'react-router-dom';
-import { Home, Shield, Users, DollarSign, Package, Lock, BarChart3, Settings, MessageSquare, Wrench, Wallet, Bell, Activity, Database, AlertTriangle, Search, Filter, RefreshCw, Download, Upload, CheckCircle, X, Ban, AlertOctagon, Send, Eye, CreditCard as Edit3, Trash2, Plus, TrendingUp, Crown, Mail, Calendar, Clock, Heart, Star, Award, FileText, Code, TestTube, BookOpen } from 'lucide-react';
+import {
+  ArrowLeft,
+  Activity,
+  BarChart3,
+  Bell,
+  BookOpen,
+  Calendar,
+  DollarSign,
+  Eye,
+  LayoutGrid,
+  MessageSquare,
+  Package,
+  Plus,
+  Settings,
+  Shield,
+  Trash2,
+  Users,
+  Wallet,
+  Wrench,
+} from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
 import { useAdminAuth } from '../hooks/useAdminAuth';
 import SteamLogin from '../components/auth/SteamLogin';
 import UserProfile from '../components/auth/UserProfile';
 import { createClient } from '@supabase/supabase-js';
+import { spring, tap } from '../lib/motion';
 import DashboardTab from '../components/admin/DashboardTab';
 import UsersTab from '../components/admin/UsersTab';
 import FinanceTab from '../components/admin/FinanceTab';
@@ -16,12 +35,301 @@ import SettingsTab from '../components/admin/SettingsTab';
 import { InventoryTab, AnalyticsTab, SupportTab, DeveloperTab, WithdrawalsTab, MonitoringTab } from '../components/admin/RemainingTabs';
 import NotificationsTab from '../components/admin/NotificationsTab';
 
-// Blogs Tab Component
+/* ─────────────────────────────────────────────────────────────────────────
+   Admin panel — clean flat shell.
+
+   Same design language as the rest of the app (theme tokens, .panel
+   surfaces, accent pills) instead of the old purple-neon gradients.
+   Left: grouped sidebar with a gliding active pill. Right: header with
+   the current section + account chip, then the tab content cross-fades
+   with a spring.
+   ───────────────────────────────────────────────────────────────────────── */
+
+type TabId =
+  | 'dashboard'
+  | 'users'
+  | 'finance'
+  | 'withdrawals'
+  | 'inventory'
+  | 'blogs'
+  | 'notifications'
+  | 'analytics'
+  | 'monitoring'
+  | 'support'
+  | 'settings'
+  | 'developer';
+
+interface NavItem {
+  id: TabId;
+  label: string;
+  icon: React.ComponentType<any>;
+}
+interface NavGroup {
+  name: string;
+  items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    name: 'Overview',
+    items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutGrid }],
+  },
+  {
+    name: 'Management',
+    items: [
+      { id: 'users', label: 'Users', icon: Users },
+      { id: 'finance', label: 'Finance', icon: DollarSign },
+      { id: 'withdrawals', label: 'Withdrawals', icon: Wallet },
+      { id: 'inventory', label: 'Inventory', icon: Package },
+      { id: 'blogs', label: 'Blog posts', icon: BookOpen },
+    ],
+  },
+  {
+    name: 'Insights',
+    items: [
+      { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+      { id: 'monitoring', label: 'Monitoring', icon: Activity },
+      { id: 'notifications', label: 'Notifications', icon: Bell },
+    ],
+  },
+  {
+    name: 'System',
+    items: [
+      { id: 'support', label: 'Support', icon: MessageSquare },
+      { id: 'settings', label: 'Settings', icon: Settings },
+      { id: 'developer', label: 'Developer', icon: Wrench },
+    ],
+  },
+];
+
+const ALL_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
+
+const sidebarVariants = {
+  hidden: {},
+  shown: { transition: { staggerChildren: 0.03, delayChildren: 0.05 } },
+} as const;
+const sidebarItem = {
+  hidden: { opacity: 0, x: -12 },
+  shown: { opacity: 1, x: 0, transition: spring },
+} as const;
+
+const AdminPanelNew: React.FC = () => {
+  const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const { isAdmin, loading: adminLoading } = useAdminAuth();
+  const { addToast } = useToastStore();
+  const [activeTab, setActiveTab] = useState<TabId>('dashboard');
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+
+  /* ── Access states — flat, quiet, on-brand ── */
+  if (!user || adminLoading || !isAdmin) {
+    return (
+      <div className="min-h-screen bg-bg text-ink grid place-items-center px-4">
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={spring}
+          className="panel p-10 sm:p-14 text-center max-w-md w-full"
+        >
+          <div className="icon-chip-lg bg-accent-soft mx-auto mb-5">
+            <Shield size={22} strokeWidth={2.2} className="text-accent" />
+          </div>
+          {adminLoading && user ? (
+            <>
+              <h1 className="text-[22px] font-bold tracking-tight">Checking access…</h1>
+              <p className="text-[13.5px] text-ink-muted font-medium mt-2">
+                Verifying your admin permissions.
+              </p>
+            </>
+          ) : !user ? (
+            <>
+              <h1 className="text-[22px] font-bold tracking-tight">Admin access</h1>
+              <p className="text-[13.5px] text-ink-muted font-medium mt-2 mb-6">
+                Sign in to open the control panel.
+              </p>
+              <div className="flex justify-center">
+                <SteamLogin />
+              </div>
+            </>
+          ) : (
+            <>
+              <h1 className="text-[22px] font-bold tracking-tight">Access denied</h1>
+              <p className="text-[13.5px] text-ink-muted font-medium mt-2 mb-6">
+                This account doesn't have admin permissions.
+              </p>
+              <button
+                onClick={() => navigate('/')}
+                className="h-11 px-5 rounded-full bg-accent text-on-accent text-[13.5px] font-bold"
+              >
+                Back to marketplace
+              </button>
+            </>
+          )}
+        </motion.div>
+      </div>
+    );
+  }
+
+  const activeItem = ALL_ITEMS.find((i) => i.id === activeTab);
+
+  return (
+    <div className="min-h-screen bg-bg text-ink">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4 lg:py-6">
+        {/* ── Header ── */}
+        <motion.header
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={spring}
+          className="flex items-center gap-3 mb-5"
+        >
+          <motion.button
+            whileTap={tap}
+            onClick={() => navigate('/')}
+            className="w-10 h-10 rounded-full bg-subtle hover:bg-surface grid place-items-center text-ink-muted hover:text-ink transition-colors shrink-0"
+            aria-label="Back to site"
+          >
+            <ArrowLeft size={16} strokeWidth={2.4} />
+          </motion.button>
+          <div className="min-w-0 flex-1">
+            <span className="label-eyebrow">Admin</span>
+            <AnimatePresence mode="wait">
+              <motion.h1
+                key={activeTab}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ ...spring, mass: 0.5 }}
+                className="text-[22px] sm:text-[26px] font-bold tracking-tight leading-none mt-1"
+              >
+                {activeItem?.label || 'Dashboard'}
+              </motion.h1>
+            </AnimatePresence>
+          </div>
+          <UserProfile />
+        </motion.header>
+
+        {/* ── Mobile tab strip (<lg) — underline tabs, same pattern as
+              the profile page. ── */}
+        <div className="lg:hidden -mx-4 sm:-mx-6 px-4 sm:px-6 mb-5 border-b border-line overflow-x-auto scrollbar-hide">
+          <nav className="flex gap-5 min-w-max" aria-label="Admin sections">
+            {ALL_ITEMS.map((item) => {
+              const active = activeTab === item.id;
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`relative flex items-center gap-2 py-3 shrink-0 transition-colors ${
+                    active ? 'text-ink' : 'text-ink-muted'
+                  }`}
+                >
+                  <Icon size={15} strokeWidth={active ? 2.4 : 2} />
+                  <span className="text-[13.5px] font-semibold tracking-tight whitespace-nowrap">
+                    {item.label}
+                  </span>
+                  {active && (
+                    <motion.span
+                      layoutId="admin-mobile-underline"
+                      className="absolute bottom-0 left-0 right-0 h-[2.5px] rounded-full bg-accent"
+                      transition={spring}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-[240px_1fr]">
+          {/* ── Sidebar (lg+) ── */}
+          <motion.aside
+            variants={sidebarVariants}
+            initial="hidden"
+            animate="shown"
+            className="hidden lg:block panel p-3 self-start sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto scrollbar-thin"
+          >
+            {NAV_GROUPS.map((group) => (
+              <div key={group.name} className="mb-4 last:mb-0">
+                <motion.div variants={sidebarItem} className="label-meta px-3 mb-1.5">
+                  {group.name}
+                </motion.div>
+                <nav className="flex flex-col gap-0.5">
+                  {group.items.map((item) => {
+                    const active = activeTab === item.id;
+                    const Icon = item.icon;
+                    return (
+                      <motion.button
+                        variants={sidebarItem}
+                        whileTap={tap}
+                        key={item.id}
+                        onClick={() => setActiveTab(item.id)}
+                        className={`relative h-10 px-3 rounded-xl flex items-center gap-2.5 text-left transition-colors ${
+                          active ? 'text-ink' : 'text-ink-muted hover:text-ink hover:bg-subtle'
+                        }`}
+                      >
+                        {active && (
+                          <motion.span
+                            layoutId="admin-sidebar-pill"
+                            className="absolute inset-0 rounded-xl bg-accent-soft"
+                            transition={spring}
+                          />
+                        )}
+                        <Icon
+                          size={15}
+                          strokeWidth={active ? 2.4 : 2}
+                          className={`relative shrink-0 ${active ? 'text-accent' : ''}`}
+                        />
+                        <span className="relative text-[13px] font-semibold tracking-tight">
+                          {item.label}
+                        </span>
+                      </motion.button>
+                    );
+                  })}
+                </nav>
+              </div>
+            ))}
+          </motion.aside>
+
+          {/* ── Content — spring cross-fade between tabs ── */}
+          <div className="min-w-0">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ ...spring, mass: 0.6 }}
+              >
+                {activeTab === 'dashboard' && (
+                  <DashboardTab onGoTo={(t) => setActiveTab(t as TabId)} />
+                )}
+                {activeTab === 'users' && <UsersTab />}
+                {activeTab === 'finance' && <FinanceTab addToast={addToast} />}
+                {activeTab === 'inventory' && <InventoryTab addToast={addToast} />}
+                {activeTab === 'notifications' && <NotificationsTab addToast={addToast} />}
+                {activeTab === 'analytics' && <AnalyticsTab addToast={addToast} />}
+                {activeTab === 'support' && <SupportTab addToast={addToast} user={user} />}
+                {activeTab === 'settings' && <SettingsTab addToast={addToast} />}
+                {activeTab === 'developer' && <DeveloperTab addToast={addToast} />}
+                {activeTab === 'withdrawals' && <WithdrawalsTab addToast={addToast} />}
+                {activeTab === 'blogs' && <BlogsTab addToast={addToast} supabase={supabase} />}
+                {activeTab === 'monitoring' && <MonitoringTab addToast={addToast} />}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ── Blogs tab — flat list styled with theme tokens. ── */
 const BlogsTab: React.FC<{ addToast: any; supabase: any }> = ({ addToast, supabase }) => {
   const [blogs, setBlogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingBlog, setEditingBlog] = useState<any>(null);
-  const [showForm, setShowForm] = useState(false);
 
   const fetchBlogs = async () => {
     try {
@@ -45,13 +353,8 @@ const BlogsTab: React.FC<{ addToast: any; supabase: any }> = ({ addToast, supaba
 
   const deleteBlog = async (id: number) => {
     if (!confirm('Are you sure you want to delete this blog post?')) return;
-
     try {
-      const { error } = await supabase
-        .from('blog_posts')
-        .delete()
-        .eq('id', id);
-
+      const { error } = await supabase.from('blog_posts').delete().eq('id', id);
       if (error) throw error;
       addToast({ type: 'success', title: 'Success', message: 'Blog post deleted' });
       fetchBlogs();
@@ -66,7 +369,6 @@ const BlogsTab: React.FC<{ addToast: any; supabase: any }> = ({ addToast, supaba
         .from('blog_posts')
         .update({ is_published: !blog.is_published })
         .eq('id', blog.id);
-
       if (error) throw error;
       addToast({ type: 'success', title: 'Success', message: 'Blog status updated' });
       fetchBlogs();
@@ -76,315 +378,83 @@ const BlogsTab: React.FC<{ addToast: any; supabase: any }> = ({ addToast, supaba
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-white">Blog Posts Management</h2>
-        <button
-          onClick={() => { setShowForm(true); setEditingBlog(null); }}
-          className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[13px] text-ink-muted font-medium">
+          {loading ? 'Loading posts…' : `${blogs.length} post${blogs.length === 1 ? '' : 's'}`}
+        </p>
+        <motion.button
+          whileTap={tap}
+          onClick={() =>
+            addToast({ type: 'info', title: 'Coming soon', message: 'Post editor is on the way.' })
+          }
+          className="h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold inline-flex items-center gap-1.5"
         >
-          <Plus size={18} />
-          <span>New Post</span>
-        </button>
+          <Plus size={14} strokeWidth={2.6} />
+          New post
+        </motion.button>
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">Loading blogs...</div>
+        <div className="panel p-10 text-center text-[13.5px] text-ink-muted font-medium">
+          Loading blogs…
+        </div>
+      ) : blogs.length === 0 ? (
+        <div className="panel p-10 text-center text-[13.5px] text-ink-muted font-medium">
+          No blog posts yet.
+        </div>
       ) : (
-        <div className="grid gap-4">
-          {blogs.map((blog) => (
-            <div key={blog.id} className="bg-gray-800/50 border border-gray-700 rounded-lg p-6">
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex-1">
-                  <h3 className="text-xl font-semibold text-white mb-2">{blog.title}</h3>
-                  <p className="text-gray-400 text-sm mb-2">{blog.excerpt}</p>
-                  <div className="flex items-center space-x-4 text-xs text-gray-500">
-                    <span className="flex items-center space-x-1">
-                      <BookOpen size={14} />
-                      <span>{blog.category}</span>
-                    </span>
-                    <span className="flex items-center space-x-1">
-                      <Calendar size={14} />
-                      <span>{new Date(blog.created_at).toLocaleDateString()}</span>
-                    </span>
-                    <span className="flex items-center space-x-1">
-                      <Eye size={14} />
-                      <span>{blog.views} views</span>
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => togglePublished(blog)}
-                    className={`px-3 py-1 rounded text-xs font-medium ${
-                      blog.is_published
-                        ? 'bg-green-600/20 text-green-400'
-                        : 'bg-gray-600/20 text-gray-400'
-                    }`}
-                  >
-                    {blog.is_published ? 'Published' : 'Draft'}
-                  </button>
-                  <button
-                    onClick={() => deleteBlog(blog.id)}
-                    className="p-2 text-red-400 hover:bg-red-500/20 rounded"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+        <div className="space-y-2">
+          {blogs.map((blog, i) => (
+            <motion.div
+              key={blog.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...spring, delay: Math.min(i * 0.04, 0.3) }}
+              className="panel p-5 flex items-start justify-between gap-4"
+            >
+              <div className="min-w-0 flex-1">
+                <h3 className="text-[15px] font-bold text-ink tracking-tight truncate">
+                  {blog.title}
+                </h3>
+                <p className="text-[12.5px] text-ink-muted font-medium mt-1 line-clamp-1">
+                  {blog.excerpt}
+                </p>
+                <div className="mt-2.5 flex items-center gap-4 text-[11px] text-ink-dim font-semibold">
+                  <span className="inline-flex items-center gap-1">
+                    <BookOpen size={12} /> {blog.category}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <Calendar size={12} /> {new Date(blog.created_at).toLocaleDateString()}
+                  </span>
+                  <span className="inline-flex items-center gap-1 tabular-nums">
+                    <Eye size={12} /> {blog.views} views
+                  </span>
                 </div>
               </div>
-            </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => togglePublished(blog)}
+                  className={`h-8 px-3 rounded-full text-[11.5px] font-bold transition-colors ${
+                    blog.is_published
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-subtle text-ink-muted'
+                  }`}
+                >
+                  {blog.is_published ? 'Published' : 'Draft'}
+                </button>
+                <button
+                  onClick={() => deleteBlog(blog.id)}
+                  className="w-8 h-8 rounded-full grid place-items-center text-ink-muted hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                  aria-label="Delete post"
+                >
+                  <Trash2 size={14} strokeWidth={2.2} />
+                </button>
+              </div>
+            </motion.div>
           ))}
         </div>
       )}
-    </div>
-  );
-};
-
-const AdminPanelNew: React.FC = () => {
-  const navigate = useNavigate();
-  const { user } = useAuthStore();
-  const { isAdmin, role, loading: adminLoading } = useAdminAuth();
-  const { addToast } = useToastStore();
-  const [activeSection, setActiveSection] = useState('Admin');
-  const [hoveredNavItem, setHoveredNavItem] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [loading, setLoading] = useState(false);
-
-  // Initialize Supabase
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-  const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
-
-  const sidebarSections = [
-    {
-      name: 'Navigation',
-      items: [
-        { icon: Home, label: 'Home', onClick: () => navigate('/') },
-        { icon: Shield, label: 'Admin', active: true, onClick: () => {} }
-      ]
-    },
-    {
-      name: 'Core Management',
-      items: [
-        { icon: Users, label: 'Users', onClick: () => setActiveTab('users') },
-        { icon: DollarSign, label: 'Finance', onClick: () => setActiveTab('finance') },
-        { icon: Package, label: 'Inventory', onClick: () => setActiveTab('inventory') },
-        { icon: Wallet, label: 'Withdrawals', onClick: () => setActiveTab('withdrawals') },
-        { icon: BookOpen, label: 'Blog Posts', onClick: () => setActiveTab('blogs') }
-      ]
-    },
-    {
-      name: 'Security & Analytics',
-      items: [
-        { icon: Bell, label: 'Notifications', onClick: () => setActiveTab('notifications') },
-        { icon: BarChart3, label: 'Analytics', onClick: () => setActiveTab('analytics') },
-        { icon: Activity, label: 'Monitoring', onClick: () => setActiveTab('monitoring') }
-      ]
-    },
-    {
-      name: 'Support & Settings',
-      items: [
-        { icon: MessageSquare, label: 'Support', onClick: () => setActiveTab('support') },
-        { icon: Settings, label: 'Settings', onClick: () => setActiveTab('settings') },
-        { icon: Wrench, label: 'Developer', onClick: () => setActiveTab('developer') }
-      ]
-    }
-  ];
-
-  const navigationItems = [
-    { name: 'Dashboard', icon: BarChart3, onClick: () => setActiveTab('dashboard') },
-    { name: 'Users', icon: Users, onClick: () => setActiveTab('users') },
-    { name: 'Finance', icon: DollarSign, onClick: () => setActiveTab('finance') },
-    { name: 'Withdrawals', icon: Wallet, onClick: () => setActiveTab('withdrawals') },
-    { name: 'Inventory', icon: Package, onClick: () => setActiveTab('inventory') },
-    { name: 'Notifications', icon: Bell, onClick: () => setActiveTab('notifications') },
-    { name: 'Analytics', icon: BarChart3, onClick: () => setActiveTab('analytics') },
-    { name: 'Support', icon: MessageSquare, onClick: () => setActiveTab('support') },
-    { name: 'Settings', icon: Settings, onClick: () => setActiveTab('settings') }
-  ];
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-        <div className="text-center">
-          <Shield className="w-16 h-16 text-purple-400 mx-auto mb-6" />
-          <h1 className="text-3xl font-bold mb-4">Admin Access Required</h1>
-          <p className="text-gray-400 mb-8">Please sign in to access the admin panel</p>
-          <SteamLogin />
-        </div>
-      </div>
-    );
-  }
-
-  if (adminLoading) {
-    return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-400 mx-auto mb-6"></div>
-          <p className="text-gray-400">Verifying admin access...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-        <div className="text-center">
-          <AlertOctagon className="w-16 h-16 text-red-400 mx-auto mb-6" />
-          <h1 className="text-3xl font-bold mb-4">Access Denied</h1>
-          <p className="text-gray-400 mb-4">You don't have admin permissions to access this page</p>
-          <p className="text-gray-500 text-sm mb-8">Contact an administrator if you believe this is an error</p>
-          <button
-            onClick={() => navigate('/')}
-            className="bg-purple-600 hover:bg-purple-500 text-white px-6 py-3 rounded-lg transition-all duration-300"
-          >
-            Return Home
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/10 to-gray-900 text-white overflow-hidden">
-      <div className="flex min-h-screen">
-        {/* Left Sidebar */}
-        <motion.div className="group fixed left-0 top-0 h-full z-50 w-16 hover:w-64 bg-gradient-to-b from-gray-900 via-gray-900 to-purple-900/20 border-r border-purple-500/30 flex flex-col transition-all duration-300 ease-in-out py-4 shadow-2xl" style={{ boxShadow: '0 0 40px rgba(168, 85, 247, 0.2)' }}>
-          {/* Logo */}
-          <div className="h-12 flex items-center justify-center mb-4 mx-auto group-hover:mx-3 overflow-hidden">
-            <div className="relative flex items-center">
-              <motion.img
-                src="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png"
-                alt="Skinify Logo"
-                className="h-12 w-auto object-contain cursor-pointer"
-                onClick={() => navigate('/')}
-              />
-              <div className="hidden group-hover:block">
-                <motion.img
-                  src="https://i.postimg.cc/xqdxTY2d/skinify2-2-removebg-preview.png"
-                  alt="Skinify Logo Extended"
-                  className="h-12 w-auto object-contain cursor-pointer"
-                  onClick={() => navigate('/')}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Sidebar Items */}
-          <div className="flex flex-col space-y-1 flex-1 px-2 group-hover:px-3">
-            {sidebarSections.map((section, sectionIndex) => (
-              <div key={section.name} className="relative">
-                {sectionIndex > 0 && (
-                  <div className="h-px bg-gradient-to-r from-transparent via-gray-600/30 to-transparent my-2 mx-2" />
-                )}
-                <div className="hidden group-hover:block mb-2">
-                  <div className="text-xs text-purple-400 font-medium px-3 mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-200">
-                    {section.name}
-                  </div>
-                </div>
-                {section.items.map((item, itemIndex) => (
-                  <motion.button
-                    key={itemIndex}
-                    onClick={item.onClick}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className={`relative flex items-center p-3 rounded-lg transition-all duration-300 overflow-hidden group/item w-full mb-1 ${
-                      item.active ? 'bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-lg shadow-purple-500/50' : 'text-gray-400 hover:text-white hover:bg-purple-600/20 hover:shadow-lg hover:shadow-purple-500/20'
-                    }`}
-                  >
-                    <item.icon size={20} className="flex-shrink-0" />
-                    <div className="hidden group-hover:block ml-3">
-                      <span className="text-current whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-150">
-                        {item.label}
-                      </span>
-                    </div>
-                  </motion.button>
-                ))}
-              </div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col ml-16 relative">
-          {/* Header Navigation */}
-          <motion.header className="fixed top-0 left-16 right-0 bg-gradient-to-r from-gray-900 via-purple-900/20 to-gray-900 border-b border-purple-500/30 p-4 z-30 shadow-2xl backdrop-blur-sm" style={{ boxShadow: '0 0 40px rgba(168, 85, 247, 0.2)' }}>
-            <div className="flex items-center relative">
-              <div className="flex justify-center w-full">
-                <Flipper flipKey={`${activeSection}-${hoveredNavItem}`}>
-                  <motion.nav>
-                    <div className="flex justify-center space-x-1 bg-gradient-to-r from-gray-900 via-purple-900/20 to-gray-900 px-6 py-3 border border-purple-500/40 shadow-2xl rounded-lg" style={{ boxShadow: '0 0 30px rgba(168, 85, 247, 0.3)' }}>
-                      {navigationItems.slice(0, 8).map((item) => (
-                        <Flipped key={item.name} flipId={`header-nav-${item.name}`}>
-                          <motion.button
-                            onClick={item.onClick}
-                            onMouseEnter={() => setHoveredNavItem(item.name)}
-                            onMouseLeave={() => setHoveredNavItem(null)}
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            className={`flex justify-center relative px-4 py-2 text-sm font-medium transition-all duration-300 flex items-center space-x-2 rounded-lg ${
-                              activeTab === item.name.toLowerCase()
-                                ? 'text-white bg-gradient-to-r from-purple-600 to-fuchsia-600 shadow-lg shadow-purple-500/50'
-                                : 'text-gray-300 hover:text-white hover:bg-purple-600/30'
-                            }`}
-                          >
-                            <item.icon size={16} />
-                            <span>{item.name}</span>
-                          </motion.button>
-                        </Flipped>
-                      ))}
-                    </div>
-                  </motion.nav>
-                </Flipper>
-              </div>
-              <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-                <UserProfile />
-              </div>
-            </div>
-          </motion.header>
-
-          {/* Content Area */}
-          <div className="flex-1 pt-24 pb-12 px-6">
-            <div className="container mx-auto max-w-7xl">
-              {/* Admin Title */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mb-8"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-gradient-to-r from-purple-600 to-fuchsia-600 rounded-lg flex items-center justify-center shadow-lg shadow-purple-500/50">
-                    <Crown className="w-6 h-6 text-white animate-pulse" />
-                  </div>
-                  <div>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 via-fuchsia-400 to-purple-400 bg-clip-text text-transparent">
-                      Admin Control Panel
-                    </h1>
-                    <p className="text-sm text-purple-300/80">Complete marketplace management system</p>
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Tab Content */}
-              <AnimatePresence mode="wait">
-                {activeTab === 'dashboard' && <DashboardTab />}
-                {activeTab === 'users' && <UsersTab addToast={addToast} />}
-                {activeTab === 'finance' && <FinanceTab addToast={addToast} />}
-                {activeTab === 'inventory' && <InventoryTab addToast={addToast} />}
-                {activeTab === 'notifications' && <NotificationsTab addToast={addToast} />}
-                {activeTab === 'analytics' && <AnalyticsTab addToast={addToast} />}
-                {activeTab === 'support' && <SupportTab addToast={addToast} user={user} />}
-                {activeTab === 'settings' && <SettingsTab addToast={addToast} />}
-                {activeTab === 'developer' && <DeveloperTab addToast={addToast} />}
-                {activeTab === 'withdrawals' && <WithdrawalsTab addToast={addToast} />}
-                {activeTab === 'blogs' && <BlogsTab addToast={addToast} supabase={supabase} />}
-                {activeTab === 'monitoring' && <MonitoringTab addToast={addToast} />}
-              </AnimatePresence>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

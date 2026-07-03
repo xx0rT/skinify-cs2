@@ -21,6 +21,7 @@ import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
+import { useT } from '../lib/useT';
 import SteamLogin from '../components/auth/SteamLogin';
 import { spring, tap } from '../lib/motion';
 
@@ -72,6 +73,7 @@ const BonusesPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
+  const tr = useT();
   const [filter, setFilter] = useState<Cadence | 'all'>('all');
   const [claimed, setClaimed] = useState<Set<string>>(new Set());
 
@@ -151,13 +153,12 @@ const BonusesPage: React.FC = () => {
               <div className="icon-chip-lg bg-accent-soft mb-5">
                 <Gift size={22} className="text-accent" />
               </div>
-              <span className="label-eyebrow">Rewards</span>
+              <span className="label-eyebrow">{tr('bonuses.hero.eyebrow', 'Rewards')}</span>
               <h1 className="text-[28px] sm:text-[40px] font-bold tracking-tight mt-2 leading-tight">
-                Earn bonuses every<br className="hidden sm:block" /> time you trade
+                {tr('bonuses.hero.title', 'Earn bonuses every time you trade')}
               </h1>
               <p className="text-[14px] sm:text-[15px] text-ink-muted font-medium mt-3 max-w-[520px] leading-relaxed">
-                Daily login rewards, deposit bonuses, and seasonal milestones — all in one place. Claim them whenever
-                you're online.
+                {tr('bonuses.hero.lead', "Daily login rewards, deposit bonuses, and seasonal milestones — all in one place. Claim them whenever you're online.")}
               </p>
               {!user && (
                 <div className="mt-5">
@@ -326,7 +327,7 @@ const BonusesPage: React.FC = () => {
         >
           <div className="flex items-end justify-between flex-wrap gap-3 mb-5">
             <div>
-              <span className="label-eyebrow">Deposit bonuses</span>
+              <span className="label-eyebrow">{tr('bonuses.deposit.eyebrow', 'Deposit bonuses')}</span>
               <h2 className="text-[20px] sm:text-[24px] font-bold tracking-tight mt-1.5 leading-none">
                 Top up, get more
               </h2>
@@ -369,7 +370,7 @@ const BonusesPage: React.FC = () => {
           transition={{ ...spring, delay: 0.15 }}
           className="card p-6 md:p-8"
         >
-          <span className="label-eyebrow">How it works</span>
+          <span className="label-eyebrow">{tr('bonuses.how.eyebrow', 'How it works')}</span>
           <h2 className="text-[20px] sm:text-[24px] font-bold tracking-tight mt-1.5 leading-none mb-5">
             Three steps to your bonus
           </h2>

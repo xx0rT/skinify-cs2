@@ -1,4 +1,5 @@
 import React from 'react';
+import { useT } from '../lib/useT';
 import { RefreshCcw } from 'lucide-react';
 import LegalShell, { LegalSection } from '../components/legal/LegalShell';
 import useDocumentMeta from '../hooks/useDocumentMeta';
@@ -103,6 +104,7 @@ const sections: LegalSection[] = [
 ];
 
 const RefundPolicyPage: React.FC = () => {
+  const tr = useT();
   useDocumentMeta({
     title: 'Refund Policy · Skinify',
     description:
@@ -112,9 +114,9 @@ const RefundPolicyPage: React.FC = () => {
   return (
   <LegalShell
     Icon={RefreshCcw}
-    eyebrow="Legal"
-    title="Refund policy"
-    intro="What's eligible for a refund, how to request one, and how long the process takes."
+    eyebrow={tr('legal.eyebrow', 'Legal')}
+    title={tr('legal.refund.title', 'Refund policy')}
+    intro={tr('legal.refund.intro', "What's eligible for a refund, how to request one, and how long the process takes.")}
     lastUpdated="January 15, 2026"
     sections={sections}
   />
