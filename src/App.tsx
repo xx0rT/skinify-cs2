@@ -139,6 +139,12 @@ export default function App() {
     if (autoDetectAttempted.current) return;
     autoDetectAttempted.current = true;
 
+    /* Re-apply the user's saved UI scale (Settings → Appearance →
+       Font size) before anything renders at the default zoom. */
+    import('./utils/uiScale').then(({ getUiScale, applyUiScale }) =>
+      applyUiScale(getUiScale()),
+    );
+
     /* Single geo call that yields currency + language code + country.
        Cheaper than the historical pair of HTTP requests (currency-only
        + a second one for language), and means a flaky network only

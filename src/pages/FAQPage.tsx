@@ -235,7 +235,7 @@ const FAQPage: React.FC = () => {
                   className="relative"
                   style={!active ? { color: `rgb(var(--hue-${c.hue}))` } : undefined}
                 />
-                <span className="relative">{c.label}</span>
+                <span className="relative">{tr(`faq.cat.${c.id}`, c.label)}</span>
               </motion.button>
             );
           })}
@@ -269,7 +269,7 @@ const FAQPage: React.FC = () => {
                       className="w-full text-left py-5 flex items-start gap-4 group"
                     >
                       <span className="flex-1 text-[15px] sm:text-[16px] font-bold text-ink leading-snug tracking-tight">
-                        {f.question}
+                        {tr(`faq.item.${f.id}.q`, f.question)}
                       </span>
                       <span
                         className={`shrink-0 mt-0.5 w-7 h-7 rounded-full grid place-items-center transition-all duration-200 ${
@@ -292,7 +292,7 @@ const FAQPage: React.FC = () => {
                         >
                           <div className="pb-5 pr-12 max-w-3xl">
                             <p className="text-[13.5px] sm:text-[14px] text-ink-muted leading-relaxed font-medium">
-                              {f.answer}
+                              {tr(`faq.item.${f.id}.a`, f.answer)}
                             </p>
                             {/* If we shipped a detail page for this
                                 question, surface a "read more" link.

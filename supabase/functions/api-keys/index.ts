@@ -30,7 +30,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.39.0';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
-    'Content-Type, Authorization, X-Client-Info, Apikey',
+    'Content-Type, Authorization, X-Client-Info, Apikey, X-Steam-Id',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
 };
 
@@ -78,38 +78,66 @@ async function authenticate(
 ): Promise<AuthResolution | { error: { status: number; code: string; message: string } }> {
   const auth = req.headers.get('Authorization') || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-  if (!token) {
-    return { error: { status: 401, code: 'unauthenticated', message: 'Missing bearer token.' } };
-  }
-  const { data: userData, error: userErr } = await supabase.auth.getUser(token);
-  if (userErr || !userData?.user) {
-    return {
-      error: { status: 401, code: 'invalid_token', message: 'Token rejected by Supabase Auth.' },
-    };
-  }
-  const authUserId = userData.user.id;
 
-  const { data: row, error: rowErr } = await supabase
-    .from('users')
-    .select('id, total_deposited')
-    .eq('auth_user_id', authUserId)
-    .maybeSingle();
-  if (rowErr) {
-    return { error: { status: 500, code: 'db_error', message: rowErr.message } };
+  /* Path 1 — Supabase Auth JWT (email/password accounts). */
+  if (token) {
+    const { data: userData } = await supabase.auth.getUser(token);
+    if (userData?.user) {
+      const authUserId = userData.user.id;
+      const { data: row, error: rowErr } = await supabase
+        .from('users')
+        .select('id, total_deposited')
+        .eq('auth_user_id', authUserId)
+        .maybeSingle();
+      if (rowErr) {
+        return { error: { status: 500, code: 'db_error', message: rowErr.message } };
+      }
+      if (row) {
+        return {
+          authUserId,
+          userId: row.id,
+          totalDepositedCzk: Number(row.total_deposited || 0),
+        };
+      }
+    }
   }
-  if (!row) {
+
+  /* Path 2 — Steam-OpenID accounts. These never hold a Supabase Auth
+     session; identify by Steam ID, matching the trust model the rest
+     of the platform's functions (orders, balance) already use. */
+  const steamId =
+    req.headers.get('X-Steam-Id') || new URL(req.url).searchParams.get('steamId') || '';
+  if (/^\d{17}$/.test(steamId)) {
+    const { data: row, error: rowErr } = await supabase
+      .from('users')
+      .select('id, total_deposited')
+      .eq('steam_id', steamId)
+      .maybeSingle();
+    if (rowErr) {
+      return { error: { status: 500, code: 'db_error', message: rowErr.message } };
+    }
+    if (row) {
+      return {
+        authUserId: steamId,
+        userId: row.id,
+        totalDepositedCzk: Number(row.total_deposited || 0),
+      };
+    }
     return {
       error: {
         status: 404,
         code: 'user_not_found',
-        message: 'No public.users row for this auth user. Finish onboarding first.',
+        message: 'No public.users row for this Steam ID. Finish onboarding first.',
       },
     };
   }
+
   return {
-    authUserId,
-    userId: row.id,
-    totalDepositedCzk: Number(row.total_deposited || 0),
+    error: {
+      status: 401,
+      code: 'unauthenticated',
+      message: 'Provide a Supabase bearer token or an X-Steam-Id header.',
+    },
   };
 }
 

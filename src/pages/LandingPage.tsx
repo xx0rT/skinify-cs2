@@ -22,12 +22,6 @@ import LiveActivityFeed from '../components/LiveActivityFeed';
 import { SkinCard, SkinCardSkeleton } from '../components/ui/SkinCard';
 import { spring, tap } from '../lib/motion';
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Motion helpers — co-located because they're only used here. `Reveal` is
-   the standard fade-up-on-enter that every section uses; `StaggerGrid` is
-   its container variant for child items.
-   ───────────────────────────────────────────────────────────────────────── */
-
 const sectionVariants = {
   hidden: { opacity: 0, y: 14 },
   shown:  { opacity: 1, y: 0, transition: { ...spring, mass: 0.7 } },
@@ -59,15 +53,10 @@ const staggerChild = {
   shown:  { opacity: 1, y: 0, transition: spring },
 };
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Page
-   ───────────────────────────────────────────────────────────────────────── */
 
 import useDocumentMeta, { faqJsonLd } from '../hooks/useDocumentMeta';
 
-/* Pre-built short FAQ surfaced on the landing page — also injected as
-   FAQPage JSON-LD so Google can render the rich result and pull traffic
-   off long-tail "is cs2 marketplace safe", "cs2 trading fees" queries. */
+
 const LANDING_FAQ = [
   {
     question: 'What is the cheapest way to buy CS2 skins?',
@@ -108,10 +97,6 @@ const LandingPage: React.FC = () => {
       ? 'Peer-to-peer tržiště CS2 s 0% poplatkem pro kupující. Obchody chráněné escrowem, doručení přes Steam do 60 sekund, výplaty v reálných penězích. Nakupujte AK-47, AWP, Karambit, M9 Bayonet, rukavice a vzácné patterny od ověřených prodejců.'
       : 'The peer-to-peer CS2 marketplace with 0% buyer fees. Escrow-protected trades, sub-60-second Steam delivery, real-money payouts. Buy AK-47, AWP, Karambit, M9 Bayonet, gloves and rare patterns from verified sellers.',
     canonical: 'https://skinify.gg/',
-    /* Keyword set expanded with Czech long-tails (cs2 skiny, koupit,
-       tržiště) that non-Google engines (Seznam, Yandex) still read.
-       Google ignores meta keywords entirely so mixing languages here
-       has zero downside for search. */
     keywords:
       'cs2 marketplace, cs2 skins, buy cs2 skins, sell cs2 skins, counter-strike 2 marketplace, ak-47 redline, awp dragon lore, karambit doppler, m9 bayonet fade, sport gloves, butterfly knife, p2p cs2 trading, 0 fee cs2 marketplace, escrow cs2, instant steam delivery, cs2 skin prices, cs2 tržiště, cs2 skiny koupit, prodat cs2 skiny, cs2 obchod, cs2 nůž koupit',
     jsonLd: faqJsonLd(LANDING_FAQ),
@@ -240,11 +225,6 @@ const LandingPage: React.FC = () => {
           CS2 Marketplace — Buy and Sell CS2 Skins on Skinify
         </h1>
 
-        {/* ===== PROMOTED WALL =====
-            Replaces the welcome banner at the top of the page. Mocked
-            with 100 synthetic listings while the real promoted-slot
-            backend is being wired. First 3 tiles are highlighted as
-            live paid promo slots; the rest fade progressively. */}
         <PromotedWall
           items={promotedItems}
           onView={(id) => navigate(`/item/${id}`)}
@@ -256,30 +236,19 @@ const LandingPage: React.FC = () => {
 
         {/* ===== HERO ===== */}
         <section className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-3 mb-3">
-          {/* Promoted-listing showcase — rotates through user-paid promo
-              slots. Replaces the static "Trade CS2 skins" headline so
-              the hero shows a live, ad-style item (rifle on the right,
-              pinned details on the left) plus a CTA to buy a slot. */}
           <PromotedShowcase
             promoted={(marketplaceItems || []).slice(0, 6)}
             formatPrice={formatPrice}
             onView={(id) => navigate(`/item/${id}`)}
           />
 
-          {/* Featured / portfolio card — stretches to match the
-              promoted showcase on its left so the hero row has no
-              vertical gap. `h-full` makes the card fill the grid
-              row, `mt-auto` on the stats grid below keeps the
-              stat tiles pinned to the bottom of the card. */}
+  
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...spring, delay: 0.12 }}
             className="card p-6 flex flex-col h-full"
           >
-            {/* Sparkline — flex-grows to absorb the slack at the top
-                of the card so there's no dead space between the chart
-                and the stats below. */}
             <div className="mb-4 flex-1 min-h-[100px] rounded-2xl bg-subtle/60 overflow-hidden relative">
               <svg
                 viewBox="0 0 200 60"
@@ -314,8 +283,6 @@ const LandingPage: React.FC = () => {
               </svg>
             </div>
 
-            {/* Portfolio header — moved BELOW the sparkline so the
-                chart sits at the top of the card. */}
             <div className="flex items-center justify-between mb-1">
               <span className="label-eyebrow">
                 {user
@@ -335,8 +302,6 @@ const LandingPage: React.FC = () => {
                 : t('landing.portfolio.volume', 'Total volume traded')}
             </div>
 
-            {/* 4-cell stats grid — bumped from 2 to 4 tiles so the
-                bottom of the card fills cleanly. */}
             <div className="grid grid-cols-2 gap-2">
               <div className="card-flat px-3 py-2.5">
                 <div className="label-meta">{t('landing.stat.fee', 'Fee')}</div>
@@ -361,18 +326,10 @@ const LandingPage: React.FC = () => {
         </section>
 
 
-        {/* ===== LIVE MARKET ACTIVITY ===== */}
         <Reveal className="mb-6">
           <LiveActivityFeed />
         </Reveal>
-
-        {/* ===== TRENDING =====
-            Primary source: the `hot_items` edge function (curated /
-            paid-promoted). When that returns zero — common on fresh DBs
-            and for non-logged-in views — we fall back to real
-            marketplace listings ranked by views, then newest, so the
-            section never shows skeletons forever or empty content. */}
-        <Reveal className="mb-10">
+      <Reveal className="mb-10">
           <div className="flex items-end justify-between mb-4 px-1">
             <div>
               <h2 className="text-[17px] font-bold text-ink tracking-tight">

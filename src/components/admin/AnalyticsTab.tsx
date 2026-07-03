@@ -152,17 +152,17 @@ const AnalyticsTab: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Activity className="w-6 h-6 text-blue-400" />
+          <h2 className="text-2xl font-bold text-ink flex items-center gap-2">
+            <Activity className="w-6 h-6 text-sky-600 dark:text-sky-400" />
             Analytics Dashboard
           </h2>
-          <p className="text-gray-400 text-sm mt-1">Monitor user activity and platform metrics</p>
+          <p className="text-ink-muted text-sm mt-1">Monitor user activity and platform metrics</p>
         </div>
         <div className="flex items-center gap-3">
           <select
             value={timeRange}
             onChange={(e) => setTimeRange(e.target.value as any)}
-            className="bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="bg-subtle text-ink px-4 py-2 rounded-lg border border-line focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="7d">Last 7 Days</option>
             <option value="30d">Last 30 Days</option>
@@ -170,7 +170,7 @@ const AnalyticsTab: React.FC = () => {
           </select>
           <button
             onClick={fetchAnalytics}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-ink rounded-lg transition"
           >
             <RefreshCw size={18} />
             Refresh
@@ -183,14 +183,14 @@ const AnalyticsTab: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-xl p-6"
+          className="bg-surface border border-blue-500/30 rounded-xl p-6"
         >
           <div className="flex items-center justify-between mb-2">
-            <Eye className="w-8 h-8 text-blue-400" />
-            <span className="text-2xl font-bold text-white">{todayStats?.total_visits || 0}</span>
+            <Eye className="w-8 h-8 text-sky-600 dark:text-sky-400" />
+            <span className="text-2xl font-bold text-ink">{todayStats?.total_visits || 0}</span>
           </div>
-          <div className="text-gray-300 font-medium">Total Visits Today</div>
-          <div className="text-xs text-gray-400 mt-1">
+          <div className="text-ink-muted font-medium">Total Visits Today</div>
+          <div className="text-xs text-ink-muted mt-1">
             {todayStats?.unique_visitors || 0} unique visitors
           </div>
         </motion.div>
@@ -199,53 +199,53 @@ const AnalyticsTab: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/30 rounded-xl p-6"
+          className="bg-surface border border-line rounded-xl p-6"
         >
           <div className="flex items-center justify-between mb-2">
-            <Users className="w-8 h-8 text-purple-400" />
-            <span className="text-2xl font-bold text-white">{todayStats?.new_registrations || 0}</span>
+            <Users className="w-8 h-8 text-accent" />
+            <span className="text-2xl font-bold text-ink">{todayStats?.new_registrations || 0}</span>
           </div>
-          <div className="text-gray-300 font-medium">New Registrations</div>
-          <div className="text-xs text-gray-400 mt-1">Today's sign-ups</div>
+          <div className="text-ink-muted font-medium">New Registrations</div>
+          <div className="text-xs text-ink-muted mt-1">Today's sign-ups</div>
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-gradient-to-br from-green-500/20 to-green-600/20 border border-green-500/30 rounded-xl p-6"
+          className="bg-surface border border-green-500/30 rounded-xl p-6"
         >
           <div className="flex items-center justify-between mb-2">
-            <DollarSign className="w-8 h-8 text-green-400" />
-            <span className="text-2xl font-bold text-white">
+            <DollarSign className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
+            <span className="text-2xl font-bold text-ink">
               {todayStats?.deposits_today?.toLocaleString() || 0} Kč
             </span>
           </div>
-          <div className="text-gray-300 font-medium">Deposits Today</div>
-          <div className="text-xs text-gray-400 mt-1">Total deposited</div>
+          <div className="text-ink-muted font-medium">Deposits Today</div>
+          <div className="text-xs text-ink-muted mt-1">Total deposited</div>
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-gradient-to-br from-orange-500/20 to-orange-600/20 border border-orange-500/30 rounded-xl p-6"
+          className="bg-surface border border-orange-500/30 rounded-xl p-6"
         >
           <div className="flex items-center justify-between mb-2">
-            <ShoppingCart className="w-8 h-8 text-orange-400" />
-            <span className="text-2xl font-bold text-white">
+            <ShoppingCart className="w-8 h-8 text-orange-600 dark:text-orange-400" />
+            <span className="text-2xl font-bold text-ink">
               {todayStats?.purchases_today?.toLocaleString() || 0} Kč
             </span>
           </div>
-          <div className="text-gray-300 font-medium">Purchases Today</div>
-          <div className="text-xs text-gray-400 mt-1">Total revenue</div>
+          <div className="text-ink-muted font-medium">Purchases Today</div>
+          <div className="text-xs text-ink-muted mt-1">Total revenue</div>
         </motion.div>
       </div>
 
       {/* Activity Over Time Chart */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-blue-400" />
+      <div className="bg-surface border border-line rounded-xl p-6">
+        <h3 className="text-xl font-bold text-ink mb-4 flex items-center gap-2">
+          <TrendingUp className="w-5 h-5 text-sky-600 dark:text-sky-400" />
           Activity Over Time
         </h3>
         <ResponsiveContainer width="100%" height={300}>
@@ -267,9 +267,9 @@ const AnalyticsTab: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Event Types Distribution */}
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <MousePointerClick className="w-5 h-5 text-purple-400" />
+        <div className="bg-surface border border-line rounded-xl p-6">
+          <h3 className="text-xl font-bold text-ink mb-4 flex items-center gap-2">
+            <MousePointerClick className="w-5 h-5 text-accent" />
             Event Distribution
           </h3>
           <ResponsiveContainer width="100%" height={300}>
@@ -296,9 +296,9 @@ const AnalyticsTab: React.FC = () => {
         </div>
 
         {/* Top Pages */}
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-green-400" />
+        <div className="bg-surface border border-line rounded-xl p-6">
+          <h3 className="text-xl font-bold text-ink mb-4 flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             Top Pages
           </h3>
           <ResponsiveContainer width="100%" height={300}>
@@ -316,28 +316,28 @@ const AnalyticsTab: React.FC = () => {
       </div>
 
       {/* Additional Stats */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl font-bold text-white mb-4">Quick Stats</h3>
+      <div className="bg-surface border border-line rounded-xl p-6">
+        <h3 className="text-xl font-bold text-ink mb-4">Quick Stats</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-            <div className="text-3xl font-bold text-blue-400">{todayStats?.page_views || 0}</div>
-            <div className="text-gray-400 text-sm mt-1">Page Views Today</div>
+          <div className="text-center p-4 bg-subtle rounded-lg">
+            <div className="text-3xl font-bold text-sky-600 dark:text-sky-400">{todayStats?.page_views || 0}</div>
+            <div className="text-ink-muted text-sm mt-1">Page Views Today</div>
           </div>
-          <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-            <div className="text-3xl font-bold text-purple-400">{todayStats?.clicks || 0}</div>
-            <div className="text-gray-400 text-sm mt-1">Clicks Today</div>
+          <div className="text-center p-4 bg-subtle rounded-lg">
+            <div className="text-3xl font-bold text-accent">{todayStats?.clicks || 0}</div>
+            <div className="text-ink-muted text-sm mt-1">Clicks Today</div>
           </div>
-          <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-            <div className="text-3xl font-bold text-green-400">
+          <div className="text-center p-4 bg-subtle rounded-lg">
+            <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
               {todayStats?.unique_visitors || 0}
             </div>
-            <div className="text-gray-400 text-sm mt-1">Unique Visitors</div>
+            <div className="text-ink-muted text-sm mt-1">Unique Visitors</div>
           </div>
-          <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-            <div className="text-3xl font-bold text-orange-400">
+          <div className="text-center p-4 bg-subtle rounded-lg">
+            <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">
               {((todayStats?.page_views || 0) / (todayStats?.unique_visitors || 1)).toFixed(1)}
             </div>
-            <div className="text-gray-400 text-sm mt-1">Avg Pages/Visitor</div>
+            <div className="text-ink-muted text-sm mt-1">Avg Pages/Visitor</div>
           </div>
         </div>
       </div>

@@ -218,7 +218,7 @@ const BonusesPage: React.FC = () => {
                 {active && (
                   <motion.span layoutId="bonus-filter" className="absolute inset-0 rounded-full bg-accent" transition={spring} />
                 )}
-                <span className="relative">{labels[f]}</span>
+                <span className="relative">{tr(`bonuses.filter.${f}`, labels[f])}</span>
               </motion.button>
             );
           })}
@@ -279,13 +279,13 @@ const BonusesPage: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    <h3 className="text-[15px] font-bold text-ink tracking-tight leading-tight">{o.title}</h3>
-                    <p className="text-[12.5px] text-ink-muted font-medium mt-1.5 leading-relaxed">{o.subtitle}</p>
+                    <h3 className="text-[15px] font-bold text-ink tracking-tight leading-tight">{tr(`bonuses.offer.${o.id}.title`, o.title)}</h3>
+                    <p className="text-[12.5px] text-ink-muted font-medium mt-1.5 leading-relaxed">{tr(`bonuses.offer.${o.id}.subtitle`, o.subtitle)}</p>
 
                     <div className="mt-4 pt-4 border-t border-line flex items-center justify-between">
                       <div>
                         <div className="label-meta">Reward</div>
-                        <div className="text-[14px] font-bold text-ink tracking-tight">{o.reward}</div>
+                        <div className="text-[14px] font-bold text-ink tracking-tight">{tr(`bonuses.offer.${o.id}.reward`, o.reward)}</div>
                       </div>
                       <motion.button
                         whileTap={tap}
@@ -353,11 +353,11 @@ const BonusesPage: React.FC = () => {
                   <Percent size={10} strokeWidth={2.4} />
                   {t.bonus}
                 </div>
-                <div className="label-meta">{t.label}</div>
+                <div className="label-meta">{tr(`bonuses.tier.${t.label}.label`, t.label)}</div>
                 <div className="mt-2 text-[20px] font-bold tracking-tight tabular-nums text-ink leading-none">
                   {t.min.toLocaleString()} Kč+
                 </div>
-                <div className="text-[11.5px] text-ink-dim font-medium mt-2">{t.sub}</div>
+                <div className="text-[11.5px] text-ink-dim font-medium mt-2">{tr(`bonuses.tier.${t.label}.sub`, t.sub)}</div>
               </motion.div>
             ))}
           </div>

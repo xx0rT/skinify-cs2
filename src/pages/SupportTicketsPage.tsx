@@ -1,13 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Plus, X, Send, Search, Filter, Clock, CheckCircle, AlertCircle, Loader, ChevronDown, ArrowLeft } from 'lucide-react';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ChevronLeft,
+  Clock,
+  Loader2,
+  MessageSquare,
+  Plus,
+  Search,
+  Send,
+  X,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
 import { sendTicketCreatedEmail } from '../utils/emailService';
-import Header from '../components/Header';
+import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
+import { spring, tap } from '../lib/motion';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SupportTicketsPage — flat redesign in the app's design language.
+
+   Left: ticket list with status dots + filter pills. Right (lg+) or
+   full overlay (<lg): the conversation for the selected ticket with a
+   composer. Creating a ticket opens a flat modal.
+   ───────────────────────────────────────────────────────────────────────── */
 
 interface SupportTicket {
   id: string;
@@ -34,6 +55,41 @@ interface TicketMessage {
   };
 }
 
+const STATUS_META: Record<
+  SupportTicket['status'],
+  { label: string; dot: string; pill: string }
+> = {
+  open: {
+    label: 'Open',
+    dot: 'bg-sky-500',
+    pill: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
+  },
+  in_progress: {
+    label: 'In progress',
+    dot: 'bg-amber-500',
+    pill: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  },
+  resolved: {
+    label: 'Resolved',
+    dot: 'bg-emerald-500',
+    pill: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  },
+  closed: {
+    label: 'Closed',
+    dot: 'bg-ink-dim',
+    pill: 'bg-subtle text-ink-muted',
+  },
+};
+
+const CATEGORIES: SupportTicket['category'][] = [
+  'technical',
+  'billing',
+  'account',
+  'trading',
+  'other',
+];
+const PRIORITIES: SupportTicket['priority'][] = ['low', 'medium', 'high', 'urgent'];
+
 const SupportTicketsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -45,20 +101,22 @@ const SupportTicketsPage: React.FC = () => {
   const [messages, setMessages] = useState<TicketMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const [newTicket, setNewTicket] = useState({
     subject: '',
     description: '',
     category: 'other',
-    priority: 'medium'
+    priority: 'medium',
   });
 
+  useBodyScrollLock(showCreateModal);
+
   /* The tickets tables reference users.id (uuid) but the auth store
-     only carries the Steam ID, so `user.id` was always undefined and
-     every insert/select silently failed. Resolve the users-row uuid
-     once per session and key all queries off it. */
+     only carries the Steam ID — resolve the uuid once per session. */
   const [dbUserId, setDbUserId] = useState<string | null>(null);
   useEffect(() => {
     if (!user) return;
@@ -102,6 +160,22 @@ const SupportTicketsPage: React.FC = () => {
     if (dbUserId) fetchTickets();
   }, [user, dbUserId, filterStatus]);
 
+  /* Keep the open conversation fresh. */
+  useEffect(() => {
+    if (!selectedTicket) return;
+    fetchMessages(selectedTicket.id);
+    const interval = window.setInterval(() => fetchMessages(selectedTicket.id), 10_000);
+    return () => window.clearInterval(interval);
+  }, [selectedTicket?.id]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+  }, [messages.length, selectedTicket?.id]);
+
   const fetchTickets = async () => {
     if (!dbUserId) return;
     try {
@@ -117,7 +191,6 @@ const SupportTicketsPage: React.FC = () => {
       }
 
       const { data, error } = await query;
-
       if (error) throw error;
       setTickets(data || []);
     } catch (error) {
@@ -132,18 +205,13 @@ const SupportTicketsPage: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('support_ticket_messages')
-        .select(`
-          *,
-          users:user_id(display_name, avatar_url)
-        `)
+        .select(`*, users:user_id(display_name, avatar_url)`)
         .eq('ticket_id', ticketId)
         .order('created_at', { ascending: true });
-
       if (error) throw error;
       setMessages(data || []);
     } catch (error) {
       console.error('Error fetching messages:', error);
-      addToast('Failed to load messages', 'error');
     }
   };
 
@@ -157,6 +225,7 @@ const SupportTicketsPage: React.FC = () => {
       return;
     }
 
+    setCreating(true);
     try {
       const { data, error } = await supabase
         .from('support_tickets')
@@ -166,17 +235,14 @@ const SupportTicketsPage: React.FC = () => {
             subject: newTicket.subject,
             description: newTicket.description,
             category: newTicket.category,
-            priority: newTicket.priority
-          }
+            priority: newTicket.priority,
+          },
         ])
         .select()
         .single();
 
       if (error) throw error;
 
-      /* Confirmation email via Brevo — fire-and-forget so a mail
-         hiccup never blocks ticket creation. Only when the account
-         has an email on file (Steam-only accounts may not). */
       if (user?.email && data?.id) {
         sendTicketCreatedEmail({
           to: user.email,
@@ -189,33 +255,30 @@ const SupportTicketsPage: React.FC = () => {
       setShowCreateModal(false);
       setNewTicket({ subject: '', description: '', category: 'other', priority: 'medium' });
       fetchTickets();
+      if (data) setSelectedTicket(data as SupportTicket);
     } catch (error: any) {
       console.error('Error creating ticket:', error);
       addToast(error?.message || 'Failed to create ticket', 'error');
+    } finally {
+      setCreating(false);
     }
   };
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedTicket || !dbUserId) return;
-
+    if (!newMessage.trim() || !selectedTicket || !dbUserId || sendingMessage) return;
     try {
       setSendingMessage(true);
-      const { error } = await supabase
-        .from('support_ticket_messages')
-        .insert([
-          {
-            ticket_id: selectedTicket.id,
-            user_id: dbUserId,
-            message: newMessage.trim(),
-            is_staff_reply: false
-          }
-        ]);
-
+      const { error } = await supabase.from('support_ticket_messages').insert([
+        {
+          ticket_id: selectedTicket.id,
+          user_id: dbUserId,
+          message: newMessage.trim(),
+          is_staff_reply: false,
+        },
+      ]);
       if (error) throw error;
-
       setNewMessage('');
       fetchMessages(selectedTicket.id);
-      addToast('Message sent', 'success');
     } catch (error) {
       console.error('Error sending message:', error);
       addToast('Failed to send message', 'error');
@@ -224,404 +287,435 @@ const SupportTicketsPage: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'open': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      case 'in_progress': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-      case 'resolved': return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'closed': return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
-      default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'low': return 'text-gray-400';
-      case 'medium': return 'text-blue-400';
-      case 'high': return 'text-orange-400';
-      case 'urgent': return 'text-red-400';
-      default: return 'text-gray-400';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'open': return <Clock className="w-4 h-4" />;
-      case 'in_progress': return <Loader className="w-4 h-4" />;
-      case 'resolved': return <CheckCircle className="w-4 h-4" />;
-      case 'closed': return <X className="w-4 h-4" />;
-      default: return <AlertCircle className="w-4 h-4" />;
-    }
-  };
-
-  const filteredTickets = tickets.filter(ticket =>
-    ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    ticket.description.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredTickets = tickets.filter(
+    (ticket) =>
+      ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ticket.description.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col">
-      <Header hideLanguage={true} />
+    <div className="min-h-screen bg-bg text-ink">
+      <LandingNav />
 
-      <main className="flex-1 pt-20 pb-12 px-4">
-        <div className="max-w-7xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8"
+      <main className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-4 pb-16">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={spring}
+          className="flex items-center gap-3 mb-5"
+        >
+          <motion.button
+            whileTap={tap}
+            onClick={() => navigate('/support')}
+            className="w-10 h-10 rounded-full bg-subtle hover:bg-surface grid place-items-center text-ink-muted hover:text-ink transition-colors shrink-0"
+            aria-label="Back to support"
           >
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl flex items-center justify-center">
-                    <MessageSquare className="w-6 h-6 text-white" />
-                  </div>
-                  Support Tickets
-                </h1>
-                <p className="text-gray-400">
-                  Get help from our support team
-                </p>
-              </div>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setShowCreateModal(true)}
-                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white px-6 py-3 rounded-lg font-medium flex items-center gap-2 transition-all shadow-lg shadow-purple-500/30"
-              >
-                <Plus className="w-5 h-5" />
-                New Ticket
-              </motion.button>
-            </div>
+            <ChevronLeft size={16} strokeWidth={2.4} />
+          </motion.button>
+          <div className="flex-1 min-w-0">
+            <span className="label-eyebrow">Support</span>
+            <h1 className="text-[22px] sm:text-[26px] font-bold tracking-tight leading-none mt-1">
+              My tickets
+            </h1>
+          </div>
+          <motion.button
+            whileTap={tap}
+            onClick={() => setShowCreateModal(true)}
+            className="h-11 px-4 sm:px-5 rounded-full bg-accent text-on-accent text-[13.5px] font-bold inline-flex items-center gap-1.5 shrink-0"
+          >
+            <Plus size={15} strokeWidth={2.6} />
+            <span className="hidden sm:inline">New ticket</span>
+          </motion.button>
+        </motion.div>
 
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  placeholder="Search tickets..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-gray-800/50 border border-gray-700 rounded-lg pl-10 pr-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition-colors"
-                />
+        {/* Search + status filter */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...spring, delay: 0.04 }}
+          className="flex flex-col sm:flex-row gap-2 mb-4"
+        >
+          <div className="flex-1 flex items-center gap-2.5 h-11 px-4 rounded-full bg-subtle focus-within:ring-2 focus-within:ring-accent/40 transition-shadow">
+            <Search size={14} strokeWidth={2.2} className="text-ink-muted shrink-0" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search tickets…"
+              className="flex-1 bg-transparent outline-none text-[13.5px] font-medium text-ink placeholder:text-ink-dim min-w-0"
+            />
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+            {(['all', 'open', 'in_progress', 'resolved', 'closed'] as const).map((status) => {
+              const active = filterStatus === status;
+              return (
+                <button
+                  key={status}
+                  onClick={() => setFilterStatus(status)}
+                  className={`relative h-11 px-4 rounded-full text-[12.5px] font-bold whitespace-nowrap transition-colors ${
+                    active ? 'text-on-accent' : 'bg-subtle text-ink-muted hover:text-ink'
+                  }`}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="ticket-status-pill"
+                      className="absolute inset-0 rounded-full bg-accent"
+                      transition={spring}
+                    />
+                  )}
+                  <span className="relative">
+                    {status === 'all' ? 'All' : STATUS_META[status].label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </motion.div>
+
+        <div className="grid gap-4 lg:grid-cols-[380px_1fr] items-start">
+          {/* ── Ticket list ── */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring, delay: 0.06 }}
+            className="panel overflow-hidden"
+          >
+            {loading ? (
+              <div className="p-8 grid place-items-center">
+                <Loader2 size={22} className="animate-spin text-ink-muted" />
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-2">
-                {['all', 'open', 'in_progress', 'resolved', 'closed'].map((status) => (
+            ) : filteredTickets.length === 0 ? (
+              <div className="p-10 text-center">
+                <MessageSquare size={24} className="mx-auto text-ink-muted mb-3" />
+                <p className="text-[14px] font-bold text-ink">No tickets found</p>
+                <p className="text-[12.5px] text-ink-muted font-medium mt-1">
+                  {searchQuery
+                    ? 'Try a different search.'
+                    : 'Open your first ticket and we’ll get back fast.'}
+                </p>
+                {!searchQuery && (
                   <button
-                    key={status}
-                    onClick={() => setFilterStatus(status)}
-                    className={`whitespace-nowrap px-4 py-2 rounded-lg font-medium transition-colors ${
-                      filterStatus === status
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
-                    }`}
+                    onClick={() => setShowCreateModal(true)}
+                    className="mt-5 h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold inline-flex items-center gap-1.5"
                   >
-                    {status === 'all' ? 'All' : status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    <Plus size={13} strokeWidth={2.6} />
+                    New ticket
                   </button>
-                ))}
+                )}
               </div>
-            </div>
+            ) : (
+              <ul>
+                {filteredTickets.map((ticket, i) => {
+                  const meta = STATUS_META[ticket.status];
+                  const active = selectedTicket?.id === ticket.id;
+                  return (
+                    <motion.li
+                      key={ticket.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ ...spring, delay: Math.min(i * 0.04, 0.3) }}
+                    >
+                      <button
+                        onClick={() => setSelectedTicket(ticket)}
+                        className={`w-full text-left px-4 py-3.5 flex items-start gap-3 border-l-2 transition-colors ${
+                          active
+                            ? 'bg-accent-soft border-l-accent'
+                            : 'border-l-transparent hover:bg-subtle/60'
+                        }`}
+                      >
+                        <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${meta.dot}`} />
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[13.5px] font-bold text-ink truncate tracking-tight">
+                            {ticket.subject}
+                          </span>
+                          <span className="block text-[11.5px] text-ink-muted font-medium truncate mt-0.5">
+                            {ticket.description}
+                          </span>
+                          <span className="mt-1.5 flex items-center gap-2">
+                            <span className={`pill !px-2 !py-0.5 text-[10px] ${meta.pill}`}>
+                              {meta.label}
+                            </span>
+                            <span className="text-[10.5px] text-ink-dim font-medium tabular-nums">
+                              {new Date(ticket.created_at).toLocaleDateString()}
+                            </span>
+                          </span>
+                        </span>
+                      </button>
+                    </motion.li>
+                  );
+                })}
+              </ul>
+            )}
           </motion.div>
 
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : filteredTickets.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-center py-12"
-            >
-              <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MessageSquare className="w-10 h-10 text-gray-600" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">No Tickets Found</h3>
-              <p className="text-gray-400 mb-6">
-                {searchQuery ? 'Try adjusting your search' : 'Create your first support ticket'}
-              </p>
-              {!searchQuery && (
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white px-6 py-3 rounded-lg font-medium inline-flex items-center gap-2 transition-all"
-                >
-                  <Plus className="w-5 h-5" />
-                  Create Ticket
-                </button>
-              )}
-            </motion.div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {filteredTickets.map((ticket, index) => (
-                <motion.div
-                  key={ticket.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  onClick={() => {
-                    setSelectedTicket(ticket);
-                    fetchMessages(ticket.id);
-                  }}
-                  className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 cursor-pointer hover:border-purple-500/50 hover:bg-gray-800/70 transition-all group"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-white mb-1 group-hover:text-purple-400 transition-colors">
-                        {ticket.subject}
-                      </h3>
-                      <p className="text-gray-400 text-sm line-clamp-2">
-                        {ticket.description}
-                      </p>
+          {/* ── Conversation ── */}
+          <AnimatePresence mode="wait">
+            {selectedTicket ? (
+              <motion.section
+                key={selectedTicket.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ ...spring, mass: 0.6 }}
+                className="panel flex flex-col overflow-hidden max-lg:fixed max-lg:inset-0 max-lg:z-[60] max-lg:rounded-none lg:h-[calc(100dvh-220px)] lg:min-h-[420px]"
+                style={{
+                  paddingTop: 'env(safe-area-inset-top)',
+                  paddingBottom: 'env(safe-area-inset-bottom)',
+                }}
+              >
+                {/* Conversation header */}
+                <div className="shrink-0 px-4 sm:px-5 py-3.5 border-b border-line/60 flex items-center gap-3">
+                  <button
+                    onClick={() => setSelectedTicket(null)}
+                    className="lg:hidden w-9 h-9 rounded-full bg-subtle grid place-items-center text-ink-muted"
+                    aria-label="Back"
+                  >
+                    <ArrowLeft size={15} strokeWidth={2.4} />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[14.5px] font-bold text-ink truncate tracking-tight">
+                      {selectedTicket.subject}
                     </div>
-                    <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(ticket.status)}`}>
-                      {getStatusIcon(ticket.status)}
-                      {ticket.status.replace('_', ' ')}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-4">
-                      <span className="text-gray-500">
-                        {new Date(ticket.created_at).toLocaleDateString()}
+                    <div className="mt-1 flex items-center gap-2">
+                      <span
+                        className={`pill !px-2 !py-0.5 text-[10px] ${STATUS_META[selectedTicket.status].pill}`}
+                      >
+                        {STATUS_META[selectedTicket.status].label}
                       </span>
-                      <span className={`font-medium ${getPriorityColor(ticket.priority)}`}>
-                        {ticket.priority.toUpperCase()}
-                      </span>
-                      <span className="text-gray-500 capitalize">
-                        {ticket.category}
+                      <span className="text-[10.5px] text-ink-dim font-semibold uppercase tracking-wider">
+                        {selectedTicket.category} · {selectedTicket.priority}
                       </span>
                     </div>
                   </div>
-                </motion.div>
-              ))}
-            </div>
-          )}
+                  <button
+                    onClick={() => setSelectedTicket(null)}
+                    className="hidden lg:grid w-9 h-9 rounded-full bg-subtle place-items-center text-ink-muted hover:text-ink transition-colors"
+                    aria-label="Close"
+                  >
+                    <X size={14} strokeWidth={2.4} />
+                  </button>
+                </div>
+
+                {/* Messages */}
+                <div
+                  ref={scrollRef}
+                  className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-5 py-4 space-y-3"
+                >
+                  {/* Original description as the first bubble */}
+                  <div className="flex justify-end">
+                    <div className="max-w-[80%] px-3.5 py-2.5 rounded-2xl rounded-br-md bg-accent text-on-accent text-[13.5px] font-medium leading-snug whitespace-pre-wrap break-words">
+                      {selectedTicket.description}
+                    </div>
+                  </div>
+                  {messages.map((m) => {
+                    const mine = !m.is_staff_reply;
+                    return (
+                      <motion.div
+                        key={m.id}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ ...spring, mass: 0.5 }}
+                        className={`flex ${mine ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div className={`max-w-[80%] flex flex-col gap-1 ${mine ? 'items-end' : 'items-start'}`}>
+                          {!mine && (
+                            <span className="text-[10.5px] font-bold uppercase tracking-wider text-accent px-1">
+                              Skinify support
+                            </span>
+                          )}
+                          <div
+                            className={`px-3.5 py-2.5 rounded-2xl text-[13.5px] font-medium leading-snug whitespace-pre-wrap break-words ${
+                              mine
+                                ? 'bg-accent text-on-accent rounded-br-md'
+                                : 'bg-subtle text-ink rounded-bl-md'
+                            }`}
+                          >
+                            {m.message}
+                          </div>
+                          <span className="text-[10px] text-ink-dim font-medium tabular-nums px-1">
+                            {new Date(m.created_at).toLocaleString([], {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                  {selectedTicket.status === 'resolved' && (
+                    <div className="flex justify-center pt-2">
+                      <span className="pill bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1.5">
+                        <CheckCircle2 size={12} strokeWidth={2.4} /> Resolved
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Composer */}
+                {selectedTicket.status !== 'closed' && (
+                  <div className="shrink-0 border-t border-line/60 px-3 sm:px-4 py-3 flex items-end gap-2">
+                    <textarea
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          sendMessage();
+                        }
+                      }}
+                      placeholder="Write a reply…"
+                      rows={1}
+                      maxLength={2000}
+                      className="flex-1 min-h-[42px] max-h-[140px] rounded-2xl bg-subtle px-3.5 py-2.5 text-[13.5px] text-ink font-medium outline-none focus:ring-2 focus:ring-accent/40 resize-none"
+                    />
+                    <motion.button
+                      whileTap={tap}
+                      onClick={sendMessage}
+                      disabled={!newMessage.trim() || sendingMessage}
+                      className="h-10 w-10 rounded-full bg-accent text-on-accent grid place-items-center disabled:opacity-40 shrink-0"
+                      aria-label="Send"
+                    >
+                      {sendingMessage ? (
+                        <Loader2 size={15} className="animate-spin" />
+                      ) : (
+                        <Send size={15} strokeWidth={2.4} />
+                      )}
+                    </motion.button>
+                  </div>
+                )}
+              </motion.section>
+            ) : (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="panel hidden lg:grid place-items-center p-16 h-[calc(100dvh-220px)] min-h-[420px]"
+              >
+                <div className="text-center">
+                  <Clock size={24} className="mx-auto text-ink-muted mb-3" />
+                  <p className="text-[15px] font-bold text-ink">Select a ticket</p>
+                  <p className="text-[12.5px] text-ink-muted font-medium mt-1">
+                    Pick a ticket from the list to see the conversation.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </main>
 
-      <Footer />
-
-      {/* Create Ticket Modal */}
+      {/* ── Create ticket modal ── */}
       <AnimatePresence>
         {showCreateModal && (
-          <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={() => setShowCreateModal(false)}
+          >
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
-              onClick={() => setShowCreateModal(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+              initial={{ opacity: 0, y: 24, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 24, scale: 0.98 }}
+              transition={spring}
+              onClick={(e) => e.stopPropagation()}
+              className="panel w-full sm:max-w-lg p-5 sm:p-6 max-h-[92dvh] overflow-y-auto rounded-b-none sm:rounded-b-[20px]"
             >
-              <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-2xl pointer-events-auto max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-white">Create Support Ticket</h2>
-                  <button
-                    onClick={() => setShowCreateModal(false)}
-                    className="p-2 text-gray-400 hover:text-white transition-colors"
-                  >
-                    <X className="w-6 h-6" />
-                  </button>
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <span className="label-eyebrow">Support</span>
+                  <h2 className="text-[19px] font-bold tracking-tight leading-none mt-1">
+                    New ticket
+                  </h2>
                 </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Subject *
-                    </label>
-                    <input
-                      type="text"
-                      value={newTicket.subject}
-                      onChange={(e) => setNewTicket({ ...newTicket, subject: e.target.value })}
-                      className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition-colors"
-                      placeholder="Brief description of your issue"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Description *
-                    </label>
-                    <textarea
-                      value={newTicket.description}
-                      onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
-                      rows={6}
-                      className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition-colors resize-none"
-                      placeholder="Provide detailed information about your issue..."
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Category
-                      </label>
-                      <select
-                        value={newTicket.category}
-                        onChange={(e) => setNewTicket({ ...newTicket, category: e.target.value })}
-                        className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
-                      >
-                        <option value="technical">Technical</option>
-                        <option value="billing">Billing</option>
-                        <option value="account">Account</option>
-                        <option value="trading">Trading</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Priority
-                      </label>
-                      <select
-                        value={newTicket.priority}
-                        onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value })}
-                        className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
-                      >
-                        <option value="low">Low</option>
-                        <option value="medium">Medium</option>
-                        <option value="high">High</option>
-                        <option value="urgent">Urgent</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3 pt-4">
-                    <button
-                      onClick={createTicket}
-                      className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white px-6 py-3 rounded-lg font-medium transition-all"
-                    >
-                      Create Ticket
-                    </button>
-                    <button
-                      onClick={() => setShowCreateModal(false)}
-                      className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* Ticket Detail Modal */}
-      <AnimatePresence>
-        {selectedTicket && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
-              onClick={() => setSelectedTicket(null)}
-            />
-            <motion.div
-              initial={{ opacity: 0, x: '100%' }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: '100%' }}
-              transition={{ type: 'spring', damping: 25 }}
-              className="fixed right-0 top-0 h-full w-full sm:w-[600px] bg-gray-900 border-l border-gray-700 z-50 flex flex-col"
-            >
-              <div className="p-6 border-b border-gray-700">
                 <button
-                  onClick={() => setSelectedTicket(null)}
-                  className="mb-4 text-gray-400 hover:text-white transition-colors flex items-center gap-2"
+                  onClick={() => setShowCreateModal(false)}
+                  className="w-9 h-9 rounded-full bg-subtle grid place-items-center text-ink-muted hover:text-ink transition-colors"
+                  aria-label="Close"
                 >
-                  <ArrowLeft className="w-5 h-5" />
-                  Back to Tickets
+                  <X size={14} strokeWidth={2.4} />
                 </button>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h2 className="text-xl font-bold text-white mb-2">{selectedTicket.subject}</h2>
-                    <p className="text-gray-400 text-sm">{selectedTicket.description}</p>
-                  </div>
-                  <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(selectedTicket.status)}`}>
-                    {getStatusIcon(selectedTicket.status)}
-                    {selectedTicket.status.replace('_', ' ')}
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 mt-4 text-sm text-gray-400">
-                  <span>{new Date(selectedTicket.created_at).toLocaleString()}</span>
-                  <span className={`font-medium ${getPriorityColor(selectedTicket.priority)}`}>
-                    {selectedTicket.priority.toUpperCase()}
-                  </span>
-                  <span className="capitalize">{selectedTicket.category}</span>
-                </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                {messages.map((msg) => (
-                  <motion.div
-                    key={msg.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`flex gap-3 ${msg.is_staff_reply ? 'flex-row' : 'flex-row-reverse'}`}
-                  >
-                    <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                      msg.is_staff_reply ? 'bg-purple-600' : 'bg-gray-700'
-                    }`}>
-                      {msg.users?.avatar_url ? (
-                        <img src={msg.users.avatar_url} alt="" className="w-full h-full rounded-full" />
-                      ) : (
-                        <span className="text-white font-medium">
-                          {msg.users?.display_name?.[0] || 'U'}
-                        </span>
-                      )}
-                    </div>
-                    <div className={`flex-1 ${msg.is_staff_reply ? '' : 'text-right'}`}>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium text-white">
-                          {msg.is_staff_reply ? 'Support Team' : msg.users?.display_name || 'You'}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {new Date(msg.created_at).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className={`inline-block p-3 rounded-lg ${
-                        msg.is_staff_reply
-                          ? 'bg-purple-600/20 border border-purple-500/30 text-white'
-                          : 'bg-gray-800 border border-gray-700 text-gray-300'
-                      }`}>
-                        {msg.message}
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-
-              {selectedTicket.status !== 'closed' && (
-                <div className="p-6 border-t border-gray-700">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-                      placeholder="Type your message..."
-                      className="flex-1 bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition-colors"
-                    />
-                    <button
-                      onClick={sendMessage}
-                      disabled={sendingMessage || !newMessage.trim()}
-                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 disabled:cursor-not-allowed text-white p-3 rounded-lg transition-all"
+              <div className="space-y-4">
+                <div>
+                  <label className="label-meta block mb-1.5">Subject</label>
+                  <input
+                    value={newTicket.subject}
+                    onChange={(e) => setNewTicket({ ...newTicket, subject: e.target.value })}
+                    placeholder="What's the issue?"
+                    maxLength={120}
+                    className="w-full h-11 px-4 rounded-xl bg-subtle outline-none text-ink placeholder:text-ink-dim text-[14px] font-medium focus:ring-2 focus:ring-accent/40 transition-shadow"
+                  />
+                </div>
+                <div>
+                  <label className="label-meta block mb-1.5">Description</label>
+                  <textarea
+                    value={newTicket.description}
+                    onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
+                    rows={5}
+                    maxLength={4000}
+                    placeholder="Tell us what happened. Include order IDs if relevant."
+                    className="w-full px-4 py-3 rounded-xl bg-subtle outline-none text-ink placeholder:text-ink-dim text-[14px] font-medium focus:ring-2 focus:ring-accent/40 transition-shadow resize-none"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label-meta block mb-1.5">Category</label>
+                    <select
+                      value={newTicket.category}
+                      onChange={(e) => setNewTicket({ ...newTicket, category: e.target.value })}
+                      className="w-full h-11 px-3 rounded-xl bg-subtle outline-none text-ink text-[14px] font-medium focus:ring-2 focus:ring-accent/40"
                     >
-                      <Send className="w-5 h-5" />
-                    </button>
+                      {CATEGORIES.map((c) => (
+                        <option key={c} value={c}>
+                          {c.charAt(0).toUpperCase() + c.slice(1)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label-meta block mb-1.5">Priority</label>
+                    <select
+                      value={newTicket.priority}
+                      onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value })}
+                      className="w-full h-11 px-3 rounded-xl bg-subtle outline-none text-ink text-[14px] font-medium focus:ring-2 focus:ring-accent/40"
+                    >
+                      {PRIORITIES.map((p) => (
+                        <option key={p} value={p}>
+                          {p.charAt(0).toUpperCase() + p.slice(1)}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
-              )}
+                <motion.button
+                  whileTap={tap}
+                  onClick={createTicket}
+                  disabled={creating}
+                  className="w-full h-12 rounded-full bg-accent text-on-accent text-[14px] font-bold inline-flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {creating ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <Send size={14} strokeWidth={2.4} />
+                  )}
+                  {creating ? 'Creating…' : 'Create ticket'}
+                </motion.button>
+              </div>
             </motion.div>
-          </>
+          </motion.div>
         )}
       </AnimatePresence>
+
+      <Footer slim />
     </div>
   );
 };

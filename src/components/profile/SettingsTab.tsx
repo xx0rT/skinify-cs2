@@ -24,6 +24,7 @@ import { useCurrencyStore, currencies } from '../../store/currencyStore';
 import { palettes, PaletteId } from '../../theme/palettes';
 import { spring, tap } from '../../lib/motion';
 import { openDepositModal } from '../DepositModal';
+import { UI_SCALES, UiScale, getUiScale, setUiScale } from '../../utils/uiScale';
 
 /* $10 USD in CZK — this is the verification threshold for issuing an
    API key. We pin against USD (not CZK) because the marketing message
@@ -61,15 +62,26 @@ interface ServerKeyRow {
   last_used_at?: string | null;
 }
 
+/* Auth headers for the api-keys function: Supabase JWT when the user
+   has an email session, otherwise anon key + X-Steam-Id (Steam-OpenID
+   accounts never hold a Supabase Auth session). */
+async function apiKeyAuthHeaders(): Promise<Record<string, string>> {
+  const { supabaseKey } = getSupabaseCredentials();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) {
+    return { Authorization: `Bearer ${session.access_token}` };
+  }
+  const steamId = useAuthStore.getState().user?.steamId;
+  if (steamId) {
+    return { Authorization: `Bearer ${supabaseKey}`, 'X-Steam-Id': steamId };
+  }
+  throw new Error('Not signed in');
+}
+
 async function fetchKeys(): Promise<ApiKey[]> {
   const { supabaseUrl } = getSupabaseCredentials();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) {
-    throw new Error('Not signed in');
-  }
-  const res = await fetch(`${supabaseUrl}/functions/v1/api-keys`, {
-    headers: { Authorization: `Bearer ${session.access_token}` },
-  });
+  const headers = await apiKeyAuthHeaders();
+  const res = await fetch(`${supabaseUrl}/functions/v1/api-keys`, { headers });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(body?.error?.message || `Server error (${res.status})`);
@@ -98,16 +110,10 @@ interface CreatedKey {
 
 async function createKey(name: string): Promise<CreatedKey> {
   const { supabaseUrl } = getSupabaseCredentials();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) {
-    throw new Error('Not signed in');
-  }
+  const headers = await apiKeyAuthHeaders();
   const res = await fetch(`${supabaseUrl}/functions/v1/api-keys`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
   });
   const body = await res.json().catch(() => ({}));
@@ -121,13 +127,10 @@ async function createKey(name: string): Promise<CreatedKey> {
 
 async function revokeKey(id: string): Promise<void> {
   const { supabaseUrl } = getSupabaseCredentials();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) {
-    throw new Error('Not signed in');
-  }
+  const headers = await apiKeyAuthHeaders();
   const res = await fetch(`${supabaseUrl}/functions/v1/api-keys/${id}`, {
     method: 'DELETE',
-    headers: { Authorization: `Bearer ${session.access_token}` },
+    headers,
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -151,6 +154,7 @@ const SettingsTab: React.FC = () => {
   const { addToast } = useToastStore();
   const { totalDeposited } = useBalanceStore();
   const { mode, setMode, palette, setPalette, resolvedMode } = useTheme();
+  const [uiScale, setUiScaleState] = useState<UiScale>(() => getUiScale());
   const { selectedCurrency, setSelectedCurrency } = useCurrencyStore();
   const [searchParams] = useSearchParams();
   const apiSectionRef = useRef<HTMLDivElement | null>(null);
@@ -500,6 +504,43 @@ const SettingsTab: React.FC = () => {
               );
             })}
           </div>
+        </div>
+
+        {/* Font size / UI scale */}
+        <div className="mt-5">
+          <div className="label-eyebrow mb-2.5">Font size</div>
+          <div className="grid grid-cols-4 gap-2">
+            {UI_SCALES.map((s) => {
+              const active = uiScale === s.value;
+              return (
+                <motion.button
+                  whileTap={tap}
+                  key={s.value}
+                  onClick={() => {
+                    setUiScale(s.value);
+                    setUiScaleState(s.value);
+                  }}
+                  className={`relative h-12 rounded-2xl px-2 flex flex-col items-center justify-center transition-colors ${
+                    active
+                      ? 'bg-accent text-on-accent'
+                      : 'bg-subtle text-ink-muted hover:bg-bg hover:text-ink'
+                  }`}
+                >
+                  <span className="text-[13px] font-bold leading-none">{s.value}%</span>
+                  <span
+                    className={`text-[10px] font-semibold mt-1 ${
+                      active ? 'opacity-80' : 'text-ink-dim'
+                    }`}
+                  >
+                    {s.label}
+                  </span>
+                </motion.button>
+              );
+            })}
+          </div>
+          <p className="text-[11.5px] text-ink-dim font-medium mt-2">
+            Scales the whole interface — like changing your display DPI.
+          </p>
         </div>
       </Section>
 

@@ -4,7 +4,10 @@ import { getSupabaseCredentials } from '../utils/supabaseHelpers';
 import { notifyItemSold, notifyNewOrder } from '../utils/notificationUtils';
 import { useCurrencyStore } from '../store/currencyStore';
 
-const POLL_INTERVAL = 10000;
+/* 60s — sale notifications don't need sub-minute latency, and the old
+   10s cadence hammered the orders function (and flooded the console
+   with network errors whenever the connection dropped). */
+const POLL_INTERVAL = 60000;
 
 interface Order {
   id: string;
@@ -21,9 +24,21 @@ export const useSaleNotifications = () => {
   const { selectedCurrency } = useCurrencyStore();
   const lastCheckedRef = useRef<string | null>(null);
   const isCheckingRef = useRef(false);
+  const failureCountRef = useRef(0);
 
   const checkForNewSales = async () => {
     if (!user?.steamId || isCheckingRef.current) return;
+    /* Don't fire requests we know will fail (offline) or that nobody
+       will see (tab in background). Also back off exponentially after
+       consecutive failures so a flaky connection doesn't spam the
+       console with ERR_INTERNET_DISCONNECTED every tick. */
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    if (failureCountRef.current > 0) {
+      /* Skip 2^failures - 1 ticks (max ~8 min between attempts). */
+      const skipTicks = Math.min(2 ** failureCountRef.current - 1, 7);
+      if ((Date.now() / POLL_INTERVAL) % (skipTicks + 1) >= 1) return;
+    }
 
     try {
       isCheckingRef.current = true;
@@ -40,9 +55,10 @@ export const useSaleNotifications = () => {
       );
 
       if (!response.ok) {
-        console.error('Failed to fetch orders');
+        failureCountRef.current += 1;
         return;
       }
+      failureCountRef.current = 0;
 
       const data = await response.json();
       const orders: Order[] = data.orders || [];
@@ -73,8 +89,9 @@ export const useSaleNotifications = () => {
           lastCheckedRef.current = mostRecentOrder.created_at;
         }
       }
-    } catch (error) {
-      console.error('Error checking for sales:', error);
+    } catch {
+      /* Network hiccup — count it for backoff, stay quiet in the console. */
+      failureCountRef.current += 1;
     } finally {
       isCheckingRef.current = false;
     }

@@ -263,9 +263,9 @@ const DevelopersPage: React.FC = () => {
           transition={spring}
           className="card p-6 sm:p-8 mt-5"
         >
-          <span className="label-eyebrow">Base URL</span>
+          <span className="label-eyebrow">{tr('dev.base.eyebrow', 'Base URL')}</span>
           <h2 className="text-[18px] font-bold tracking-tight text-ink leading-tight mt-1.5">
-            Where to send requests
+            {tr('dev.base.title', 'Where to send requests')}
           </h2>
           <p className="text-[13.5px] text-ink-muted font-medium mt-3 leading-relaxed">
             All endpoints share one base URL. Append the endpoint path
@@ -289,9 +289,9 @@ const DevelopersPage: React.FC = () => {
           transition={spring}
           className="card p-6 sm:p-8 mt-5"
         >
-          <span className="label-eyebrow">Authentication</span>
+          <span className="label-eyebrow">{tr('dev.auth.eyebrow', 'Authentication')}</span>
           <h2 className="text-[18px] font-bold tracking-tight text-ink leading-tight mt-1.5">
-            Anonymous or API key
+            {tr('dev.auth.title', 'Anonymous or API key')}
           </h2>
           <p className="text-[13.5px] text-ink-muted font-medium mt-3 leading-relaxed">
             Send your key via the{' '}
@@ -343,7 +343,7 @@ const DevelopersPage: React.FC = () => {
           transition={spring}
           className="mt-5"
         >
-          <span className="label-eyebrow">Reference</span>
+          <span className="label-eyebrow">{tr('dev.reference.eyebrow', 'Reference')}</span>
           <h2 className="text-[20px] sm:text-[24px] font-bold tracking-tight text-ink leading-tight mt-1.5">
             Endpoints
           </h2>
@@ -367,7 +367,7 @@ const DevelopersPage: React.FC = () => {
           transition={spring}
           className="card p-6 sm:p-8 mt-5"
         >
-          <span className="label-eyebrow">Errors</span>
+          <span className="label-eyebrow">{tr('dev.errors.eyebrow', 'Errors')}</span>
           <h2 className="text-[18px] font-bold tracking-tight text-ink leading-tight mt-1.5">
             Standard error shape
           </h2>
@@ -455,7 +455,9 @@ const EndpointCard: React.FC<{
   endpoint: EndpointDoc;
   copied: string | null;
   onCopy: (id: string, value: string) => void;
-}> = ({ endpoint, copied, onCopy }) => (
+}> = ({ endpoint, copied, onCopy }) => {
+  const trEp = useT();
+  return (
   <article className="card p-6 sm:p-7">
     <div className="flex items-center gap-2 flex-wrap">
       <span className="px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
@@ -464,10 +466,10 @@ const EndpointCard: React.FC<{
       <code className="font-mono text-[14px] font-bold text-ink">{endpoint.path}</code>
     </div>
     <h3 className="text-[16px] font-bold tracking-tight text-ink leading-tight mt-3">
-      {endpoint.summary}
+      {trEp(`dev.ep.${endpoint.path}.summary`, endpoint.summary)}
     </h3>
     <p className="text-[13px] text-ink-muted font-medium mt-2 leading-relaxed">
-      {endpoint.description}
+      {trEp(`dev.ep.${endpoint.path}.description`, endpoint.description)}
     </p>
 
     {/* Parameters */}
@@ -525,6 +527,7 @@ const EndpointCard: React.FC<{
       />
     </div>
   </article>
-);
+  );
+};
 
 export default DevelopersPage;

@@ -40,69 +40,69 @@ export const InventoryTab: React.FC<{ addToast: any }> = ({ addToast }) => {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-white">Inventory & Listings</h2>
-          <p className="text-gray-400 text-sm">Manage marketplace listings</p>
+          <h2 className="text-2xl font-bold text-ink">Inventory & Listings</h2>
+          <p className="text-ink-muted text-sm">Manage marketplace listings</p>
         </div>
-        <button onClick={fetchListings} className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-white flex items-center gap-2">
+        <button onClick={fetchListings} className="bg-subtle hover:bg-bg px-4 py-2 rounded-lg text-ink flex items-center gap-2">
           <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           Refresh
         </button>
       </div>
 
       <div className="grid grid-cols-4 gap-4">
-        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
-          <div className="text-2xl font-bold text-white">{listings.length}</div>
-          <div className="text-gray-400 text-sm">Total Listings</div>
+        <div className="bg-surface rounded-lg p-4 border border-line/50">
+          <div className="text-2xl font-bold text-ink">{listings.length}</div>
+          <div className="text-ink-muted text-sm">Total Listings</div>
         </div>
-        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
-          <div className="text-2xl font-bold text-green-400">{listings.filter(l => l.status === 'active').length}</div>
-          <div className="text-gray-400 text-sm">Active</div>
+        <div className="bg-surface rounded-lg p-4 border border-line/50">
+          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{listings.filter(l => l.status === 'active').length}</div>
+          <div className="text-ink-muted text-sm">Active</div>
         </div>
-        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
-          <div className="text-2xl font-bold text-yellow-400">{listings.filter(l => l.status === 'pending').length}</div>
-          <div className="text-gray-400 text-sm">Pending Review</div>
+        <div className="bg-surface rounded-lg p-4 border border-line/50">
+          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{listings.filter(l => l.status === 'pending').length}</div>
+          <div className="text-ink-muted text-sm">Pending Review</div>
         </div>
-        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
-          <div className="text-2xl font-bold text-blue-400">{listings.filter(l => (l.price || 0) > 50000).length}</div>
-          <div className="text-gray-400 text-sm">High Value</div>
+        <div className="bg-surface rounded-lg p-4 border border-line/50">
+          <div className="text-2xl font-bold text-sky-600 dark:text-sky-400">{listings.filter(l => (l.price || 0) > 50000).length}</div>
+          <div className="text-ink-muted text-sm">High Value</div>
         </div>
       </div>
 
-      <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6">
+      <div className="bg-surface rounded-xl border border-line/50 p-6">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-700">
-                <th className="text-left py-3 px-4 text-gray-400">Item</th>
-                <th className="text-left py-3 px-4 text-gray-400">Seller</th>
-                <th className="text-left py-3 px-4 text-gray-400">Price</th>
-                <th className="text-left py-3 px-4 text-gray-400">Status</th>
-                <th className="text-right py-3 px-4 text-gray-400">Actions</th>
+              <tr className="border-b border-line">
+                <th className="text-left py-3 px-4 text-ink-muted">Item</th>
+                <th className="text-left py-3 px-4 text-ink-muted">Seller</th>
+                <th className="text-left py-3 px-4 text-ink-muted">Price</th>
+                <th className="text-left py-3 px-4 text-ink-muted">Status</th>
+                <th className="text-right py-3 px-4 text-ink-muted">Actions</th>
               </tr>
             </thead>
             <tbody>
               {listings.length === 0 ? (
-                <tr><td colSpan={5} className="text-center py-8 text-gray-400">No listings found</td></tr>
+                <tr><td colSpan={5} className="text-center py-8 text-ink-muted">No listings found</td></tr>
               ) : (
                 listings.map((listing) => (
-                  <tr key={listing.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
-                    <td className="py-3 px-4 text-white">{listing.item_name || 'Unknown Item'}</td>
-                    <td className="py-3 px-4 text-gray-300">{listing.users?.username || 'Unknown'}</td>
-                    <td className="py-3 px-4 text-white font-semibold">{(listing.price || 0).toLocaleString('cs-CZ')} Kč</td>
+                  <tr key={listing.id} className="border-b border-line/50 hover:bg-subtle/30">
+                    <td className="py-3 px-4 text-ink">{listing.item_name || 'Unknown Item'}</td>
+                    <td className="py-3 px-4 text-ink-muted">{listing.users?.username || 'Unknown'}</td>
+                    <td className="py-3 px-4 text-ink font-semibold">{(listing.price || 0).toLocaleString('cs-CZ')} Kč</td>
                     <td className="py-3 px-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        listing.status === 'active' ? 'bg-green-500/20 text-green-400' :
-                        listing.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
-                        'bg-gray-500/20 text-gray-400'
+                        listing.status === 'active' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
+                        listing.status === 'pending' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' :
+                        'bg-gray-500/20 text-ink-muted'
                       }`}>
                         {listing.status}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex justify-end gap-2">
-                        <button className="text-blue-400 hover:text-blue-300 p-2"><Eye size={16} /></button>
-                        <button className="text-yellow-400 hover:text-yellow-300 p-2"><Edit size={16} /></button>
-                        <button className="text-red-400 hover:text-red-300 p-2"><Trash2 size={16} /></button>
+                        <button className="text-sky-600 dark:text-sky-400 hover:text-blue-300 p-2"><Eye size={16} /></button>
+                        <button className="text-amber-600 dark:text-amber-400 hover:text-yellow-300 p-2"><Edit size={16} /></button>
+                        <button className="text-rose-600 dark:text-rose-400 hover:text-red-300 p-2"><Trash2 size={16} /></button>
                       </div>
                     </td>
                   </tr>
@@ -222,17 +222,17 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Activity className="w-6 h-6 text-blue-400" />
+          <h2 className="text-2xl font-bold text-ink flex items-center gap-2">
+            <Activity className="w-6 h-6 text-sky-600 dark:text-sky-400" />
             Analytics Dashboard
           </h2>
-          <p className="text-gray-400 text-sm mt-1">Monitor user activity and platform metrics</p>
+          <p className="text-ink-muted text-sm mt-1">Monitor user activity and platform metrics</p>
         </div>
         <div className="flex items-center gap-3">
           <select
             value={timeRange}
             onChange={(e) => setTimeRange(e.target.value as any)}
-            className="bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="bg-subtle text-ink px-4 py-2 rounded-lg border border-line focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="7d">Last 7 Days</option>
             <option value="30d">Last 30 Days</option>
@@ -240,7 +240,7 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
           </select>
           <button
             onClick={fetchAnalytics}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-ink rounded-lg transition"
           >
             <RefreshCw size={18} />
             Refresh
@@ -252,66 +252,66 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-xl p-6"
+          className="bg-surface border border-blue-500/30 rounded-xl p-6"
         >
           <div className="flex items-center justify-between mb-2">
-            <Eye className="w-8 h-8 text-blue-400" />
-            <span className="text-2xl font-bold text-white">{todayStats?.total_visits || 0}</span>
+            <Eye className="w-8 h-8 text-sky-600 dark:text-sky-400" />
+            <span className="text-2xl font-bold text-ink">{todayStats?.total_visits || 0}</span>
           </div>
-          <div className="text-gray-300 font-medium">Total Visits Today</div>
-          <div className="text-xs text-gray-400 mt-1">{todayStats?.unique_visitors || 0} unique visitors</div>
+          <div className="text-ink-muted font-medium">Total Visits Today</div>
+          <div className="text-xs text-ink-muted mt-1">{todayStats?.unique_visitors || 0} unique visitors</div>
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/30 rounded-xl p-6"
+          className="bg-surface border border-line rounded-xl p-6"
         >
           <div className="flex items-center justify-between mb-2">
-            <Users className="w-8 h-8 text-purple-400" />
-            <span className="text-2xl font-bold text-white">{todayStats?.new_registrations || 0}</span>
+            <Users className="w-8 h-8 text-accent" />
+            <span className="text-2xl font-bold text-ink">{todayStats?.new_registrations || 0}</span>
           </div>
-          <div className="text-gray-300 font-medium">New Registrations</div>
-          <div className="text-xs text-gray-400 mt-1">Today's sign-ups</div>
+          <div className="text-ink-muted font-medium">New Registrations</div>
+          <div className="text-xs text-ink-muted mt-1">Today's sign-ups</div>
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-gradient-to-br from-green-500/20 to-green-600/20 border border-green-500/30 rounded-xl p-6"
+          className="bg-surface border border-green-500/30 rounded-xl p-6"
         >
           <div className="flex items-center justify-between mb-2">
-            <DollarSign className="w-8 h-8 text-green-400" />
-            <span className="text-2xl font-bold text-white">
+            <DollarSign className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
+            <span className="text-2xl font-bold text-ink">
               {todayStats?.deposits_today?.toLocaleString() || 0} Kč
             </span>
           </div>
-          <div className="text-gray-300 font-medium">Deposits Today</div>
-          <div className="text-xs text-gray-400 mt-1">Total deposited</div>
+          <div className="text-ink-muted font-medium">Deposits Today</div>
+          <div className="text-xs text-ink-muted mt-1">Total deposited</div>
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-gradient-to-br from-orange-500/20 to-orange-600/20 border border-orange-500/30 rounded-xl p-6"
+          className="bg-surface border border-orange-500/30 rounded-xl p-6"
         >
           <div className="flex items-center justify-between mb-2">
-            <ShoppingCart className="w-8 h-8 text-orange-400" />
-            <span className="text-2xl font-bold text-white">
+            <ShoppingCart className="w-8 h-8 text-orange-600 dark:text-orange-400" />
+            <span className="text-2xl font-bold text-ink">
               {todayStats?.purchases_today?.toLocaleString() || 0} Kč
             </span>
           </div>
-          <div className="text-gray-300 font-medium">Purchases Today</div>
-          <div className="text-xs text-gray-400 mt-1">Total revenue</div>
+          <div className="text-ink-muted font-medium">Purchases Today</div>
+          <div className="text-xs text-ink-muted mt-1">Total revenue</div>
         </motion.div>
       </div>
 
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-blue-400" />
+      <div className="bg-surface border border-line rounded-xl p-6">
+        <h3 className="text-xl font-bold text-ink mb-4 flex items-center gap-2">
+          <TrendingUp className="w-5 h-5 text-sky-600 dark:text-sky-400" />
           Activity Over Time
         </h3>
         <ResponsiveContainer width="100%" height={300}>
@@ -332,9 +332,9 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <MousePointerClick className="w-5 h-5 text-purple-400" />
+        <div className="bg-surface border border-line rounded-xl p-6">
+          <h3 className="text-xl font-bold text-ink mb-4 flex items-center gap-2">
+            <MousePointerClick className="w-5 h-5 text-accent" />
             Event Distribution
           </h3>
           <ResponsiveContainer width="100%" height={300}>
@@ -360,9 +360,9 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-green-400" />
+        <div className="bg-surface border border-line rounded-xl p-6">
+          <h3 className="text-xl font-bold text-ink mb-4 flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             Top Pages
           </h3>
           <ResponsiveContainer width="100%" height={300}>
@@ -379,26 +379,26 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
         </div>
       </div>
 
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-        <h3 className="text-xl font-bold text-white mb-4">Quick Stats</h3>
+      <div className="bg-surface border border-line rounded-xl p-6">
+        <h3 className="text-xl font-bold text-ink mb-4">Quick Stats</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-            <div className="text-3xl font-bold text-blue-400">{todayStats?.page_views || 0}</div>
-            <div className="text-gray-400 text-sm mt-1">Page Views Today</div>
+          <div className="text-center p-4 bg-subtle rounded-lg">
+            <div className="text-3xl font-bold text-sky-600 dark:text-sky-400">{todayStats?.page_views || 0}</div>
+            <div className="text-ink-muted text-sm mt-1">Page Views Today</div>
           </div>
-          <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-            <div className="text-3xl font-bold text-purple-400">{todayStats?.clicks || 0}</div>
-            <div className="text-gray-400 text-sm mt-1">Clicks Today</div>
+          <div className="text-center p-4 bg-subtle rounded-lg">
+            <div className="text-3xl font-bold text-accent">{todayStats?.clicks || 0}</div>
+            <div className="text-ink-muted text-sm mt-1">Clicks Today</div>
           </div>
-          <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-            <div className="text-3xl font-bold text-green-400">{todayStats?.unique_visitors || 0}</div>
-            <div className="text-gray-400 text-sm mt-1">Unique Visitors</div>
+          <div className="text-center p-4 bg-subtle rounded-lg">
+            <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{todayStats?.unique_visitors || 0}</div>
+            <div className="text-ink-muted text-sm mt-1">Unique Visitors</div>
           </div>
-          <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-            <div className="text-3xl font-bold text-orange-400">
+          <div className="text-center p-4 bg-subtle rounded-lg">
+            <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">
               {((todayStats?.page_views || 0) / (todayStats?.unique_visitors || 1)).toFixed(1)}
             </div>
-            <div className="text-gray-400 text-sm mt-1">Avg Pages/Visitor</div>
+            <div className="text-ink-muted text-sm mt-1">Avg Pages/Visitor</div>
           </div>
         </div>
       </div>
@@ -519,47 +519,47 @@ export const SupportTab: React.FC<{ addToast: any; user: any }> = ({ addToast, u
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'open': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      case 'in_progress': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-      case 'resolved': return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'closed': return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
-      default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+      case 'open': return 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-blue-500/30';
+      case 'in_progress': return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-yellow-500/30';
+      case 'resolved': return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-green-500/30';
+      case 'closed': return 'bg-gray-500/20 text-ink-muted border-gray-500/30';
+      default: return 'bg-gray-500/20 text-ink-muted border-gray-500/30';
     }
   };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'urgent': return 'text-red-400';
-      case 'high': return 'text-orange-400';
-      case 'medium': return 'text-yellow-400';
-      case 'low': return 'text-green-400';
-      default: return 'text-gray-400';
+      case 'urgent': return 'text-rose-600 dark:text-rose-400';
+      case 'high': return 'text-orange-600 dark:text-orange-400';
+      case 'medium': return 'text-amber-600 dark:text-amber-400';
+      case 'low': return 'text-emerald-600 dark:text-emerald-400';
+      default: return 'text-ink-muted';
     }
   };
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-        <MessageSquare className="w-6 h-6 text-purple-400" />
+      <h2 className="text-2xl font-bold text-ink flex items-center gap-2">
+        <MessageSquare className="w-6 h-6 text-accent" />
         Support Tickets Management
       </h2>
 
       <div className="grid grid-cols-4 gap-4">
-        <div className="bg-gray-800/50 rounded-lg p-4 border border-blue-500/30">
-          <div className="text-2xl font-bold text-blue-400">{tickets.filter(t => t.status === 'open').length}</div>
-          <div className="text-gray-400 text-sm">Open</div>
+        <div className="bg-surface rounded-lg p-4 border border-blue-500/30">
+          <div className="text-2xl font-bold text-sky-600 dark:text-sky-400">{tickets.filter(t => t.status === 'open').length}</div>
+          <div className="text-ink-muted text-sm">Open</div>
         </div>
-        <div className="bg-gray-800/50 rounded-lg p-4 border border-yellow-500/30">
-          <div className="text-2xl font-bold text-yellow-400">{tickets.filter(t => t.status === 'in_progress').length}</div>
-          <div className="text-gray-400 text-sm">In Progress</div>
+        <div className="bg-surface rounded-lg p-4 border border-yellow-500/30">
+          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{tickets.filter(t => t.status === 'in_progress').length}</div>
+          <div className="text-ink-muted text-sm">In Progress</div>
         </div>
-        <div className="bg-gray-800/50 rounded-lg p-4 border border-green-500/30">
-          <div className="text-2xl font-bold text-green-400">{tickets.filter(t => t.status === 'resolved').length}</div>
-          <div className="text-gray-400 text-sm">Resolved</div>
+        <div className="bg-surface rounded-lg p-4 border border-green-500/30">
+          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{tickets.filter(t => t.status === 'resolved').length}</div>
+          <div className="text-ink-muted text-sm">Resolved</div>
         </div>
-        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-500/30">
-          <div className="text-2xl font-bold text-white">{tickets.length}</div>
-          <div className="text-gray-400 text-sm">Total</div>
+        <div className="bg-surface rounded-lg p-4 border border-gray-500/30">
+          <div className="text-2xl font-bold text-ink">{tickets.length}</div>
+          <div className="text-ink-muted text-sm">Total</div>
         </div>
       </div>
 
@@ -570,8 +570,8 @@ export const SupportTab: React.FC<{ addToast: any; user: any }> = ({ addToast, u
             onClick={() => setStatusFilter(status)}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               statusFilter === status
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
+                ? 'bg-accent text-on-accent'
+                : 'bg-surface text-ink-muted hover:bg-subtle'
             }`}
           >
             {status === 'all' ? 'All' : status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
@@ -580,14 +580,14 @@ export const SupportTab: React.FC<{ addToast: any; user: any }> = ({ addToast, u
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6 overflow-y-auto max-h-[600px]">
-          <h3 className="text-lg font-semibold text-white mb-4">Tickets List</h3>
+        <div className="bg-surface rounded-xl border border-line/50 p-6 overflow-y-auto max-h-[600px]">
+          <h3 className="text-lg font-semibold text-ink mb-4">Tickets List</h3>
           {loading ? (
             <div className="flex justify-center py-8">
               <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : tickets.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">No tickets found</div>
+            <div className="text-center py-8 text-ink-muted">No tickets found</div>
           ) : (
             <div className="space-y-3">
               {tickets.map((ticket) => (
@@ -599,22 +599,22 @@ export const SupportTab: React.FC<{ addToast: any; user: any }> = ({ addToast, u
                   }}
                   className={`p-4 rounded-lg border cursor-pointer transition-all ${
                     selectedTicket?.id === ticket.id
-                      ? 'border-purple-500 bg-purple-500/10'
-                      : 'border-gray-700 hover:border-gray-600 bg-gray-900/30'
+                      ? 'border-purple-500 bg-accent-soft'
+                      : 'border-line hover:border-line bg-bg/30'
                   }`}
                 >
                   <div className="flex items-start justify-between mb-2">
-                    <h4 className="font-semibold text-white text-sm">{ticket.subject}</h4>
+                    <h4 className="font-semibold text-ink text-sm">{ticket.subject}</h4>
                     <span className={`px-2 py-1 rounded-full text-xs border ${getStatusColor(ticket.status)}`}>
                       {ticket.status}
                     </span>
                   </div>
-                  <p className="text-gray-400 text-xs mb-2 line-clamp-1">{ticket.description}</p>
+                  <p className="text-ink-muted text-xs mb-2 line-clamp-1">{ticket.description}</p>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-500">{ticket.users?.display_name || 'Unknown'}</span>
+                    <span className="text-ink-dim">{ticket.users?.display_name || 'Unknown'}</span>
                     <div className="flex items-center gap-2">
                       <span className={`font-medium ${getPriorityColor(ticket.priority)}`}>{ticket.priority.toUpperCase()}</span>
-                      <span className="text-gray-500">{new Date(ticket.created_at).toLocaleDateString()}</span>
+                      <span className="text-ink-dim">{new Date(ticket.created_at).toLocaleDateString()}</span>
                     </div>
                   </div>
                 </div>
@@ -623,16 +623,16 @@ export const SupportTab: React.FC<{ addToast: any; user: any }> = ({ addToast, u
           )}
         </div>
 
-        <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6 flex flex-col">
+        <div className="bg-surface rounded-xl border border-line/50 p-6 flex flex-col">
           {selectedTicket ? (
             <>
-              <div className="border-b border-gray-700 pb-4 mb-4">
+              <div className="border-b border-line pb-4 mb-4">
                 <div className="flex items-start justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-white">{selectedTicket.subject}</h3>
+                  <h3 className="text-lg font-semibold text-ink">{selectedTicket.subject}</h3>
                   <select
                     value={selectedTicket.status}
                     onChange={(e) => updateTicketStatus(selectedTicket.id, e.target.value)}
-                    className="bg-gray-900 border border-gray-700 rounded px-3 py-1 text-sm text-white"
+                    className="bg-bg border border-line rounded px-3 py-1 text-sm text-ink"
                   >
                     <option value="open">Open</option>
                     <option value="in_progress">In Progress</option>
@@ -640,8 +640,8 @@ export const SupportTab: React.FC<{ addToast: any; user: any }> = ({ addToast, u
                     <option value="closed">Closed</option>
                   </select>
                 </div>
-                <p className="text-gray-400 text-sm mb-3">{selectedTicket.description}</p>
-                <div className="flex items-center gap-4 text-xs text-gray-500">
+                <p className="text-ink-muted text-sm mb-3">{selectedTicket.description}</p>
+                <div className="flex items-center gap-4 text-xs text-ink-dim">
                   <span>Category: {selectedTicket.category}</span>
                   <span className={`font-medium ${getPriorityColor(selectedTicket.priority)}`}>
                     Priority: {selectedTicket.priority.toUpperCase()}
@@ -655,14 +655,14 @@ export const SupportTab: React.FC<{ addToast: any; user: any }> = ({ addToast, u
                   <div key={msg.id} className={`flex gap-2 ${msg.is_staff_reply ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[80%] p-3 rounded-lg ${
                       msg.is_staff_reply
-                        ? 'bg-purple-600/20 border border-purple-500/30 text-white'
-                        : 'bg-gray-900/50 border border-gray-700 text-gray-300'
+                        ? 'bg-accent-soft border border-line text-ink'
+                        : 'bg-surface border border-line text-ink-muted'
                     }`}>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-medium">
                           {msg.is_staff_reply ? 'Support (You)' : msg.users?.display_name}
                         </span>
-                        <span className="text-xs text-gray-500">{new Date(msg.created_at).toLocaleTimeString()}</span>
+                        <span className="text-xs text-ink-dim">{new Date(msg.created_at).toLocaleTimeString()}</span>
                       </div>
                       <p className="text-sm">{msg.message}</p>
                     </div>
@@ -678,12 +678,12 @@ export const SupportTab: React.FC<{ addToast: any; user: any }> = ({ addToast, u
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && sendReply()}
                     placeholder="Type your reply..."
-                    className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
+                    className="flex-1 bg-bg border border-line rounded-lg px-4 py-2 text-ink placeholder:text-ink-dim focus:outline-none focus:border-accent"
                   />
                   <button
                     onClick={sendReply}
                     disabled={!newMessage.trim()}
-                    className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-colors"
+                    className="bg-accent hover:opacity-90 text-on-accent disabled:opacity-50 disabled:cursor-not-allowed text-ink px-4 py-2 rounded-lg transition-colors"
                   >
                     Send
                   </button>
@@ -691,7 +691,7 @@ export const SupportTab: React.FC<{ addToast: any; user: any }> = ({ addToast, u
               )}
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-gray-400">
+            <div className="flex-1 flex items-center justify-center text-ink-muted">
               <div className="text-center">
                 <MessageSquare className="w-12 h-12 mx-auto mb-2 opacity-50" />
                 <p>Select a ticket to view details</p>
@@ -760,15 +760,15 @@ export const SettingsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Settings className="w-6 h-6 text-gray-400" />
+          <h2 className="text-2xl font-bold text-ink flex items-center gap-2">
+            <Settings className="w-6 h-6 text-ink-muted" />
             System Settings
           </h2>
-          <p className="text-gray-400 text-sm">Configure platform settings and parameters</p>
+          <p className="text-ink-muted text-sm">Configure platform settings and parameters</p>
         </div>
         <button
           onClick={fetchSettings}
-          className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-white flex items-center gap-2"
+          className="bg-subtle hover:bg-bg px-4 py-2 rounded-lg text-ink flex items-center gap-2"
         >
           <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           Refresh
@@ -781,30 +781,30 @@ export const SettingsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
           </div>
         ) : settings.length === 0 ? (
-          <div className="col-span-2 text-center py-12 text-gray-400">
+          <div className="col-span-2 text-center py-12 text-ink-muted">
             No settings found. Please run the database setup script.
           </div>
         ) : (
           settings.map((setting) => (
-            <div key={setting.id} className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6">
+            <div key={setting.id} className="bg-surface rounded-xl border border-line/50 p-6">
               <div className="flex justify-between items-start mb-2">
-                <h3 className="text-lg font-bold text-white">{setting.key}</h3>
+                <h3 className="text-lg font-bold text-ink">{setting.key}</h3>
                 <span className={`px-2 py-1 rounded text-xs font-medium ${
-                  setting.category === 'finance' ? 'bg-green-500/20 text-green-400' :
-                  setting.category === 'security' ? 'bg-red-500/20 text-red-400' :
-                  setting.category === 'system' ? 'bg-blue-500/20 text-blue-400' :
-                  'bg-gray-500/20 text-gray-400'
+                  setting.category === 'finance' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
+                  setting.category === 'security' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' :
+                  setting.category === 'system' ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400' :
+                  'bg-gray-500/20 text-ink-muted'
                 }`}>
                   {setting.category}
                 </span>
               </div>
-              <p className="text-gray-400 text-sm mb-4">{setting.description}</p>
-              <div className="bg-gray-700/50 rounded px-3 py-2 text-white font-mono text-sm mb-4 overflow-x-auto">
+              <p className="text-ink-muted text-sm mb-4">{setting.description}</p>
+              <div className="bg-subtle rounded px-3 py-2 text-ink font-mono text-sm mb-4 overflow-x-auto">
                 {JSON.stringify(setting.value)}
               </div>
               <button
                 onClick={() => openEditModal(setting)}
-                className="w-full bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-white text-sm transition flex items-center justify-center gap-2"
+                className="w-full bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-ink text-sm transition flex items-center justify-center gap-2"
               >
                 <Edit size={16} />
                 Edit Setting
@@ -816,31 +816,31 @@ export const SettingsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
 
       {editModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 max-w-2xl w-full">
-            <h3 className="text-xl font-bold text-white mb-4">Edit Setting: {editModal.key}</h3>
-            <p className="text-gray-400 text-sm mb-4">{editModal.description}</p>
+          <div className="bg-surface rounded-xl border border-line p-6 max-w-2xl w-full">
+            <h3 className="text-xl font-bold text-ink mb-4">Edit Setting: {editModal.key}</h3>
+            <p className="text-ink-muted text-sm mb-4">{editModal.description}</p>
 
             <div className="mb-4">
-              <label className="block text-gray-300 mb-2">Value (JSON format)</label>
+              <label className="block text-ink-muted mb-2">Value (JSON format)</label>
               <textarea
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white font-mono focus:outline-none focus:border-blue-500"
+                className="w-full bg-subtle border border-line rounded-lg px-4 py-2 text-ink font-mono focus:outline-none focus:border-blue-500"
                 rows={6}
               />
-              <p className="text-gray-500 text-xs mt-2">Make sure to use valid JSON format</p>
+              <p className="text-ink-dim text-xs mt-2">Make sure to use valid JSON format</p>
             </div>
 
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setEditModal(null)}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition"
+                className="px-4 py-2 bg-subtle hover:bg-bg text-ink rounded-lg transition"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-ink rounded-lg transition"
               >
                 Save Changes
               </button>
@@ -854,8 +854,8 @@ export const SettingsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
 
 export const DeveloperTab: React.FC<{ addToast: any }> = ({ addToast }) => (
   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-      <Wrench className="w-6 h-6 text-orange-400" />
+    <h2 className="text-2xl font-bold text-ink flex items-center gap-2">
+      <Wrench className="w-6 h-6 text-orange-600 dark:text-orange-400" />
       Developer & Maintenance Tools
     </h2>
     <div className="grid grid-cols-3 gap-4">
@@ -973,13 +973,13 @@ export const WithdrawalsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Wallet className="w-6 h-6 text-green-400" />
+        <h2 className="text-2xl font-bold text-ink flex items-center gap-2">
+          <Wallet className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
           Withdrawal requests
         </h2>
         <button
           onClick={fetchRequests}
-          className="text-sm text-gray-400 hover:text-white flex items-center gap-1.5"
+          className="text-sm text-ink-muted hover:text-ink flex items-center gap-1.5"
           disabled={loading}
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -988,65 +988,65 @@ export const WithdrawalsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
-          <div className="text-2xl font-bold text-yellow-400 tabular-nums">{pending.length}</div>
-          <div className="text-gray-400 text-sm">Pending review</div>
+        <div className="bg-surface rounded-lg p-4 border border-line/50">
+          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 tabular-nums">{pending.length}</div>
+          <div className="text-ink-muted text-sm">Pending review</div>
         </div>
-        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
-          <div className="text-2xl font-bold text-green-400 tabular-nums">{approved.length}</div>
-          <div className="text-gray-400 text-sm">Approved</div>
+        <div className="bg-surface rounded-lg p-4 border border-line/50">
+          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{approved.length}</div>
+          <div className="text-ink-muted text-sm">Approved</div>
         </div>
-        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
-          <div className="text-2xl font-bold text-red-400 tabular-nums">{rejected.length}</div>
-          <div className="text-gray-400 text-sm">Rejected</div>
+        <div className="bg-surface rounded-lg p-4 border border-line/50">
+          <div className="text-2xl font-bold text-rose-600 dark:text-rose-400 tabular-nums">{rejected.length}</div>
+          <div className="text-ink-muted text-sm">Rejected</div>
         </div>
-        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
-          <div className="text-2xl font-bold text-white tabular-nums">
+        <div className="bg-surface rounded-lg p-4 border border-line/50">
+          <div className="text-2xl font-bold text-ink tabular-nums">
             {pendingAmount.toLocaleString('cs-CZ')} Kč
           </div>
-          <div className="text-gray-400 text-sm">Pending amount</div>
+          <div className="text-ink-muted text-sm">Pending amount</div>
         </div>
       </div>
 
-      <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 overflow-hidden">
+      <div className="bg-surface rounded-xl border border-line/50 overflow-hidden">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-700 bg-gray-800/70">
-              <th className="text-left py-3 px-4 text-gray-400 text-xs uppercase tracking-wider">User</th>
-              <th className="text-left py-3 px-4 text-gray-400 text-xs uppercase tracking-wider">Amount</th>
-              <th className="text-left py-3 px-4 text-gray-400 text-xs uppercase tracking-wider">Net</th>
-              <th className="text-left py-3 px-4 text-gray-400 text-xs uppercase tracking-wider">Method</th>
-              <th className="text-left py-3 px-4 text-gray-400 text-xs uppercase tracking-wider">Payout details</th>
-              <th className="text-left py-3 px-4 text-gray-400 text-xs uppercase tracking-wider">Status</th>
-              <th className="text-right py-3 px-4 text-gray-400 text-xs uppercase tracking-wider">Actions</th>
+            <tr className="border-b border-line bg-surface/70">
+              <th className="text-left py-3 px-4 text-ink-muted text-xs uppercase tracking-wider">User</th>
+              <th className="text-left py-3 px-4 text-ink-muted text-xs uppercase tracking-wider">Amount</th>
+              <th className="text-left py-3 px-4 text-ink-muted text-xs uppercase tracking-wider">Net</th>
+              <th className="text-left py-3 px-4 text-ink-muted text-xs uppercase tracking-wider">Method</th>
+              <th className="text-left py-3 px-4 text-ink-muted text-xs uppercase tracking-wider">Payout details</th>
+              <th className="text-left py-3 px-4 text-ink-muted text-xs uppercase tracking-wider">Status</th>
+              <th className="text-right py-3 px-4 text-ink-muted text-xs uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="text-center py-8 text-gray-400">Loading…</td>
+                <td colSpan={7} className="text-center py-8 text-ink-muted">Loading…</td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="text-center py-8 text-gray-400">
+                <td colSpan={7} className="text-center py-8 text-ink-muted">
                   No withdrawal requests yet.
                 </td>
               </tr>
             ) : (
               rows.map((w) => (
-                <tr key={w.id} className="border-b border-gray-700/50 hover:bg-gray-700/20">
+                <tr key={w.id} className="border-b border-line/50 hover:bg-subtle/20">
                   <td className="py-3 px-4">
-                    <div className="text-white text-sm">{w.users?.display_name || 'Unknown'}</div>
-                    <div className="text-gray-500 text-xs font-mono">{w.user_steam_id}</div>
+                    <div className="text-ink text-sm">{w.users?.display_name || 'Unknown'}</div>
+                    <div className="text-ink-dim text-xs font-mono">{w.user_steam_id}</div>
                   </td>
-                  <td className="py-3 px-4 text-white font-semibold tabular-nums">
+                  <td className="py-3 px-4 text-ink font-semibold tabular-nums">
                     {Number(w.amount || 0).toLocaleString('cs-CZ')} Kč
                   </td>
-                  <td className="py-3 px-4 text-gray-300 tabular-nums">
+                  <td className="py-3 px-4 text-ink-muted tabular-nums">
                     {Number(w.net_amount || 0).toLocaleString('cs-CZ')} Kč
                   </td>
-                  <td className="py-3 px-4 text-gray-300 text-sm">{w.method}</td>
-                  <td className="py-3 px-4 text-gray-400 text-xs">
+                  <td className="py-3 px-4 text-ink-muted text-sm">{w.method}</td>
+                  <td className="py-3 px-4 text-ink-muted text-xs">
                     <code className="text-[10px] whitespace-pre-wrap">
                       {JSON.stringify(w.payout_details || {})}
                     </code>
@@ -1055,16 +1055,16 @@ export const WithdrawalsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-semibold ${
                         w.status === 'approved'
-                          ? 'bg-green-500/20 text-green-400'
+                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                           : w.status === 'pending'
-                          ? 'bg-yellow-500/20 text-yellow-400'
-                          : 'bg-red-500/20 text-red-400'
+                          ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                          : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
                       }`}
                     >
                       {w.status}
                     </span>
                     {w.reason && (
-                      <div className="text-xs text-gray-500 mt-1 max-w-[200px] truncate" title={w.reason}>
+                      <div className="text-xs text-ink-dim mt-1 max-w-[200px] truncate" title={w.reason}>
                         {w.reason}
                       </div>
                     )}
@@ -1075,14 +1075,14 @@ export const WithdrawalsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
                         <button
                           onClick={() => review(w.id, 'approve')}
                           disabled={processing === w.id}
-                          className="text-green-400 hover:text-green-300 px-3 py-1 rounded bg-green-500/10 hover:bg-green-500/20 text-sm disabled:opacity-50"
+                          className="text-emerald-600 dark:text-emerald-400 hover:text-green-300 px-3 py-1 rounded bg-green-500/10 hover:bg-emerald-500/10 text-sm disabled:opacity-50"
                         >
                           {processing === w.id ? '…' : 'Approve'}
                         </button>
                         <button
                           onClick={() => promptReject(w.id)}
                           disabled={processing === w.id}
-                          className="text-red-400 hover:text-red-300 px-3 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-sm disabled:opacity-50"
+                          className="text-rose-600 dark:text-rose-400 hover:text-red-300 px-3 py-1 rounded bg-red-500/10 hover:bg-rose-500/10 text-sm disabled:opacity-50"
                         >
                           Reject
                         </button>
@@ -1129,20 +1129,20 @@ export const MonitoringTab: React.FC<{ addToast: any }> = ({ addToast }) => {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-        <Activity className="w-6 h-6 text-blue-400" />
+      <h2 className="text-2xl font-bold text-ink flex items-center gap-2">
+        <Activity className="w-6 h-6 text-sky-600 dark:text-sky-400" />
         Real-time Monitoring
       </h2>
       <div className="grid grid-cols-2 gap-6">
-        <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6">
+        <div className="bg-surface rounded-xl border border-line/50 p-6">
           <h3 className="text-xl font-bold mb-4">Active Users</h3>
-          <div className="text-4xl font-bold text-green-400">{activeUsers}</div>
-          <div className="text-sm text-gray-400">Online in last 5 minutes</div>
+          <div className="text-4xl font-bold text-emerald-600 dark:text-emerald-400">{activeUsers}</div>
+          <div className="text-sm text-ink-muted">Online in last 5 minutes</div>
         </div>
-        <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6">
+        <div className="bg-surface rounded-xl border border-line/50 p-6">
           <h3 className="text-xl font-bold mb-4">Transactions/min</h3>
-          <div className="text-4xl font-bold text-blue-400">{transactionsPerMin}</div>
-          <div className="text-sm text-gray-400">Average rate (last 5 min)</div>
+          <div className="text-4xl font-bold text-sky-600 dark:text-sky-400">{transactionsPerMin}</div>
+          <div className="text-sm text-ink-muted">Average rate (last 5 min)</div>
         </div>
       </div>
     </motion.div>
