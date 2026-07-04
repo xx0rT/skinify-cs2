@@ -17,7 +17,6 @@ import {
   Package,
   Settings as SettingsIcon,
   HelpCircle,
-  ArrowRight,
   Clock,
 } from 'lucide-react';
 import LandingNav from '../components/LandingNav';
@@ -279,7 +278,7 @@ const SupportPage: React.FC = () => {
                 style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.6)' }}
               >
                 <MessageCircle size={15} strokeWidth={2.4} />
-                Open a ticket
+                {tr('support.stuck.title', 'Open a ticket')}
               </motion.button>
               <motion.button
                 whileTap={tap}
@@ -288,7 +287,7 @@ const SupportPage: React.FC = () => {
                 className="h-12 px-5 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[14px] inline-flex items-center gap-2 transition-colors"
               >
                 <Clock size={15} strokeWidth={2.2} />
-                My tickets
+                {tr('support.myTickets', 'My tickets')}
               </motion.button>
               <motion.a
                 whileTap={tap}
@@ -297,7 +296,7 @@ const SupportPage: React.FC = () => {
                 className="h-12 px-5 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[14px] inline-flex items-center gap-2 transition-colors"
               >
                 <Mail size={15} strokeWidth={2.2} />
-                Email support
+                {tr('support.email', 'Email support')}
               </motion.a>
             </div>
           </div>
@@ -314,39 +313,34 @@ const SupportPage: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...spring, delay: 0.05 }}
         >
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {CATEGORIES.filter((c) => c.id !== 'all').map((c, i) => (
-              <motion.button
-                key={c.id}
-                onClick={() => setCat(c.id)}
-                whileHover={{ y: -3 }}
-                whileTap={tap}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ ...spring, delay: i * 0.04 }}
-                className={`card p-4 text-left group relative overflow-hidden transition-all ${
-                  cat === c.id ? 'ring-2 ring-accent' : ''
-                }`}
-              >
-                <motion.div
-                  aria-hidden
-                  className="absolute -top-16 -right-10 w-[180px] h-[180px] rounded-full pointer-events-none opacity-50 group-hover:opacity-90 transition-opacity"
-                  style={{ background: `radial-gradient(closest-side, ${c.tint}33, transparent 70%)` }}
-                />
-                <div className="relative">
-                  <div
-                    className="w-10 h-10 rounded-2xl grid place-items-center mb-3"
-                    style={{
-                      background: `linear-gradient(140deg, ${c.tint}, ${c.tint}cc 55%, ${c.tint}88)`,
-                      boxShadow: `0 10px 22px -8px ${c.tint}55, inset 0 1px 0 rgba(255,255,255,0.28)`,
-                    }}
-                  >
-                    <c.Icon size={16} strokeWidth={2.4} className="text-white drop-shadow" />
-                  </div>
-                  <div className="text-[13.5px] font-bold text-ink tracking-tight">{c.label}</div>
-                </div>
-              </motion.button>
-            ))}
+          <div className="flex flex-wrap gap-2">
+            {CATEGORIES.map((c, i) => {
+              const active = cat === c.id;
+              return (
+                <motion.button
+                  key={c.id}
+                  onClick={() => setCat(c.id)}
+                  whileTap={tap}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ ...spring, delay: i * 0.04 }}
+                  className={`relative h-11 px-5 rounded-full text-[13.5px] font-bold transition-colors ${
+                    active ? 'text-on-accent' : 'bg-surface text-ink-muted hover:text-ink'
+                  }`}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="support-cat-pill"
+                      className="absolute inset-0 rounded-full bg-accent"
+                      transition={spring}
+                    />
+                  )}
+                  <span className="relative">
+                    {tr(`support.cat.${c.id}`, c.label)}
+                  </span>
+                </motion.button>
+              );
+            })}
           </div>
         </motion.section>
 
@@ -361,7 +355,7 @@ const SupportPage: React.FC = () => {
             <div>
               <span className="label-eyebrow">{tr('support.common.eyebrow', 'Common issues')}</span>
               <h2 className="text-[18px] font-bold tracking-tight mt-1.5 leading-none">
-                {filtered.length} {filtered.length === 1 ? 'article' : 'articles'}
+                {filtered.length} {filtered.length === 1 ? tr('support.article', 'article') : tr('support.articles', 'articles')}
               </h2>
             </div>
             <div className="flex-1 min-w-[200px] max-w-[420px] flex items-center gap-2 h-10 px-3.5 rounded-full bg-subtle">
@@ -369,7 +363,7 @@ const SupportPage: React.FC = () => {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search support…"
+                placeholder={tr('support.search.placeholder', 'Search support…')}
                 className="flex-1 bg-transparent outline-none text-ink placeholder:text-ink-dim text-[13px] font-medium"
               />
               {cat !== 'all' && (
@@ -377,7 +371,7 @@ const SupportPage: React.FC = () => {
                   onClick={() => setCat('all')}
                   className="text-[11.5px] text-ink-muted hover:text-ink font-semibold"
                 >
-                  Reset filter
+                  {tr('support.resetFilter', 'Reset filter')}
                 </button>
               )}
             </div>
@@ -387,7 +381,7 @@ const SupportPage: React.FC = () => {
             <div className="py-12 text-center">
               <HelpCircle size={26} className="mx-auto text-ink-muted mb-3" />
               <p className="text-[14px] text-ink-muted font-medium">
-                Nothing matched. Try a different search or open a ticket below.
+                {tr('support.noMatch', 'Nothing matched. Try a different search or open a ticket below.')}
               </p>
             </div>
           ) : (
@@ -409,17 +403,8 @@ const SupportPage: React.FC = () => {
                         aria-expanded={open}
                         className="w-full py-4 flex items-start gap-4 text-left group"
                       >
-                        <div
-                          className="w-9 h-9 rounded-2xl grid place-items-center shrink-0"
-                          style={{
-                            background: `linear-gradient(140deg, ${i.tint}, ${i.tint}cc)`,
-                            boxShadow: `0 8px 18px -10px ${i.tint}55`,
-                          }}
-                        >
-                          <i.Icon size={14} strokeWidth={2.4} className="text-white" />
-                        </div>
                         <span className="flex-1 text-[14.5px] sm:text-[15px] font-bold text-ink leading-snug tracking-tight pt-1">
-                          {i.title}
+                          {tr(`support.issue.${i.id}.title`, i.title)}
                         </span>
                         <span
                           className={`shrink-0 mt-0.5 w-8 h-8 rounded-full grid place-items-center transition-all duration-200 ${
@@ -438,9 +423,18 @@ const SupportPage: React.FC = () => {
                             transition={{ duration: 0.26, ease: [0.2, 0.8, 0.2, 1] }}
                             className="overflow-hidden"
                           >
-                            <p className="text-[13.5px] text-ink-muted leading-relaxed font-medium pb-5 pl-[52px] pr-12">
-                              {i.body}
-                            </p>
+                            <div className="pb-5 pr-12">
+                              <p className="text-[13.5px] text-ink-muted leading-relaxed font-medium">
+                                {tr(`support.issue.${i.id}.body`, i.body)}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => navigate('/tickets')}
+                                className="mt-3 h-9 px-4 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[12.5px] font-bold transition-colors"
+                              >
+                                {tr('support.issue.openTicket', "Didn't help? Open a ticket")}
+                              </button>
+                            </div>
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -466,8 +460,7 @@ const SupportPage: React.FC = () => {
                 {tr('support.stuck.title', 'Open a ticket')}
               </h2>
               <p className="text-[13px] text-ink-muted font-medium mt-2.5 leading-relaxed max-w-[280px]">
-                A human reads every message. Be specific — include order IDs,
-                trade URLs, or screenshots if relevant.
+                {tr('support.form.note', 'A human reads every message. Be specific — include order IDs, trade URLs, or screenshots if relevant.')}
               </p>
               <div className="mt-5 space-y-2 text-[12.5px] text-ink-muted font-medium">
                 <div className="flex items-center gap-2">
@@ -476,28 +469,28 @@ const SupportPage: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock size={13} strokeWidth={2.2} className="text-accent" />
-                  Avg reply under 4 hours
+                  {tr('support.form.sla', 'Avg reply under 4 hours')}
                 </div>
               </div>
             </div>
 
             <div className="space-y-3">
               <div>
-                <label className="label-meta block mb-1.5">Subject</label>
+                <label className="label-meta block mb-1.5">{tr('support.form.subject', 'Subject')}</label>
                 <input
                   value={form.subject}
                   onChange={(e) => setForm({ ...form, subject: e.target.value })}
-                  placeholder="What's the issue?"
+                  placeholder={tr('support.form.subjectPh', "What's the issue?")}
                   className="w-full h-11 px-4 rounded-full bg-subtle outline-none text-ink placeholder:text-ink-dim text-[14px] font-medium focus:ring-2 focus:ring-accent transition-all"
                 />
               </div>
               <div>
-                <label className="label-meta block mb-1.5">Message</label>
+                <label className="label-meta block mb-1.5">{tr('support.form.message', 'Message')}</label>
                 <textarea
                   value={form.message}
                   onChange={(e) => setForm({ ...form, message: e.target.value })}
                   rows={5}
-                  placeholder="Tell us what happened. Include order IDs if relevant."
+                  placeholder={tr('support.form.messagePh', 'Tell us what happened. Include order IDs if relevant.')}
                   className="w-full px-4 py-3 rounded-3xl bg-subtle outline-none text-ink placeholder:text-ink-dim text-[14px] font-medium focus:ring-2 focus:ring-accent transition-all resize-none"
                 />
               </div>
@@ -515,7 +508,7 @@ const SupportPage: React.FC = () => {
                 style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.6)' }}
               >
                 <Send size={14} strokeWidth={2.4} />
-                {submitting ? 'Submitting…' : 'Submit ticket'}
+                {submitting ? tr('support.form.submitting', 'Submitting…') : tr('support.form.submit', 'Submit ticket')}
               </motion.button>
             </div>
           </div>
