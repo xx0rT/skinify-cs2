@@ -17,6 +17,7 @@ import { supabase } from '../lib/supabaseClient';
 import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
 import { sendTicketCreatedEmail } from '../utils/emailService';
+import { TICKET_PREFILL_KEY } from '../components/SupportChatWidget';
 import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import { spring, tap } from '../lib/motion';
@@ -114,6 +115,27 @@ const SupportTicketsPage: React.FC = () => {
   });
 
   useBodyScrollLock(showCreateModal);
+
+  /* Handoff from the AI support chat — a prefilled subject/description
+     lands in sessionStorage; open the create modal with it once. */
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(TICKET_PREFILL_KEY);
+      if (!raw) return;
+      sessionStorage.removeItem(TICKET_PREFILL_KEY);
+      const prefill = JSON.parse(raw);
+      if (prefill?.subject || prefill?.description) {
+        setNewTicket((prev) => ({
+          ...prev,
+          subject: String(prefill.subject || '').slice(0, 120),
+          description: String(prefill.description || '').slice(0, 4000),
+        }));
+        setShowCreateModal(true);
+      }
+    } catch {
+      /* malformed prefill — ignore */
+    }
+  }, []);
 
   /* The tickets tables reference users.id (uuid) but the auth store
      only carries the Steam ID — resolve the uuid once per session. */

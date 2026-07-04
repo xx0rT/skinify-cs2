@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
+import SupportChatWidget from '../components/SupportChatWidget';
 import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
 import { spring, tap } from '../lib/motion';
@@ -512,6 +513,9 @@ const SupportPage: React.FC = () => {
         </motion.section>
 
       </main>
+
+      {/* Floating AI support chat */}
+      <SupportChatWidget />
 
       <Footer />
     </div>

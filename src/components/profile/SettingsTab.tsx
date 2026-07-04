@@ -24,7 +24,7 @@ import { useCurrencyStore, currencies } from '../../store/currencyStore';
 import { palettes, PaletteId } from '../../theme/palettes';
 import { spring, tap } from '../../lib/motion';
 import { openDepositModal } from '../DepositModal';
-import { UI_SCALES, UiScale, getUiScale, setUiScale } from '../../utils/uiScale';
+import { UI_SCALE_MIN, UI_SCALE_MAX, UI_SCALE_STEP, UiScale, getUiScale, setUiScale } from '../../utils/uiScale';
 
 /* $10 USD in CZK — this is the verification threshold for issuing an
    API key. We pin against USD (not CZK) because the marketing message
@@ -506,37 +506,59 @@ const SettingsTab: React.FC = () => {
           </div>
         </div>
 
-        {/* Font size / UI scale */}
+        {/* Font size / UI scale — slider; zoom applies live while
+            dragging so the whole interface scales smoothly under the
+            cursor. */}
         <div className="mt-5">
-          <div className="label-eyebrow mb-2.5">Font size</div>
-          <div className="grid grid-cols-4 gap-2">
-            {UI_SCALES.map((s) => {
-              const active = uiScale === s.value;
-              return (
-                <motion.button
-                  whileTap={tap}
-                  key={s.value}
-                  onClick={() => {
-                    setUiScale(s.value);
-                    setUiScaleState(s.value);
-                  }}
-                  className={`relative h-12 rounded-2xl px-2 flex flex-col items-center justify-center transition-colors ${
-                    active
-                      ? 'bg-accent text-on-accent'
-                      : 'bg-subtle text-ink-muted hover:bg-bg hover:text-ink'
-                  }`}
-                >
-                  <span className="text-[13px] font-bold leading-none">{s.value}%</span>
-                  <span
-                    className={`text-[10px] font-semibold mt-1 ${
-                      active ? 'opacity-80' : 'text-ink-dim'
-                    }`}
-                  >
-                    {s.label}
-                  </span>
-                </motion.button>
-              );
-            })}
+          <div className="flex items-center justify-between mb-3">
+            <div className="label-eyebrow">Font size</div>
+            <motion.span
+              key={uiScale}
+              initial={{ scale: 1.3, opacity: 0.6 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 22 }}
+              className="text-[14px] font-bold tabular-nums text-ink leading-none"
+            >
+              {uiScale}%
+            </motion.span>
+          </div>
+          <div className="relative h-6 flex items-center">
+            <div className="absolute inset-x-0 h-1.5 rounded-full bg-subtle" />
+            <motion.div
+              className="absolute h-1.5 rounded-full bg-accent"
+              animate={{
+                width: `${((uiScale - UI_SCALE_MIN) / (UI_SCALE_MAX - UI_SCALE_MIN)) * 100}%`,
+              }}
+              transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+            />
+            <input
+              type="range"
+              min={UI_SCALE_MIN}
+              max={UI_SCALE_MAX}
+              step={UI_SCALE_STEP}
+              value={uiScale}
+              onChange={(e) => {
+                const v = Number(e.target.value) as UiScale;
+                setUiScale(v);
+                setUiScaleState(v);
+              }}
+              aria-label="Font size"
+              className="relative w-full appearance-none bg-transparent cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150 [&::-webkit-slider-thumb]:hover:scale-110 [&::-webkit-slider-thumb]:active:scale-125 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-accent [&::-moz-range-thumb]:border-0"
+            />
+          </div>
+          <div className="flex justify-between text-[10.5px] text-ink-dim font-semibold tabular-nums mt-1.5">
+            <span>{UI_SCALE_MIN}%</span>
+            <button
+              type="button"
+              onClick={() => {
+                setUiScale(100);
+                setUiScaleState(100);
+              }}
+              className="hover:text-ink transition-colors font-bold"
+            >
+              Reset to 100%
+            </button>
+            <span>{UI_SCALE_MAX}%</span>
           </div>
           <p className="text-[11.5px] text-ink-dim font-medium mt-2">
             Scales the whole interface — like changing your display DPI.

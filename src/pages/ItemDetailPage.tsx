@@ -532,8 +532,18 @@ const ItemDetailPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Wishlist / share — top-right */}
+              {/* Inspect / wishlist / share — top-right */}
               <div className="absolute top-4 right-4 md:top-5 md:right-5 flex items-center gap-1 z-10">
+                {resolveInspectLink(enrichedItem) && (
+                  <a
+                    href={resolveInspectLink(enrichedItem)!}
+                    className="h-10 px-3 rounded-full grid place-items-center text-[12px] font-bold text-ink-muted hover:text-ink transition-colors inline-flex items-center gap-1.5"
+                    title="Inspect in game (opens Steam)"
+                  >
+                    <Eye size={15} strokeWidth={2.2} />
+                    <span className="hidden sm:inline">Inspect</span>
+                  </a>
+                )}
                 <motion.button
                   whileTap={tap}
                   onClick={() => handleWish(item)}
@@ -971,6 +981,31 @@ const ItemDetailPage: React.FC = () => {
   );
 };
 
+/* Resolve a working steam:// inspect link for a listing. Listing rows
+   may ship the link with Steam's %placeholders%; substitute what we
+   know. Falls back to building one from s/a/d params when present. */
+function resolveInspectLink(item: any): string | null {
+  let link: string | null =
+    item?.inspect_link || item?.inspectLink || item?.inspect_url || null;
+  if (link) {
+    const owner = item?.seller?.steamId ? String(item.seller.steamId) : '';
+    const assetId = item?.asset_id || item?.assetId || item?.itemId || '';
+    link = link
+      .replace('%owner_steamid%', owner)
+      .replace('%assetid%', String(assetId));
+    /* Unresolved placeholders make Steam reject the link — bail. */
+    if (link.includes('%')) return null;
+    return link;
+  }
+  const s = item?.s ?? item?.owner_steamid ?? item?.seller?.steamId;
+  const a = item?.a ?? item?.asset_id ?? item?.assetId;
+  const d = item?.d ?? item?.d_code;
+  if (s && a && d) {
+    return `steam://rungame/730/76561202255233023/+csgo_econ_action_preview S${s}A${a}D${d}`;
+  }
+  return null;
+}
+
 /* ───── Sub-panels ───── */
 
 /* ListingMeta — skins.com-style flat key-value rows under the buy CTA:
@@ -1096,6 +1131,10 @@ const SellerCard: React.FC<{
   onView: () => void;
   onMessage: () => void;
 }> = ({ seller, onView, onMessage }) => {
+  const viewer = useAuthStore((s) => s.user);
+  /* Own listing — no "message yourself" button. */
+  const isSelf =
+    !!viewer?.steamId && !!seller?.steamId && String(viewer.steamId) === String(seller.steamId);
   const name = seller?.name || 'Anonymous';
   const initial = name.charAt(0).toUpperCase();
   /* Avatar fallback chain:
@@ -1220,17 +1259,19 @@ const SellerCard: React.FC<{
         </div>
       )}
 
-      {/* CTA row — Message + View profile */}
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <motion.button
-          whileTap={tap}
-          whileHover={{ scale: 1.01 }}
-          onClick={onMessage}
-          className="h-10 rounded-full bg-accent text-on-accent font-bold text-[12.5px] flex items-center justify-center gap-1.5"
-        >
-          <MessageCircle size={12} strokeWidth={2.6} />
-          Message
-        </motion.button>
+      {/* CTA row — Message + View profile (Message hidden on own listings) */}
+      <div className={`mt-4 grid gap-2 ${isSelf ? 'grid-cols-1' : 'grid-cols-2'}`}>
+        {!isSelf && (
+          <motion.button
+            whileTap={tap}
+            whileHover={{ scale: 1.01 }}
+            onClick={onMessage}
+            className="h-10 rounded-full bg-accent text-on-accent font-bold text-[12.5px] flex items-center justify-center gap-1.5"
+          >
+            <MessageCircle size={12} strokeWidth={2.6} />
+            Message
+          </motion.button>
+        )}
         <motion.button
           whileTap={tap}
           whileHover={{ scale: 1.01 }}
@@ -1376,6 +1417,24 @@ const DetailsPanel: React.FC<{ item: any }> = ({ item }) => {
       ['Rarity', item.rarity || null],
       ['Type', item.type || null],
       ['Collection', item.collection || null],
+      ['Paint index', item.paintIndex != null ? String(item.paintIndex) : null],
+      ['Def index', item.defIndex != null ? String(item.defIndex) : null],
+      ['Finish', item.finish || null],
+      [
+        'Quality',
+        item.special === 'stattrak'
+          ? 'StatTrak™'
+          : item.special === 'souvenir'
+          ? 'Souvenir'
+          : null,
+      ],
+      [
+        'Stickers',
+        Array.isArray(item.stickers) && item.stickers.length > 0
+          ? `${item.stickers.length} applied`
+          : null,
+      ],
+      ['Tradable', item.tradable === false ? 'No' : null],
       [
         'Listed',
         item.listed_at

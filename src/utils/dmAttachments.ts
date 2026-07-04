@@ -27,49 +27,45 @@ function sanitizeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
 }
 
-/** Upload one File and return a DMAttachment. */
+/** Upload one File and return a DMAttachment. Images only. */
 export async function uploadAttachment(
   file: File,
   peerSteamId: string,
 ): Promise<DMAttachment> {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Only images can be sent in messages.');
+  }
   if (file.size > MAX_BYTES) {
-    throw new Error(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max 10 MB.`);
+    throw new Error(`Image too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max 10 MB.`);
   }
 
   const id = randomId();
   const objectPath = `${peerSteamId || 'shared'}/${id}-${sanitizeName(file.name)}`;
 
-  try {
-    const { error: upErr } = await supabase.storage
-      .from(BUCKET)
-      .upload(objectPath, file, {
-        cacheControl: '3600',
-        upsert: false,
-        contentType: file.type || undefined,
-      });
-
-    if (upErr) throw upErr;
-
-    const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(objectPath);
-    return {
-      id,
-      name: file.name,
-      url: pub.publicUrl,
-      mimeType: file.type || 'application/octet-stream',
-      size: file.size,
-    };
-  } catch (e) {
-    /* Fallback to a local blob URL so the user's message still sends.
-       The DM UI shows a small "not uploaded" badge for these. */
-    console.warn('[dmAttachments] upload failed, falling back to blob URL:', e);
-    return {
-      id,
-      name: file.name,
-      url: URL.createObjectURL(file),
-      mimeType: file.type || 'application/octet-stream',
-      size: file.size,
-    };
+  /* No blob-URL fallback here: a blob: URL only exists inside the
+     sender's browser session, so the recipient would receive an
+     attachment that can never load (the "can't open it" bug). If the
+     upload fails we throw and the composer surfaces the error instead
+     of sending a broken message. */
+  const { error: upErr } = await supabase.storage
+    .from(BUCKET)
+    .upload(objectPath, file, {
+      cacheControl: '3600',
+      upsert: false,
+      contentType: file.type || undefined,
+    });
+  if (upErr) {
+    throw new Error(`Upload failed: ${upErr.message || 'storage unavailable'}`);
   }
+
+  const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(objectPath);
+  return {
+    id,
+    name: file.name,
+    url: pub.publicUrl,
+    mimeType: file.type || 'image/png',
+    size: file.size,
+  };
 }
 
 /** Upload a list of files in parallel. */

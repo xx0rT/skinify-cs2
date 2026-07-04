@@ -367,7 +367,7 @@ export const DepositModal: React.FC = () => {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={() => !submitting && setOpen(false)}
-            className="lg:hidden fixed inset-0 z-[89] bg-black/55"
+            className="fixed inset-0 z-[89] bg-black/55 lg:backdrop-blur-sm"
             aria-hidden
           />
 
@@ -418,7 +418,7 @@ export const DepositModal: React.FC = () => {
                        cue that this is a sheet you can swipe down.
                Desktop: original full-screen pane. The lg: utility classes
                         override the mobile defaults. */
-            className="deposit-modal-root fixed inset-x-0 bottom-0 z-[90] bg-bg text-ink flex flex-col overflow-hidden rounded-t-[28px] shadow-[0_-24px_60px_-12px_rgba(0,0,0,0.5)] lg:inset-0 lg:rounded-none lg:shadow-none"
+            className="deposit-modal-root fixed inset-x-0 bottom-0 z-[90] bg-bg text-ink flex flex-col overflow-hidden rounded-t-[28px] shadow-[0_-24px_60px_-12px_rgba(0,0,0,0.5)] lg:inset-0 lg:m-auto lg:w-[min(1080px,94vw)] lg:rounded-[24px] lg:shadow-2xl"
           >
             {/* Scoped style — mobile height is 92dvh (sheet), lg is full
                 viewport. Doing this in CSS rather than inline lets the
@@ -426,7 +426,7 @@ export const DepositModal: React.FC = () => {
             <style>{`
               .deposit-modal-root { height: 92dvh; }
               @media (min-width: 1024px) {
-                .deposit-modal-root { height: 100dvh; }
+                .deposit-modal-root { height: min(680px, 92dvh); }
               }
             `}</style>
 
@@ -446,7 +446,7 @@ export const DepositModal: React.FC = () => {
           {/* Top bar */}
           <header
             className="shrink-0 flex items-center justify-between px-5 sm:px-8 h-12 lg:h-16 border-b"
-            style={{ borderColor: 'rgb(var(--accent) / 0.35)' }}
+            style={{ borderColor: 'rgb(var(--line))' }}
           >
             <div className="min-w-0">
               <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
@@ -473,7 +473,7 @@ export const DepositModal: React.FC = () => {
             {/* LEFT — method list (the only scroll surface) */}
             <section
               className="min-h-0 overflow-y-auto px-4 sm:px-8 py-4 sm:py-5 lg:border-r"
-              style={{ borderColor: 'rgb(var(--accent) / 0.35)' }}
+              style={{ borderColor: 'rgb(var(--line))' }}
             >
               <div className="max-w-[640px] mx-auto lg:mx-0">
                 {/* Mobile-only top section — Amount + presets + bonus
@@ -567,8 +567,19 @@ export const DepositModal: React.FC = () => {
             </section>
 
             {/* RIGHT — rigid action surface, never scrolls. */}
-            <aside className="hidden lg:flex flex-col bg-surface/30 px-8 py-5 overflow-hidden">
+            <aside className="hidden lg:flex flex-col bg-surface/40 px-8 py-6 overflow-hidden">
               <div className="max-w-[480px] mx-auto w-full flex-1 flex flex-col gap-4">
+                {/* Title — mirrors the selected method so the pane reads
+                    as "what you're about to do", not a blank form. */}
+                <div>
+                  <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
+                    {t('deposit.method', 'Payment method')}
+                  </div>
+                  <h2 className="text-[24px] font-bold tracking-tight text-ink leading-tight mt-1">
+                    {`Deposit via ${selectedMethod?.label || 'bank transfer'}`}
+                  </h2>
+                </div>
+
                 {/* Promo banner */}
                 {promoActive && (
                   <PromoBanner onDismiss={() => setPromoActive(false)} />
@@ -605,8 +616,9 @@ export const DepositModal: React.FC = () => {
                   })}
                 </div>
 
-                {/* Summary */}
-                <div className="rounded-3xl bg-subtle p-4 space-y-2">
+                {/* Summary — anchored to the bottom like skins.com's
+                    "You receive" block. */}
+                <div className="mt-auto rounded-3xl bg-subtle p-4 space-y-2">
                   <Row label={t('deposit.summary.youPay', 'You pay')} value={formatPrice(safeAmount)} />
                   <Row
                     label={`${selectedMethod?.label || t('deposit.method', 'Method')} ${t('deposit.summary.fee', 'fee').toLowerCase()}`}
@@ -642,7 +654,7 @@ export const DepositModal: React.FC = () => {
                     : t('deposit.cta.enterAmount', 'Enter an amount')}
                 </motion.button>
 
-                <p className="text-[10.5px] text-ink-dim font-medium leading-relaxed text-center mt-auto">
+                <p className="text-[10.5px] text-ink-dim font-medium leading-relaxed text-center">
                   {t(
                     'deposit.disclaimer',
                     'Skinify never sees your card details. Payments are encrypted and processed by your provider.',
@@ -659,7 +671,7 @@ export const DepositModal: React.FC = () => {
               lg+ where the right rail carries the CTA. */}
           <div
             className="lg:hidden shrink-0 px-4 pt-2 pb-[max(env(safe-area-inset-bottom),12px)] bg-bg/95 backdrop-blur-md border-t"
-            style={{ borderColor: 'rgb(var(--accent) / 0.30)' }}
+            style={{ borderColor: 'rgb(var(--line))' }}
           >
             <motion.button
               whileTap={tap}
@@ -796,7 +808,7 @@ const MethodCard: React.FC<{
       {/* Footer — fee + state label */}
       <div
         className="relative px-3 py-1.5 border-t text-[10px] font-bold uppercase tracking-wider flex items-center justify-between text-ink-dim bg-subtle/40"
-        style={{ borderColor: 'rgb(var(--accent) / 0.30)' }}
+        style={{ borderColor: 'rgb(var(--line))' }}
       >
         <span>{tile.fee ? `${tile.fee} fee` : 'No fee'}</span>
         <motion.span

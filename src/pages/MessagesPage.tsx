@@ -125,7 +125,11 @@ const MessagesPage: React.FC = () => {
   const activeThread = threads.find((t) => t.peerSteamId === activePeer);
 
   return (
-    <div className="lg:min-h-screen bg-bg text-ink flex flex-col">
+    /* Desktop: hard-lock the page to exactly one viewport (h-dvh +
+       overflow-hidden) — the thread list and the chat log scroll
+       internally, the page itself never does, so the composer is
+       always on screen. */
+    <div className="lg:h-dvh lg:overflow-hidden bg-bg text-ink flex flex-col">
       <LandingNav />
       {/* Top action row — page-level "back" so users on /messages can
           return to wherever they came from without going through the
@@ -147,7 +151,7 @@ const MessagesPage: React.FC = () => {
           log do. That keeps the peer name pinned on screen at all
           times, Instagram-style. */}
       <main
-        className="mobile-chat-viewport max-w-[1280px] w-full mx-auto lg:px-6 lg:py-3 flex flex-col lg:grid lg:gap-3 lg:grid-cols-[320px_1fr] lg:flex-1 lg:min-h-[calc(100dvh-96px)]"
+        className="mobile-chat-viewport max-w-[1280px] w-full mx-auto lg:px-6 lg:py-3 flex flex-col lg:grid lg:gap-3 lg:grid-cols-[320px_1fr] lg:auto-rows-[minmax(0,1fr)] lg:flex-1 lg:min-h-0"
       >
         {/* ─── Threads sidebar ─── */}
         <aside
@@ -487,7 +491,16 @@ const ChatPanel: React.FC<{
 
   const onPickFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    const next = [...pending, ...Array.from(files)].slice(0, 6);
+    const picked = Array.from(files);
+    const images = picked.filter((f) => f.type.startsWith('image/'));
+    if (images.length < picked.length) {
+      addToast({
+        type: 'warning',
+        title: 'Images only',
+        message: 'Only image files can be sent in messages.',
+      });
+    }
+    const next = [...pending, ...images].slice(0, 6);
     setPending(next);
   };
 
@@ -505,7 +518,11 @@ const ChatPanel: React.FC<{
         try {
           attachments = await uploadAttachments(pending, thread.peerSteamId);
         } catch (e: any) {
+          /* Abort the send — shipping a message whose image never
+             uploaded would show the peer a permanently broken file. */
           addToast({ type: 'error', title: 'Upload failed', message: e?.message });
+          setSending(false);
+          return;
         }
       }
       /* Async send — sendMessage optimistic-inserts immediately and
@@ -712,6 +729,7 @@ const ChatPanel: React.FC<{
           <input
             ref={fileInputRef}
             type="file"
+            accept="image/*"
             multiple
             className="hidden"
             onChange={(e) => onPickFiles(e.target.files)}
