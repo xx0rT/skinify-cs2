@@ -46,7 +46,7 @@ const MobileTopBar: React.FC = () => {
 
   return (
     <motion.header
-      className="lg:hidden fixed left-0 right-0 top-0 z-[55] bg-bg/92 backdrop-blur-md"
+      className="lg:hidden fixed left-0 right-0 top-0 z-[55] bg-bg"
       style={{
         /* Stack the iOS safe-area inset on top of our own padding so
            the bar sits below the dynamic island / notch. */
