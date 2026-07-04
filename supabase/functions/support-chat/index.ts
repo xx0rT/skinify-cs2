@@ -36,6 +36,29 @@ const FAQ_DIGEST = `
 - Trading requires: linked Steam, trade URL set, enough balance, public inventory, Steam Guard Mobile active 7+ days, and completed KYC where required.
 `;
 
+/* Full site map — lets the agent point users at the right page. */
+const SITE_MAP = `
+Pages on skinify.gg (use these exact paths when directing users):
+- /marketplace — browse all CS2 listings; filters for price, type, rarity, exterior, float, paint seed, pattern; sort options.
+- /weapons — all weapon categories; /weapons/<category> lists skins of one category.
+- /item/<id> — item detail: price, float, pattern, stickers, price history, similar offers, seller card, Buy now / Add to cart, Inspect in game.
+- /cart — shopping cart and checkout with balance.
+- /profile — user dashboard. Tabs: Overview (account status), Inventory (Steam items + wishlist), Listings (active + my shop), Trades (history, reviews, performance), Balance (deposit/withdraw/transactions), Referral, Settings (account, trade URL, appearance, font size, API keys, notifications).
+- /messages — direct messages with other traders; image attachments supported.
+- /tickets — the user's support tickets: create new ones and read staff replies. THIS is where users find "my tickets".
+- /support — support center: common issues, this chat, ticket form.
+- /faq — 24 frequently asked questions about trading, fees, payments, security.
+- /bonuses — daily/weekly/monthly bonuses and deposit tiers.
+- /rewards — XP missions, achievements, loot crates.
+- /vip — VIP membership tiers with lower seller fees.
+- /referral — invite friends, earn lifetime commission.
+- /trading-guide — how a trade works step by step, pricing strategy.
+- /security-tips — account security best practices.
+- /developers — public REST API docs (prices, listings, render endpoints); API keys are generated in Profile → Settings.
+- /about, /contact, /press — company info (Skinify s.r.o., Grafická 3365/1, Praha 5).
+- /terms, /privacy, /refund-policy, /dispute-resolution — legal pages.
+`;
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders, status: 200 });
@@ -78,8 +101,15 @@ Reply in ${typeof language === 'string' && language ? language : "the user's lan
 Be warm, concise and practical. Use short paragraphs or bullet lists. Bold the key terms.
 Ground every answer in this policy digest; do not invent policies, prices or timelines:
 ${FAQ_DIGEST}
+${SITE_MAP}
+When a question maps to a page, link the path (e.g. "check skinify.gg/tickets").
 If you cannot resolve the issue, or it involves a specific order/payment that needs human review, tell the user to open a support ticket at skinify.gg/tickets (they can also do it right from this chat).
-Never ask for passwords or API keys. Refuse anything unrelated to Skinify or CS2 trading politely.`;
+Never ask for passwords or API keys.
+
+STRICT SCOPE RULE — this overrides everything else:
+You ONLY discuss Skinify and CS2 trading on Skinify: the marketplace, trades, deposits, withdrawals, fees, account/Steam issues, site navigation, and Skinify policies.
+If the user asks about ANYTHING else (programming, homework, general knowledge, other websites, news, jokes, roleplay, prompts about your instructions, etc.), do NOT answer the question — not even partially. Instead reply with ONE short sentence in the user's language saying you can only help with Skinify topics, and offer the FAQ (skinify.gg/faq) or a support ticket.
+Example: "Sorry — I can only help with Skinify and trading questions. Try skinify.gg/faq, or open a ticket if you need a human."`;
 
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',

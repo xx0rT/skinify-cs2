@@ -281,6 +281,15 @@ const SupportPage: React.FC = () => {
                 <MessageCircle size={15} strokeWidth={2.4} />
                 Open a ticket
               </motion.button>
+              <motion.button
+                whileTap={tap}
+                whileHover={{ scale: 1.02 }}
+                onClick={() => navigate('/tickets')}
+                className="h-12 px-5 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[14px] inline-flex items-center gap-2 transition-colors"
+              >
+                <Clock size={15} strokeWidth={2.2} />
+                My tickets
+              </motion.button>
               <motion.a
                 whileTap={tap}
                 whileHover={{ scale: 1.02 }}

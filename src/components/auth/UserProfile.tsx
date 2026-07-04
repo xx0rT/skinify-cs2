@@ -15,6 +15,7 @@ import {
   TrendingUp,
   User as UserIcon,
   Wallet,
+  Ticket,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useAdminAuth } from '../../hooks/useAdminAuth';
@@ -274,6 +275,7 @@ const UserProfile: React.FC = () => {
                 <Item Icon={ShoppingBag} label={tr('profile.tab.listings', 'Listings')}  onClick={() => go('/profile?tab=listings')} />
                 <Item Icon={TrendingUp}  label={tr('profile.tab.trades', 'Trades')}    onClick={() => go('/profile?tab=trades')} />
                 <Item Icon={MessageCircle} label={tr('profile.tab.messages', 'Messages')} badge={messagesUnread} onClick={() => go('/messages')} />
+                <Item Icon={Ticket}      label="My tickets" onClick={() => go('/tickets')} />
                 <Item Icon={Gift}        label={tr('profile.tab.referral', 'Referral')}  onClick={() => go('/profile?tab=referral')} />
                 <Item Icon={Settings}    label={tr('profile.tab.settings', 'Settings')}  onClick={() => go('/profile?tab=settings')} />
                 {/* Admin entry — only rendered when the caller's
