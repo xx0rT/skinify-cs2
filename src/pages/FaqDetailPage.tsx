@@ -7,6 +7,8 @@ import Footer from '../components/Footer';
 import useDocumentMeta, { breadcrumbJsonLd, faqJsonLd } from '../hooks/useDocumentMeta';
 import { spring, tap } from '../lib/motion';
 import { findFaqDetail, FAQ_DETAILS } from '../data/faqDetailed';
+import { FAQ_DETAILS_CS } from '../data/faqDetailedCs';
+import { useTranslationStore } from '../store/translationStore';
 
 /* ─────────────────────────────────────────────────────────────────────────
    FaqDetailPage — one indexable URL per question.
@@ -36,14 +38,42 @@ import { findFaqDetail, FAQ_DETAILS } from '../data/faqDetailed';
 const FaqDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const detail = findFaqDetail(slug || '');
+  const langCode = useTranslationStore((s) => s.currentLanguage.code);
+
+  /* Merge the Czech override (question/answer/body/cta label) over the
+     English source when the UI language is Czech. Slugs without a
+     translation fall back to English automatically. */
+  const detail = useMemo(() => {
+    const base = findFaqDetail(slug || '');
+    if (!base) return base;
+    if (langCode === 'cs') {
+      const cs = FAQ_DETAILS_CS[base.slug];
+      if (cs) {
+        return {
+          ...base,
+          question: cs.question,
+          answer: cs.answer,
+          body: cs.body,
+          cta: base.cta && cs.ctaLabel ? { ...base.cta, label: cs.ctaLabel } : base.cta,
+        };
+      }
+    }
+    return base;
+  }, [slug, langCode]);
 
   const relatedItems = useMemo(
     () =>
       (detail?.related || [])
-        .map((s) => FAQ_DETAILS.find((f) => f.slug === s))
+        .map((s) => {
+          const base = FAQ_DETAILS.find((f) => f.slug === s);
+          if (!base) return undefined;
+          if (langCode === 'cs' && FAQ_DETAILS_CS[base.slug]) {
+            return { ...base, question: FAQ_DETAILS_CS[base.slug].question };
+          }
+          return base;
+        })
         .filter(Boolean) as typeof FAQ_DETAILS,
-    [detail],
+    [detail, langCode],
   );
 
   useDocumentMeta({
