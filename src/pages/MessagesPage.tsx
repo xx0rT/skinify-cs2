@@ -19,6 +19,7 @@ import { uploadAttachments, formatBytes } from '../utils/dmAttachments';
 import { useToastStore } from '../store/toastStore';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import { spring, tap } from '../lib/motion';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 
 /* ─────────────────────────────────────────────────────────────────────────
    MessagesPage — full inbox + active chat.
@@ -98,6 +99,17 @@ const MessagesPage: React.FC = () => {
   useEffect(() => {
     if (activePeer) markThreadRead(activePeer);
   }, [activePeer, markThreadRead]);
+
+  /* Opening the messages page counts as "seen" — clear every unread
+     badge (navbar bell / avatar counter) by marking all threads read.
+     Guarded so it only fires for threads that actually have unread
+     messages, otherwise the store update would loop this effect. */
+  useEffect(() => {
+    for (const th of Object.values(threadsMap)) {
+      const hasUnread = th.messages.some((m) => !m.read && m.fromSteamId !== 'me');
+      if (hasUnread) markThreadRead(th.peerSteamId);
+    }
+  }, [threadsMap, markThreadRead]);
 
   const filteredThreads = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -849,33 +861,80 @@ const Bubble: React.FC<{ message: DMMessage }> = ({ message }) => {
 
 const AttachmentBubble: React.FC<{ attachment: DMAttachment }> = ({ attachment }) => {
   const isImage = attachment.mimeType.startsWith('image/');
-  return (
-    <a
-      href={attachment.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="card-flat overflow-hidden block max-w-[280px] hover:bg-subtle/60 transition-colors"
-    >
-      {isImage ? (
-        <img
-          src={attachment.url}
-          alt={attachment.name}
-          className="w-full max-h-60 object-cover"
-        />
-      ) : (
+  const [lightbox, setLightbox] = useState(false);
+  useBodyScrollLock(lightbox);
+
+  if (!isImage) {
+    return (
+      <a
+        href={attachment.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="card-flat overflow-hidden block max-w-[280px] hover:bg-subtle/60 transition-colors"
+      >
         <div className="p-3 flex items-center gap-2.5">
           <AttachmentIcon mimeType={attachment.mimeType} />
           <div className="min-w-0">
-            <div className="text-[12.5px] font-bold text-ink truncate">
-              {attachment.name}
-            </div>
+            <div className="text-[12.5px] font-bold text-ink truncate">{attachment.name}</div>
             <div className="text-[10.5px] text-ink-muted tabular-nums">
               {formatBytes(attachment.size)}
             </div>
           </div>
         </div>
-      )}
-    </a>
+      </a>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setLightbox(true)}
+        className="card-flat overflow-hidden block max-w-[280px] hover:opacity-90 transition-opacity cursor-zoom-in"
+        aria-label={`Open ${attachment.name}`}
+      >
+        <img src={attachment.url} alt={attachment.name} className="w-full max-h-60 object-cover" />
+      </button>
+
+      {/* In-app lightbox — dimmed backdrop, spring-scaled image, click
+          anywhere or Esc/X to close. No new tab. */}
+      <AnimatePresence>
+        {lightbox && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="fixed inset-0 z-[95] bg-black/80 backdrop-blur-sm grid place-items-center p-4 sm:p-10 cursor-zoom-out"
+            onClick={() => setLightbox(false)}
+            role="dialog"
+            aria-modal="true"
+          >
+            <motion.img
+              initial={{ scale: 0.86, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+              src={attachment.url}
+              alt={attachment.name}
+              className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              type="button"
+              onClick={() => setLightbox(false)}
+              className="absolute top-4 right-4 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white grid place-items-center transition-colors"
+              aria-label="Close"
+            >
+              <XIcon size={18} strokeWidth={2.4} />
+            </button>
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[12px] text-white/80 font-medium truncate max-w-[80vw]">
+              {attachment.name}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 };
 

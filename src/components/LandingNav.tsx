@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useMotionValueEvent, useScroll } from 'framer-motion';
 import {
+  Bell,
   LogOut,
   Heart,
   Menu,
@@ -23,6 +24,8 @@ import { useBalanceStore } from '../store/balanceStore';
 import { useCartStore } from '../store/cartStore';
 import { useCurrencyStore } from '../store/currencyStore';
 import { useToastStore } from '../store/toastStore';
+import { useNotificationStore } from '../store/notificationStore';
+import { useDMStore } from '../store/dmStore';
 import { useTranslationStore } from '../store/translationStore';
 import SteamLogin from './auth/SteamLogin';
 import UserProfile from './auth/UserProfile';
@@ -59,8 +62,6 @@ export const LandingNav: React.FC = () => {
   const { t } = useTranslationStore();
   const { resolvedMode, mode, setMode } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
-  const themeMenuRef = useRef<HTMLDivElement | null>(null);
 
   /* Scroll behaviour — direction-aware "full vs gradient" state.
        - At the very top of the page (≤ 24px): full chrome (solid bg +
@@ -137,17 +138,20 @@ export const LandingNav: React.FC = () => {
 
   const cartCount = getItemCount();
 
-  useEffect(() => {
-    const onClickOutside = (e: MouseEvent) => {
-      if (themeMenuRef.current && !themeMenuRef.current.contains(e.target as Node)) {
-        setThemeMenuOpen(false);
+  /* Combined unread badge for the navbar bell — site notifications +
+     unread DMs, mirrored live from the stores. */
+  const notifUnread = useNotificationStore((s) => s.unreadCount);
+  const dmThreads = useDMStore((s) => s.threads);
+  const dmUnread = React.useMemo(() => {
+    let n = 0;
+    for (const th of Object.values(dmThreads)) {
+      for (const msg of th.messages) {
+        if (!msg.read && msg.fromSteamId !== 'me') n += 1;
       }
-    };
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, []);
-
-  const ThemeIcon = resolvedMode === 'dark' ? Moon : Sun;
+    }
+    return n;
+  }, [dmThreads]);
+  const bellCount = (Number(notifUnread) || 0) + dmUnread;
 
   return (
     <>
@@ -296,16 +300,27 @@ export const LandingNav: React.FC = () => {
                     addToast({
                       type: 'warning',
                       title: 'Login required',
-                      message: 'Please log in to view your wishlist.',
+                      message: 'Please log in to see your notifications.',
                     });
                     return;
                   }
-                  navigate('/profile?tab=inventory');
+                  navigate('/profile?tab=settings&sub=notifications');
                 }}
-                aria-label="Wishlist"
-                className="hidden lg:grid"
+                aria-label="Notifications"
+                className="hidden lg:grid relative"
               >
-                <Heart size={18} strokeWidth={2} className="text-ink-muted group-hover:text-rose-500 transition-colors" />
+                <Bell size={18} strokeWidth={2} className="text-ink-muted group-hover:text-ink transition-colors" />
+                {bellCount > 0 && (
+                  <motion.span
+                    key={bellCount}
+                    initial={{ scale: 0.4, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: 'spring', stiffness: 520, damping: 16 }}
+                    className="absolute top-0.5 right-0.5 min-w-[14px] h-[14px] px-1 rounded-full bg-rose-500 text-white grid place-items-center text-[9px] font-bold leading-none"
+                  >
+                    {bellCount > 9 ? '9+' : bellCount}
+                  </motion.span>
+                )}
               </NavIconButton>
 
               {/* Cart — dropdown preview + "Open cart" CTA. Amazon /
@@ -327,52 +342,6 @@ export const LandingNav: React.FC = () => {
                   )}
                 </span>
               </CartDropdown>
-
-              {/* Theme menu — md+ only (moved into drawer on mobile) */}
-              <div className="relative hidden lg:block" ref={themeMenuRef}>
-                <NavIconButton
-                  onClick={() => setThemeMenuOpen((v) => !v)}
-                  aria-label="Theme"
-                  iconSpin
-                >
-                  <ThemeIcon size={18} strokeWidth={2} className="text-ink-muted group-hover:text-amber-500 transition-colors" />
-                </NavIconButton>
-                <AnimatePresence>
-                  {themeMenuOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -4, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -4, scale: 0.96 }}
-                      transition={{ duration: 0.16 }}
-                      className="card-elevated absolute right-0 mt-2 w-44 p-1.5 z-50"
-                    >
-                      {(
-                        [
-                          { id: 'light', label: 'Light', Icon: Sun },
-                          { id: 'dark', label: 'Dark', Icon: Moon },
-                          { id: 'auto', label: 'System', Icon: Monitor },
-                        ] as const
-                      ).map(({ id, label, Icon }) => (
-                        <button
-                          key={id}
-                          onClick={() => {
-                            setMode(id);
-                            setThemeMenuOpen(false);
-                          }}
-                          className={`w-full h-10 px-3 rounded-2xl flex items-center gap-2.5 text-[13px] font-semibold transition-colors ${
-                            mode === id
-                              ? 'bg-accent-soft text-ink'
-                              : 'text-ink-muted hover:bg-subtle hover:text-ink'
-                          }`}
-                        >
-                          <Icon size={15} strokeWidth={2.2} />
-                          {label}
-                        </button>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
 
               {/* UserProfile dropdown — md+ only; drawer surfaces it on mobile */}
               <div className="pl-1 hidden lg:block">

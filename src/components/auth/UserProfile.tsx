@@ -2,6 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
+  Sun,
+  Moon,
+  Monitor,
   AlertTriangle,
   ChevronDown,
   Gift,
@@ -23,6 +26,7 @@ import { useBalanceStore } from '../../store/balanceStore';
 import { useCurrencyStore } from '../../store/currencyStore';
 import { useToastStore } from '../../store/toastStore';
 import { useT } from '../../lib/useT';
+import { useTheme } from '../../theme/ThemeProvider';
 import { useDMStore } from '../../store/dmStore';
 import { useNotificationStore } from '../../store/notificationStore';
 import { spring, tap } from '../../lib/motion';
@@ -42,6 +46,31 @@ import { openDepositModal } from '../DepositModal';
  * header reads cleanly across a busy nav.
  */
 
+/* Dropdown entrance — the panel springs open from the avatar corner
+   while its sections stagger downward into place. */
+const ddPanel = {
+  hidden: { opacity: 0, y: -10, scale: 0.92 },
+  shown: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      type: 'spring',
+      stiffness: 380,
+      damping: 28,
+      mass: 0.7,
+      when: 'beforeChildren',
+      staggerChildren: 0.045,
+    },
+  },
+  exit: { opacity: 0, y: -8, scale: 0.95, transition: { duration: 0.15 } },
+} as const;
+const ddSection = {
+  hidden: { opacity: 0, y: -8 },
+  shown: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 420, damping: 30 } },
+  exit: { opacity: 0 },
+} as const;
+
 const UserProfile: React.FC = () => {
   const { user, logout } = useAuthStore();
   const { isAdmin } = useAdminAuth();
@@ -49,6 +78,7 @@ const UserProfile: React.FC = () => {
   const { formatPrice } = useCurrencyStore();
   const { addToast } = useToastStore();
   const tr = useT();
+  const { mode, setMode } = useTheme();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -167,15 +197,16 @@ const UserProfile: React.FC = () => {
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: -6, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.97 }}
-            transition={spring}
+            variants={ddPanel}
+            initial="hidden"
+            animate="shown"
+            exit="exit"
+            style={{ transformOrigin: 'top right' }}
             className="absolute right-0 top-full mt-2 z-50 w-[300px] card-elevated overflow-hidden"
             role="menu"
           >
             {/* ── 1. Identity ─────────────────────────────── */}
-            <div className="p-4 pb-3 flex items-center gap-3">
+            <motion.div variants={ddSection} className="p-4 pb-3 flex items-center gap-3">
               <div className="w-11 h-11 rounded-full bg-accent text-on-accent grid place-items-center overflow-hidden shrink-0">
                 {user.avatarUrl ? (
                   <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
@@ -197,10 +228,10 @@ const UserProfile: React.FC = () => {
                   {user.steamId}
                 </a>
               </div>
-            </div>
+            </motion.div>
 
             {/* ── 2. Balance hero ─────────────────────────── */}
-            <div className="px-2 pb-2">
+            <motion.div variants={ddSection} className="px-2 pb-2">
               <div className="card-flat p-4">
                 <div className="flex items-center justify-between mb-2">
                   <button
@@ -238,7 +269,7 @@ const UserProfile: React.FC = () => {
                   </div>
                 )}
               </div>
-            </div>
+            </motion.div>
 
             {/* ── 3. Trade-link warning (only when missing) ── */}
             {!tradeReady && (
@@ -268,7 +299,7 @@ const UserProfile: React.FC = () => {
                 top-level entries (Wishlist, My shop, Notifications)
                 now live as sub-tabs inside their parent and aren't
                 worth surfacing here — keeps the dropdown short. */}
-            <div className="px-2 pt-1 pb-1.5 border-t border-line">
+            <motion.div variants={ddSection} className="px-2 pt-1 pb-1.5 border-t border-line">
               <nav className="space-y-px">
                 <Item Icon={UserIcon}    label={tr('profile.tab.overview', 'Overview')}  onClick={() => go('/profile?tab=overview')} />
                 <Item Icon={Package}     label={tr('profile.tab.inventory', 'Inventory')} onClick={() => go('/profile?tab=inventory')} />
@@ -291,10 +322,45 @@ const UserProfile: React.FC = () => {
                   />
                 )}
               </nav>
-            </div>
+            </motion.div>
+
+            {/* ── Theme ───────────────────────────────────── */}
+            <motion.div variants={ddSection} className="px-2 pt-2 pb-1.5 border-t border-line">
+              <div className="label-meta px-2.5 mb-1.5">Theme</div>
+              <div className="grid grid-cols-3 gap-1">
+                {(
+                  [
+                    { id: 'light', label: 'Light', Icon: Sun },
+                    { id: 'dark', label: 'Dark', Icon: Moon },
+                    { id: 'auto', label: 'Auto', Icon: Monitor },
+                  ] as const
+                ).map(({ id, label, Icon }) => {
+                  const active = mode === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => setMode(id)}
+                      className={`relative h-9 rounded-xl flex items-center justify-center gap-1.5 text-[11.5px] font-bold transition-colors ${
+                        active ? 'text-on-accent' : 'text-ink-muted hover:bg-subtle hover:text-ink'
+                      }`}
+                    >
+                      {active && (
+                        <motion.span
+                          layoutId="dropdown-theme-pill"
+                          className="absolute inset-0 rounded-xl bg-accent"
+                          transition={{ type: 'spring', stiffness: 480, damping: 34 }}
+                        />
+                      )}
+                      <Icon size={13} strokeWidth={2.4} className="relative" />
+                      <span className="relative">{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
 
             {/* ── 5. Sign out ─────────────────────────────── */}
-            <div className="px-2 pb-2 pt-1 border-t border-line">
+            <motion.div variants={ddSection} className="px-2 pb-2 pt-1 border-t border-line">
               <button
                 onClick={() => {
                   setOpen(false);
@@ -311,7 +377,7 @@ const UserProfile: React.FC = () => {
                 />
                 <span className="text-[13px] font-semibold tracking-tight">{tr('dropdown.signOut', 'Sign out')}</span>
               </button>
-            </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -112,7 +112,7 @@ const UserManagement: React.FC = () => {
           <div className="text-ink-muted text-sm">Active Users</div>
         </div>
         <div className="bg-surface rounded-lg p-4 border border-line/50">
-          <div className="text-2xl font-bold text-sky-600 dark:text-sky-400">
+          <div className="text-2xl font-bold text-accent">
             {users.filter(u => u.is_verified).length}
           </div>
           <div className="text-ink-muted text-sm">Verified Users</div>
@@ -176,7 +176,7 @@ const UserManagement: React.FC = () => {
                       <div>
                         <div className="text-ink font-medium">{user.username}</div>
                         {user.is_verified && (
-                          <span className="text-xs text-sky-600 dark:text-sky-400 flex items-center gap-1">
+                          <span className="text-xs text-accent flex items-center gap-1">
                             <CheckCircle size={12} />
                             Verified
                           </span>
@@ -216,7 +216,7 @@ const UserManagement: React.FC = () => {
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex items-center justify-end space-x-2">
-                      <button className="text-sky-600 dark:text-sky-400 hover:text-blue-300 p-2 rounded-lg hover:bg-blue-500/10 transition-all">
+                      <button className="text-accent hover:text-blue-300 p-2 rounded-lg hover:bg-accent-soft transition-all">
                         <Mail size={16} />
                       </button>
                       <button className="text-amber-600 dark:text-amber-400 hover:text-yellow-300 p-2 rounded-lg hover:bg-yellow-500/10 transition-all">

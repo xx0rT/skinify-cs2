@@ -21,6 +21,8 @@ import { useToastStore } from '../../../store/toastStore';
 import { useCurrencyStore } from '../../../store/currencyStore';
 import { spring, tap } from '../../../lib/motion';
 import { rarityColor } from '../../ui/SkinCard';
+import { supabase } from '../../../lib/supabaseClient';
+import { useBalanceStore } from '../../../store/balanceStore';
 
 /* ─────────────────────────────────────────────────────────────────────────
    ListingsTab — redesigned
@@ -48,9 +50,15 @@ interface Listing {
   /** Optional float value (0.0–1.0). May be a string (some endpoints
       ship it that way) or null. The card parses it defensively. */
   float?: number | string | null;
+  /** Paid promotion — true when the 49 Kč fee was paid. */
+  is_promoted?: boolean;
 }
 
 type Sort = 'newest' | 'price-desc' | 'price-asc' | 'views';
+
+/* Listing promotion — flat fee charged from the user's balance. */
+const PROMOTE_FEE_CZK = 49;
+const PROMOTE_SKIP_CONFIRM_KEY = 'skinify_skip_promote_confirm';
 
 const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
   const navigate = useNavigate();
@@ -61,6 +69,12 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<Sort>('newest');
   const [editingId, setEditingId] = useState<string | number | null>(null);
+  const fetchBalance = useBalanceStore((s) => s.fetchBalance);
+  /* Promotion confirm modal + optimistic UI sets. Buttons flip state
+     the instant they're clicked — no spinners, no delay. */
+  const [confirmPromote, setConfirmPromote] = useState<Listing | null>(null);
+  const [dontAskAgain, setDontAskAgain] = useState(false);
+  const [shopAddedIds, setShopAddedIds] = useState<Set<string>>(new Set());
   const [editPrice, setEditPrice] = useState('');
 
   useEffect(() => {
@@ -95,6 +109,7 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
         views: Number(l.views || 0),
         created_at: l.created_at || l.listed_at || new Date().toISOString(),
         listing_type: l.listing_type || 'standard',
+        is_promoted: l.is_promoted === true,
       }));
       setListings(formatted);
     } catch {
@@ -138,6 +153,9 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
       addToast({ type: 'warning', title: 'Sign in first' });
       return;
     }
+    /* Optimistic — flip the button green immediately; roll back only
+       if the server actually rejects. */
+    setShopAddedIds((prev) => new Set([...prev, String(l.id)]));
     try {
       const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
       const res = await fetch(`${supabaseUrl}/functions/v1/toggle-shop-item`, {
@@ -157,6 +175,11 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        setShopAddedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(String(l.id));
+          return next;
+        });
         addToast({
           type: 'error',
           title: 'Could not add to shop',
@@ -181,6 +204,11 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
         });
       }
     } catch (err: any) {
+      setShopAddedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(String(l.id));
+        return next;
+      });
       addToast({
         type: 'error',
         title: 'Could not add to shop',
@@ -189,14 +217,87 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
     }
   };
 
-  /* Promote — pay 49 CZK from balance, listing goes to the top of the
-     marketplace + "Trending now" for 7 days. Backed by the existing
-     hot-items edge function (POST). The button is hidden while the
-     listing is already actively promoted. */
-  const handlePromote = async (l: Listing) => {
+  /* Promote — 49 Kč flat fee, charged from the Skinify balance.
+     Flow: confirm modal (skippable via "don't ask again") →
+     OPTIMISTIC promoted state (the button flips instantly) → charge
+     the fee via the balance function → persist is_promoted on the
+     listing → also feed the hot-items rail. Any failure rolls the
+     state back and explains why. */
+  const handlePromote = (l: Listing) => {
+    if (l.is_promoted) return;
+    let skip = false;
+    try {
+      skip = localStorage.getItem(PROMOTE_SKIP_CONFIRM_KEY) === '1';
+    } catch {
+      /* private mode */
+    }
+    if (skip) {
+      executePromotion(l);
+    } else {
+      setDontAskAgain(false);
+      setConfirmPromote(l);
+    }
+  };
+
+  const executePromotion = async (l: Listing) => {
+    setConfirmPromote(null);
+    /* Instant UI — promoted state applies the moment the user commits. */
+    setListings((prev) =>
+      prev.map((x) => (x.id === l.id ? { ...x, is_promoted: true } : x)),
+    );
+    const rollback = () =>
+      setListings((prev) =>
+        prev.map((x) => (x.id === l.id ? { ...x, is_promoted: false } : x)),
+      );
+
     try {
       const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
-      const res = await fetch(`${supabaseUrl}/functions/v1/hot-items`, {
+
+      /* 1. Charge the fee — a completed `purchase` transaction which
+         the balance function deducts from current_balance. */
+      const feeRes = await fetch(`${supabaseUrl}/functions/v1/balance`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          steam_id: steamId,
+          type: 'purchase',
+          amount: PROMOTE_FEE_CZK,
+          description: `Listing promotion · ${l.item_name}`,
+          status: 'completed',
+        }),
+      });
+      const feeData = await feeRes.json().catch(() => ({}));
+      if (!feeRes.ok) {
+        rollback();
+        addToast({
+          type: 'error',
+          title: 'Promotion failed',
+          message:
+            feeData?.error ||
+            `Could not charge the ${PROMOTE_FEE_CZK} Kč fee — check your balance.`,
+        });
+        return;
+      }
+
+      /* 2. Persist the promoted flag (7 days). */
+      const promotedUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { error: updErr } = await supabase
+        .from('marketplace_listings')
+        .update({
+          is_promoted: true,
+          promoted_at: new Date().toISOString(),
+          promoted_until: promotedUntil,
+        })
+        .eq('id', l.id);
+      if (updErr) {
+        console.error('[promote] flag update failed:', updErr);
+      }
+
+      /* 3. Feed the "hot items" rail too — fire and forget. */
+      fetch(`${supabaseUrl}/functions/v1/hot-items`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -205,23 +306,21 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
           asset_id: l.asset_id || String(l.id),
           duration_hours: 24 * 7,
         }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        addToast({
-          type: 'error',
-          title: 'Promotion failed',
-          message: data?.error || 'Could not promote this listing.',
-        });
-        return;
-      }
+      }).catch(() => {});
+
+      fetchBalance(steamId);
       addToast({
         type: 'success',
         title: 'Listing promoted',
-        message: `${l.item_name} · featured for 7 days`,
+        message: `${l.item_name} · featured for 7 days (−${PROMOTE_FEE_CZK} Kč)`,
       });
-    } catch (err) {
-      addToast({ type: 'error', title: 'Promotion failed', message: 'Network error' });
+    } catch (err: any) {
+      rollback();
+      addToast({
+        type: 'error',
+        title: 'Promotion failed',
+        message: err?.message || 'Network error',
+      });
     }
   };
 
@@ -382,7 +481,9 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
                 onRemove={() => handleRemove(l)}
                 onPromote={() => handlePromote(l)}
                 onAddToShop={() => handleAddToShop(l)}
-                promoteLabel={formatFee(49)}
+                promoted={!!l.is_promoted}
+                inShop={shopAddedIds.has(String(l.id))}
+                promoteLabel={formatFee(PROMOTE_FEE_CZK)}
                 onView={() => navigate(`/item/${l.id}`)}
                 formatPrice={formatPrice}
               />
@@ -390,6 +491,85 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
           </AnimatePresence>
         </motion.div>
       )}
+
+      {/* ── Promote confirmation ── */}
+      <AnimatePresence>
+        {confirmPromote && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16 }}
+            className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm grid place-items-center p-4"
+            onClick={() => setConfirmPromote(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.97 }}
+              transition={{ type: 'spring', stiffness: 360, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
+              className="panel p-6 w-full max-w-sm"
+            >
+              <span className="label-eyebrow">Promote listing</span>
+              <h3 className="text-[18px] font-bold tracking-tight mt-1.5 leading-tight">
+                Feature “{confirmPromote.item_name}” for 7 days?
+              </h3>
+              <p className="text-[13px] text-ink-muted font-medium mt-2 leading-relaxed">
+                Your listing appears in the promoted rail on the homepage and at
+                the top of the marketplace. A one-time fee of{' '}
+                <span className="text-ink font-bold">{formatFee(PROMOTE_FEE_CZK)}</span>{' '}
+                is charged from your balance.
+              </p>
+
+              <label className="mt-4 flex items-center gap-2.5 cursor-pointer select-none">
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={dontAskAgain}
+                  onClick={() => setDontAskAgain((v) => !v)}
+                  className={`w-5 h-5 rounded-md grid place-items-center transition-colors ${
+                    dontAskAgain ? 'bg-accent text-on-accent' : 'bg-subtle'
+                  }`}
+                >
+                  {dontAskAgain && <Check size={12} strokeWidth={3} />}
+                </button>
+                <span
+                  className="text-[12.5px] text-ink-muted font-medium"
+                  onClick={() => setDontAskAgain((v) => !v)}
+                >
+                  Don't ask again — promote instantly next time
+                </span>
+              </label>
+
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setConfirmPromote(null)}
+                  className="h-11 rounded-full bg-subtle hover:bg-bg text-ink text-[13px] font-bold transition-colors"
+                >
+                  Cancel
+                </button>
+                <motion.button
+                  whileTap={tap}
+                  onClick={() => {
+                    if (dontAskAgain) {
+                      try {
+                        localStorage.setItem(PROMOTE_SKIP_CONFIRM_KEY, '1');
+                      } catch {
+                        /* private mode */
+                      }
+                    }
+                    executePromotion(confirmPromote);
+                  }}
+                  className="h-11 rounded-full bg-accent text-on-accent text-[13px] font-bold"
+                >
+                  Promote · {formatFee(PROMOTE_FEE_CZK)}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -453,6 +633,8 @@ const ListingCard: React.FC<{
   onSaveEdit: () => void;
   onRemove: () => void;
   onPromote: () => void;
+  promoted?: boolean;
+  inShop?: boolean;
   onAddToShop: () => void;
   /** Localised "49 Kč" / "2 €" label shown on the Promote button. */
   promoteLabel: string;
@@ -469,6 +651,8 @@ const ListingCard: React.FC<{
   onSaveEdit,
   onRemove,
   onPromote,
+  promoted = false,
+  inShop = false,
   onAddToShop,
   promoteLabel,
   onView,
@@ -666,12 +850,16 @@ const ListingCard: React.FC<{
                 </motion.button>
                 <motion.button
                   whileTap={tap}
-                  onClick={onAddToShop}
-                  className="flex-1 h-8 rounded-sm bg-subtle hover:bg-bg text-ink text-[11.5px] font-bold inline-flex items-center justify-center gap-1 transition-colors"
-                  title="Add to your shop"
+                  onClick={inShop ? undefined : onAddToShop}
+                  className={`flex-1 h-8 rounded-sm text-[11.5px] font-bold inline-flex items-center justify-center gap-1 transition-colors ${
+                    inShop
+                      ? 'bg-emerald-500 text-white cursor-default'
+                      : 'bg-subtle hover:bg-bg text-ink'
+                  }`}
+                  title={inShop ? 'In your shop' : 'Add to your shop'}
                 >
-                  <Store size={11} strokeWidth={2.4} />
-                  Shop
+                  {inShop ? <Check size={11} strokeWidth={2.8} /> : <Store size={11} strokeWidth={2.4} />}
+                  {inShop ? 'In shop' : 'Shop'}
                 </motion.button>
                 <motion.button
                   whileTap={tap}
@@ -687,16 +875,29 @@ const ListingCard: React.FC<{
                 </motion.button>
               </div>
 
-              {/* Promote — sharp accent pill with subtle elevation */}
-              <motion.button
-                whileTap={tap}
-                whileHover={{ scale: 1.01 }}
-                onClick={onPromote}
-                className="w-full h-8 rounded-sm bg-accent text-on-accent text-[11.5px] font-bold inline-flex items-center justify-center"
-                style={{ boxShadow: '0 4px 12px -6px rgb(var(--accent) / 0.55)' }}
-              >
-                Promote · {promoteLabel}
-              </motion.button>
+              {/* Promote — accent pill; flips to a green "Promoted"
+                  state INSTANTLY on click (optimistic, no spinner). */}
+              {promoted ? (
+                <motion.div
+                  initial={{ scale: 0.94 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 22 }}
+                  className="w-full h-8 rounded-sm bg-emerald-500 text-white text-[11.5px] font-bold inline-flex items-center justify-center gap-1"
+                >
+                  <Check size={12} strokeWidth={2.8} />
+                  Promoted · 7 days
+                </motion.div>
+              ) : (
+                <motion.button
+                  whileTap={tap}
+                  whileHover={{ scale: 1.01 }}
+                  onClick={onPromote}
+                  className="w-full h-8 rounded-sm bg-accent text-on-accent text-[11.5px] font-bold inline-flex items-center justify-center"
+                  style={{ boxShadow: '0 4px 12px -6px rgb(var(--accent) / 0.55)' }}
+                >
+                  Promote · {promoteLabel}
+                </motion.button>
+              )}
             </>
           )}
         </div>

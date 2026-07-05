@@ -62,8 +62,8 @@ const STATUS_META: Record<
 > = {
   open: {
     label: 'Open',
-    dot: 'bg-sky-500',
-    pill: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
+    dot: 'bg-accent',
+    pill: 'bg-accent-soft text-accent',
   },
   in_progress: {
     label: 'In progress',
@@ -318,10 +318,13 @@ const SupportTicketsPage: React.FC = () => {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-bg text-ink">
+    /* Desktop: exact one-viewport layout (like /messages) — the page
+       never scrolls; the ticket list and the conversation scroll
+       internally. */
+    <div className="min-h-screen lg:min-h-0 lg:h-dvh lg:overflow-hidden bg-bg text-ink flex flex-col">
       <LandingNav />
 
-      <main className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-4 pb-16">
+      <main className="max-w-[1200px] w-full mx-auto px-4 sm:px-6 pt-4 pb-16 lg:pb-5 lg:flex-1 lg:min-h-0 lg:flex lg:flex-col">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -396,13 +399,13 @@ const SupportTicketsPage: React.FC = () => {
           </div>
         </motion.div>
 
-        <div className="grid gap-4 lg:grid-cols-[380px_1fr] items-start">
+        <div className="grid gap-4 lg:grid-cols-[380px_1fr] items-start lg:items-stretch lg:flex-1 lg:min-h-0 lg:auto-rows-[minmax(0,1fr)]">
           {/* ── Ticket list ── */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...spring, delay: 0.06 }}
-            className="panel overflow-hidden"
+            className="panel overflow-hidden lg:h-full flex flex-col min-h-0"
           >
             {loading ? (
               <div className="p-8 grid place-items-center">
@@ -428,7 +431,7 @@ const SupportTicketsPage: React.FC = () => {
                 )}
               </div>
             ) : (
-              <ul>
+              <ul className="flex-1 min-h-0 overflow-y-auto">
                 {filteredTickets.map((ticket, i) => {
                   const meta = STATUS_META[ticket.status];
                   const active = selectedTicket?.id === ticket.id;
@@ -481,7 +484,7 @@ const SupportTicketsPage: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ ...spring, mass: 0.6 }}
-                className="panel flex flex-col overflow-hidden max-lg:fixed max-lg:inset-0 max-lg:z-[60] max-lg:rounded-none lg:h-[calc(100dvh-220px)] lg:min-h-[420px]"
+                className="panel flex flex-col overflow-hidden max-lg:fixed max-lg:inset-0 max-lg:z-[60] max-lg:rounded-none lg:h-full lg:min-h-0"
                 style={{
                   paddingTop: 'env(safe-area-inset-top)',
                   paddingBottom: 'env(safe-area-inset-bottom)',
@@ -616,7 +619,7 @@ const SupportTicketsPage: React.FC = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="panel hidden lg:grid place-items-center p-16 h-[calc(100dvh-220px)] min-h-[420px]"
+                className="panel hidden lg:grid place-items-center p-16 lg:h-full"
               >
                 <div className="text-center">
                   <Clock size={24} className="mx-auto text-ink-muted mb-3" />

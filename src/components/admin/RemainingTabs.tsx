@@ -63,7 +63,7 @@ export const InventoryTab: React.FC<{ addToast: any }> = ({ addToast }) => {
           <div className="text-ink-muted text-sm">Pending Review</div>
         </div>
         <div className="bg-surface rounded-lg p-4 border border-line/50">
-          <div className="text-2xl font-bold text-sky-600 dark:text-sky-400">{listings.filter(l => (l.price || 0) > 50000).length}</div>
+          <div className="text-2xl font-bold text-accent">{listings.filter(l => (l.price || 0) > 50000).length}</div>
           <div className="text-ink-muted text-sm">High Value</div>
         </div>
       </div>
@@ -100,7 +100,7 @@ export const InventoryTab: React.FC<{ addToast: any }> = ({ addToast }) => {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex justify-end gap-2">
-                        <button className="text-sky-600 dark:text-sky-400 hover:text-blue-300 p-2"><Eye size={16} /></button>
+                        <button className="text-accent hover:text-blue-300 p-2"><Eye size={16} /></button>
                         <button className="text-amber-600 dark:text-amber-400 hover:text-yellow-300 p-2"><Edit size={16} /></button>
                         <button className="text-rose-600 dark:text-rose-400 hover:text-red-300 p-2"><Trash2 size={16} /></button>
                       </div>
@@ -213,7 +213,7 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent"></div>
       </div>
     );
   }
@@ -223,7 +223,7 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-ink flex items-center gap-2">
-            <Activity className="w-6 h-6 text-sky-600 dark:text-sky-400" />
+            <Activity className="w-6 h-6 text-accent" />
             Analytics Dashboard
           </h2>
           <p className="text-ink-muted text-sm mt-1">Monitor user activity and platform metrics</p>
@@ -240,7 +240,7 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
           </select>
           <button
             onClick={fetchAnalytics}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-ink rounded-lg transition"
+            className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent text-ink rounded-lg transition"
           >
             <RefreshCw size={18} />
             Refresh
@@ -252,10 +252,10 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-surface border border-blue-500/30 rounded-xl p-6"
+          className="bg-surface border border-accent/30 rounded-xl p-6"
         >
           <div className="flex items-center justify-between mb-2">
-            <Eye className="w-8 h-8 text-sky-600 dark:text-sky-400" />
+            <Eye className="w-8 h-8 text-accent" />
             <span className="text-2xl font-bold text-ink">{todayStats?.total_visits || 0}</span>
           </div>
           <div className="text-ink-muted font-medium">Total Visits Today</div>
@@ -311,7 +311,7 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
 
       <div className="bg-surface border border-line rounded-xl p-6">
         <h3 className="text-xl font-bold text-ink mb-4 flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+          <TrendingUp className="w-5 h-5 text-accent" />
           Activity Over Time
         </h3>
         <ResponsiveContainer width="100%" height={300}>
@@ -383,7 +383,7 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
         <h3 className="text-xl font-bold text-ink mb-4">Quick Stats</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center p-4 bg-subtle rounded-lg">
-            <div className="text-3xl font-bold text-sky-600 dark:text-sky-400">{todayStats?.page_views || 0}</div>
+            <div className="text-3xl font-bold text-accent">{todayStats?.page_views || 0}</div>
             <div className="text-ink-muted text-sm mt-1">Page Views Today</div>
           </div>
           <div className="text-center p-4 bg-subtle rounded-lg">
@@ -413,29 +413,38 @@ export const SupportTab: React.FC<{ addToast: any; user: any }> = ({ addToast, u
   const [newMessage, setNewMessage] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  /* Staff users.id — resolved from the Steam ID (the auth store has no
+     users-row uuid, which is why staff replies used to silently fail). */
+  const [staffId, setStaffId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!supabase || !user?.steamId) return;
+    supabase
+      .from('users')
+      .select('id')
+      .eq('steam_id', user.steamId)
+      .maybeSingle()
+      .then(({ data }: any) => setStaffId(data?.id ?? null));
+  }, [user?.steamId]);
 
   useEffect(() => {
     fetchTickets();
   }, [statusFilter]);
 
   const fetchTickets = async () => {
+    if (!supabase) return;
     setLoading(true);
     try {
-      if (supabase) {
-        let query = supabase
-          .from('support_tickets')
-          .select('*, users!support_tickets_user_id_fkey(display_name, avatar_url)')
-          .order('created_at', { ascending: false })
-          .limit(100);
-
-        if (statusFilter !== 'all') {
-          query = query.eq('status', statusFilter);
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-        setTickets(data || []);
-      }
+      let query = supabase
+        .from('support_tickets')
+        .select('*, users!support_tickets_user_id_fkey(display_name, avatar_url, email)')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (statusFilter !== 'all') query = query.eq('status', statusFilter);
+      const { data, error } = await query;
+      if (error) throw error;
+      setTickets(data || []);
     } catch (error) {
       console.error('Error:', error);
       addToast({ type: 'error', title: 'Error', message: 'Failed to fetch tickets' });
@@ -445,41 +454,41 @@ export const SupportTab: React.FC<{ addToast: any; user: any }> = ({ addToast, u
   };
 
   const fetchMessages = async (ticketId: string) => {
+    if (!supabase) return;
     try {
-      if (supabase) {
-        const { data, error } = await supabase
-          .from('support_ticket_messages')
-          .select('*, users:user_id(display_name, avatar_url)')
-          .eq('ticket_id', ticketId)
-          .order('created_at', { ascending: true });
-
-        if (error) throw error;
-        setMessages(data || []);
-      }
+      const { data, error } = await supabase
+        .from('support_ticket_messages')
+        .select('*, users:user_id(display_name, avatar_url)')
+        .eq('ticket_id', ticketId)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      setMessages(data || []);
     } catch (error) {
       console.error('Error:', error);
     }
   };
 
+  const openTicket = (t: any) => {
+    setSelectedTicket(t);
+    fetchMessages(t.id);
+  };
+
   const updateTicketStatus = async (ticketId: string, newStatus: string) => {
+    if (!supabase) return;
     try {
-      if (supabase) {
-        const updateData: any = { status: newStatus };
-        if (newStatus === 'resolved' || newStatus === 'closed') {
-          updateData.resolved_at = new Date().toISOString();
-        }
-
-        const { error } = await supabase
-          .from('support_tickets')
-          .update(updateData)
-          .eq('id', ticketId);
-
-        if (error) throw error;
-        addToast({ type: 'success', title: 'Success', message: 'Ticket status updated' });
-        fetchTickets();
-        if (selectedTicket?.id === ticketId) {
-          setSelectedTicket({ ...selectedTicket, status: newStatus });
-        }
+      const updateData: any = { status: newStatus };
+      if (newStatus === 'resolved' || newStatus === 'closed') {
+        updateData.resolved_at = new Date().toISOString();
+      }
+      const { error } = await supabase
+        .from('support_tickets')
+        .update(updateData)
+        .eq('id', ticketId);
+      if (error) throw error;
+      addToast({ type: 'success', title: 'Updated', message: `Ticket marked ${newStatus.replace('_', ' ')}` });
+      fetchTickets();
+      if (selectedTicket?.id === ticketId) {
+        setSelectedTicket({ ...selectedTicket, status: newStatus });
       }
     } catch (error: any) {
       addToast({ type: 'error', title: 'Error', message: error.message });
@@ -487,218 +496,266 @@ export const SupportTab: React.FC<{ addToast: any; user: any }> = ({ addToast, u
   };
 
   const sendReply = async () => {
-    if (!newMessage.trim() || !selectedTicket) return;
-
+    if (!newMessage.trim() || !selectedTicket || !supabase || sending) return;
+    if (!staffId) {
+      addToast({ type: 'error', title: 'Error', message: 'Could not resolve your staff account — re-login and try again.' });
+      return;
+    }
+    setSending(true);
     try {
-      if (supabase && user?.id) {
-        const { error } = await supabase
-          .from('support_ticket_messages')
-          .insert([
-            {
-              ticket_id: selectedTicket.id,
-              user_id: user.id,
-              message: newMessage.trim(),
-              is_staff_reply: true
-            }
-          ]);
+      const { error } = await supabase.from('support_ticket_messages').insert([
+        {
+          ticket_id: selectedTicket.id,
+          user_id: staffId,
+          message: newMessage.trim(),
+          is_staff_reply: true,
+        },
+      ]);
+      if (error) throw error;
 
-        if (error) throw error;
-
-        if (selectedTicket.status === 'open') {
-          await updateTicketStatus(selectedTicket.id, 'in_progress');
-        }
-
-        setNewMessage('');
-        fetchMessages(selectedTicket.id);
-        addToast({ type: 'success', title: 'Success', message: 'Reply sent' });
+      if (selectedTicket.status === 'open') {
+        await updateTicketStatus(selectedTicket.id, 'in_progress');
       }
+
+      /* Notify the ticket owner by email (Brevo) — fire-and-forget. */
+      const ownerEmail = selectedTicket?.users?.email;
+      if (ownerEmail) {
+        import('../../utils/emailService').then(({ sendTicketReplyEmail }) =>
+          sendTicketReplyEmail({
+            to: ownerEmail,
+            ticketSubject: selectedTicket.subject,
+            preview: newMessage.trim(),
+          }),
+        );
+      }
+
+      setNewMessage('');
+      fetchMessages(selectedTicket.id);
     } catch (error: any) {
       addToast({ type: 'error', title: 'Error', message: error.message });
+    } finally {
+      setSending(false);
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'open': return 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-blue-500/30';
-      case 'in_progress': return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-yellow-500/30';
-      case 'resolved': return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-green-500/30';
-      case 'closed': return 'bg-gray-500/20 text-ink-muted border-gray-500/30';
-      default: return 'bg-gray-500/20 text-ink-muted border-gray-500/30';
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgent': return 'text-rose-600 dark:text-rose-400';
-      case 'high': return 'text-orange-600 dark:text-orange-400';
-      case 'medium': return 'text-amber-600 dark:text-amber-400';
-      case 'low': return 'text-emerald-600 dark:text-emerald-400';
-      default: return 'text-ink-muted';
-    }
+  const STATUS_STYLES: Record<string, { dot: string; pill: string; label: string }> = {
+    open: { dot: 'bg-accent', pill: 'bg-accent-soft text-accent', label: 'Open' },
+    in_progress: { dot: 'bg-amber-500', pill: 'bg-amber-500/10 text-amber-600 dark:text-amber-400', label: 'In progress' },
+    resolved: { dot: 'bg-emerald-500', pill: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400', label: 'Resolved' },
+    closed: { dot: 'bg-ink-dim', pill: 'bg-subtle text-ink-muted', label: 'Closed' },
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <h2 className="text-2xl font-bold text-ink flex items-center gap-2">
-        <MessageSquare className="w-6 h-6 text-accent" />
-        Support Tickets Management
-      </h2>
+    <motion.div
+      initial="hidden"
+      animate="shown"
+      variants={{ hidden: {}, shown: { transition: { staggerChildren: 0.05 } } }}
+      className="space-y-4"
+    >
+      {/* Filter pills */}
+      <motion.div
+        variants={{ hidden: { opacity: 0, y: 12 }, shown: { opacity: 1, y: 0 } }}
+        className="flex gap-1.5 overflow-x-auto scrollbar-hide"
+      >
+        {['all', 'open', 'in_progress', 'resolved', 'closed'].map((s) => {
+          const active = statusFilter === s;
+          return (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`relative h-10 px-4 rounded-full text-[12.5px] font-bold whitespace-nowrap transition-colors ${
+                active ? 'text-on-accent' : 'bg-subtle text-ink-muted hover:text-ink'
+              }`}
+            >
+              {active && (
+                <motion.span
+                  layoutId="admin-support-filter"
+                  className="absolute inset-0 rounded-full bg-accent"
+                  transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                />
+              )}
+              <span className="relative">
+                {s === 'all' ? 'All' : STATUS_STYLES[s]?.label || s}
+              </span>
+            </button>
+          );
+        })}
+      </motion.div>
 
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-surface rounded-lg p-4 border border-blue-500/30">
-          <div className="text-2xl font-bold text-sky-600 dark:text-sky-400">{tickets.filter(t => t.status === 'open').length}</div>
-          <div className="text-ink-muted text-sm">Open</div>
-        </div>
-        <div className="bg-surface rounded-lg p-4 border border-yellow-500/30">
-          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{tickets.filter(t => t.status === 'in_progress').length}</div>
-          <div className="text-ink-muted text-sm">In Progress</div>
-        </div>
-        <div className="bg-surface rounded-lg p-4 border border-green-500/30">
-          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{tickets.filter(t => t.status === 'resolved').length}</div>
-          <div className="text-ink-muted text-sm">Resolved</div>
-        </div>
-        <div className="bg-surface rounded-lg p-4 border border-gray-500/30">
-          <div className="text-2xl font-bold text-ink">{tickets.length}</div>
-          <div className="text-ink-muted text-sm">Total</div>
-        </div>
-      </div>
-
-      <div className="flex gap-2 mb-4">
-        {['all', 'open', 'in_progress', 'resolved', 'closed'].map((status) => (
-          <button
-            key={status}
-            onClick={() => setStatusFilter(status)}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              statusFilter === status
-                ? 'bg-accent text-on-accent'
-                : 'bg-surface text-ink-muted hover:bg-subtle'
-            }`}
-          >
-            {status === 'all' ? 'All' : status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-          </button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-surface rounded-xl border border-line/50 p-6 overflow-y-auto max-h-[600px]">
-          <h3 className="text-lg font-semibold text-ink mb-4">Tickets List</h3>
+      <div className="grid gap-4 lg:grid-cols-[380px_1fr] lg:items-start">
+        {/* Ticket list */}
+        <motion.div
+          variants={{ hidden: { opacity: 0, y: 12 }, shown: { opacity: 1, y: 0 } }}
+          className="panel overflow-hidden"
+        >
           {loading ? (
-            <div className="flex justify-center py-8">
-              <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
-            </div>
+            <div className="p-8 text-center text-[13px] text-ink-muted font-medium">Loading…</div>
           ) : tickets.length === 0 ? (
-            <div className="text-center py-8 text-ink-muted">No tickets found</div>
+            <div className="p-10 text-center">
+              <MessageSquare size={22} className="mx-auto text-ink-muted mb-2" />
+              <p className="text-[13px] text-ink-muted font-medium">No tickets in this state.</p>
+            </div>
           ) : (
-            <div className="space-y-3">
-              {tickets.map((ticket) => (
-                <div
-                  key={ticket.id}
-                  onClick={() => {
-                    setSelectedTicket(ticket);
-                    fetchMessages(ticket.id);
-                  }}
-                  className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                    selectedTicket?.id === ticket.id
-                      ? 'border-purple-500 bg-accent-soft'
-                      : 'border-line hover:border-line bg-bg/30'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <h4 className="font-semibold text-ink text-sm">{ticket.subject}</h4>
-                    <span className={`px-2 py-1 rounded-full text-xs border ${getStatusColor(ticket.status)}`}>
-                      {ticket.status}
-                    </span>
-                  </div>
-                  <p className="text-ink-muted text-xs mb-2 line-clamp-1">{ticket.description}</p>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-ink-dim">{ticket.users?.display_name || 'Unknown'}</span>
-                    <div className="flex items-center gap-2">
-                      <span className={`font-medium ${getPriorityColor(ticket.priority)}`}>{ticket.priority.toUpperCase()}</span>
-                      <span className="text-ink-dim">{new Date(ticket.created_at).toLocaleDateString()}</span>
+            <ul className="max-h-[70vh] overflow-y-auto">
+              {tickets.map((t, i) => {
+                const meta = STATUS_STYLES[t.status] || STATUS_STYLES.open;
+                const active = selectedTicket?.id === t.id;
+                return (
+                  <motion.li
+                    key={t.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(i * 0.03, 0.25) }}
+                  >
+                    <button
+                      onClick={() => openTicket(t)}
+                      className={`w-full text-left px-4 py-3.5 flex items-start gap-3 border-l-2 transition-colors ${
+                        active ? 'bg-accent-soft border-l-accent' : 'border-l-transparent hover:bg-subtle/60'
+                      }`}
+                    >
+                      <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${meta.dot}`} />
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-[13.5px] font-bold text-ink truncate tracking-tight">
+                          {t.subject}
+                        </span>
+                        <span className="block text-[11.5px] text-ink-muted font-medium truncate mt-0.5">
+                          {t.users?.display_name || 'Unknown user'} · {new Date(t.created_at).toLocaleDateString()}
+                        </span>
+                        <span className={`inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${meta.pill}`}>
+                          {meta.label}
+                        </span>
+                      </span>
+                    </button>
+                  </motion.li>
+                );
+              })}
+            </ul>
+          )}
+        </motion.div>
+
+        {/* Conversation + actions */}
+        <motion.div
+          variants={{ hidden: { opacity: 0, y: 12 }, shown: { opacity: 1, y: 0 } }}
+          className="panel flex flex-col overflow-hidden min-h-[420px] max-h-[80vh]"
+        >
+          {!selectedTicket ? (
+            <div className="flex-1 grid place-items-center p-16 text-center">
+              <div>
+                <MessageSquare size={22} className="mx-auto text-ink-muted mb-3" />
+                <p className="text-[14px] font-bold text-ink">Select a ticket</p>
+                <p className="text-[12px] text-ink-muted font-medium mt-1">
+                  Pick one from the list to read and reply.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Header + status actions */}
+              <div className="shrink-0 px-5 py-4 border-b border-line/60">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[15px] font-bold text-ink tracking-tight truncate">
+                      {selectedTicket.subject}
+                    </div>
+                    <div className="text-[11.5px] text-ink-muted font-medium mt-1">
+                      {selectedTicket.users?.display_name || 'Unknown'} ·{' '}
+                      {selectedTicket.category} · {selectedTicket.priority} ·{' '}
+                      {new Date(selectedTicket.created_at).toLocaleString()}
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-surface rounded-xl border border-line/50 p-6 flex flex-col">
-          {selectedTicket ? (
-            <>
-              <div className="border-b border-line pb-4 mb-4">
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-ink">{selectedTicket.subject}</h3>
-                  <select
-                    value={selectedTicket.status}
-                    onChange={(e) => updateTicketStatus(selectedTicket.id, e.target.value)}
-                    className="bg-bg border border-line rounded px-3 py-1 text-sm text-ink"
+                  <button
+                    onClick={() => setSelectedTicket(null)}
+                    className="w-9 h-9 rounded-full bg-subtle grid place-items-center text-ink-muted hover:text-ink transition-colors shrink-0"
+                    aria-label="Close"
                   >
-                    <option value="open">Open</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="resolved">Resolved</option>
-                    <option value="closed">Closed</option>
-                  </select>
+                    <X size={14} strokeWidth={2.4} />
+                  </button>
                 </div>
-                <p className="text-ink-muted text-sm mb-3">{selectedTicket.description}</p>
-                <div className="flex items-center gap-4 text-xs text-ink-dim">
-                  <span>Category: {selectedTicket.category}</span>
-                  <span className={`font-medium ${getPriorityColor(selectedTicket.priority)}`}>
-                    Priority: {selectedTicket.priority.toUpperCase()}
-                  </span>
-                  <span>{new Date(selectedTicket.created_at).toLocaleString()}</span>
+                <div className="mt-3 flex gap-1.5 flex-wrap">
+                  {['open', 'in_progress', 'resolved', 'closed'].map((s) => {
+                    const active = selectedTicket.status === s;
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => updateTicketStatus(selectedTicket.id, s)}
+                        className={`h-8 px-3 rounded-full text-[11.5px] font-bold transition-colors ${
+                          active
+                            ? STATUS_STYLES[s].pill
+                            : 'bg-subtle text-ink-muted hover:text-ink'
+                        }`}
+                      >
+                        {STATUS_STYLES[s].label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto mb-4 space-y-3 max-h-[350px]">
-                {messages.map((msg) => (
-                  <div key={msg.id} className={`flex gap-2 ${msg.is_staff_reply ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] p-3 rounded-lg ${
-                      msg.is_staff_reply
-                        ? 'bg-accent-soft border border-line text-ink'
-                        : 'bg-surface border border-line text-ink-muted'
-                    }`}>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-medium">
-                          {msg.is_staff_reply ? 'Support (You)' : msg.users?.display_name}
-                        </span>
-                        <span className="text-xs text-ink-dim">{new Date(msg.created_at).toLocaleTimeString()}</span>
-                      </div>
-                      <p className="text-sm">{msg.message}</p>
-                    </div>
+              {/* Messages */}
+              <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-3">
+                <div className="flex justify-start">
+                  <div className="max-w-[80%] px-3.5 py-2.5 rounded-2xl rounded-bl-md bg-subtle text-ink text-[13.5px] font-medium leading-snug whitespace-pre-wrap break-words">
+                    {selectedTicket.description}
                   </div>
+                </div>
+                {messages.map((m: any) => (
+                  <motion.div
+                    key={m.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${m.is_staff_reply ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className={`max-w-[80%] flex flex-col gap-1 ${m.is_staff_reply ? 'items-end' : 'items-start'}`}>
+                      <div
+                        className={`px-3.5 py-2.5 rounded-2xl text-[13.5px] font-medium leading-snug whitespace-pre-wrap break-words ${
+                          m.is_staff_reply
+                            ? 'bg-accent text-on-accent rounded-br-md'
+                            : 'bg-subtle text-ink rounded-bl-md'
+                        }`}
+                      >
+                        {m.message}
+                      </div>
+                      <span className="text-[10px] text-ink-dim font-medium tabular-nums px-1">
+                        {m.is_staff_reply ? 'Staff' : m.users?.display_name || 'User'} ·{' '}
+                        {new Date(m.created_at).toLocaleString([], {
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                  </motion.div>
                 ))}
               </div>
 
-              {selectedTicket.status !== 'closed' && (
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && sendReply()}
-                    placeholder="Type your reply..."
-                    className="flex-1 bg-bg border border-line rounded-lg px-4 py-2 text-ink placeholder:text-ink-dim focus:outline-none focus:border-accent"
-                  />
-                  <button
-                    onClick={sendReply}
-                    disabled={!newMessage.trim()}
-                    className="bg-accent hover:opacity-90 text-on-accent disabled:opacity-50 disabled:cursor-not-allowed text-ink px-4 py-2 rounded-lg transition-colors"
-                  >
-                    Send
-                  </button>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-ink-muted">
-              <div className="text-center">
-                <MessageSquare className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>Select a ticket to view details</p>
+              {/* Composer */}
+              <div className="shrink-0 border-t border-line/60 px-4 py-3 flex items-end gap-2">
+                <textarea
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      sendReply();
+                    }
+                  }}
+                  placeholder="Reply as staff…"
+                  rows={1}
+                  maxLength={2000}
+                  className="flex-1 min-h-[42px] max-h-[140px] rounded-2xl bg-subtle px-3.5 py-2.5 text-[13.5px] text-ink font-medium outline-none focus:ring-2 focus:ring-accent/40 resize-none"
+                />
+                <button
+                  onClick={sendReply}
+                  disabled={!newMessage.trim() || sending}
+                  className="h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold disabled:opacity-40 shrink-0"
+                >
+                  {sending ? 'Sending…' : 'Reply'}
+                </button>
               </div>
-            </div>
+            </>
           )}
-        </div>
+        </motion.div>
       </div>
     </motion.div>
   );
@@ -778,7 +835,7 @@ export const SettingsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {loading ? (
           <div className="col-span-2 text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
           </div>
         ) : settings.length === 0 ? (
           <div className="col-span-2 text-center py-12 text-ink-muted">
@@ -792,7 +849,7 @@ export const SettingsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
                 <span className={`px-2 py-1 rounded text-xs font-medium ${
                   setting.category === 'finance' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
                   setting.category === 'security' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' :
-                  setting.category === 'system' ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400' :
+                  setting.category === 'system' ? 'bg-accent-soft text-accent' :
                   'bg-gray-500/20 text-ink-muted'
                 }`}>
                   {setting.category}
@@ -804,7 +861,7 @@ export const SettingsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
               </div>
               <button
                 onClick={() => openEditModal(setting)}
-                className="w-full bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-ink text-sm transition flex items-center justify-center gap-2"
+                className="w-full bg-accent hover:bg-accent px-4 py-2 rounded text-ink text-sm transition flex items-center justify-center gap-2"
               >
                 <Edit size={16} />
                 Edit Setting
@@ -825,7 +882,7 @@ export const SettingsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
               <textarea
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
-                className="w-full bg-subtle border border-line rounded-lg px-4 py-2 text-ink font-mono focus:outline-none focus:border-blue-500"
+                className="w-full bg-subtle border border-line rounded-lg px-4 py-2 text-ink font-mono focus:outline-none focus:border-accent"
                 rows={6}
               />
               <p className="text-ink-dim text-xs mt-2">Make sure to use valid JSON format</p>
@@ -840,7 +897,7 @@ export const SettingsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
               </button>
               <button
                 onClick={handleSave}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-ink rounded-lg transition"
+                className="px-4 py-2 bg-accent hover:bg-accent text-ink rounded-lg transition"
               >
                 Save Changes
               </button>
@@ -852,32 +909,298 @@ export const SettingsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
   );
 };
 
-export const DeveloperTab: React.FC<{ addToast: any }> = ({ addToast }) => (
-  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-    <h2 className="text-2xl font-bold text-ink flex items-center gap-2">
-      <Wrench className="w-6 h-6 text-orange-600 dark:text-orange-400" />
-      Developer & Maintenance Tools
-    </h2>
-    <div className="grid grid-cols-3 gap-4">
-      {[
-        { icon: Code, label: 'Feature Flags', color: 'blue' },
-        { icon: TestTube, label: 'A/B Testing', color: 'green' },
-        { icon: Database, label: 'Database Tools', color: 'purple' },
-        { icon: FileText, label: 'Audit Trail', color: 'yellow' },
-        { icon: Activity, label: 'System Health', color: 'red' },
-        { icon: Bell, label: 'Alerts Config', color: 'orange' }
-      ].map((tool, i) => (
-        <button
-          key={i}
-          className={`bg-${tool.color}-500/10 border border-${tool.color}-500/30 rounded-lg p-6 hover:bg-${tool.color}-500/20 transition cursor-pointer`}
+export const DeveloperTab: React.FC<{ addToast: any }> = ({ addToast }) => {
+  const [tableCounts, setTableCounts] = useState<{ name: string; count: number | null }[]>([]);
+  const [countsLoading, setCountsLoading] = useState(false);
+  const [pings, setPings] = useState<Record<string, { ms: number; ok: boolean } | 'pending'>>({});
+  const [flags, setFlags] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('skinify_feature_flags') || '{}');
+    } catch {
+      return {};
+    }
+  });
+
+  const TABLES = ['users', 'marketplace_listings', 'user_transactions', 'support_tickets', 'api_keys'];
+  const FUNCTIONS = ['orders', 'api-keys', 'send-email', 'support-chat', 'user-profile'];
+  const FLAGS = [
+    { id: 'maintenance_banner', label: 'Maintenance banner', sub: 'Show a maintenance notice site-wide' },
+    { id: 'promo_banner', label: 'Promo banner', sub: 'Show the deposit-bonus banner' },
+    { id: 'verbose_logging', label: 'Verbose logging', sub: 'Extra console logging in this browser' },
+  ];
+
+  const fetchCounts = async () => {
+    if (!supabase) return;
+    setCountsLoading(true);
+    const results = await Promise.all(
+      TABLES.map(async (name) => {
+        try {
+          const { count, error } = await supabase
+            .from(name)
+            .select('*', { count: 'exact', head: true });
+          return { name, count: error ? null : count ?? 0 };
+        } catch {
+          return { name, count: null };
+        }
+      }),
+    );
+    setTableCounts(results);
+    setCountsLoading(false);
+  };
+
+  useEffect(() => {
+    fetchCounts();
+  }, []);
+
+  const pingFunction = async (fn: string) => {
+    setPings((prev) => ({ ...prev, [fn]: 'pending' }));
+    try {
+      const start = performance.now();
+      const res = await fetch(`${supabaseUrl}/functions/v1/${fn}`, { method: 'OPTIONS' });
+      const ms = Math.round(performance.now() - start);
+      setPings((prev) => ({ ...prev, [fn]: { ms, ok: res.ok || res.status === 405 } }));
+    } catch {
+      setPings((prev) => ({ ...prev, [fn]: { ms: -1, ok: false } }));
+    }
+  };
+
+  const toggleFlag = (id: string) => {
+    setFlags((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      try {
+        localStorage.setItem('skinify_feature_flags', JSON.stringify(next));
+      } catch {
+        /* private mode */
+      }
+      return next;
+    });
+  };
+
+  const clearLocalCaches = () => {
+    try {
+      const kept = ['skinify_ui_scale', 'skinify_feature_flags'];
+      const toRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('skinify_') && !kept.includes(key)) toRemove.push(key);
+      }
+      toRemove.forEach((k) => localStorage.removeItem(k));
+      (window as any).__skinifyPeerProfileCache = undefined;
+      (window as any).__skinifySellerAvatarCache = undefined;
+      addToast({ type: 'success', title: 'Caches cleared', message: `${toRemove.length} local keys removed.` });
+    } catch (e: any) {
+      addToast({ type: 'error', title: 'Failed', message: e?.message });
+    }
+  };
+
+  const exportSnapshot = async () => {
+    if (!supabase) return;
+    try {
+      const [tx, tickets] = await Promise.all([
+        supabase
+          .from('user_transactions')
+          .select('id, type, status, amount, created_at')
+          .order('created_at', { ascending: false })
+          .limit(200),
+        supabase
+          .from('support_tickets')
+          .select('id, subject, status, priority, category, created_at')
+          .order('created_at', { ascending: false })
+          .limit(100),
+      ]);
+      const blob = new Blob(
+        [
+          JSON.stringify(
+            {
+              exported_at: new Date().toISOString(),
+              table_counts: tableCounts,
+              recent_transactions: tx.data || [],
+              recent_tickets: tickets.data || [],
+            },
+            null,
+            2,
+          ),
+        ],
+        { type: 'application/json' },
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `skinify-snapshot-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      addToast({ type: 'success', title: 'Snapshot exported' });
+    } catch (e: any) {
+      addToast({ type: 'error', title: 'Export failed', message: e?.message });
+    }
+  };
+
+  return (
+    <motion.div
+      initial="hidden"
+      animate="shown"
+      variants={{ hidden: {}, shown: { transition: { staggerChildren: 0.05 } } }}
+      className="space-y-4"
+    >
+      {/* Database counts */}
+      <motion.section
+        variants={{ hidden: { opacity: 0, y: 12 }, shown: { opacity: 1, y: 0 } }}
+        className="panel p-6"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <span className="label-eyebrow">Database</span>
+            <h3 className="text-[16px] font-bold tracking-tight mt-1 leading-none">Table sizes</h3>
+          </div>
+          <button
+            onClick={fetchCounts}
+            className="w-10 h-10 rounded-full bg-subtle hover:bg-surface grid place-items-center text-ink-muted hover:text-ink transition-colors"
+            aria-label="Refresh counts"
+          >
+            <RefreshCw size={15} strokeWidth={2.2} className={countsLoading ? 'animate-spin' : ''} />
+          </button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          {tableCounts.map((tc) => (
+            <div key={tc.name} className="rounded-2xl bg-subtle p-4">
+              <div className="text-[20px] font-bold tabular-nums text-ink leading-none">
+                {tc.count == null ? '—' : tc.count.toLocaleString()}
+              </div>
+              <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim mt-2 truncate">
+                {tc.name}
+              </div>
+            </div>
+          ))}
+        </div>
+      </motion.section>
+
+      {/* Edge function pings */}
+      <motion.section
+        variants={{ hidden: { opacity: 0, y: 12 }, shown: { opacity: 1, y: 0 } }}
+        className="panel p-6"
+      >
+        <span className="label-eyebrow">Edge functions</span>
+        <h3 className="text-[16px] font-bold tracking-tight mt-1 leading-none mb-4">
+          Ping a function
+        </h3>
+        <div className="space-y-1">
+          {FUNCTIONS.map((fn) => {
+            const result = pings[fn];
+            return (
+              <div key={fn} className="flex items-center gap-3 py-2">
+                <code className="flex-1 text-[13px] font-mono font-semibold text-ink truncate">
+                  /functions/v1/{fn}
+                </code>
+                {result && result !== 'pending' && (
+                  <span
+                    className={`text-[12px] font-bold tabular-nums ${
+                      result.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                    }`}
+                  >
+                    {result.ms >= 0 ? `${result.ms} ms` : 'unreachable'}
+                  </span>
+                )}
+                <button
+                  onClick={() => pingFunction(fn)}
+                  disabled={result === 'pending'}
+                  className="h-9 px-4 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[12px] font-bold transition-colors disabled:opacity-50 shrink-0"
+                >
+                  {result === 'pending' ? 'Pinging…' : 'Ping'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </motion.section>
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        {/* Feature flags (local) */}
+        <motion.section
+          variants={{ hidden: { opacity: 0, y: 12 }, shown: { opacity: 1, y: 0 } }}
+          className="panel p-6"
         >
-          <tool.icon className={`w-8 h-8 text-${tool.color}-400 mb-3`} />
-          <div className={`text-${tool.color}-300 font-medium`}>{tool.label}</div>
-        </button>
-      ))}
-    </div>
-  </motion.div>
-);
+          <span className="label-eyebrow">Feature flags</span>
+          <h3 className="text-[16px] font-bold tracking-tight mt-1 leading-none mb-1">
+            Local toggles
+          </h3>
+          <p className="text-[11.5px] text-ink-dim font-medium mb-4">
+            Stored in this browser (localStorage) — read them via the
+            <code className="font-mono"> skinify_feature_flags</code> key.
+          </p>
+          <div className="space-y-3">
+            {FLAGS.map((f) => {
+              const on = !!flags[f.id];
+              return (
+                <div key={f.id} className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13.5px] font-bold text-ink tracking-tight">{f.label}</div>
+                    <div className="text-[11.5px] text-ink-muted font-medium">{f.sub}</div>
+                  </div>
+                  <button
+                    onClick={() => toggleFlag(f.id)}
+                    aria-pressed={on}
+                    className={`relative h-6 w-11 rounded-full transition-colors shrink-0 ${
+                      on ? 'bg-accent' : 'bg-subtle'
+                    }`}
+                  >
+                    <motion.span
+                      animate={{ x: on ? 20 : 2 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+                      className="absolute top-0.5 left-0 w-5 h-5 rounded-full bg-surface shadow-sm"
+                    />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </motion.section>
+
+        {/* Maintenance actions */}
+        <motion.section
+          variants={{ hidden: { opacity: 0, y: 12 }, shown: { opacity: 1, y: 0 } }}
+          className="panel p-6"
+        >
+          <span className="label-eyebrow">Maintenance</span>
+          <h3 className="text-[16px] font-bold tracking-tight mt-1 leading-none mb-4">
+            Tools
+          </h3>
+          <div className="space-y-2">
+            <button
+              onClick={clearLocalCaches}
+              className="w-full rounded-2xl bg-subtle hover:bg-accent-soft text-ink text-[13px] font-bold text-left px-4 py-3 transition-colors"
+            >
+              Clear local caches
+              <span className="block text-[11px] text-ink-muted font-medium">
+                Removes cached skinify_* keys + in-memory avatar caches
+              </span>
+            </button>
+            <button
+              onClick={exportSnapshot}
+              className="w-full rounded-2xl bg-subtle hover:bg-accent-soft text-ink text-[13px] font-bold text-left px-4 py-3 transition-colors"
+            >
+              Export data snapshot (JSON)
+              <span className="block text-[11px] text-ink-muted font-medium">
+                Table counts + last 200 transactions + last 100 tickets
+              </span>
+            </button>
+            <button
+              onClick={() => {
+                addToast({ type: 'info', title: 'Reloading…' });
+                setTimeout(() => window.location.reload(), 400);
+              }}
+              className="w-full rounded-2xl bg-subtle hover:bg-accent-soft text-ink text-[13px] font-bold text-left px-4 py-3 transition-colors"
+            >
+              Hard reload app
+              <span className="block text-[11px] text-ink-muted font-medium">
+                Re-fetches all chunks (post-deploy sanity check)
+              </span>
+            </button>
+          </div>
+        </motion.section>
+      </div>
+    </motion.div>
+  );
+};
 
 export const WithdrawalsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
   const [rows, setRows] = useState<any[]>([]);
@@ -1101,49 +1424,185 @@ export const WithdrawalsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
 
 export const MonitoringTab: React.FC<{ addToast: any }> = ({ addToast }) => {
   const [activeUsers, setActiveUsers] = useState(0);
-  const [transactionsPerMin, setTransactionsPerMin] = useState(0);
-
-  useEffect(() => {
-    fetchMonitoringData();
-    const interval = setInterval(fetchMonitoringData, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  const [txPerMin, setTxPerMin] = useState(0);
+  const [openTickets, setOpenTickets] = useState(0);
+  const [pendingWithdrawals, setPendingWithdrawals] = useState(0);
+  const [activeListings, setActiveListings] = useState(0);
+  const [probes, setProbes] = useState<{ t: string; db: number; fn: number }[]>([]);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
   const fetchMonitoringData = async () => {
+    if (!supabase) return;
     try {
-      if (supabase) {
-        const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
-        const [usersData, transactionsData] = await Promise.all([
-          supabase.from('users').select('*', { count: 'exact', head: true }).gte('last_login', fiveMinAgo.toISOString()),
-          supabase.from('transactions').select('*', { count: 'exact', head: true }).gte('created_at', fiveMinAgo.toISOString())
-        ]);
+      /* DB probe — time a cheap head-count query. */
+      const dbStart = performance.now();
+      const usersData = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .gte('last_login', fiveMinAgo);
+      const dbMs = Math.round(performance.now() - dbStart);
 
-        setActiveUsers(usersData.count || 0);
-        setTransactionsPerMin(((transactionsData.count || 0) / 5).toFixed(1) as any);
+      /* Edge-function probe — OPTIONS round-trip. */
+      let fnMs = -1;
+      try {
+        const fnStart = performance.now();
+        await fetch(`${supabaseUrl}/functions/v1/orders`, { method: 'OPTIONS' });
+        fnMs = Math.round(performance.now() - fnStart);
+      } catch {
+        fnMs = -1;
       }
+
+      const [txData, ticketsData, withdrawalsData, listingsData] = await Promise.all([
+        supabase
+          .from('user_transactions')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', fiveMinAgo),
+        supabase
+          .from('support_tickets')
+          .select('*', { count: 'exact', head: true })
+          .in('status', ['open', 'in_progress']),
+        supabase
+          .from('user_transactions')
+          .select('*', { count: 'exact', head: true })
+          .eq('type', 'withdrawal')
+          .eq('status', 'pending'),
+        supabase
+          .from('marketplace_listings')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'active'),
+      ]);
+
+      setActiveUsers(usersData.count || 0);
+      setTxPerMin(Number(((txData.count || 0) / 5).toFixed(1)));
+      setOpenTickets(ticketsData.count || 0);
+      setPendingWithdrawals(withdrawalsData.count || 0);
+      setActiveListings(listingsData.count || 0);
+      setProbes((prev) =>
+        [
+          ...prev,
+          {
+            t: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            db: dbMs,
+            fn: fnMs,
+          },
+        ].slice(-20),
+      );
+      setLastRefresh(new Date());
     } catch (error) {
-      console.error('Error:', error);
+      console.error('[monitoring] fetch failed:', error);
     }
   };
 
+  useEffect(() => {
+    fetchMonitoringData();
+    const interval = setInterval(fetchMonitoringData, 10_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const latest = probes[probes.length - 1];
+  const dbHealthy = latest ? latest.db < 1500 : true;
+  const fnHealthy = latest ? latest.fn >= 0 && latest.fn < 2500 : true;
+  const maxProbe = Math.max(60, ...probes.flatMap((pr) => [pr.db, Math.max(0, pr.fn)]));
+
+  const stats = [
+    { label: 'Active users', value: activeUsers, sub: 'Online in last 5 min', tone: 'text-emerald-600 dark:text-emerald-400' },
+    { label: 'Transactions / min', value: txPerMin, sub: 'Average over 5 min', tone: 'text-accent' },
+    { label: 'Open tickets', value: openTickets, sub: 'Open + in progress', tone: openTickets > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-ink' },
+    { label: 'Pending withdrawals', value: pendingWithdrawals, sub: 'Awaiting review', tone: pendingWithdrawals > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-ink' },
+    { label: 'Active listings', value: activeListings, sub: 'Live on the market', tone: 'text-ink' },
+  ];
+
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <h2 className="text-2xl font-bold text-ink flex items-center gap-2">
-        <Activity className="w-6 h-6 text-sky-600 dark:text-sky-400" />
-        Real-time Monitoring
-      </h2>
-      <div className="grid grid-cols-2 gap-6">
-        <div className="bg-surface rounded-xl border border-line/50 p-6">
-          <h3 className="text-xl font-bold mb-4">Active Users</h3>
-          <div className="text-4xl font-bold text-emerald-600 dark:text-emerald-400">{activeUsers}</div>
-          <div className="text-sm text-ink-muted">Online in last 5 minutes</div>
+    <motion.div
+      initial="hidden"
+      animate="shown"
+      variants={{ hidden: {}, shown: { transition: { staggerChildren: 0.05 } } }}
+      className="space-y-4"
+    >
+      {/* Service health */}
+      <motion.section
+        variants={{ hidden: { opacity: 0, y: 14 }, shown: { opacity: 1, y: 0 } }}
+        className="panel p-6"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <span className="label-eyebrow">Live health</span>
+            <h3 className="text-[16px] font-bold tracking-tight mt-1 leading-none">
+              Service status
+            </h3>
+          </div>
+          <span className="text-[11px] text-ink-dim font-medium tabular-nums">
+            {lastRefresh ? `Updated ${lastRefresh.toLocaleTimeString()}` : 'Loading…'} · every 10s
+          </span>
         </div>
-        <div className="bg-surface rounded-xl border border-line/50 p-6">
-          <h3 className="text-xl font-bold mb-4">Transactions/min</h3>
-          <div className="text-4xl font-bold text-sky-600 dark:text-sky-400">{transactionsPerMin}</div>
-          <div className="text-sm text-ink-muted">Average rate (last 5 min)</div>
+        <div className="grid sm:grid-cols-2 gap-3">
+          {[
+            { name: 'Database', ok: dbHealthy, ms: latest?.db },
+            { name: 'Edge functions', ok: fnHealthy, ms: latest && latest.fn >= 0 ? latest.fn : undefined },
+          ].map((svc) => (
+            <div key={svc.name} className="rounded-2xl bg-subtle p-4 flex items-center gap-3">
+              <motion.span
+                animate={{ scale: [1, 1.35, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                className={`w-2.5 h-2.5 rounded-full shrink-0 ${svc.ok ? 'bg-emerald-500' : 'bg-rose-500'}`}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="text-[13.5px] font-bold text-ink tracking-tight">{svc.name}</div>
+                <div className="text-[11.5px] text-ink-muted font-medium">
+                  {svc.ok ? 'Operational' : 'Degraded'}
+                </div>
+              </div>
+              <div className="text-[14px] font-bold tabular-nums text-ink shrink-0">
+                {svc.ms != null ? `${svc.ms} ms` : '—'}
+              </div>
+            </div>
+          ))}
         </div>
+
+        {/* Latency sparkline — bars animate in as probes arrive. */}
+        {probes.length > 1 && (
+          <div className="mt-5">
+            <div className="label-meta mb-2">Latency (last {probes.length} probes)</div>
+            <div className="flex items-end gap-1 h-16">
+              {probes.map((pr, i) => (
+                <motion.div
+                  key={`${pr.t}-${i}`}
+                  initial={{ height: 0 }}
+                  animate={{ height: `${Math.max(8, (pr.db / maxProbe) * 100)}%` }}
+                  transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+                  className="flex-1 rounded-t bg-accent/70"
+                  title={`${pr.t} · db ${pr.db}ms · fn ${pr.fn >= 0 ? pr.fn + 'ms' : 'n/a'}`}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </motion.section>
+
+      {/* Live counters */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        {stats.map((s) => (
+          <motion.div
+            key={s.label}
+            variants={{ hidden: { opacity: 0, y: 14 }, shown: { opacity: 1, y: 0 } }}
+            whileHover={{ y: -2 }}
+            className="panel p-5"
+          >
+            <motion.div
+              key={String(s.value)}
+              initial={{ scale: 1.15, opacity: 0.6 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 24 }}
+              className={`text-[24px] font-bold tracking-tight tabular-nums leading-none ${s.tone}`}
+            >
+              {s.value}
+            </motion.div>
+            <div className="label-meta mt-2">{s.label}</div>
+            <div className="text-[11px] text-ink-dim font-medium mt-1">{s.sub}</div>
+          </motion.div>
+        ))}
       </div>
     </motion.div>
   );

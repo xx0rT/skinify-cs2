@@ -107,8 +107,8 @@ const TransactionsFinance: React.FC = () => {
           <div className="text-2xl font-bold text-ink mb-1">{totalWithdrawals.toLocaleString('cs-CZ')} Kč</div>
           <div className="text-red-300 text-sm">Total Withdrawals</div>
         </div>
-        <div className="bg-surface rounded-lg p-6 border border-blue-500/20">
-          <DollarSign className="w-8 h-8 text-sky-600 dark:text-sky-400 mb-3" />
+        <div className="bg-surface rounded-lg p-6 border border-accent/20">
+          <DollarSign className="w-8 h-8 text-accent mb-3" />
           <div className="text-2xl font-bold text-ink mb-1">
             {(totalRevenue - totalWithdrawals).toLocaleString('cs-CZ')} Kč
           </div>
@@ -181,7 +181,7 @@ const TransactionsFinance: React.FC = () => {
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                       transaction.type === 'deposit' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
                       transaction.type === 'withdrawal' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' :
-                      transaction.type === 'purchase' ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400' :
+                      transaction.type === 'purchase' ? 'bg-accent-soft text-accent' :
                       'bg-accent-soft text-accent'
                     }`}>
                       {transaction.type}
@@ -216,7 +216,7 @@ const TransactionsFinance: React.FC = () => {
                           </button>
                         </>
                       )}
-                      <button className="text-sky-600 dark:text-sky-400 hover:text-blue-300 text-sm px-3 py-1 rounded bg-blue-500/10 hover:bg-sky-500/10 transition-all">
+                      <button className="text-accent hover:text-blue-300 text-sm px-3 py-1 rounded bg-accent-soft hover:bg-accent-soft transition-all">
                         View
                       </button>
                     </div>

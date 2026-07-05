@@ -65,7 +65,7 @@ export const InventoryTab: React.FC<{ addToast: any }> = ({ addToast }) => {
           <div className="text-gray-400 text-sm">Pending Review</div>
         </div>
         <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
-          <div className="text-2xl font-bold text-blue-400">{listings.filter(l => (l.price || 0) > 50000).length}</div>
+          <div className="text-2xl font-bold text-accent">{listings.filter(l => (l.price || 0) > 50000).length}</div>
           <div className="text-gray-400 text-sm">High Value</div>
         </div>
       </div>
@@ -99,7 +99,7 @@ export const InventoryTab: React.FC<{ addToast: any }> = ({ addToast }) => {
                   </td>
                   <td className="py-3 px-4 text-right">
                     <div className="flex justify-end gap-2">
-                      <button className="text-blue-400 hover:text-blue-300 p-2"><Eye size={16} /></button>
+                      <button className="text-accent hover:text-blue-300 p-2"><Eye size={16} /></button>
                       <button className="text-yellow-400 hover:text-yellow-300 p-2"><Edit3 size={16} /></button>
                       <button className="text-red-400 hover:text-red-300 p-2"><Trash2 size={16} /></button>
                     </div>
@@ -149,7 +149,7 @@ export const SecurityTab: React.FC<{ addToast: any }> = ({ addToast }) => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6">
           <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-            <Shield className="w-5 h-5 text-blue-400" />
+            <Shield className="w-5 h-5 text-accent" />
             Admin Action Logs
           </h3>
           <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -233,8 +233,8 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
       </h2>
 
       <div className="grid grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 rounded-lg p-6 border border-blue-500/20">
-          <Users className="w-8 h-8 text-blue-400 mb-3" />
+        <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 rounded-lg p-6 border border-accent/20">
+          <Users className="w-8 h-8 text-accent mb-3" />
           <div className="text-2xl font-bold text-white">{analytics.dau}</div>
           <div className="text-blue-300 text-sm">Daily Active Users</div>
         </div>
@@ -293,7 +293,7 @@ export const SupportTab: React.FC<{ addToast: any }> = ({ addToast }) => {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-        <MessageSquare className="w-6 h-6 text-blue-400" />
+        <MessageSquare className="w-6 h-6 text-accent" />
         Support & Communication
       </h2>
 
@@ -326,7 +326,7 @@ export const SupportTab: React.FC<{ addToast: any }> = ({ addToast }) => {
                 </td>
                 <td className="py-3 px-4 text-gray-300">{ticket.priority}</td>
                 <td className="py-3 px-4 text-right">
-                  <button className="text-blue-400 hover:text-blue-300 px-3 py-1 rounded bg-blue-500/10">View</button>
+                  <button className="text-accent hover:text-blue-300 px-3 py-1 rounded bg-accent-soft">View</button>
                 </td>
               </tr>
             ))}
@@ -613,7 +613,7 @@ export const WithdrawalsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
 export const MonitoringTab: React.FC<{ addToast: any }> = ({ addToast }) => (
   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
     <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-      <Activity className="w-6 h-6 text-blue-400" />
+      <Activity className="w-6 h-6 text-accent" />
       Real-time Monitoring
     </h2>
     <div className="grid grid-cols-2 gap-6">
@@ -624,7 +624,7 @@ export const MonitoringTab: React.FC<{ addToast: any }> = ({ addToast }) => (
       </div>
       <div className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-6">
         <h3 className="text-xl font-bold mb-4">Transactions/min</h3>
-        <div className="text-4xl font-bold text-blue-400">12.5</div>
+        <div className="text-4xl font-bold text-accent">12.5</div>
         <div className="text-sm text-gray-400">Average rate</div>
       </div>
     </div>

@@ -199,15 +199,9 @@ const LandingPage: React.FC = () => {
   const promotedItems = useMemo(() => {
     const live = Array.isArray(marketplaceItems) ? marketplaceItems : [];
     if (live.length === 0) return [] as any[];
-    const promoted = live.filter((it: any) => it?.promoted);
-    const rest = live
-      .filter((it: any) => !it?.promoted)
-      .sort(
-        (a: any, b: any) =>
-          new Date(b?.listed_at || 0).getTime() -
-          new Date(a?.listed_at || 0).getTime(),
-      );
-    return [...promoted, ...rest].slice(0, 100);
+    /* ONLY paid promotions (49 Kč fee) appear here — no filler. When
+       nobody is paying, the wall simply doesn't render. */
+    return live.filter((it: any) => it?.promoted === true).slice(0, 100);
   }, [marketplaceItems]);
 
   return (
@@ -225,6 +219,7 @@ const LandingPage: React.FC = () => {
           CS2 Marketplace — Buy and Sell CS2 Skins on Skinify
         </h1>
 
+        {promotedItems.length > 0 && (
         <PromotedWall
           items={promotedItems}
           onView={(id) => navigate(`/item/${id}`)}
@@ -233,6 +228,7 @@ const LandingPage: React.FC = () => {
           isWished={(id) => isInWishlist(id)}
           formatPrice={formatPrice}
         />
+        )}
 
         {/* ===== HERO ===== */}
         <section className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-3 mb-3">

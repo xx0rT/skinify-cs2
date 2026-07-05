@@ -220,6 +220,8 @@ Deno.serve(async (req) => {
           views: listing.views,
           description: listing.description,
           listing_type: listing.listing_type,
+          is_promoted: listing.is_promoted === true,
+          promoted: listing.is_promoted === true,
           share_token: listing.share_token,
           /* Resolve placeholders the same way the bulk listing
              endpoint does so the share-link page also gets a working
@@ -350,6 +352,8 @@ Deno.serve(async (req) => {
         float: listing.float_value,
         pattern: listing.pattern_template,
         stickers: listing.stickers,
+        is_promoted: listing.is_promoted === true,
+        promoted: listing.is_promoted === true,
         seller: {
           /* Sourced from the listing's `user_id` join, NOT the
              currently-authenticated user. The card on the product

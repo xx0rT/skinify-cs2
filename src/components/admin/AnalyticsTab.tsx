@@ -1,347 +1,413 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Activity, Users, Eye, MousePointerClick, DollarSign,
-  ShoppingCart, TrendingUp, Calendar, RefreshCw, Download
+  Users,
+  DollarSign,
+  Activity,
+  Package,
+  RefreshCw,
+  TrendingUp,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  AreaChart, Area
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
 } from 'recharts';
+import { spring, tap } from '../../lib/motion';
 
-interface TodayStats {
-  total_visits: number;
-  unique_visitors: number;
-  page_views: number;
-  clicks: number;
-  new_registrations: number;
-  deposits_today: number;
-  purchases_today: number;
+/* ─────────────────────────────────────────────────────────────────────────
+   AnalyticsTab — real data from the core tables (users,
+   user_transactions, marketplace_listings), rendered as flat panels
+   with animated recharts. No mock RPCs.
+   ───────────────────────────────────────────────────────────────────────── */
+
+type Range = '7d' | '30d' | '90d';
+const RANGE_DAYS: Record<Range, number> = { '7d': 7, '30d': 30, '90d': 90 };
+
+interface DayPoint {
+  day: string;
+  signups: number;
+  transactions: number;
+  revenue: number;
 }
 
-interface PageStats {
-  page: string;
-  views: number;
-  percentage: number;
+interface TypeSlice {
+  name: string;
+  value: number;
 }
 
-interface ActivityData {
-  date: string;
-  visits: number;
-  users: number;
-  deposits: number;
-  purchases: number;
+/* Resolve theme colors once — SVG attributes can't consume CSS vars. */
+function themeColor(varName: string, fallback: string): string {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    return v ? `rgb(${v})` : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
-const COLORS = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#EC4899'];
+const parent = {
+  hidden: {},
+  shown: { transition: { staggerChildren: 0.05, delayChildren: 0.04 } },
+};
+const child = {
+  hidden: { opacity: 0, y: 14 },
+  shown: { opacity: 1, y: 0, transition: spring },
+};
 
-const AnalyticsTab: React.FC = () => {
+const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
   const [loading, setLoading] = useState(true);
-  const [todayStats, setTodayStats] = useState<TodayStats | null>(null);
-  const [activityData, setActivityData] = useState<ActivityData[]>([]);
-  const [pageStats, setPageStats] = useState<PageStats[]>([]);
-  const [eventStats, setEventStats] = useState<any[]>([]);
-  const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('7d');
+  const [range, setRange] = useState<Range>('30d');
+  const [days, setDays] = useState<DayPoint[]>([]);
+  const [totals, setTotals] = useState({
+    users: 0,
+    newUsers: 0,
+    revenue: 0,
+    transactions: 0,
+    activeListings: 0,
+  });
+  const [typeSlices, setTypeSlices] = useState<TypeSlice[]>([]);
 
-  useEffect(() => {
-    fetchAnalytics();
-  }, [timeRange]);
+  const accent = useMemo(() => themeColor('--accent', '#8b49f2'), []);
+  const inkDim = useMemo(() => themeColor('--ink-dim', '#828094'), []);
+  const surface = useMemo(() => themeColor('--surface', '#ffffff'), []);
+  const PIE_COLORS = [accent, '#10b981', '#f59e0b', '#ef4444', inkDim];
 
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      // Get today's stats
-      const { data: todayData } = await supabase.rpc('get_today_stats');
-      if (todayData) {
-        setTodayStats(todayData);
+      const nDays = RANGE_DAYS[range];
+      const start = new Date();
+      start.setDate(start.getDate() - nDays);
+      const startIso = start.toISOString();
+
+      const [usersCount, listingsCount, newUsersRes, txRes] = await Promise.all([
+        supabase.from('users').select('*', { count: 'exact', head: true }),
+        supabase
+          .from('marketplace_listings')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'active'),
+        supabase
+          .from('users')
+          .select('created_at')
+          .gte('created_at', startIso)
+          .order('created_at', { ascending: true }),
+        supabase
+          .from('user_transactions')
+          .select('created_at, amount, type, status')
+          .gte('created_at', startIso)
+          .order('created_at', { ascending: true }),
+      ]);
+
+      const newUsers = newUsersRes.data || [];
+      const txs = txRes.data || [];
+
+      /* Bucket everything by calendar day so the charts always have a
+         continuous axis, even for days with zero events. */
+      const buckets = new Map<string, DayPoint>();
+      for (let i = nDays - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const key = d.toISOString().slice(0, 10);
+        buckets.set(key, {
+          day: d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
+          signups: 0,
+          transactions: 0,
+          revenue: 0,
+        });
+      }
+      for (const u of newUsers) {
+        const key = String(u.created_at).slice(0, 10);
+        const b = buckets.get(key);
+        if (b) b.signups += 1;
+      }
+      const types = new Map<string, number>();
+      let revenue = 0;
+      for (const tx of txs) {
+        const key = String(tx.created_at).slice(0, 10);
+        const b = buckets.get(key);
+        if (b) {
+          b.transactions += 1;
+          if (
+            tx.status === 'completed' &&
+            (tx.type === 'deposit' || tx.type === 'purchase')
+          ) {
+            b.revenue += Number(tx.amount || 0);
+          }
+        }
+        if (tx.status === 'completed' && (tx.type === 'deposit' || tx.type === 'purchase')) {
+          revenue += Number(tx.amount || 0);
+        }
+        const label = String(tx.type || 'other');
+        types.set(label, (types.get(label) || 0) + 1);
       }
 
-      // Get activity data for the selected time range
-      const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
-
-      const { data: activityRaw } = await supabase
-        .from('user_activity')
-        .select('created_at, event_type, event_data')
-        .gte('created_at', startDate.toISOString())
-        .order('created_at', { ascending: true });
-
-      if (activityRaw) {
-        // Group by date
-        const groupedByDate: Record<string, ActivityData> = {};
-
-        activityRaw.forEach((activity: any) => {
-          const date = new Date(activity.created_at).toLocaleDateString();
-
-          if (!groupedByDate[date]) {
-            groupedByDate[date] = {
-              date,
-              visits: 0,
-              users: 0,
-              deposits: 0,
-              purchases: 0
-            };
-          }
-
-          if (activity.event_type === 'page_view') {
-            groupedByDate[date].visits += 1;
-          } else if (activity.event_type === 'deposit') {
-            groupedByDate[date].deposits += activity.event_data?.amount || 0;
-          } else if (activity.event_type === 'purchase') {
-            groupedByDate[date].purchases += activity.event_data?.amount || 0;
-          }
-        });
-
-        setActivityData(Object.values(groupedByDate));
-
-        // Get page stats
-        const pageViews = activityRaw.filter((a: any) => a.event_type === 'page_view');
-        const pageCount: Record<string, number> = {};
-
-        pageViews.forEach((view: any) => {
-          const page = view.event_data?.page_url || 'Unknown';
-          pageCount[page] = (pageCount[page] || 0) + 1;
-        });
-
-        const totalViews = Object.values(pageCount).reduce((sum, count) => sum + count, 0);
-        const topPages = Object.entries(pageCount)
-          .map(([page, views]) => ({
-            page: page.replace('/', '').replace('-', ' ') || 'Home',
-            views,
-            percentage: Math.round((views / totalViews) * 100)
-          }))
-          .sort((a, b) => b.views - a.views)
-          .slice(0, 10);
-
-        setPageStats(topPages);
-
-        // Get event type distribution
-        const eventCount: Record<string, number> = {};
-        activityRaw.forEach((a: any) => {
-          eventCount[a.event_type] = (eventCount[a.event_type] || 0) + 1;
-        });
-
-        setEventStats(
-          Object.entries(eventCount).map(([name, value]) => ({
-            name: name.replace('_', ' ').toUpperCase(),
-            value
-          }))
-        );
-      }
-
-    } catch (error) {
-      console.error('Failed to fetch analytics:', error);
+      setDays(Array.from(buckets.values()));
+      setTypeSlices(
+        Array.from(types.entries())
+          .map(([name, value]) => ({ name, value }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 5),
+      );
+      setTotals({
+        users: usersCount.count || 0,
+        newUsers: newUsers.length,
+        revenue,
+        transactions: txs.length,
+        activeListings: listingsCount.count || 0,
+      });
+    } catch (e) {
+      console.error('[analytics] fetch failed:', e);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) {
+  useEffect(() => {
+    fetchAnalytics();
+  }, [range]);
+
+  const kpis = [
+    { Icon: Users, label: 'Total users', value: totals.users.toLocaleString(), sub: `+${totals.newUsers} in range` },
+    { Icon: DollarSign, label: 'Revenue', value: `${Math.round(totals.revenue).toLocaleString()} Kč`, sub: 'Completed deposits + purchases' },
+    { Icon: Activity, label: 'Transactions', value: totals.transactions.toLocaleString(), sub: `Last ${RANGE_DAYS[range]} days` },
+    { Icon: Package, label: 'Active listings', value: totals.activeListings.toLocaleString(), sub: 'Live right now' },
+  ];
+
+  const tooltipStyle = {
+    background: surface,
+    border: 'none',
+    borderRadius: 12,
+    boxShadow: '0 12px 32px -12px rgba(0,0,0,0.25)',
+    fontSize: 12,
+    fontWeight: 600,
+  } as React.CSSProperties;
+
+  if (loading && days.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="skel h-28 rounded-[20px]" />
+          ))}
+        </div>
+        <div className="skel h-72 rounded-[20px]" />
+        <div className="grid lg:grid-cols-2 gap-4">
+          <div className="skel h-64 rounded-[20px]" />
+          <div className="skel h-64 rounded-[20px]" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-ink flex items-center gap-2">
-            <Activity className="w-6 h-6 text-sky-600 dark:text-sky-400" />
-            Analytics Dashboard
-          </h2>
-          <p className="text-ink-muted text-sm mt-1">Monitor user activity and platform metrics</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <select
-            value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value as any)}
-            className="bg-subtle text-ink px-4 py-2 rounded-lg border border-line focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="7d">Last 7 Days</option>
-            <option value="30d">Last 30 Days</option>
-            <option value="90d">Last 90 Days</option>
-          </select>
-          <button
-            onClick={fetchAnalytics}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-ink rounded-lg transition"
-          >
-            <RefreshCw size={18} />
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      {/* Today's Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-surface border border-blue-500/30 rounded-xl p-6"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <Eye className="w-8 h-8 text-sky-600 dark:text-sky-400" />
-            <span className="text-2xl font-bold text-ink">{todayStats?.total_visits || 0}</span>
-          </div>
-          <div className="text-ink-muted font-medium">Total Visits Today</div>
-          <div className="text-xs text-ink-muted mt-1">
-            {todayStats?.unique_visitors || 0} unique visitors
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-surface border border-line rounded-xl p-6"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <Users className="w-8 h-8 text-accent" />
-            <span className="text-2xl font-bold text-ink">{todayStats?.new_registrations || 0}</span>
-          </div>
-          <div className="text-ink-muted font-medium">New Registrations</div>
-          <div className="text-xs text-ink-muted mt-1">Today's sign-ups</div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-surface border border-green-500/30 rounded-xl p-6"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <DollarSign className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
-            <span className="text-2xl font-bold text-ink">
-              {todayStats?.deposits_today?.toLocaleString() || 0} Kč
-            </span>
-          </div>
-          <div className="text-ink-muted font-medium">Deposits Today</div>
-          <div className="text-xs text-ink-muted mt-1">Total deposited</div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-surface border border-orange-500/30 rounded-xl p-6"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <ShoppingCart className="w-8 h-8 text-orange-600 dark:text-orange-400" />
-            <span className="text-2xl font-bold text-ink">
-              {todayStats?.purchases_today?.toLocaleString() || 0} Kč
-            </span>
-          </div>
-          <div className="text-ink-muted font-medium">Purchases Today</div>
-          <div className="text-xs text-ink-muted mt-1">Total revenue</div>
-        </motion.div>
-      </div>
-
-      {/* Activity Over Time Chart */}
-      <div className="bg-surface border border-line rounded-xl p-6">
-        <h3 className="text-xl font-bold text-ink mb-4 flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-sky-600 dark:text-sky-400" />
-          Activity Over Time
-        </h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={activityData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-            <XAxis dataKey="date" stroke="#9CA3AF" />
-            <YAxis stroke="#9CA3AF" />
-            <Tooltip
-              contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }}
-              labelStyle={{ color: '#F3F4F6' }}
-            />
-            <Legend />
-            <Area type="monotone" dataKey="visits" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.6} name="Visits" />
-            <Area type="monotone" dataKey="deposits" stroke="#10B981" fill="#10B981" fillOpacity={0.6} name="Deposits (Kč)" />
-            <Area type="monotone" dataKey="purchases" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.6} name="Purchases (Kč)" />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Event Types Distribution */}
-        <div className="bg-surface border border-line rounded-xl p-6">
-          <h3 className="text-xl font-bold text-ink mb-4 flex items-center gap-2">
-            <MousePointerClick className="w-5 h-5 text-accent" />
-            Event Distribution
-          </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={eventStats}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                outerRadius={100}
-                fill="#8884d8"
-                dataKey="value"
+    <motion.div variants={parent} initial="hidden" animate="shown" className="space-y-4">
+      {/* Range switch + refresh */}
+      <motion.div variants={child} className="flex items-center justify-between gap-3">
+        <div className="flex gap-1.5">
+          {(['7d', '30d', '90d'] as Range[]).map((r) => {
+            const active = range === r;
+            return (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                className={`relative h-10 px-4 rounded-full text-[12.5px] font-bold transition-colors ${
+                  active ? 'text-on-accent' : 'bg-subtle text-ink-muted hover:text-ink'
+                }`}
               >
-                {eventStats.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }}
+                {active && (
+                  <motion.span
+                    layoutId="analytics-range-pill"
+                    className="absolute inset-0 rounded-full bg-accent"
+                    transition={spring}
+                  />
+                )}
+                <span className="relative">{r}</span>
+              </button>
+            );
+          })}
+        </div>
+        <motion.button
+          whileTap={tap}
+          onClick={fetchAnalytics}
+          className="w-10 h-10 rounded-full bg-subtle hover:bg-surface grid place-items-center text-ink-muted hover:text-ink transition-colors"
+          aria-label="Refresh"
+        >
+          <RefreshCw size={15} strokeWidth={2.2} className={loading ? 'animate-spin' : ''} />
+        </motion.button>
+      </motion.div>
+
+      {/* KPI row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {kpis.map(({ Icon, label, value, sub }) => (
+          <motion.div key={label} variants={child} whileHover={{ y: -2 }} className="panel p-5">
+            <Icon size={17} strokeWidth={2.2} className="text-accent mb-3" />
+            <div className="text-[22px] font-bold tracking-tight tabular-nums text-ink leading-none">
+              {value}
+            </div>
+            <div className="label-meta mt-2">{label}</div>
+            <div className="text-[11.5px] text-ink-dim font-medium mt-1">{sub}</div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Signups + transactions over time */}
+      <motion.section variants={child} className="panel p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <span className="label-eyebrow">Growth</span>
+            <h3 className="text-[16px] font-bold tracking-tight mt-1 leading-none">
+              Signups & transactions
+            </h3>
+          </div>
+          <TrendingUp size={16} className="text-ink-muted" />
+        </div>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={days} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
+              <defs>
+                <linearGradient id="gradSignups" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={accent} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={accent} stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gradTx" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis
+                dataKey="day"
+                tick={{ fontSize: 10.5, fill: inkDim, fontWeight: 600 }}
+                tickLine={false}
+                axisLine={false}
+                interval="preserveStartEnd"
               />
-            </PieChart>
+              <YAxis
+                tick={{ fontSize: 10.5, fill: inkDim, fontWeight: 600 }}
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: inkDim, strokeOpacity: 0.25 }} />
+              <Area
+                type="monotone"
+                dataKey="signups"
+                name="Signups"
+                stroke={accent}
+                strokeWidth={2.5}
+                fill="url(#gradSignups)"
+                animationDuration={900}
+              />
+              <Area
+                type="monotone"
+                dataKey="transactions"
+                name="Transactions"
+                stroke="#10b981"
+                strokeWidth={2.5}
+                fill="url(#gradTx)"
+                animationDuration={900}
+                animationBegin={150}
+              />
+            </AreaChart>
           </ResponsiveContainer>
         </div>
+      </motion.section>
 
-        {/* Top Pages */}
-        <div className="bg-surface border border-line rounded-xl p-6">
-          <h3 className="text-xl font-bold text-ink mb-4 flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            Top Pages
+      <div className="grid lg:grid-cols-[1.4fr_1fr] gap-4">
+        {/* Revenue by day */}
+        <motion.section variants={child} className="panel p-6">
+          <span className="label-eyebrow">Revenue</span>
+          <h3 className="text-[16px] font-bold tracking-tight mt-1 leading-none mb-4">
+            Daily revenue (Kč)
           </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={pageStats} layout="horizontal">
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis type="number" stroke="#9CA3AF" />
-              <YAxis dataKey="page" type="category" width={100} stroke="#9CA3AF" />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }}
-              />
-              <Bar dataKey="views" fill="#3B82F6" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={days} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
+                <XAxis
+                  dataKey="day"
+                  tick={{ fontSize: 10.5, fill: inkDim, fontWeight: 600 }}
+                  tickLine={false}
+                  axisLine={false}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  tick={{ fontSize: 10.5, fill: inkDim, fontWeight: 600 }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: inkDim, fillOpacity: 0.08 }} />
+                <Bar
+                  dataKey="revenue"
+                  name="Revenue"
+                  fill={accent}
+                  radius={[6, 6, 0, 0]}
+                  animationDuration={900}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.section>
 
-      {/* Additional Stats */}
-      <div className="bg-surface border border-line rounded-xl p-6">
-        <h3 className="text-xl font-bold text-ink mb-4">Quick Stats</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center p-4 bg-subtle rounded-lg">
-            <div className="text-3xl font-bold text-sky-600 dark:text-sky-400">{todayStats?.page_views || 0}</div>
-            <div className="text-ink-muted text-sm mt-1">Page Views Today</div>
-          </div>
-          <div className="text-center p-4 bg-subtle rounded-lg">
-            <div className="text-3xl font-bold text-accent">{todayStats?.clicks || 0}</div>
-            <div className="text-ink-muted text-sm mt-1">Clicks Today</div>
-          </div>
-          <div className="text-center p-4 bg-subtle rounded-lg">
-            <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
-              {todayStats?.unique_visitors || 0}
+        {/* Transaction types */}
+        <motion.section variants={child} className="panel p-6">
+          <span className="label-eyebrow">Breakdown</span>
+          <h3 className="text-[16px] font-bold tracking-tight mt-1 leading-none mb-4">
+            Transaction types
+          </h3>
+          {typeSlices.length === 0 ? (
+            <div className="h-56 grid place-items-center text-[13px] text-ink-muted font-medium">
+              No transactions in this range.
             </div>
-            <div className="text-ink-muted text-sm mt-1">Unique Visitors</div>
-          </div>
-          <div className="text-center p-4 bg-subtle rounded-lg">
-            <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">
-              {((todayStats?.page_views || 0) / (todayStats?.unique_visitors || 1)).toFixed(1)}
+          ) : (
+            <div className="h-56 flex items-center gap-4">
+              <ResponsiveContainer width="55%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={typeSlices}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius="58%"
+                    outerRadius="88%"
+                    paddingAngle={3}
+                    animationDuration={900}
+                  >
+                    {typeSlices.map((_, i) => (
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex-1 space-y-2">
+                {typeSlices.map((s, i) => (
+                  <div key={s.name} className="flex items-center gap-2">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
+                    />
+                    <span className="text-[12.5px] font-semibold text-ink capitalize flex-1 truncate">
+                      {s.name}
+                    </span>
+                    <span className="text-[12.5px] font-bold text-ink-muted tabular-nums">
+                      {s.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="text-ink-muted text-sm mt-1">Avg Pages/Visitor</div>
-          </div>
-        </div>
+          )}
+        </motion.section>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

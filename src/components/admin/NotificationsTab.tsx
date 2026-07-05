@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Bell, Plus, CreditCard as Edit, Trash2, RefreshCw, Eye, EyeOff } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Bell, Plus, CreditCard as Edit, Trash2, RefreshCw, Eye, EyeOff, X } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 interface Notification {
@@ -67,11 +67,13 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
 
       const { data: { user } } = await supabase.auth.getUser();
 
-      const notificationData = {
+      const notificationData: any = {
         ...formData,
-        created_by: user?.id,
         ends_at: formData.ends_at || null
       };
+      /* Steam-auth admins have no Supabase session — only attach
+         created_by when we actually have an auth uuid. */
+      if (user?.id) notificationData.created_by = user.id;
 
       if (editingNotification) {
         const { error } = await supabase
@@ -167,52 +169,48 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-ink flex items-center gap-2">
-            <Bell className="w-6 h-6 text-sky-600 dark:text-sky-400" />
-            Global Notifications
-          </h2>
-          <p className="text-ink-muted text-sm">Create and manage system-wide announcements</p>
-        </div>
-        <div className="flex gap-2">
+      <div className="flex justify-between items-center gap-3">
+        <p className="text-[13px] text-ink-muted font-medium">
+          System-wide announcements shown to users on the site.
+        </p>
+        <div className="flex gap-2 shrink-0">
           <button
             onClick={fetchNotifications}
-            className="bg-subtle hover:bg-bg px-4 py-2 rounded-lg text-ink flex items-center gap-2"
+            className="w-10 h-10 rounded-full bg-subtle hover:bg-surface grid place-items-center text-ink-muted hover:text-ink transition-colors"
+            aria-label="Refresh"
           >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            Refresh
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
           </button>
           <button
             onClick={() => { resetForm(); setShowModal(true); }}
-            className="bg-accent hover:opacity-90 text-on-accent px-4 py-2 rounded-lg text-ink flex items-center gap-2"
+            className="h-10 px-4 rounded-full bg-accent hover:opacity-90 text-on-accent text-[13px] font-bold inline-flex items-center gap-1.5 transition-opacity"
           >
-            <Plus size={16} />
-            New Notification
+            <Plus size={14} strokeWidth={2.6} />
+            New notification
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-surface rounded-lg p-4 border border-line/50">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="panel p-5">
           <div className="text-2xl font-bold text-ink">{notifications.length}</div>
-          <div className="text-ink-muted text-sm">Total Notifications</div>
+          <div className="label-meta mt-2">Total</div>
         </div>
-        <div className="bg-surface rounded-lg p-4 border border-line/50">
+        <div className="panel p-5">
           <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{notifications.filter(n => n.is_active).length}</div>
-          <div className="text-ink-muted text-sm">Active</div>
+          <div className="label-meta mt-2">Active</div>
         </div>
-        <div className="bg-surface rounded-lg p-4 border border-line/50">
+        <div className="panel p-5">
           <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{notifications.filter(n => n.priority === 'high' || n.priority === 'urgent').length}</div>
-          <div className="text-ink-muted text-sm">High Priority</div>
+          <div className="label-meta mt-2">High priority</div>
         </div>
-        <div className="bg-surface rounded-lg p-4 border border-line/50">
-          <div className="text-2xl font-bold text-sky-600 dark:text-sky-400">{notifications.filter(n => new Date(n.starts_at) > new Date()).length}</div>
-          <div className="text-ink-muted text-sm">Scheduled</div>
+        <div className="panel p-5">
+          <div className="text-2xl font-bold text-accent">{notifications.filter(n => new Date(n.starts_at) > new Date()).length}</div>
+          <div className="label-meta mt-2">Scheduled</div>
         </div>
       </div>
 
-      <div className="bg-surface rounded-xl border border-line/50 p-6">
+      <div className="panel p-5">
         <div className="space-y-4">
           {notifications.length === 0 ? (
             <div className="text-center py-12 text-ink-muted">
@@ -220,7 +218,12 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
             </div>
           ) : (
             notifications.map((notification) => (
-              <div key={notification.id} className="bg-subtle/30 rounded-lg p-4 border border-line/30">
+              <motion.div
+                key={notification.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-2xl bg-subtle p-4"
+              >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
@@ -230,7 +233,7 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
                         notification.type === 'warning' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' :
                         notification.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
                         notification.type === 'announcement' ? 'bg-accent-soft text-accent' :
-                        'bg-sky-500/10 text-sky-600 dark:text-sky-400'
+                        'bg-accent-soft text-accent'
                       }`}>
                         {notification.type}
                       </span>
@@ -268,7 +271,7 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
                     </button>
                     <button
                       onClick={() => openEditModal(notification)}
-                      className="text-sky-600 dark:text-sky-400 hover:bg-blue-500/10 p-2 rounded transition"
+                      className="text-accent hover:bg-accent-soft p-2 rounded transition"
                     >
                       <Edit size={16} />
                     </button>
@@ -280,46 +283,74 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
                     </button>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))
           )}
         </div>
       </div>
 
+      <AnimatePresence>
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-xl border border-line p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-ink mb-4">
-              {editingNotification ? 'Edit Notification' : 'Create New Notification'}
-            </h3>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18 }}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => { setShowModal(false); resetForm(); }}
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 24, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 0.97 }}
+            transition={{ type: 'spring', stiffness: 340, damping: 30 }}
+            onClick={(e) => e.stopPropagation()}
+            className="panel p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <span className="label-eyebrow">Notifications</span>
+                <h3 className="text-[19px] font-bold text-ink tracking-tight mt-1 leading-none">
+                  {editingNotification ? 'Edit notification' : 'New system notification'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowModal(false); resetForm(); }}
+                className="w-9 h-9 rounded-full bg-subtle grid place-items-center text-ink-muted hover:text-ink transition-colors"
+                aria-label="Close"
+              >
+                <X size={14} strokeWidth={2.4} />
+              </button>
+            </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-ink-muted mb-2">Title *</label>
+                <label className="label-meta block mb-1.5">Title *</label>
                 <input
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full bg-subtle border border-line rounded-lg px-4 py-2 text-ink focus:outline-none focus:border-accent"
+                  className="w-full bg-subtle rounded-xl px-4 py-2.5 text-ink text-[14px] font-medium outline-none focus:ring-2 focus:ring-accent/40 transition-shadow"
                   required
                 />
               </div>
               <div>
-                <label className="block text-ink-muted mb-2">Message *</label>
+                <label className="label-meta block mb-1.5">Message *</label>
                 <textarea
                   value={formData.message}
                   onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                  className="w-full bg-subtle border border-line rounded-lg px-4 py-2 text-ink focus:outline-none focus:border-accent"
+                  className="w-full bg-subtle rounded-xl px-4 py-2.5 text-ink text-[14px] font-medium outline-none focus:ring-2 focus:ring-accent/40 transition-shadow"
                   rows={4}
                   required
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-ink-muted mb-2">Type</label>
+                  <label className="label-meta block mb-1.5">Type</label>
                   <select
                     value={formData.type}
                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    className="w-full bg-subtle border border-line rounded-lg px-4 py-2 text-ink focus:outline-none focus:border-accent"
+                    className="w-full bg-subtle rounded-xl px-4 py-2.5 text-ink text-[14px] font-medium outline-none focus:ring-2 focus:ring-accent/40 transition-shadow"
                   >
                     <option value="info">Info</option>
                     <option value="success">Success</option>
@@ -329,11 +360,11 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-ink-muted mb-2">Priority</label>
+                  <label className="label-meta block mb-1.5">Priority</label>
                   <select
                     value={formData.priority}
                     onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                    className="w-full bg-subtle border border-line rounded-lg px-4 py-2 text-ink focus:outline-none focus:border-accent"
+                    className="w-full bg-subtle rounded-xl px-4 py-2.5 text-ink text-[14px] font-medium outline-none focus:ring-2 focus:ring-accent/40 transition-shadow"
                   >
                     <option value="low">Low</option>
                     <option value="normal">Normal</option>
@@ -343,11 +374,11 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
                 </div>
               </div>
               <div>
-                <label className="block text-ink-muted mb-2">Target Audience</label>
+                <label className="label-meta block mb-1.5">Target Audience</label>
                 <select
                   value={formData.target_audience}
                   onChange={(e) => setFormData({ ...formData, target_audience: e.target.value })}
-                  className="w-full bg-subtle border border-line rounded-lg px-4 py-2 text-ink focus:outline-none focus:border-accent"
+                  className="w-full bg-subtle rounded-xl px-4 py-2.5 text-ink text-[14px] font-medium outline-none focus:ring-2 focus:ring-accent/40 transition-shadow"
                 >
                   <option value="all">All Users</option>
                   <option value="verified">Verified Users</option>
@@ -357,21 +388,21 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-ink-muted mb-2">Starts At</label>
+                  <label className="label-meta block mb-1.5">Starts At</label>
                   <input
                     type="datetime-local"
                     value={formData.starts_at}
                     onChange={(e) => setFormData({ ...formData, starts_at: e.target.value })}
-                    className="w-full bg-subtle border border-line rounded-lg px-4 py-2 text-ink focus:outline-none focus:border-accent"
+                    className="w-full bg-subtle rounded-xl px-4 py-2.5 text-ink text-[14px] font-medium outline-none focus:ring-2 focus:ring-accent/40 transition-shadow"
                   />
                 </div>
                 <div>
-                  <label className="block text-ink-muted mb-2">Ends At (Optional)</label>
+                  <label className="label-meta block mb-1.5">Ends At (Optional)</label>
                   <input
                     type="datetime-local"
                     value={formData.ends_at}
                     onChange={(e) => setFormData({ ...formData, ends_at: e.target.value })}
-                    className="w-full bg-subtle border border-line rounded-lg px-4 py-2 text-ink focus:outline-none focus:border-accent"
+                    className="w-full bg-subtle rounded-xl px-4 py-2.5 text-ink text-[14px] font-medium outline-none focus:ring-2 focus:ring-accent/40 transition-shadow"
                   />
                 </div>
               </div>
@@ -388,21 +419,22 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
                 <button
                   type="button"
                   onClick={() => { setShowModal(false); resetForm(); }}
-                  className="px-4 py-2 bg-subtle hover:bg-bg text-ink rounded-lg transition"
+                  className="h-11 px-5 rounded-full bg-subtle hover:bg-bg text-ink text-[13px] font-bold transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-accent hover:opacity-90 text-on-accent rounded-lg transition"
+                  className="h-11 px-5 rounded-full bg-accent hover:opacity-90 text-on-accent text-[13px] font-bold transition-opacity"
                 >
                   {editingNotification ? 'Update' : 'Create'}
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </motion.div>
   );
 };

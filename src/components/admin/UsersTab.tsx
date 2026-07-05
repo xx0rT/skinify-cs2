@@ -191,7 +191,7 @@ const UsersTab: React.FC = () => {
           <div className="text-ink-muted text-sm">Active Users</div>
         </div>
         <div className="bg-surface rounded-lg p-4 border border-line/50">
-          <div className="text-2xl font-bold text-sky-600 dark:text-sky-400">
+          <div className="text-2xl font-bold text-accent">
             {users.filter(u => u.is_verified).length}
           </div>
           <div className="text-ink-muted text-sm">Verified Users</div>
@@ -213,13 +213,13 @@ const UsersTab: React.FC = () => {
               placeholder="Search by username, email, or Steam ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-subtle border border-line rounded-lg pl-10 pr-4 py-2 text-ink placeholder:text-ink-dim focus:outline-none focus:border-blue-500 transition-colors"
+              className="w-full bg-subtle border border-line rounded-lg pl-10 pr-4 py-2 text-ink placeholder:text-ink-dim focus:outline-none focus:border-accent transition-colors"
             />
           </div>
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="bg-subtle border border-line rounded-lg px-4 py-2 text-ink focus:outline-none focus:border-blue-500 transition-colors"
+            className="bg-subtle border border-line rounded-lg px-4 py-2 text-ink focus:outline-none focus:border-accent transition-colors"
           >
             <option value="all">All Status</option>
             <option value="active">Active</option>
@@ -230,7 +230,7 @@ const UsersTab: React.FC = () => {
 
         {loading ? (
           <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -255,7 +255,7 @@ const UsersTab: React.FC = () => {
                           <img
                             src={user.avatar_url || user.profile_picture}
                             alt={user.display_name || 'User'}
-                            className="w-10 h-10 rounded-full object-cover border-2 border-blue-500/30"
+                            className="w-10 h-10 rounded-full object-cover border-2 border-accent/30"
                             onError={(e) => {
                               e.currentTarget.style.display = 'none';
                               e.currentTarget.nextElementSibling!.classList.remove('hidden');
@@ -270,7 +270,7 @@ const UsersTab: React.FC = () => {
                         <div>
                           <div className="text-ink font-medium">{user.display_name || 'Unknown'}</div>
                           {user.is_verified && (
-                            <span className="text-xs text-sky-600 dark:text-sky-400 flex items-center gap-1">
+                            <span className="text-xs text-accent flex items-center gap-1">
                               <CheckCircle size={12} />
                               Verified
                             </span>
@@ -355,7 +355,7 @@ const UsersTab: React.FC = () => {
                 value={actionReason}
                 onChange={(e) => setActionReason(e.target.value)}
                 placeholder="Reason for this action..."
-                className="w-full bg-subtle border border-line rounded-lg p-3 text-ink placeholder:text-ink-dim focus:outline-none focus:border-blue-500 transition-colors mb-4"
+                className="w-full bg-subtle border border-line rounded-lg p-3 text-ink placeholder:text-ink-dim focus:outline-none focus:border-accent transition-colors mb-4"
                 rows={4}
               />
             )}
