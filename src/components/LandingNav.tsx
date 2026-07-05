@@ -316,7 +316,7 @@ export const LandingNav: React.FC = () => {
                     initial={{ scale: 0.4, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: 'spring', stiffness: 520, damping: 16 }}
-                    className="absolute top-0.5 right-0.5 min-w-[14px] h-[14px] px-1 rounded-full bg-rose-500 text-white grid place-items-center text-[9px] font-bold leading-none"
+                    className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-rose-500 text-white grid place-items-center text-[9.5px] font-bold leading-none"
                   >
                     {bellCount > 9 ? '9+' : bellCount}
                   </motion.span>
@@ -327,7 +327,7 @@ export const LandingNav: React.FC = () => {
                   Steam pattern. Clicking the icon toggles the mini
                   preview; the CTA inside navigates to /cart. */}
               <CartDropdown>
-                <span className="icon-chip relative overflow-hidden group hover:bg-subtle transition-colors">
+                <span className="icon-chip relative group hover:bg-subtle transition-colors">
                   <ShoppingBag size={18} strokeWidth={2} className="text-ink-muted group-hover:text-ink transition-colors" />
                   {cartCount > 0 && (
                     <motion.span
@@ -335,7 +335,7 @@ export const LandingNav: React.FC = () => {
                       initial={{ scale: 0.4, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       transition={{ type: 'spring', stiffness: 520, damping: 16 }}
-                      className="absolute top-0.5 right-0.5 min-w-[14px] h-[14px] px-1 rounded-full bg-accent text-on-accent grid place-items-center text-[9px] font-bold leading-none ring-2 ring-bg"
+                      className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-rose-500 text-white grid place-items-center text-[9.5px] font-bold leading-none"
                     >
                       {cartCount > 9 ? '9+' : cartCount}
                     </motion.span>
@@ -792,7 +792,7 @@ const NavIconButton: React.FC<
     whileHover={{ y: -1.5, scale: 1.06 }}
     whileTap={{ scale: 0.92 }}
     transition={{ type: 'spring', stiffness: 460, damping: 20 }}
-    className={`icon-chip relative overflow-hidden group hover:bg-subtle transition-colors ${className}`}
+    className={`icon-chip relative group hover:bg-subtle transition-colors ${className}`}
   >
     <motion.span
       className="inline-flex"

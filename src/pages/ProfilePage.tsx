@@ -212,6 +212,7 @@ const ProfilePage: React.FC = () => {
   const tr = useT();
   const dmThreads = useDMStore((s) => s.threads);
   const notificationUnread = useNotificationStore((s) => s.unreadCount);
+  const markAllNotificationsRead = useNotificationStore((s) => s.markAllAsRead);
 
   /* Count unread DM messages across every thread. Subscribing to
      `threads` (instead of calling `totalUnread()` once) means the badge
@@ -262,6 +263,14 @@ const ProfilePage: React.FC = () => {
     if (remapped.sub) next.sub = remapped.sub;
     setSearchParams(next, { replace: true });
   }, [rawTab]);
+
+  /* Viewing the notifications tab counts as reading them — clears the
+     bell / avatar badges (and syncs read-state to the backend). */
+  useEffect(() => {
+    if (activeTab === 'settings' && activeSub === 'notifications' && notificationUnread > 0) {
+      markAllNotificationsRead();
+    }
+  }, [activeTab, activeSub, notificationUnread, markAllNotificationsRead]);
 
   useEffect(() => {
     if (!user?.steamId) return;

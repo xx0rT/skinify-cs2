@@ -814,25 +814,29 @@ export const SettingsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-ink flex items-center gap-2">
-            <Settings className="w-6 h-6 text-ink-muted" />
-            System Settings
-          </h2>
-          <p className="text-ink-muted text-sm">Configure platform settings and parameters</p>
-        </div>
+    <motion.div
+      initial="hidden"
+      animate="shown"
+      variants={{ hidden: {}, shown: { transition: { staggerChildren: 0.04 } } }}
+      className="space-y-4"
+    >
+      <motion.div
+        variants={{ hidden: { opacity: 0, y: 10 }, shown: { opacity: 1, y: 0 } }}
+        className="flex justify-between items-center gap-3"
+      >
+        <p className="text-[13px] text-ink-muted font-medium">
+          Platform parameters stored in <code className="font-mono">system_settings</code> — edited as JSON.
+        </p>
         <button
           onClick={fetchSettings}
-          className="bg-subtle hover:bg-bg px-4 py-2 rounded-lg text-ink flex items-center gap-2"
+          className="w-10 h-10 rounded-full bg-subtle hover:bg-surface grid place-items-center text-ink-muted hover:text-ink transition-colors shrink-0"
+          aria-label="Refresh"
         >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          Refresh
+          <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
         </button>
-      </div>
+      </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {loading ? (
           <div className="col-span-2 text-center py-12">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
@@ -843,67 +847,90 @@ export const SettingsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
           </div>
         ) : (
           settings.map((setting) => (
-            <div key={setting.id} className="bg-surface rounded-xl border border-line/50 p-6">
-              <div className="flex justify-between items-start mb-2">
-                <h3 className="text-lg font-bold text-ink">{setting.key}</h3>
-                <span className={`px-2 py-1 rounded text-xs font-medium ${
+            <motion.div
+              key={setting.id}
+              variants={{ hidden: { opacity: 0, y: 12 }, shown: { opacity: 1, y: 0 } }}
+              whileHover={{ y: -2 }}
+              className="panel p-5"
+            >
+              <div className="flex justify-between items-start gap-2 mb-1.5">
+                <h3 className="text-[14.5px] font-bold text-ink tracking-tight truncate">
+                  {setting.key}
+                </h3>
+                <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                   setting.category === 'finance' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
                   setting.category === 'security' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' :
                   setting.category === 'system' ? 'bg-accent-soft text-accent' :
-                  'bg-gray-500/20 text-ink-muted'
+                  'bg-subtle text-ink-muted'
                 }`}>
                   {setting.category}
                 </span>
               </div>
-              <p className="text-ink-muted text-sm mb-4">{setting.description}</p>
-              <div className="bg-subtle rounded px-3 py-2 text-ink font-mono text-sm mb-4 overflow-x-auto">
+              <p className="text-[12px] text-ink-muted font-medium mb-3 line-clamp-2">
+                {setting.description}
+              </p>
+              <div className="rounded-xl bg-subtle px-3 py-2.5 text-[12px] text-ink font-mono mb-3 overflow-x-auto whitespace-nowrap">
                 {JSON.stringify(setting.value)}
               </div>
               <button
                 onClick={() => openEditModal(setting)}
-                className="w-full bg-accent hover:bg-accent px-4 py-2 rounded text-ink text-sm transition flex items-center justify-center gap-2"
+                className="w-full h-10 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[12.5px] font-bold transition-colors inline-flex items-center justify-center gap-1.5"
               >
-                <Edit size={16} />
-                Edit Setting
+                <Edit size={13} strokeWidth={2.4} />
+                Edit
               </button>
-            </div>
+            </motion.div>
           ))
         )}
       </div>
 
       {editModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-xl border border-line p-6 max-w-2xl w-full">
-            <h3 className="text-xl font-bold text-ink mb-4">Edit Setting: {editModal.key}</h3>
-            <p className="text-ink-muted text-sm mb-4">{editModal.description}</p>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setEditModal(null)}
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 24, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ type: 'spring', stiffness: 340, damping: 30 }}
+            onClick={(e) => e.stopPropagation()}
+            className="panel p-6 max-w-2xl w-full"
+          >
+            <span className="label-eyebrow">System setting</span>
+            <h3 className="text-[19px] font-bold text-ink tracking-tight mt-1 leading-none mb-2 font-mono">
+              {editModal.key}
+            </h3>
+            <p className="text-[12.5px] text-ink-muted font-medium mb-4">{editModal.description}</p>
 
             <div className="mb-4">
-              <label className="block text-ink-muted mb-2">Value (JSON format)</label>
+              <label className="label-meta block mb-1.5">Value (JSON)</label>
               <textarea
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
-                className="w-full bg-subtle border border-line rounded-lg px-4 py-2 text-ink font-mono focus:outline-none focus:border-accent"
-                rows={6}
+                className="w-full bg-subtle rounded-xl px-4 py-3 text-[13px] text-ink font-mono outline-none focus:ring-2 focus:ring-accent/40 transition-shadow resize-y"
+                rows={7}
               />
-              <p className="text-ink-dim text-xs mt-2">Make sure to use valid JSON format</p>
+              <p className="text-ink-dim text-[11px] font-medium mt-1.5">Must be valid JSON.</p>
             </div>
 
-            <div className="flex justify-end space-x-3">
+            <div className="flex justify-end gap-2">
               <button
                 onClick={() => setEditModal(null)}
-                className="px-4 py-2 bg-subtle hover:bg-bg text-ink rounded-lg transition"
+                className="h-11 px-5 rounded-full bg-subtle hover:bg-bg text-ink text-[13px] font-bold transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
-                className="px-4 py-2 bg-accent hover:bg-accent text-ink rounded-lg transition"
+                className="h-11 px-5 rounded-full bg-accent hover:opacity-90 text-on-accent text-[13px] font-bold transition-opacity"
               >
-                Save Changes
+                Save changes
               </button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
     </motion.div>
   );
@@ -1198,6 +1225,55 @@ export const DeveloperTab: React.FC<{ addToast: any }> = ({ addToast }) => {
           </div>
         </motion.section>
       </div>
+
+      {/* Environment / build report */}
+      <motion.section
+        variants={{ hidden: { opacity: 0, y: 12 }, shown: { opacity: 1, y: 0 } }}
+        className="panel p-6"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <span className="label-eyebrow">Environment</span>
+            <h3 className="text-[16px] font-bold tracking-tight mt-1 leading-none">
+              Build & runtime
+            </h3>
+          </div>
+          <button
+            onClick={() => {
+              const report = [
+                `mode: ${import.meta.env.MODE}`,
+                `supabase: ${String(import.meta.env.VITE_SUPABASE_URL || '').replace(/^https?:\/\//, '')}`,
+                `ua: ${navigator.userAgent}`,
+                `viewport: ${window.innerWidth}x${window.innerHeight} @${window.devicePixelRatio}x`,
+                `language: ${navigator.language}`,
+                `online: ${navigator.onLine}`,
+                `time: ${new Date().toISOString()}`,
+              ].join('\n');
+              navigator.clipboard
+                .writeText(report)
+                .then(() => addToast({ type: 'success', title: 'Report copied' }))
+                .catch(() => addToast({ type: 'error', title: 'Copy failed' }));
+            }}
+            className="h-9 px-4 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[12px] font-bold transition-colors"
+          >
+            Copy report
+          </button>
+        </div>
+        <div>
+          {[
+            ['Mode', import.meta.env.MODE],
+            ['Supabase host', String(import.meta.env.VITE_SUPABASE_URL || '—').replace(/^https?:\/\//, '')],
+            ['Viewport', `${window.innerWidth} × ${window.innerHeight} @ ${window.devicePixelRatio}x`],
+            ['Language', navigator.language],
+            ['Online', navigator.onLine ? 'Yes' : 'No'],
+          ].map(([k, v]) => (
+            <div key={String(k)} className="kv-row">
+              <span className="kv-label">{k}</span>
+              <span className="kv-value font-mono truncate">{String(v)}</span>
+            </div>
+          ))}
+        </div>
+      </motion.section>
     </motion.div>
   );
 };
@@ -1430,6 +1506,7 @@ export const MonitoringTab: React.FC<{ addToast: any }> = ({ addToast }) => {
   const [activeListings, setActiveListings] = useState(0);
   const [probes, setProbes] = useState<{ t: string; db: number; fn: number }[]>([]);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [liveFeed, setLiveFeed] = useState<any[]>([]);
 
   const fetchMonitoringData = async () => {
     if (!supabase) return;
@@ -1454,7 +1531,7 @@ export const MonitoringTab: React.FC<{ addToast: any }> = ({ addToast }) => {
         fnMs = -1;
       }
 
-      const [txData, ticketsData, withdrawalsData, listingsData] = await Promise.all([
+      const [txData, ticketsData, withdrawalsData, listingsData, feedData] = await Promise.all([
         supabase
           .from('user_transactions')
           .select('*', { count: 'exact', head: true })
@@ -1472,8 +1549,14 @@ export const MonitoringTab: React.FC<{ addToast: any }> = ({ addToast }) => {
           .from('marketplace_listings')
           .select('*', { count: 'exact', head: true })
           .eq('status', 'active'),
+        supabase
+          .from('user_transactions')
+          .select('id, type, status, amount, created_at')
+          .order('created_at', { ascending: false })
+          .limit(8),
       ]);
 
+      setLiveFeed(feedData.data || []);
       setActiveUsers(usersData.count || 0);
       setTxPerMin(Number(((txData.count || 0) / 5).toFixed(1)));
       setOpenTickets(ticketsData.count || 0);
@@ -1502,6 +1585,8 @@ export const MonitoringTab: React.FC<{ addToast: any }> = ({ addToast }) => {
   }, []);
 
   const latest = probes[probes.length - 1];
+  const okProbes = probes.filter((pr) => pr.db < 1500 && pr.fn >= 0 && pr.fn < 2500).length;
+  const uptimePct = probes.length > 0 ? Math.round((okProbes / probes.length) * 100) : 100;
   const dbHealthy = latest ? latest.db < 1500 : true;
   const fnHealthy = latest ? latest.fn >= 0 && latest.fn < 2500 : true;
   const maxProbe = Math.max(60, ...probes.flatMap((pr) => [pr.db, Math.max(0, pr.fn)]));
@@ -1534,7 +1619,10 @@ export const MonitoringTab: React.FC<{ addToast: any }> = ({ addToast }) => {
             </h3>
           </div>
           <span className="text-[11px] text-ink-dim font-medium tabular-nums">
-            {lastRefresh ? `Updated ${lastRefresh.toLocaleTimeString()}` : 'Loading…'} · every 10s
+            {lastRefresh ? `Updated ${lastRefresh.toLocaleTimeString()}` : 'Loading…'} · every 10s ·{' '}
+            <span className={uptimePct >= 99 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-amber-600 dark:text-amber-400 font-bold'}>
+              {uptimePct}% uptime
+            </span>
           </span>
         </div>
         <div className="grid sm:grid-cols-2 gap-3">
@@ -1604,6 +1692,56 @@ export const MonitoringTab: React.FC<{ addToast: any }> = ({ addToast }) => {
           </motion.div>
         ))}
       </div>
+
+      {/* Live transaction feed */}
+      <motion.section
+        variants={{ hidden: { opacity: 0, y: 14 }, shown: { opacity: 1, y: 0 } }}
+        className="panel p-6"
+      >
+        <span className="label-eyebrow">Live feed</span>
+        <h3 className="text-[16px] font-bold tracking-tight mt-1 leading-none mb-4">
+          Latest transactions
+        </h3>
+        {liveFeed.length === 0 ? (
+          <p className="text-[13px] text-ink-muted font-medium py-6 text-center">
+            No transactions yet.
+          </p>
+        ) : (
+          <div className="space-y-0.5">
+            {liveFeed.map((tx, i) => (
+              <motion.div
+                key={tx.id}
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 30, delay: Math.min(i * 0.04, 0.3) }}
+                className="flex items-center gap-3 py-2"
+              >
+                <span
+                  className={`w-2 h-2 rounded-full shrink-0 ${
+                    tx.status === 'completed'
+                      ? 'bg-emerald-500'
+                      : tx.status === 'pending'
+                      ? 'bg-amber-500'
+                      : 'bg-rose-500'
+                  }`}
+                />
+                <span className="text-[12.5px] font-bold text-ink capitalize w-24 shrink-0">
+                  {tx.type}
+                </span>
+                <span className="text-[12.5px] font-bold text-ink tabular-nums shrink-0">
+                  {Number(tx.amount || 0).toLocaleString()} Kč
+                </span>
+                <span className="flex-1 text-[11.5px] text-ink-muted font-medium capitalize truncate">
+                  {String(tx.status || '').replace('_', ' ')}
+                </span>
+                <span className="text-[11px] text-ink-dim font-medium tabular-nums shrink-0">
+                  {new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </motion.section>
     </motion.div>
   );
 };

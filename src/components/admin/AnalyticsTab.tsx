@@ -76,6 +76,8 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
     activeListings: 0,
   });
   const [typeSlices, setTypeSlices] = useState<TypeSlice[]>([]);
+  const [topListings, setTopListings] = useState<any[]>([]);
+  const [revStats, setRevStats] = useState({ completed: 0, failedOrPending: 0, aov: 0 });
 
   const accent = useMemo(() => themeColor('--accent', '#8b49f2'), []);
   const inkDim = useMemo(() => themeColor('--ink-dim', '#828094'), []);
@@ -90,7 +92,7 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
       start.setDate(start.getDate() - nDays);
       const startIso = start.toISOString();
 
-      const [usersCount, listingsCount, newUsersRes, txRes] = await Promise.all([
+      const [usersCount, listingsCount, newUsersRes, txRes, topRes] = await Promise.all([
         supabase.from('users').select('*', { count: 'exact', head: true }),
         supabase
           .from('marketplace_listings')
@@ -106,6 +108,12 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
           .select('created_at, amount, type, status')
           .gte('created_at', startIso)
           .order('created_at', { ascending: true }),
+        supabase
+          .from('marketplace_listings')
+          .select('item_name, price, views, image_url')
+          .eq('status', 'active')
+          .order('views', { ascending: false })
+          .limit(5),
       ]);
 
       const newUsers = newUsersRes.data || [];
@@ -151,6 +159,21 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
         types.set(label, (types.get(label) || 0) + 1);
       }
 
+      let completed = 0;
+      let revenueTxCount = 0;
+      for (const tx of txs) {
+        if (tx.status === 'completed') {
+          completed += 1;
+          if (tx.type === 'deposit' || tx.type === 'purchase') revenueTxCount += 1;
+        }
+      }
+      setRevStats({
+        completed,
+        failedOrPending: txs.length - completed,
+        aov: revenueTxCount > 0 ? revenue / revenueTxCount : 0,
+      });
+      setTopListings(topRes.data || []);
+
       setDays(Array.from(buckets.values()));
       setTypeSlices(
         Array.from(types.entries())
@@ -176,11 +199,17 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
     fetchAnalytics();
   }, [range]);
 
+  const completionRate =
+    totals.transactions > 0
+      ? Math.round((revStats.completed / totals.transactions) * 100)
+      : 100;
   const kpis = [
     { Icon: Users, label: 'Total users', value: totals.users.toLocaleString(), sub: `+${totals.newUsers} in range` },
     { Icon: DollarSign, label: 'Revenue', value: `${Math.round(totals.revenue).toLocaleString()} Kč`, sub: 'Completed deposits + purchases' },
     { Icon: Activity, label: 'Transactions', value: totals.transactions.toLocaleString(), sub: `Last ${RANGE_DAYS[range]} days` },
     { Icon: Package, label: 'Active listings', value: totals.activeListings.toLocaleString(), sub: 'Live right now' },
+    { Icon: TrendingUp, label: 'Avg order value', value: `${Math.round(revStats.aov).toLocaleString()} Kč`, sub: 'Per completed payment' },
+    { Icon: Activity, label: 'Completion rate', value: `${completionRate}%`, sub: `${revStats.failedOrPending} pending/failed` },
   ];
 
   const tooltipStyle = {
@@ -247,7 +276,7 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
       </motion.div>
 
       {/* KPI row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         {kpis.map(({ Icon, label, value, sub }) => (
           <motion.div key={label} variants={child} whileHover={{ y: -2 }} className="panel p-5">
             <Icon size={17} strokeWidth={2.2} className="text-accent mb-3" />
@@ -407,6 +436,47 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
           )}
         </motion.section>
       </div>
+      {/* Top listings by views */}
+      {topListings.length > 0 && (
+        <motion.section variants={child} className="panel p-6">
+          <span className="label-eyebrow">Attention</span>
+          <h3 className="text-[16px] font-bold tracking-tight mt-1 leading-none mb-4">
+            Most viewed listings
+          </h3>
+          <div className="space-y-1">
+            {topListings.map((l, i) => (
+              <motion.div
+                key={`${l.item_name}-${i}`}
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ ...spring, delay: i * 0.05 }}
+                className="flex items-center gap-3 py-2"
+              >
+                <span className="w-7 h-7 rounded-xl bg-accent-soft text-accent grid place-items-center text-[12px] font-bold shrink-0">
+                  {i + 1}
+                </span>
+                {l.image_url && (
+                  <img
+                    src={l.image_url}
+                    alt=""
+                    className="w-9 h-9 object-contain shrink-0"
+                    loading="lazy"
+                  />
+                )}
+                <span className="flex-1 text-[13.5px] font-bold text-ink truncate tracking-tight">
+                  {l.item_name}
+                </span>
+                <span className="text-[12.5px] font-bold text-ink tabular-nums shrink-0">
+                  {Number(l.price).toLocaleString()} Kč
+                </span>
+                <span className="text-[11.5px] text-ink-dim font-medium tabular-nums shrink-0 w-16 text-right">
+                  {Number(l.views || 0).toLocaleString()} views
+                </span>
+              </motion.div>
+            ))}
+          </div>
+        </motion.section>
+      )}
     </motion.div>
   );
 };

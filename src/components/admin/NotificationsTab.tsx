@@ -20,6 +20,7 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [search, setSearch] = useState('');
   const [editingNotification, setEditingNotification] = useState<Notification | null>(null);
   const [formData, setFormData] = useState({
     title: '',
@@ -170,9 +171,15 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="flex justify-between items-center gap-3">
-        <p className="text-[13px] text-ink-muted font-medium">
-          System-wide announcements shown to users on the site.
-        </p>
+        <div className="flex-1 flex items-center gap-2.5 h-10 px-4 rounded-full bg-subtle max-w-[360px] focus-within:ring-2 focus-within:ring-accent/40 transition-shadow">
+          <Bell size={13} strokeWidth={2.2} className="text-ink-muted shrink-0" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search notifications…"
+            className="flex-1 bg-transparent outline-none text-[13px] font-medium text-ink placeholder:text-ink-dim min-w-0"
+          />
+        </div>
         <div className="flex gap-2 shrink-0">
           <button
             onClick={fetchNotifications}
@@ -217,7 +224,14 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
               No notifications yet. Create your first one!
             </div>
           ) : (
-            notifications.map((notification) => (
+            notifications
+              .filter(
+                (n) =>
+                  !search.trim() ||
+                  n.title.toLowerCase().includes(search.toLowerCase()) ||
+                  n.message.toLowerCase().includes(search.toLowerCase()),
+              )
+              .map((notification) => (
               <motion.div
                 key={notification.id}
                 initial={{ opacity: 0, y: 10 }}
@@ -284,7 +298,7 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
                   </div>
                 </div>
               </motion.div>
-            ))
+              ))
           )}
         </div>
       </div>
@@ -415,6 +429,47 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
                 />
                 <label className="text-ink-muted">Active</label>
               </div>
+              {/* Live preview — exactly how users will see the banner */}
+              {(formData.title || formData.message) && (
+                <div>
+                  <label className="label-meta block mb-1.5">Preview</label>
+                  <motion.div
+                    layout
+                    className={`rounded-2xl p-4 flex items-start gap-3 ${
+                      formData.type === 'error'
+                        ? 'bg-rose-500/10'
+                        : formData.type === 'warning'
+                        ? 'bg-amber-500/10'
+                        : formData.type === 'success'
+                        ? 'bg-emerald-500/10'
+                        : 'bg-accent-soft'
+                    }`}
+                  >
+                    <Bell
+                      size={16}
+                      strokeWidth={2.2}
+                      className={`mt-0.5 shrink-0 ${
+                        formData.type === 'error'
+                          ? 'text-rose-600 dark:text-rose-400'
+                          : formData.type === 'warning'
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : formData.type === 'success'
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-accent'
+                      }`}
+                    />
+                    <div className="min-w-0">
+                      <div className="text-[13.5px] font-bold text-ink tracking-tight">
+                        {formData.title || 'Notification title'}
+                      </div>
+                      <div className="text-[12.5px] text-ink-muted font-medium mt-0.5 whitespace-pre-wrap">
+                        {formData.message || 'Message body…'}
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+
               <div className="flex justify-end space-x-3 pt-4">
                 <button
                   type="button"

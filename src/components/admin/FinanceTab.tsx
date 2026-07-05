@@ -190,6 +190,32 @@ const FinanceTab: React.FC<FinanceTabProps> = ({ addToast }) => {
 
   const netProfit = stats.totalRevenue - stats.totalWithdrawals;
 
+  /* CSV export of exactly what's on screen (post search/filter). */
+  const exportCsv = () => {
+    const rows = [
+      ['id', 'user', 'type', 'status', 'amount_czk', 'created_at'],
+      ...filteredTransactions.map((tx) => [
+        tx.id,
+        tx.users?.display_name || '',
+        tx.type,
+        tx.status,
+        String(tx.amount),
+        tx.created_at,
+      ]),
+    ];
+    const csv = rows
+      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `skinify-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    addToast({ type: 'success', title: 'Exported', message: `${filteredTransactions.length} rows` });
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -197,51 +223,53 @@ const FinanceTab: React.FC<FinanceTabProps> = ({ addToast }) => {
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6"
     >
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-ink">Transactions & Finance</h2>
-          <p className="text-ink-muted text-sm">Monitor and manage all financial transactions</p>
-        </div>
-        <div className="flex gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[13px] text-ink-muted font-medium">
+          Monitor and manage all financial transactions.
+        </p>
+        <div className="flex gap-2 shrink-0">
           <button
             onClick={fetchTransactions}
             disabled={loading}
-            className="bg-subtle hover:bg-bg px-4 py-2 rounded-lg text-ink transition-all flex items-center gap-2"
+            className="w-10 h-10 rounded-full bg-subtle hover:bg-surface grid place-items-center text-ink-muted hover:text-ink transition-colors"
+            aria-label="Refresh"
           >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            Refresh
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button className="bg-accent hover:opacity-90 text-on-accent px-4 py-2 rounded-lg text-ink transition-all flex items-center gap-2">
-            <Download size={16} />
-            Export
+          <button
+            onClick={exportCsv}
+            className="h-10 px-4 rounded-full bg-accent hover:opacity-90 text-on-accent text-[13px] font-bold inline-flex items-center gap-1.5 transition-opacity"
+          >
+            <Download size={14} strokeWidth={2.4} />
+            Export CSV
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-surface rounded-xl p-6 border border-line shadow-lg">
-          <DollarSign className="w-8 h-8 text-accent mb-3" />
-          <div className="text-2xl font-bold text-ink mb-1">{stats.totalRevenue.toLocaleString('cs-CZ')} Kč</div>
-          <div className="text-accent text-sm">Total Revenue</div>
-        </div>
-        <div className="bg-surface rounded-xl p-6 border border-line shadow-lg">
-          <TrendingDown className="w-8 h-8 text-accent mb-3" />
-          <div className="text-2xl font-bold text-ink mb-1">{stats.totalWithdrawals.toLocaleString('cs-CZ')} Kč</div>
-          <div className="text-accent text-sm">Total Withdrawals</div>
-        </div>
-        <div className="bg-surface rounded-xl p-6 border border-line shadow-lg">
-          <TrendingUp className="w-8 h-8 text-accent mb-3" />
-          <div className="text-2xl font-bold text-ink mb-1">{netProfit.toLocaleString('cs-CZ')} Kč</div>
-          <div className="text-accent text-sm">Net Profit</div>
-        </div>
-        <div className="bg-surface rounded-xl p-6 border border-line shadow-lg">
-          <RefreshCw className="w-8 h-8 text-accent mb-3" />
-          <div className="text-2xl font-bold text-ink mb-1">{stats.pendingCount}</div>
-          <div className="text-accent text-sm">Pending Transactions</div>
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { Icon: DollarSign, value: `${stats.totalRevenue.toLocaleString('cs-CZ')} Kč`, label: 'Total revenue', sub: 'Completed deposits + purchases' },
+          { Icon: TrendingDown, value: `${stats.totalWithdrawals.toLocaleString('cs-CZ')} Kč`, label: 'Withdrawals', sub: 'Completed payouts' },
+          { Icon: TrendingUp, value: `${netProfit.toLocaleString('cs-CZ')} Kč`, label: 'Net flow', sub: 'Revenue − withdrawals' },
+          { Icon: RefreshCw, value: String(stats.pendingCount), label: 'Pending', sub: `${stats.completedToday} completed today` },
+        ].map(({ Icon, value, label, sub }, i) => (
+          <motion.div
+            key={label}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 30, delay: i * 0.05 }}
+            whileHover={{ y: -2 }}
+            className="panel p-5"
+          >
+            <Icon size={17} strokeWidth={2.2} className="text-accent mb-3" />
+            <div className="text-[20px] font-bold tracking-tight tabular-nums text-ink leading-none">{value}</div>
+            <div className="label-meta mt-2">{label}</div>
+            <div className="text-[11px] text-ink-dim font-medium mt-1">{sub}</div>
+          </motion.div>
+        ))}
       </div>
 
-      <div className="bg-surface rounded-xl border border-line/50 p-6">
+      <div className="panel p-6">
         <div className="flex gap-4 mb-6">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-ink-muted w-4 h-4" />
