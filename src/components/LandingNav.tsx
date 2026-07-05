@@ -192,16 +192,27 @@ export const LandingNav: React.FC = () => {
             on a light background, so on light theme we cut the alpha
             in half and let the strip be a soft purple halo rather than
             a glaring bloom. */}
+        {/* Soft accent under-glow — toned down (roughly half the old
+            alpha) so it reads as a subtle tint, not a bloom. */}
         <div
           aria-hidden
-          className="absolute left-0 right-0 top-full h-10 pointer-events-none transition-opacity duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          className="absolute left-0 right-0 top-full h-8 pointer-events-none transition-opacity duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
           style={{
             opacity: scrolled ? 0 : 1,
             background:
               resolvedMode === 'dark'
-                ? 'radial-gradient(120% 100% at 50% 0%, rgb(var(--accent) / 0.32) 0%, rgb(var(--accent) / 0.10) 35%, transparent 70%)'
-                : 'radial-gradient(120% 100% at 50% 0%, rgb(var(--accent) / 0.14) 0%, rgb(var(--accent) / 0.05) 35%, transparent 70%)',
+                ? 'radial-gradient(120% 100% at 50% 0%, rgb(var(--accent) / 0.16) 0%, rgb(var(--accent) / 0.05) 35%, transparent 70%)'
+                : 'radial-gradient(120% 100% at 50% 0%, rgb(var(--accent) / 0.07) 0%, rgb(var(--accent) / 0.025) 35%, transparent 70%)',
             mixBlendMode: 'plus-lighter',
+          }}
+        />
+        {/* Crisp accent bottom line — uses the user's picked accent. */}
+        <div
+          aria-hidden
+          className="absolute left-0 right-0 top-full h-[2px] pointer-events-none transition-opacity duration-300"
+          style={{
+            opacity: scrolled ? 0 : 1,
+            background: 'rgb(var(--accent))',
           }}
         />
         <div

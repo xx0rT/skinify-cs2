@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -896,44 +897,49 @@ const AttachmentBubble: React.FC<{ attachment: DMAttachment }> = ({ attachment }
         <img src={attachment.url} alt={attachment.name} className="w-full max-h-60 object-cover" />
       </button>
 
-      {/* In-app lightbox — dimmed backdrop, spring-scaled image, click
-          anywhere or Esc/X to close. No new tab. */}
-      <AnimatePresence>
-        {lightbox && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
-            className="fixed inset-0 z-[95] bg-black/80 backdrop-blur-sm grid place-items-center p-4 sm:p-10 cursor-zoom-out"
-            onClick={() => setLightbox(false)}
-            role="dialog"
-            aria-modal="true"
-          >
-            <motion.img
-              initial={{ scale: 0.86, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.92, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-              src={attachment.url}
-              alt={attachment.name}
-              className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            />
-            <button
-              type="button"
+      {/* In-app lightbox — rendered through a PORTAL to <body> so it
+          escapes the chat's fixed/overflow stacking context (otherwise
+          it renders "below" the app on mobile). Dimmed backdrop,
+          spring-scaled image, click anywhere / Esc / X to close. */}
+      {createPortal(
+        <AnimatePresence>
+          {lightbox && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm grid place-items-center p-4 sm:p-10 cursor-zoom-out"
               onClick={() => setLightbox(false)}
-              className="absolute top-4 right-4 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white grid place-items-center transition-colors"
-              aria-label="Close"
+              role="dialog"
+              aria-modal="true"
             >
-              <XIcon size={18} strokeWidth={2.4} />
-            </button>
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[12px] text-white/80 font-medium truncate max-w-[80vw]">
-              {attachment.name}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <motion.img
+                initial={{ scale: 0.86, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.92, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+                src={attachment.url}
+                alt={attachment.name}
+                className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              />
+              <button
+                type="button"
+                onClick={() => setLightbox(false)}
+                className="absolute top-4 right-4 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white grid place-items-center transition-colors"
+                aria-label="Close"
+              >
+                <XIcon size={18} strokeWidth={2.4} />
+              </button>
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[12px] text-white/80 font-medium truncate max-w-[80vw]">
+                {attachment.name}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
     </>
   );
 };

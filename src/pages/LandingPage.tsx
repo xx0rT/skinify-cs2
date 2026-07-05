@@ -196,6 +196,46 @@ const LandingPage: React.FC = () => {
   );
 
   const portfolio = useMemo(() => Number(balance || 0), [balance]);
+
+  /* Real-data sparkline for the hero card. We don't have per-day price
+     history client-side, so we build a genuine cumulative-volume curve
+     from the actual live listings: sort by price, walk the cumulative
+     total, and sample it into 12 points. The shape therefore reflects
+     the real market's price distribution rather than a hardcoded line.
+     The pathLength draw animation still plays over the top. */
+  const sparkPaths = useMemo(() => {
+    const live = Array.isArray(marketplaceItems) ? marketplaceItems : [];
+    const prices = live
+      .map((it: any) => Number(it?.price || 0))
+      .filter((p) => p > 0)
+      .sort((a, b) => a - b);
+    const N = 12;
+    let ys: number[];
+    if (prices.length >= 2) {
+      const total = prices.reduce((s, p) => s + p, 0) || 1;
+      let cum = 0;
+      const cumPts: number[] = prices.map((p) => {
+        cum += p;
+        return cum / total; // 0..1 rising curve
+      });
+      /* Resample the cumulative curve into N evenly-spaced points. */
+      ys = Array.from({ length: N }, (_, i) => {
+        const idx = Math.min(cumPts.length - 1, Math.round((i / (N - 1)) * (cumPts.length - 1)));
+        return cumPts[idx];
+      });
+    } else {
+      ys = [0.1, 0.18, 0.3, 0.28, 0.45, 0.5, 0.62, 0.6, 0.72, 0.8, 0.86, 0.95];
+    }
+    /* Map 0..1 (bottom→top) into the 0..60 viewBox (inverted Y). */
+    const coords = ys.map((v, i) => {
+      const x = (i / (N - 1)) * 200;
+      const y = 54 - v * 46; // keep 6px top/bottom padding
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+    const line = 'M' + coords.join(' L');
+    const area = `${line} L200,60 L0,60 Z`;
+    return { line, area };
+  }, [marketplaceItems]);
   const promotedItems = useMemo(() => {
     const live = Array.isArray(marketplaceItems) ? marketplaceItems : [];
     if (live.length === 0) return [] as any[];
@@ -208,7 +248,7 @@ const LandingPage: React.FC = () => {
     <div className="min-h-screen bg-bg text-ink">
       <LandingNav />
 
-      <main className="max-w-[1480px] mx-auto px-4 sm:px-6 pt-3 pb-12 sm:pb-16">
+      <main className="max-w-[1480px] mx-auto px-4 sm:px-6 pt-6 sm:pt-10 pb-12 sm:pb-16">
         {/*
           Screen-reader-only H1 — Google reads this and uses it as the
           page's primary heading. The visual hero uses display headings
@@ -231,14 +271,9 @@ const LandingPage: React.FC = () => {
         )}
 
         {/* ===== HERO ===== */}
-        <section className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-3 mb-3">
-          <PromotedShowcase
-            promoted={(marketplaceItems || []).slice(0, 6)}
-            formatPrice={formatPrice}
-            onView={(id) => navigate(`/item/${id}`)}
-          />
-
-  
+        {/* Left showcase (raw skins above the fold) removed per design —
+            the hero is now the single stats/volume card, full width. */}
+        <section className="mb-3">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -259,10 +294,11 @@ const LandingPage: React.FC = () => {
                   </linearGradient>
                 </defs>
                 <motion.path
+                  key={sparkPaths.line}
                   initial={{ pathLength: 0 }}
                   animate={{ pathLength: 1 }}
                   transition={{ duration: 1.6, ease: 'easeOut', delay: 0.4 }}
-                  d="M0,40 L20,38 L40,30 L60,33 L80,22 L100,25 L120,18 L140,20 L160,10 L180,14 L200,8"
+                  d={sparkPaths.line}
                   fill="none"
                   stroke="rgb(var(--accent))"
                   strokeWidth="2"
@@ -270,10 +306,11 @@ const LandingPage: React.FC = () => {
                   strokeLinejoin="round"
                 />
                 <motion.path
+                  key={sparkPaths.area}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.6, delay: 1.6 }}
-                  d="M0,40 L20,38 L40,30 L60,33 L80,22 L100,25 L120,18 L140,20 L160,10 L180,14 L200,8 L200,60 L0,60 Z"
+                  d={sparkPaths.area}
                   fill="url(#spark-fill)"
                 />
               </svg>
@@ -1092,6 +1129,7 @@ const PromotedWall: React.FC<{
   isWished: (id: string) => boolean;
   formatPrice: (n: number) => string;
 }> = ({ items, onView, onAddCart, onToggleWish, isWished, formatPrice }) => {
+  const t = useT();
   const [visibleCount, setVisibleCount] = useState(PROMOTED_BATCH);
   /* Filter state — drives the chip row. Categories map to a coarse
      classification on item.type / rarity / special so the user can
@@ -1176,56 +1214,12 @@ const PromotedWall: React.FC<{
           className="text-[20px] sm:text-[22px] font-bold text-ink tracking-tight leading-none"
           style={{ fontFamily: '"Lexend", system-ui, sans-serif' }}
         >
-          Promoted listings
+          {t('landing.promoted.title', 'Aktuálně populární')}
         </h2>
         <span className="text-[12px] text-ink-muted font-medium tabular-nums">
           {Math.min(filteredItems.length, visibleCount)} / {filteredItems.length}
         </span>
       </header>
-
-      {/* Filter chips — animated layoutId pill backs the active one
-          so it smoothly slides between selections. */}
-      <motion.div
-        initial={{ opacity: 0, y: 4 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ ...spring, delay: 0.05 }}
-        className="mb-4 flex items-center gap-1 overflow-x-auto scrollbar-hide px-1"
-      >
-        {(
-          [
-            ['all', 'All'],
-            ['rifles', 'Rifles'],
-            ['pistols', 'Pistols'],
-            ['knives', 'Knives'],
-            ['gloves', 'Gloves'],
-            ['covert', 'Covert'],
-            ['stattrak', 'StatTrak'],
-          ] as const
-        ).map(([k, label]) => {
-          const active = filter === k;
-          return (
-            <motion.button
-              type="button"
-              key={k}
-              whileTap={tap}
-              onClick={() => setFilter(k)}
-              className={`relative h-8 px-3 rounded-full text-[12px] font-bold whitespace-nowrap transition-colors ${
-                active ? 'text-on-accent' : 'text-ink-muted hover:text-ink'
-              }`}
-            >
-              {active && (
-                <motion.span
-                  layoutId="promoted-filter"
-                  className="absolute inset-0 rounded-full bg-accent"
-                  transition={{ ...spring, mass: 0.6 }}
-                />
-              )}
-              <span className="relative">{label}</span>
-            </motion.button>
-          );
-        })}
-      </motion.div>
 
       {/* TOP-5 TRADING-CARD CAROUSEL — the paid promotion slots are
           rendered as oversize trading-cards in a horizontal snap row.

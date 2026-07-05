@@ -172,39 +172,32 @@ const UsersTab: React.FC = () => {
       animate={{ opacity: 1, y: 0 }}
       className="space-y-6"
     >
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-ink">User Management</h2>
-          <p className="text-ink-muted text-sm">Manage all registered users and their accounts</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="panel p-5">
+          <div className="text-[22px] font-bold tracking-tight tabular-nums text-ink leading-none">{users.length}</div>
+          <div className="label-meta mt-2">Total Users</div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-surface rounded-lg p-4 border border-line/50">
-          <div className="text-2xl font-bold text-ink">{users.length}</div>
-          <div className="text-ink-muted text-sm">Total Users</div>
-        </div>
-        <div className="bg-surface rounded-lg p-4 border border-line/50">
-          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+        <div className="panel p-5">
+          <div className="text-[22px] font-bold tracking-tight tabular-nums text-emerald-600 dark:text-emerald-400 leading-none">
             {users.filter(u => u.status === 'active').length}
           </div>
-          <div className="text-ink-muted text-sm">Active Users</div>
+          <div className="label-meta mt-2">Active Users</div>
         </div>
-        <div className="bg-surface rounded-lg p-4 border border-line/50">
-          <div className="text-2xl font-bold text-accent">
+        <div className="panel p-5">
+          <div className="text-[22px] font-bold tracking-tight tabular-nums text-accent leading-none">
             {users.filter(u => u.is_verified).length}
           </div>
-          <div className="text-ink-muted text-sm">Verified Users</div>
+          <div className="label-meta mt-2">Verified Users</div>
         </div>
-        <div className="bg-surface rounded-lg p-4 border border-line/50">
-          <div className="text-2xl font-bold text-rose-600 dark:text-rose-400">
+        <div className="panel p-5">
+          <div className="text-[22px] font-bold tracking-tight tabular-nums text-rose-600 dark:text-rose-400 leading-none">
             {users.filter(u => u.status === 'suspended' || u.status === 'banned').length}
           </div>
-          <div className="text-ink-muted text-sm">Suspended/Banned</div>
+          <div className="label-meta mt-2">Suspended/Banned</div>
         </div>
       </div>
 
-      <div className="bg-surface rounded-xl border border-line/50 p-6">
+      <div className="panel p-6">
         <div className="flex gap-4 mb-6">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-ink-muted w-4 h-4" />

@@ -70,6 +70,7 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
   const [sort, setSort] = useState<Sort>('newest');
   const [editingId, setEditingId] = useState<string | number | null>(null);
   const fetchBalance = useBalanceStore((s) => s.fetchBalance);
+  const balance = useBalanceStore((s) => s.balance);
   /* Promotion confirm modal + optimistic UI sets. Buttons flip state
      the instant they're clicked — no spinners, no delay. */
   const [confirmPromote, setConfirmPromote] = useState<Listing | null>(null);
@@ -225,6 +226,16 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
      state back and explains why. */
   const handlePromote = (l: Listing) => {
     if (l.is_promoted) return;
+    /* Pre-check funds so we never optimistically flip the button (or
+       hit the server) when the user can't actually afford the fee. */
+    if (Number(balance || 0) < PROMOTE_FEE_CZK) {
+      addToast({
+        type: 'warning',
+        title: 'Insufficient balance',
+        message: `You need ${formatFee(PROMOTE_FEE_CZK)} to promote a listing — top up first.`,
+      });
+      return;
+    }
     let skip = false;
     try {
       skip = localStorage.getItem(PROMOTE_SKIP_CONFIRM_KEY) === '1';
@@ -241,6 +252,14 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
 
   const executePromotion = async (l: Listing) => {
     setConfirmPromote(null);
+    if (Number(balance || 0) < PROMOTE_FEE_CZK) {
+      addToast({
+        type: 'warning',
+        title: 'Insufficient balance',
+        message: `You need ${formatFee(PROMOTE_FEE_CZK)} to promote a listing.`,
+      });
+      return;
+    }
     /* Instant UI — promoted state applies the moment the user commits. */
     setListings((prev) =>
       prev.map((x) => (x.id === l.id ? { ...x, is_promoted: true } : x)),

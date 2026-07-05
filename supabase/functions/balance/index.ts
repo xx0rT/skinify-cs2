@@ -338,17 +338,59 @@ Deno.serve(async (req) => {
       }
 
       const user = await getUserBysteamId(supabase, transactionData.steam_id);
+
+      /* Debiting transactions (purchase / withdrawal) MUST verify funds
+         and actually move money off current_balance. Without this a
+         `purchase` was just an insert — you could "spend" with a 0 Kč
+         balance (the item-promotion fee bug). */
+      const isDebit =
+        transactionData.type === 'purchase' || transactionData.type === 'withdrawal';
+      let newBalanceAfterDebit: number | null = null;
+      if (isDebit) {
+        const amount = Number(transactionData.amount || 0);
+        if (!(amount > 0)) {
+          return new Response(
+            JSON.stringify({ error: 'Amount must be greater than zero.' }),
+            { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } },
+          );
+        }
+        const currentBalance = Number(user.current_balance || 0);
+        if (currentBalance < amount) {
+          return new Response(
+            JSON.stringify({
+              error: 'Insufficient balance',
+              current_balance: currentBalance,
+              required: amount,
+            }),
+            { status: 402, headers: { 'Content-Type': 'application/json', ...corsHeaders } },
+          );
+        }
+        newBalanceAfterDebit = currentBalance - amount;
+      }
+
       const transaction = await createBalanceTransaction(supabase, user.id, transactionData);
+
+      /* Persist the debited balance after the transaction row exists so
+         a failed insert never leaves a phantom deduction. */
+      if (isDebit && newBalanceAfterDebit !== null) {
+        const { error: balErr } = await supabase
+          .from('users')
+          .update({ current_balance: newBalanceAfterDebit, updated_at: new Date().toISOString() })
+          .eq('id', user.id);
+        if (balErr) {
+          console.error('Balance debit update failed:', balErr);
+        }
+      }
 
       return new Response(
         JSON.stringify({
           success: true,
           transaction_id: transaction.id,
           reference_id: transaction.reference_id,
-          new_balance: transaction.balance_after,
+          new_balance: newBalanceAfterDebit ?? transaction.balance_after,
           message: 'Transaction completed successfully'
         }),
-        { 
+        {
           headers: { 'Content-Type': 'application/json', ...corsHeaders },
           status: 200
         }

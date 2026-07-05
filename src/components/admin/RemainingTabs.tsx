@@ -50,25 +50,25 @@ export const InventoryTab: React.FC<{ addToast: any }> = ({ addToast }) => {
       </div>
 
       <div className="grid grid-cols-4 gap-4">
-        <div className="bg-surface rounded-lg p-4 border border-line/50">
+        <div className="panel p-5">
           <div className="text-2xl font-bold text-ink">{listings.length}</div>
           <div className="text-ink-muted text-sm">Total Listings</div>
         </div>
-        <div className="bg-surface rounded-lg p-4 border border-line/50">
+        <div className="panel p-5">
           <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{listings.filter(l => l.status === 'active').length}</div>
           <div className="text-ink-muted text-sm">Active</div>
         </div>
-        <div className="bg-surface rounded-lg p-4 border border-line/50">
+        <div className="panel p-5">
           <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{listings.filter(l => l.status === 'pending').length}</div>
           <div className="text-ink-muted text-sm">Pending Review</div>
         </div>
-        <div className="bg-surface rounded-lg p-4 border border-line/50">
+        <div className="panel p-5">
           <div className="text-2xl font-bold text-accent">{listings.filter(l => (l.price || 0) > 50000).length}</div>
           <div className="text-ink-muted text-sm">High Value</div>
         </div>
       </div>
 
-      <div className="bg-surface rounded-xl border border-line/50 p-6">
+      <div className="panel p-6">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -1371,14 +1371,13 @@ export const WithdrawalsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-ink flex items-center gap-2">
-          <Wallet className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
-          Withdrawal requests
-        </h2>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[13px] text-ink-muted font-medium">
+          Review and process pending withdrawal requests.
+        </p>
         <button
           onClick={fetchRequests}
-          className="text-sm text-ink-muted hover:text-ink flex items-center gap-1.5"
+          className="text-[13px] font-bold text-ink-muted hover:text-ink flex items-center gap-1.5"
           disabled={loading}
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -1387,19 +1386,19 @@ export const WithdrawalsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-surface rounded-lg p-4 border border-line/50">
+        <div className="panel p-5">
           <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 tabular-nums">{pending.length}</div>
           <div className="text-ink-muted text-sm">Pending review</div>
         </div>
-        <div className="bg-surface rounded-lg p-4 border border-line/50">
+        <div className="panel p-5">
           <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{approved.length}</div>
           <div className="text-ink-muted text-sm">Approved</div>
         </div>
-        <div className="bg-surface rounded-lg p-4 border border-line/50">
+        <div className="panel p-5">
           <div className="text-2xl font-bold text-rose-600 dark:text-rose-400 tabular-nums">{rejected.length}</div>
           <div className="text-ink-muted text-sm">Rejected</div>
         </div>
-        <div className="bg-surface rounded-lg p-4 border border-line/50">
+        <div className="panel p-5">
           <div className="text-2xl font-bold text-ink tabular-nums">
             {pendingAmount.toLocaleString('cs-CZ')} Kč
           </div>

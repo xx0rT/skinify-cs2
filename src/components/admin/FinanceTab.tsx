@@ -394,7 +394,7 @@ const FinanceTab: React.FC<FinanceTabProps> = ({ addToast }) => {
 
       {selectedTransaction && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedTransaction(null)}>
-          <div className="bg-surface rounded-xl border border-line p-6 max-w-2xl w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="panel p-6 max-w-2xl w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-6">
               <h3 className="text-2xl font-bold bg-surface bg-clip-text text-transparent">
                 Transaction Details
@@ -409,18 +409,18 @@ const FinanceTab: React.FC<FinanceTabProps> = ({ addToast }) => {
 
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-surface rounded-lg p-4 border border-line">
+                <div className="panel p-5">
                   <div className="text-ink-muted text-sm mb-1">Transaction ID</div>
                   <div className="text-ink font-mono text-sm">{String(selectedTransaction.id)}</div>
                 </div>
-                <div className="bg-surface rounded-lg p-4 border border-line">
+                <div className="panel p-5">
                   <div className="text-ink-muted text-sm mb-1">User</div>
                   <div className="text-ink">{selectedTransaction.users?.display_name || 'Unknown'}</div>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-surface rounded-lg p-4 border border-line">
+                <div className="panel p-5">
                   <div className="text-ink-muted text-sm mb-1">Type</div>
                   <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
                     selectedTransaction.type === 'deposit' ? 'bg-accent-soft text-accent' :
@@ -431,7 +431,7 @@ const FinanceTab: React.FC<FinanceTabProps> = ({ addToast }) => {
                     {selectedTransaction.type}
                   </span>
                 </div>
-                <div className="bg-surface rounded-lg p-4 border border-line">
+                <div className="panel p-5">
                   <div className="text-ink-muted text-sm mb-1">Status</div>
                   <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
                     selectedTransaction.status === 'completed' ? 'bg-accent-soft text-accent' :
@@ -444,7 +444,7 @@ const FinanceTab: React.FC<FinanceTabProps> = ({ addToast }) => {
                 </div>
               </div>
 
-              <div className="bg-surface rounded-lg p-4 border border-line">
+              <div className="panel p-5">
                 <div className="text-ink-muted text-sm mb-1">Amount</div>
                 <div className="text-2xl font-bold text-ink">
                   {selectedTransaction.amount.toLocaleString('cs-CZ')} CZK
@@ -459,7 +459,7 @@ const FinanceTab: React.FC<FinanceTabProps> = ({ addToast }) => {
               )}
 
               {selectedTransaction.type === 'withdrawal' && selectedTransaction.withdrawal_details && (
-                <div className="col-span-2 bg-surface rounded-lg p-4 border border-line">
+                <div className="col-span-2 panel p-5">
                   <div className="text-accent text-sm mb-3 font-semibold flex items-center gap-2">
                     <DollarSign size={16} />
                     Payment Details to Send Money
@@ -476,20 +476,20 @@ const FinanceTab: React.FC<FinanceTabProps> = ({ addToast }) => {
               )}
 
               {selectedTransaction.type !== 'withdrawal' && selectedTransaction.payment_method && (
-                <div className="bg-surface rounded-lg p-4 border border-line">
+                <div className="panel p-5">
                   <div className="text-ink-muted text-sm mb-1">Payment Method</div>
                   <div className="text-ink">{selectedTransaction.payment_method}</div>
                 </div>
               )}
 
               {selectedTransaction.users?.email && (
-                <div className="bg-surface rounded-lg p-4 border border-line">
+                <div className="panel p-5">
                   <div className="text-ink-muted text-sm mb-1">User Email</div>
                   <div className="text-ink font-mono text-sm">{selectedTransaction.users.email}</div>
                 </div>
               )}
 
-              <div className="bg-surface rounded-lg p-4 border border-line">
+              <div className="panel p-5">
                 <div className="text-ink-muted text-sm mb-1">Created At</div>
                 <div className="text-ink">{new Date(selectedTransaction.created_at).toLocaleString('cs-CZ')}</div>
               </div>

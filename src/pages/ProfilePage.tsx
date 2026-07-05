@@ -206,7 +206,7 @@ const ProfilePage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { balance, fetchBalance, fetchTransactions } = useBalanceStore();
+  const { balance, transactions, fetchBalance, fetchTransactions } = useBalanceStore();
   const { fetchOrders } = useOrderStore();
   const { formatPrice } = useCurrencyStore();
   const tr = useT();
@@ -455,6 +455,7 @@ const ProfilePage: React.FC = () => {
                     formatPrice={formatPrice}
                     user={user}
                     joinedAt={joinedAt}
+                    transactions={transactions}
                   />
                 )}
 
@@ -617,8 +618,10 @@ const OverviewTab: React.FC<{
     tradeLink?: string;
   };
   joinedAt: string | null;
-}> = ({ balance, onGoTo, formatPrice, user, joinedAt }) => {
+  transactions: any[];
+}> = ({ balance, onGoTo, formatPrice, user, joinedAt, transactions }) => {
   const tr = useT();
+  const recentTx = (transactions || []).slice(0, 6);
 
   return (
     <motion.div
@@ -682,6 +685,101 @@ const OverviewTab: React.FC<{
         >
           Edit
         </motion.button>
+      </motion.div>
+
+      {/* ── Balance + recent transactions ── */}
+      <motion.div variants={overviewChild} className="panel p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="label-meta">{tr('profile.tab.balance', 'Balance')}</div>
+            <div className="text-[26px] font-bold tracking-tight tabular-nums text-ink leading-none mt-1.5">
+              {formatPrice(Number(balance || 0))}
+            </div>
+          </div>
+          <motion.button
+            whileTap={tap}
+            onClick={openDepositModal}
+            className="h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold shrink-0"
+          >
+            {tr('deposit', 'Deposit')}
+          </motion.button>
+        </div>
+
+        {recentTx.length > 0 ? (
+          <>
+            {/* Recent transactions — the list fades out toward the bottom
+                (gradient mask into translucent) to signal "there's more". */}
+            <div className="label-eyebrow mt-6 mb-1">
+              {tr('profile.recentTransactions', 'Recent transactions')}
+            </div>
+            <div
+              className="relative"
+              style={{
+                maskImage:
+                  recentTx.length >= 5
+                    ? 'linear-gradient(to bottom, #000 55%, transparent 100%)'
+                    : undefined,
+                WebkitMaskImage:
+                  recentTx.length >= 5
+                    ? 'linear-gradient(to bottom, #000 55%, transparent 100%)'
+                    : undefined,
+              }}
+            >
+              {recentTx.map((tx: any, i: number) => {
+                const isCredit = tx.type === 'deposit' || tx.type === 'sale' || tx.type === 'refund';
+                return (
+                  <motion.div
+                    key={tx.id || i}
+                    initial={{ opacity: 0, x: 8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ ...spring, delay: Math.min(i * 0.04, 0.24) }}
+                    className="kv-row border-b border-line/50 last:border-0"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                          tx.status === 'completed'
+                            ? 'bg-emerald-500'
+                            : tx.status === 'pending'
+                            ? 'bg-amber-500'
+                            : 'bg-ink-dim'
+                        }`}
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-[13px] font-bold text-ink capitalize truncate">
+                          {tx.type}
+                        </span>
+                        <span className="block text-[11px] text-ink-dim font-medium tabular-nums">
+                          {tx.created_at ? new Date(tx.created_at).toLocaleDateString() : '—'}
+                        </span>
+                      </span>
+                    </div>
+                    <span
+                      className={`kv-value tabular-nums ${
+                        isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink'
+                      }`}
+                    >
+                      {isCredit ? '+' : '−'}
+                      {formatPrice(Math.abs(Number(tx.amount || 0)))}
+                    </span>
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => onGoTo('balance')}
+              className="mt-3 w-full h-10 rounded-full bg-subtle hover:bg-bg text-ink text-[13px] font-bold inline-flex items-center justify-center gap-1.5 transition-colors"
+            >
+              {tr('profile.viewAllTransactions', 'View all transactions')}
+              <ChevronRight size={13} strokeWidth={2.4} />
+            </button>
+          </>
+        ) : (
+          <p className="text-[12.5px] text-ink-muted font-medium mt-4">
+            {tr('profile.noTransactions', 'No transactions yet.')}
+          </p>
+        )}
       </motion.div>
 
       {/* ── Identity verification ── */}
@@ -750,29 +848,6 @@ const OverviewTab: React.FC<{
             className="h-10 px-4 rounded-full bg-subtle hover:bg-bg text-ink text-[13px] font-bold transition-colors"
           >
             {user.tradeLink ? 'Edit' : 'Add'}
-          </motion.button>
-        }
-      />
-
-      <OverviewRow
-        variants={overviewChild}
-        Icon={Wallet}
-        label={tr('profile.tab.balance', 'Balance')}
-        text={
-          <>
-            <span className="text-ink font-bold tabular-nums">
-              {formatPrice(Number(balance || 0))}
-            </span>{' '}
-            available to spend.
-          </>
-        }
-        action={
-          <motion.button
-            whileTap={tap}
-            onClick={openDepositModal}
-            className="h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold"
-          >
-            {tr('deposit', 'Deposit')}
           </motion.button>
         }
       />
