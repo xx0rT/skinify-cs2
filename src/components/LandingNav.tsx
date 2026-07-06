@@ -187,7 +187,7 @@ export const LandingNav: React.FC = () => {
              No bottom hairline in either state (the previous accent
              line was too visible at the very top of the page). */
           background: scrolled
-            ? 'linear-gradient(to bottom, rgb(var(--bg)) 0%, rgb(var(--bg)) 55%, rgb(var(--bg) / 0.92) 75%, rgb(var(--bg) / 0.55) 90%, rgb(var(--bg) / 0) 100%)'
+            ? 'linear-gradient(to bottom, rgb(var(--bg)) 0%, rgb(var(--bg) / 0.97) 45%, rgb(var(--bg) / 0.62) 75%, rgb(var(--bg) / 0.2) 92%, rgb(var(--bg) / 0) 100%)'
             : 'rgb(var(--bg))',
           backdropFilter: 'none',
           WebkitBackdropFilter: 'none',
