@@ -38,12 +38,31 @@ export function getUiScale(): UiScale {
 export function applyUiScale(scale: UiScale): void {
   const root = document.documentElement as HTMLElement;
   const clamped = clamp(scale);
+  const z = clamped / 100;
   root.style.setProperty('transition', 'zoom 160ms ease-out');
   if (clamped === 100) {
     root.style.removeProperty('zoom');
-  } else {
-    root.style.setProperty('zoom', String(clamped / 100));
+    root.style.removeProperty('width');
+    return;
   }
+  root.style.setProperty('zoom', String(z));
+  root.style.removeProperty('width');
+
+  /* Chromium re-derives the layout width under zoom so the page keeps
+     filling the viewport. WebKit (iOS Safari) does not — it lays the
+     page out at the original viewport width and renders it scaled,
+     which leaves a growing gap on the right below 100% (and overflow
+     above it). Measure instead of UA-sniffing: if the zoomed root no
+     longer spans the visual viewport, stretch its layout width by the
+     inverse of the zoom so `layout × zoom = viewport` again. The
+     percentage stays correct across rotations, so no resize listener
+     is needed. */
+  requestAnimationFrame(() => {
+    const rendered = root.getBoundingClientRect().width;
+    if (Math.abs(rendered - window.innerWidth) > 1) {
+      root.style.setProperty('width', `${100 / z}%`);
+    }
+  });
 }
 
 export function setUiScale(scale: UiScale): void {
