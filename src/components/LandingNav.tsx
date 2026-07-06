@@ -83,6 +83,11 @@ export const LandingNav: React.FC = () => {
      state it had on first scroll. */
   const [scrolled, setScrolled] = useState(false);
   const lastYRef = useRef(0);
+  /* Cumulative upward-scroll distance. Revealing the full chrome (and
+     its accent line) requires a deliberate upward scroll — ~140px
+     accumulated — instead of flipping on the first -6px wheel tick,
+     which made the line feel like a strobe. */
+  const upAccumRef = useRef(0);
   const { scrollY } = useScroll();
   useMotionValueEvent(scrollY, 'change', (latest) => {
     const prev = lastYRef.current;
@@ -97,6 +102,7 @@ export const LandingNav: React.FC = () => {
     /* At the top of the page: always full chrome, regardless of
        direction. Bail early so we don't fight the direction logic. */
     if (latest <= 24) {
+      upAccumRef.current = 0;
       setScrolled((prevState) => (prevState ? false : prevState));
       return;
     }
@@ -114,12 +120,17 @@ export const LandingNav: React.FC = () => {
     }
 
     /* Past the threshold, direction decides:
-         scroll DOWN  → gradient (translucent fade)
-         scroll UP    → full chrome */
+         scroll DOWN  → gradient (translucent fade), instantly
+         scroll UP    → full chrome, but only after ~140px of
+                        accumulated upward travel */
     if (delta > 0) {
+      upAccumRef.current = 0;
       setScrolled((prevState) => (prevState ? prevState : true));
     } else {
-      setScrolled((prevState) => (prevState ? false : prevState));
+      upAccumRef.current += -delta;
+      if (upAccumRef.current >= 140) {
+        setScrolled((prevState) => (prevState ? false : prevState));
+      }
     }
   });
 
@@ -206,13 +217,15 @@ export const LandingNav: React.FC = () => {
             mixBlendMode: 'plus-lighter',
           }}
         />
-        {/* Crisp accent bottom line — uses the user's picked accent. */}
+        {/* Accent bottom hairline — 1px like the footer divider, in the
+            user's picked accent, slightly translucent so it reads as a
+            trim rather than a stripe. */}
         <div
           aria-hidden
-          className="absolute left-0 right-0 top-full h-[2px] pointer-events-none transition-opacity duration-300"
+          className="absolute left-0 right-0 top-full h-px pointer-events-none transition-opacity duration-300"
           style={{
             opacity: scrolled ? 0 : 1,
-            background: 'rgb(var(--accent))',
+            background: 'rgb(var(--accent) / 0.55)',
           }}
         />
         <div

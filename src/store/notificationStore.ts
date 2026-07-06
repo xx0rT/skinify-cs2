@@ -27,26 +27,97 @@ interface NotificationState {
   clearAll: () => void;
 }
 
+/* Admin-published global announcements have no per-user rows, so read
+   and dismissed state lives in this browser's localStorage. */
+const GLOBAL_NOTIF_STATE_KEY = 'skinify_global_notif_state';
+
+const readGlobalState = (): { read: string[]; dismissed: string[] } => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(GLOBAL_NOTIF_STATE_KEY) || '{}');
+    return { read: raw.read || [], dismissed: raw.dismissed || [] };
+  } catch {
+    return { read: [], dismissed: [] };
+  }
+};
+
+const writeGlobalState = (patch: Partial<{ read: string[]; dismissed: string[] }>) => {
+  try {
+    localStorage.setItem(
+      GLOBAL_NOTIF_STATE_KEY,
+      JSON.stringify({ ...readGlobalState(), ...patch }),
+    );
+  } catch {
+    /* private mode */
+  }
+};
+
+const isGlobalId = (id: string) => id.startsWith('global-');
+
+/* Active global_notifications, mapped into the store's Notification
+   shape. Anon SELECT is allowed by RLS so this is a plain REST read. */
+const fetchGlobalNotifications = async (): Promise<Notification[]> => {
+  try {
+    const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+    const now = new Date().toISOString();
+    const params =
+      `is_active=eq.true&starts_at=lte.${now}&or=(ends_at.is.null,ends_at.gte.${now})` +
+      `&order=created_at.desc&limit=20`;
+    const res = await fetch(`${supabaseUrl}/rest/v1/global_notifications?${params}`, {
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+    });
+    if (!res.ok) return [];
+    const rows = await res.json();
+    const state = readGlobalState();
+    return (rows || [])
+      .filter((row: any) => !state.dismissed.includes(`global-${row.id}`))
+      .map((row: any) => ({
+        id: `global-${row.id}`,
+        type: (['info', 'success', 'warning', 'error'].includes(row.type) ? row.type : 'info') as Notification['type'],
+        title: row.title,
+        message: row.message,
+        timestamp: row.starts_at || row.created_at,
+        read: state.read.includes(`global-${row.id}`),
+        metadata: {
+          global: true,
+          link_url: row.link_url || undefined,
+          link_label: row.link_label || undefined,
+        },
+      }));
+  } catch {
+    return [];
+  }
+};
+
 export const useNotificationStore = create<NotificationState>((set, get) => ({
   notifications: [],
   unreadCount: 0,
-  
+
   fetchNotifications: async (steamId: string) => {
     try {
       const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
-      
-      const response = await fetch(`${supabaseUrl}/functions/v1/notifications?steam_id=${steamId}`, {
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-        }
-      });
-      
+
+      const [response, globalNotifs] = await Promise.all([
+        fetch(`${supabaseUrl}/functions/v1/notifications?steam_id=${steamId}`, {
+          headers: {
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json',
+          }
+        }),
+        fetchGlobalNotifications(),
+      ]);
+
       if (response.ok) {
         const data = await response.json();
+        const personal: Notification[] = data.notifications || [];
+        const merged = [...globalNotifs, ...personal];
         set({
-          notifications: data.notifications || [],
-          unreadCount: data.unread_count || 0
+          notifications: merged,
+          unreadCount: (data.unread_count || 0) + globalNotifs.filter((n) => !n.read).length
+        });
+      } else {
+        set({
+          notifications: globalNotifs,
+          unreadCount: globalNotifs.filter((n) => !n.read).length
         });
       }
     } catch (error) {
@@ -68,14 +139,22 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     };
   }),
   
-  markAsRead: (notificationId) => set((state) => ({
-    notifications: state.notifications.map(notification =>
-      notification.id === notificationId 
-        ? { ...notification, read: true }
-        : notification
-    ),
-    unreadCount: Math.max(0, state.unreadCount - 1)
-  })),
+  markAsRead: (notificationId) => set((state) => {
+    if (isGlobalId(notificationId)) {
+      const gs = readGlobalState();
+      if (!gs.read.includes(notificationId)) {
+        writeGlobalState({ read: [...gs.read, notificationId] });
+      }
+    }
+    return {
+      notifications: state.notifications.map(notification =>
+        notification.id === notificationId
+          ? { ...notification, read: true }
+          : notification
+      ),
+      unreadCount: Math.max(0, state.unreadCount - 1)
+    };
+  }),
   
   markAllAsRead: () => set((state) => ({
     notifications: state.notifications.map(notification => ({
@@ -95,7 +174,18 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       notifications: state.notifications.filter(n => n.id !== notificationId),
       unreadCount: wasUnread ? Math.max(0, state.unreadCount - 1) : state.unreadCount
     });
-    
+
+    /* Global announcements have no per-user DB row — dismissing is a
+       local action remembered in this browser. */
+    if (isGlobalId(notificationId)) {
+      const gs = readGlobalState();
+      writeGlobalState({
+        dismissed: [...gs.dismissed, notificationId],
+        read: gs.read.includes(notificationId) ? gs.read : [...gs.read, notificationId],
+      });
+      return;
+    }
+
     // Delete from database
     try {
       const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
@@ -130,12 +220,19 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       return;
     }
     
+    // Dismiss globals locally so they don't reappear on next fetch
+    const globalIds = get().notifications.filter(n => isGlobalId(n.id)).map(n => n.id);
+    if (globalIds.length > 0) {
+      const gs = readGlobalState();
+      writeGlobalState({ dismissed: Array.from(new Set([...gs.dismissed, ...globalIds])) });
+    }
+
     // Clear local state immediately
     set({
       notifications: [],
       unreadCount: 0
     });
-    
+
     // Clear from database
     try {
       const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
@@ -175,6 +272,11 @@ useNotificationStore.setState({
     
     // Update local state immediately
     const state = useNotificationStore.getState();
+    const globalIds = state.notifications.filter(n => isGlobalId(n.id)).map(n => n.id);
+    if (globalIds.length > 0) {
+      const gs = readGlobalState();
+      writeGlobalState({ read: Array.from(new Set([...gs.read, ...globalIds])) });
+    }
     useNotificationStore.setState({
       notifications: state.notifications.map(notification => ({
         ...notification,

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, X, CheckCircle, AlertTriangle, Info, TrendingUp, ShoppingCart, Star, Trash2, BookMarked as MarkAsRead } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useNotificationStore, Notification } from '../../store/notificationStore';
 import { useAuthStore } from '../../store/authStore';
 
@@ -16,6 +17,25 @@ const NotificationDropdown: React.FC = () => {
   } = useNotificationStore();
   const { user } = useAuthStore();
   const [isOpen, setIsOpen] = useState(false);
+  const navigate = useNavigate();
+
+  /* A notification can carry a redirect target — either from an admin
+     global announcement (metadata.link_url) or a per-user row
+     (metadata.action_url). Internal paths navigate in-app. */
+  const getLink = (n: Notification): { url: string; label: string } | null => {
+    const url = n.metadata?.link_url || n.metadata?.action_url;
+    if (!url) return null;
+    return { url, label: n.metadata?.link_label || 'Open' };
+  };
+
+  const openLink = (url: string) => {
+    setIsOpen(false);
+    if (/^https?:\/\//i.test(url)) {
+      window.open(url, '_blank', 'noopener');
+    } else {
+      navigate(url);
+    }
+  };
 
   // Fetch notifications when user is available
   React.useEffect(() => {
@@ -117,7 +137,10 @@ const NotificationDropdown: React.FC = () => {
     }
     if (notification.action) {
       notification.action.onClick();
+      return;
     }
+    const link = getLink(notification);
+    if (link) openLink(link.url);
   };
 
   return (
@@ -241,6 +264,18 @@ const NotificationDropdown: React.FC = () => {
                             {notification.action && (
                               <button className="text-blue-400 hover:text-blue-300 text-xs mt-2 transition-colors">
                                 {notification.action.label}
+                              </button>
+                            )}
+                            {!notification.action && getLink(notification) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  markAsRead(notification.id);
+                                  openLink(getLink(notification)!.url);
+                                }}
+                                className="inline-flex items-center h-7 px-3 mt-2 rounded-full bg-accent text-on-accent text-[11.5px] font-bold hover:opacity-90 transition-opacity"
+                              >
+                                {getLink(notification)!.label}
                               </button>
                             )}
                           </div>

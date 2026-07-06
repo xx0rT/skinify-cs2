@@ -1,13 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import {
-  Users,
-  DollarSign,
-  Activity,
-  Package,
-  RefreshCw,
-  TrendingUp,
-} from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import {
   AreaChart,
@@ -20,6 +13,7 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  CartesianGrid,
   ResponsiveContainer,
 } from 'recharts';
 import { spring, tap } from '../../lib/motion';
@@ -38,6 +32,8 @@ interface DayPoint {
   signups: number;
   transactions: number;
   revenue: number;
+  pageViews: number;
+  visitors: number;
 }
 
 interface TypeSlice {
@@ -77,6 +73,8 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
   });
   const [typeSlices, setTypeSlices] = useState<TypeSlice[]>([]);
   const [topListings, setTopListings] = useState<any[]>([]);
+  const [topPages, setTopPages] = useState<TypeSlice[]>([]);
+  const [traffic, setTraffic] = useState({ pageViews: 0, visitors: 0 });
   const [revStats, setRevStats] = useState({ completed: 0, failedOrPending: 0, aov: 0 });
 
   const accent = useMemo(() => themeColor('--accent', '#8b49f2'), []);
@@ -92,7 +90,7 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
       start.setDate(start.getDate() - nDays);
       const startIso = start.toISOString();
 
-      const [usersCount, listingsCount, newUsersRes, txRes, topRes] = await Promise.all([
+      const [usersCount, listingsCount, newUsersRes, txRes, topRes, activityRes] = await Promise.all([
         supabase.from('users').select('*', { count: 'exact', head: true }),
         supabase
           .from('marketplace_listings')
@@ -114,10 +112,18 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
           .eq('status', 'active')
           .order('views', { ascending: false })
           .limit(5),
+        supabase
+          .from('user_activity')
+          .select('created_at, event_type, session_id, page_url')
+          .eq('event_type', 'page_view')
+          .gte('created_at', startIso)
+          .order('created_at', { ascending: true })
+          .limit(20000),
       ]);
 
       const newUsers = newUsersRes.data || [];
       const txs = txRes.data || [];
+      const activity = activityRes.data || [];
 
       /* Bucket everything by calendar day so the charts always have a
          continuous axis, even for days with zero events. */
@@ -131,8 +137,47 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
           signups: 0,
           transactions: 0,
           revenue: 0,
+          pageViews: 0,
+          visitors: 0,
         });
       }
+
+      /* Traffic: page views + unique sessions per day, top pages. */
+      const daySessions = new Map<string, Set<string>>();
+      const allSessions = new Set<string>();
+      const pageCounts = new Map<string, number>();
+      for (const ev of activity) {
+        const key = String(ev.created_at).slice(0, 10);
+        const b = buckets.get(key);
+        if (b) {
+          b.pageViews += 1;
+          if (ev.session_id) {
+            if (!daySessions.has(key)) daySessions.set(key, new Set());
+            daySessions.get(key)!.add(ev.session_id);
+          }
+        }
+        if (ev.session_id) allSessions.add(ev.session_id);
+        if (ev.page_url) {
+          let path = String(ev.page_url);
+          try {
+            path = new URL(path, window.location.origin).pathname;
+          } catch {
+            /* keep raw */
+          }
+          pageCounts.set(path, (pageCounts.get(path) || 0) + 1);
+        }
+      }
+      for (const [key, sessions] of daySessions) {
+        const b = buckets.get(key);
+        if (b) b.visitors = sessions.size;
+      }
+      setTraffic({ pageViews: activity.length, visitors: allSessions.size });
+      setTopPages(
+        Array.from(pageCounts.entries())
+          .map(([name, value]) => ({ name, value }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 6),
+      );
       for (const u of newUsers) {
         const key = String(u.created_at).slice(0, 10);
         const b = buckets.get(key);
@@ -204,12 +249,14 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
       ? Math.round((revStats.completed / totals.transactions) * 100)
       : 100;
   const kpis = [
-    { Icon: Users, label: 'Total users', value: totals.users.toLocaleString(), sub: `+${totals.newUsers} in range` },
-    { Icon: DollarSign, label: 'Revenue', value: `${Math.round(totals.revenue).toLocaleString()} Kč`, sub: 'Completed deposits + purchases' },
-    { Icon: Activity, label: 'Transactions', value: totals.transactions.toLocaleString(), sub: `Last ${RANGE_DAYS[range]} days` },
-    { Icon: Package, label: 'Active listings', value: totals.activeListings.toLocaleString(), sub: 'Live right now' },
-    { Icon: TrendingUp, label: 'Avg order value', value: `${Math.round(revStats.aov).toLocaleString()} Kč`, sub: 'Per completed payment' },
-    { Icon: Activity, label: 'Completion rate', value: `${completionRate}%`, sub: `${revStats.failedOrPending} pending/failed` },
+    { label: 'Total users', value: totals.users.toLocaleString(), sub: `+${totals.newUsers} in range` },
+    { label: 'Revenue', value: `${Math.round(totals.revenue).toLocaleString()} Kč`, sub: 'Completed deposits + purchases' },
+    { label: 'Transactions', value: totals.transactions.toLocaleString(), sub: `Last ${RANGE_DAYS[range]} days` },
+    { label: 'Active listings', value: totals.activeListings.toLocaleString(), sub: 'Live right now' },
+    { label: 'Page views', value: traffic.pageViews.toLocaleString(), sub: `${traffic.visitors.toLocaleString()} unique visitors` },
+    { label: 'Avg order value', value: `${Math.round(revStats.aov).toLocaleString()} Kč`, sub: 'Per completed payment' },
+    { label: 'Completion rate', value: `${completionRate}%`, sub: `${revStats.failedOrPending} pending/failed` },
+    { label: 'Views / visitor', value: traffic.visitors > 0 ? (traffic.pageViews / traffic.visitors).toFixed(1) : '—', sub: 'Session depth' },
   ];
 
   const tooltipStyle = {
@@ -276,29 +323,124 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
       </motion.div>
 
       {/* KPI row */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-        {kpis.map(({ Icon, label, value, sub }) => (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {kpis.map(({ label, value, sub }) => (
           <motion.div key={label} variants={child} whileHover={{ y: -2 }} className="panel p-5">
-            <Icon size={17} strokeWidth={2.2} className="text-accent mb-3" />
+            <div className="label-meta mb-2">{label}</div>
             <div className="text-[22px] font-bold tracking-tight tabular-nums text-ink leading-none">
               {value}
             </div>
-            <div className="label-meta mt-2">{label}</div>
-            <div className="text-[11.5px] text-ink-dim font-medium mt-1">{sub}</div>
+            <div className="text-[11.5px] text-ink-dim font-medium mt-1.5">{sub}</div>
           </motion.div>
         ))}
       </div>
 
-      {/* Signups + transactions over time */}
+      {/* Traffic — real page_view events from user_activity */}
       <motion.section variants={child} className="panel p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <span className="label-eyebrow">Growth</span>
+            <span className="label-eyebrow">Traffic</span>
             <h3 className="text-[16px] font-bold tracking-tight mt-1 leading-none">
-              Signups & transactions
+              Page views & unique visitors
             </h3>
           </div>
-          <TrendingUp size={16} className="text-ink-muted" />
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1.5 text-[11.5px] font-bold text-ink-muted">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: accent }} />
+              Views
+            </span>
+            <span className="flex items-center gap-1.5 text-[11.5px] font-bold text-ink-muted">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              Visitors
+            </span>
+          </div>
+        </div>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={days} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
+              <defs>
+                <linearGradient id="gradViews" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={accent} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={accent} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="4 6" stroke={inkDim} strokeOpacity={0.12} vertical={false} />
+              <XAxis
+                dataKey="day"
+                tick={{ fontSize: 10.5, fill: inkDim, fontWeight: 600 }}
+                tickLine={false}
+                axisLine={false}
+                interval="preserveStartEnd"
+              />
+              <YAxis
+                tick={{ fontSize: 10.5, fill: inkDim, fontWeight: 600 }}
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: inkDim, strokeOpacity: 0.25 }} />
+              <Area
+                type="monotone"
+                dataKey="pageViews"
+                name="Page views"
+                stroke={accent}
+                strokeWidth={2.5}
+                fill="url(#gradViews)"
+                animationDuration={1100}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+              />
+              <Area
+                type="monotone"
+                dataKey="visitors"
+                name="Visitors"
+                stroke="#10b981"
+                strokeWidth={2.5}
+                fill="none"
+                animationDuration={1100}
+                animationBegin={200}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        {topPages.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-line/60">
+            <span className="label-meta block mb-2">Top pages</span>
+            <div className="space-y-1.5">
+              {topPages.map((p) => {
+                const max = topPages[0]?.value || 1;
+                return (
+                  <div key={p.name} className="flex items-center gap-3">
+                    <span className="w-40 sm:w-56 text-[12.5px] font-semibold text-ink truncate font-mono">
+                      {p.name}
+                    </span>
+                    <div className="flex-1 h-2 rounded-full bg-subtle overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.max(4, (p.value / max) * 100)}%` }}
+                        transition={{ duration: 0.7, ease: 'easeOut' }}
+                        className="h-full rounded-full"
+                        style={{ background: accent }}
+                      />
+                    </div>
+                    <span className="w-14 text-right text-[12px] font-bold text-ink-muted tabular-nums">
+                      {p.value.toLocaleString()}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </motion.section>
+
+      {/* Signups + transactions over time */}
+      <motion.section variants={child} className="panel p-6">
+        <div className="mb-4">
+          <span className="label-eyebrow">Growth</span>
+          <h3 className="text-[16px] font-bold tracking-tight mt-1 leading-none">
+            Signups & transactions
+          </h3>
         </div>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
@@ -313,6 +455,7 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
                   <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
                 </linearGradient>
               </defs>
+              <CartesianGrid strokeDasharray="4 6" stroke={inkDim} strokeOpacity={0.12} vertical={false} />
               <XAxis
                 dataKey="day"
                 tick={{ fontSize: 10.5, fill: inkDim, fontWeight: 600 }}
@@ -361,6 +504,7 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={days} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="4 6" stroke={inkDim} strokeOpacity={0.12} vertical={false} />
                 <XAxis
                   dataKey="day"
                   tick={{ fontSize: 10.5, fill: inkDim, fontWeight: 600 }}

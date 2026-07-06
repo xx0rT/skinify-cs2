@@ -565,12 +565,7 @@ const ProfilePage: React.FC = () => {
                   >
                     <Suspense fallback={<TabSkeleton />}>
                       {activeSub === 'notifications' ? (
-                        <div className="card p-8 text-center">
-                          <Bell size={22} className="mx-auto text-ink-muted mb-3" />
-                          <p className="text-[14px] text-ink-muted font-medium">
-                            No notifications yet — we’ll alert you when something changes.
-                          </p>
-                        </div>
+                        <NotificationsPanel />
                       ) : (
                         <SettingsTab />
                       )}
@@ -585,6 +580,102 @@ const ProfilePage: React.FC = () => {
 
       <Footer slim />
     </div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   NOTIFICATIONS PANEL — real list for Settings → Notifications (the
+   navbar bell lands here). Shows personal + admin-published global
+   notifications; global ones can carry a redirect link.
+   ───────────────────────────────────────────────────────────────────────── */
+
+const NotificationsPanel: React.FC = () => {
+  const { user } = useAuthStore();
+  const navigate = useNavigate();
+  const { notifications, fetchNotifications, markAsRead, removeNotification } =
+    useNotificationStore();
+
+  useEffect(() => {
+    if (user?.steamId) fetchNotifications(user.steamId);
+  }, [user?.steamId, fetchNotifications]);
+
+  const openLink = (url: string) => {
+    if (/^https?:\/\//i.test(url)) window.open(url, '_blank', 'noopener');
+    else navigate(url);
+  };
+
+  if (notifications.length === 0) {
+    return (
+      <div className="card p-8 text-center">
+        <Bell size={22} className="mx-auto text-ink-muted mb-3" />
+        <p className="text-[14px] text-ink-muted font-medium">
+          No notifications yet — we’ll alert you when something changes.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div
+      initial="hidden"
+      animate="shown"
+      variants={{ hidden: {}, shown: { transition: { staggerChildren: 0.05 } } }}
+      className="space-y-2"
+    >
+      {notifications.map((n) => {
+        const linkUrl = n.metadata?.link_url || n.metadata?.action_url;
+        const linkLabel = n.metadata?.link_label || 'Open';
+        return (
+          <motion.div
+            key={n.id}
+            variants={{ hidden: { opacity: 0, y: 10 }, shown: { opacity: 1, y: 0, transition: spring } }}
+            onClick={() => !n.read && markAsRead(n.id)}
+            className={`card p-4 flex items-start gap-3 ${n.read ? '' : 'ring-1 ring-accent/25'}`}
+          >
+            <div
+              className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${
+                n.read ? 'bg-line' : 'bg-accent'
+              }`}
+            />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[13.5px] font-bold text-ink tracking-tight truncate">
+                  {n.title}
+                </span>
+                <span className="text-[11px] text-ink-dim font-medium shrink-0">
+                  {new Date(n.timestamp).toLocaleDateString()}
+                </span>
+              </div>
+              <p className="text-[12.5px] text-ink-muted font-medium mt-0.5 whitespace-pre-wrap">
+                {n.message}
+              </p>
+              {linkUrl && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    markAsRead(n.id);
+                    openLink(linkUrl);
+                  }}
+                  className="inline-flex items-center h-8 px-3.5 mt-2 rounded-full bg-accent text-on-accent text-[12px] font-bold hover:opacity-90 transition-opacity"
+                >
+                  {linkLabel}
+                </button>
+              )}
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                removeNotification(n.id);
+              }}
+              className="w-7 h-7 rounded-full grid place-items-center text-ink-dim hover:text-ink hover:bg-subtle transition-colors shrink-0"
+              aria-label="Dismiss"
+            >
+              ×
+            </button>
+          </motion.div>
+        );
+      })}
+    </motion.div>
   );
 };
 

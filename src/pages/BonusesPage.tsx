@@ -2,21 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import useDocumentMeta from '../hooks/useDocumentMeta';
-import {
-  Gift,
-  Crown,
-  Calendar,
-  Sparkles,
-  Coins,
-  Percent,
-  CheckCircle2,
-  ArrowRight,
-  Clock,
-  Target,
-  Zap,
-  Star,
-  ChevronLeft,
-} from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import { useAuthStore } from '../store/authStore';
@@ -26,11 +12,9 @@ import SteamLogin from '../components/auth/SteamLogin';
 import { spring, tap } from '../lib/motion';
 
 /* ─────────────────────────────────────────────────────────────────────────
-   BonusesPage — fresh landing-theme design
-   - Hero with progress to next milestone
-   - Daily / Weekly / Monthly claimable tiles
-   - Deposit-bonus tiers strip
-   - "How it works" 3-step
+   BonusesPage — flat, quiet layout. No icon orbs, no per-offer tints:
+   the page reads as text-first panels in the site's base palette, with
+   the crate artwork in the hero as the single visual.
    ───────────────────────────────────────────────────────────────────────── */
 
 type Cadence = 'daily' | 'weekly' | 'monthly';
@@ -41,19 +25,16 @@ interface BonusOffer {
   title: string;
   subtitle: string;
   reward: string;
-  Icon: React.ComponentType<any>;
   cooldownH: number;
-  /** primary tint for the icon orb */
-  tint: string;
 }
 
 const OFFERS: BonusOffer[] = [
-  { id: 'daily',   cadence: 'daily',   title: 'Daily login',       subtitle: 'Reward for opening Skinify each day', reward: '+50 Kč credit',  Icon: Calendar,  cooldownH: 24,  tint: '#10b981' },
-  { id: 'weekly',  cadence: 'weekly',  title: 'Weekly trade',      subtitle: 'Complete one trade this week',        reward: '+1.5% bonus',    Icon: Target,    cooldownH: 168, tint: '#f59e0b' },
-  { id: 'monthly', cadence: 'monthly', title: 'Monthly milestone', subtitle: 'Spend 1,500 Kč this month',           reward: 'Loot crate',     Icon: Crown,     cooldownH: 720, tint: '#a855f7' },
-  { id: 'streak',  cadence: 'daily',   title: '7-day streak',      subtitle: 'Login 7 days in a row',               reward: 'Premium crate',  Icon: Zap,       cooldownH: 24,  tint: '#ef4444' },
-  { id: 'spend',   cadence: 'weekly',  title: 'Spend bonus',       subtitle: 'Spend 500 Kč this week',              reward: '+5% credit',     Icon: Coins,     cooldownH: 168, tint: '#0ea5e9' },
-  { id: 'social',  cadence: 'monthly', title: 'Share & earn',      subtitle: 'Share a trade on social media',       reward: '100 Kč credit',  Icon: Sparkles,  cooldownH: 720, tint: '#ec4899' },
+  { id: 'daily',   cadence: 'daily',   title: 'Daily login',       subtitle: 'Reward for opening Skinify each day', reward: '+50 Kč credit',  cooldownH: 24 },
+  { id: 'weekly',  cadence: 'weekly',  title: 'Weekly trade',      subtitle: 'Complete one trade this week',        reward: '+1.5% bonus',    cooldownH: 168 },
+  { id: 'monthly', cadence: 'monthly', title: 'Monthly milestone', subtitle: 'Spend 1,500 Kč this month',           reward: 'Loot crate',     cooldownH: 720 },
+  { id: 'streak',  cadence: 'daily',   title: '7-day streak',      subtitle: 'Login 7 days in a row',               reward: 'Premium crate',  cooldownH: 24 },
+  { id: 'spend',   cadence: 'weekly',  title: 'Spend bonus',       subtitle: 'Spend 500 Kč this week',              reward: '+5% credit',     cooldownH: 168 },
+  { id: 'social',  cadence: 'monthly', title: 'Share & earn',      subtitle: 'Share a trade on social media',       reward: '100 Kč credit',  cooldownH: 720 },
 ];
 
 const DEPOSIT_TIERS = [
@@ -104,55 +85,16 @@ const BonusesPage: React.FC = () => {
           Back
         </motion.button>
 
-        {/* Hero */}
+        {/* Hero — flat panel; the crate artwork is the page's single
+            visual element. */}
         <motion.section
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={spring}
-          /* Right-to-left purple gradient: solid on the RIGHT (behind
-             the artwork), fading to nearly transparent through the
-             middle, then back to a faint tint on the LEFT. The border
-             uses the SAME gradient but at a brighter alpha so it
-             reads as a hairline that's a shade lighter than the fill.
-             Implemented with `background-image` for the fill and a
-             matching `border-image` for the border. `rounded-3xl`
-             keeps the corner radius consistent with .card. */
-          className="relative rounded-3xl p-7 sm:p-10 overflow-hidden"
-          style={{
-            background:
-              'linear-gradient(to left, rgba(168, 85, 247, 0.55) 0%, rgba(168, 85, 247, 0.10) 50%, rgba(168, 85, 247, 0.20) 100%), rgb(var(--surface))',
-            border: '1px solid transparent',
-            backgroundClip: 'padding-box',
-            boxShadow:
-              /* Border-as-shadow trick: an inset 1px ring whose color
-                 is the same gradient at a brighter alpha. We use a
-                 stacked outline because CSS doesn't allow gradient
-                 borders on rounded boxes natively. */
-              `inset 0 0 0 1px transparent,
-               0 12px 30px -18px rgba(168, 85, 247, 0.35)`,
-            position: 'relative',
-          }}
+          className="panel p-7 sm:p-10 relative overflow-hidden"
         >
-          {/* Brighter gradient border — drawn with an absolutely
-              positioned overlay using `border-image`. */}
-          <div
-            aria-hidden
-            className="absolute inset-0 rounded-3xl pointer-events-none"
-            style={{
-              padding: '1px',
-              background:
-                'linear-gradient(to left, rgba(192, 132, 252, 0.85) 0%, rgba(168, 85, 247, 0.25) 50%, rgba(192, 132, 252, 0.55) 100%)',
-              WebkitMask:
-                'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
-              WebkitMaskComposite: 'xor',
-              maskComposite: 'exclude',
-            }}
-          />
           <div className="relative grid md:grid-cols-[1fr_auto] gap-6 items-end">
-            <div>
-              <div className="icon-chip-lg bg-accent-soft mb-5">
-                <Gift size={22} className="text-accent" />
-              </div>
+            <div className="relative z-10">
               <span className="label-eyebrow">{tr('bonuses.hero.eyebrow', 'Rewards')}</span>
               <h1 className="text-[28px] sm:text-[40px] font-bold tracking-tight mt-2 leading-tight">
                 {tr('bonuses.hero.title', 'Earn bonuses every time you trade')}
@@ -166,42 +108,30 @@ const BonusesPage: React.FC = () => {
                 </div>
               )}
             </div>
-            {/* Premium crate artwork — pushed further LEFT into the
-                text column, 30 % bigger and 30 % further DOWN past
-                the card edge. */}
             <motion.img
               src="/a5a6c232-eee7-4779-91f0-cc6323b69e80.png"
               alt="Premium crate with coins and knives"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ ...spring, delay: 0.2 }}
-              className="select-none pointer-events-none self-end relative"
+              className="hidden md:block select-none pointer-events-none self-end relative"
               style={{
-                /* 340 → 442 (≈ +30 %) */
-                height: '442px',
+                height: '340px',
                 width: 'auto',
                 maxWidth: 'none',
-                /* Aggressive left bleed and downward push so the
-                   figure ends well below the card edge. The hero
-                   card's own purple gradient handles ambient light;
-                   no external drop-shadow on the image so the glow
-                   doesn't leak past the card boundary. */
-                marginRight: '-40px',
-                marginBottom: '-118px',
-                marginLeft: '-176px',
-                transform: 'translateY(80px)',
-                zIndex: 1,
+                marginRight: '-24px',
+                marginBottom: '-64px',
               }}
             />
           </div>
         </motion.section>
 
-        {/* Filter pills */}
+        {/* Filter pills — plain row, no wrapping card */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...spring, delay: 0.05 }}
-          className="card p-2 flex items-center gap-1 overflow-x-auto"
+          className="flex items-center gap-1 overflow-x-auto px-1"
         >
           {(['all', 'daily', 'weekly', 'monthly'] as const).map((f) => {
             const active = filter === f;
@@ -224,7 +154,7 @@ const BonusesPage: React.FC = () => {
           })}
         </motion.div>
 
-        {/* Offers grid */}
+        {/* Offers grid — flat panels, text-first */}
         <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           <AnimatePresence mode="popLayout">
             {visible.map((o, i) => {
@@ -237,80 +167,36 @@ const BonusesPage: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.96 }}
                   transition={{ ...spring, delay: i * 0.04 }}
-                  whileHover={{ y: -3 }}
-                  className="card p-5 relative overflow-hidden group"
+                  whileHover={{ y: -2 }}
+                  className="panel p-5"
                 >
-                  {/* Soft tint wash that follows the icon color */}
-                  <motion.div
-                    aria-hidden
-                    className="absolute -top-20 -right-12 w-[220px] h-[220px] rounded-full pointer-events-none opacity-50 group-hover:opacity-80 transition-opacity"
-                    style={{ background: `radial-gradient(closest-side, ${o.tint}33, transparent 70%)` }}
-                  />
-                  <div className="relative">
-                    <div className="flex items-start justify-between mb-4">
-                      {/* Big iconic orb with depth */}
-                      <div
-                        className="relative w-14 h-14 rounded-2xl grid place-items-center shrink-0"
-                        style={{
-                          background: `linear-gradient(140deg, ${o.tint}, ${o.tint}dd 60%, ${o.tint}88)`,
-                          boxShadow: `0 12px 24px -8px ${o.tint}66, inset 0 1px 0 rgba(255,255,255,0.25)`,
-                        }}
-                      >
-                        <o.Icon size={24} strokeWidth={2.2} className="text-white relative z-10 drop-shadow" />
-                        {/* Soft highlight */}
-                        <span
-                          className="absolute inset-1 rounded-[14px] pointer-events-none"
-                          style={{ background: 'linear-gradient(160deg, rgba(255,255,255,0.28), transparent 45%)' }}
-                        />
-                      </div>
-                      <div className="flex flex-col items-end gap-1.5">
-                        <span
-                          className="pill"
-                          style={{
-                            background: `${o.tint}1f`,
-                            color: o.tint,
-                          }}
-                        >
-                          {o.cadence.toUpperCase()}
-                        </span>
-                        <span className="text-[11px] text-ink-dim font-semibold inline-flex items-center gap-1 tabular-nums">
-                          <Clock size={10} strokeWidth={2.4} />
-                          {o.cooldownH}h
-                        </span>
-                      </div>
-                    </div>
-                    <h3 className="text-[15px] font-bold text-ink tracking-tight leading-tight">{tr(`bonuses.offer.${o.id}.title`, o.title)}</h3>
-                    <p className="text-[12.5px] text-ink-muted font-medium mt-1.5 leading-relaxed">{tr(`bonuses.offer.${o.id}.subtitle`, o.subtitle)}</p>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <span className="label-meta">
+                      {tr(`bonuses.cadence.${o.cadence}`, o.cadence)}
+                    </span>
+                    <span className="text-[11px] text-ink-dim font-semibold tabular-nums">
+                      {o.cooldownH}h
+                    </span>
+                  </div>
+                  <h3 className="text-[15px] font-bold text-ink tracking-tight leading-tight">{tr(`bonuses.offer.${o.id}.title`, o.title)}</h3>
+                  <p className="text-[12.5px] text-ink-muted font-medium mt-1.5 leading-relaxed">{tr(`bonuses.offer.${o.id}.subtitle`, o.subtitle)}</p>
 
-                    <div className="mt-4 pt-4 border-t border-line flex items-center justify-between">
-                      <div>
-                        <div className="label-meta">Reward</div>
-                        <div className="text-[14px] font-bold text-ink tracking-tight">{tr(`bonuses.offer.${o.id}.reward`, o.reward)}</div>
-                      </div>
-                      <motion.button
-                        whileTap={tap}
-                        whileHover={isClaimed ? {} : { scale: 1.04 }}
-                        onClick={() => claim(o)}
-                        disabled={isClaimed}
-                        className={`h-9 px-4 rounded-full text-[12.5px] font-bold inline-flex items-center gap-1.5 transition-colors ${
-                          isClaimed
-                            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 cursor-default'
-                            : 'bg-accent text-on-accent hover:opacity-95'
-                        }`}
-                      >
-                        {isClaimed ? (
-                          <>
-                            <CheckCircle2 size={12} strokeWidth={2.6} />
-                            Claimed
-                          </>
-                        ) : (
-                          <>
-                            Claim
-                            <ArrowRight size={12} strokeWidth={2.6} />
-                          </>
-                        )}
-                      </motion.button>
+                  <div className="mt-4 pt-4 border-t border-line/60 flex items-center justify-between">
+                    <div className="text-[14px] font-bold text-ink tracking-tight">
+                      {tr(`bonuses.offer.${o.id}.reward`, o.reward)}
                     </div>
+                    <motion.button
+                      whileTap={tap}
+                      onClick={() => claim(o)}
+                      disabled={isClaimed}
+                      className={`h-9 px-4 rounded-full text-[12.5px] font-bold transition-colors ${
+                        isClaimed
+                          ? 'bg-subtle text-ink-muted cursor-default'
+                          : 'bg-accent text-on-accent hover:opacity-95'
+                      }`}
+                    >
+                      {isClaimed ? tr('bonuses.claimed', 'Claimed') : tr('bonuses.claim', 'Claim')}
+                    </motion.button>
                   </div>
                 </motion.div>
               );
@@ -318,74 +204,77 @@ const BonusesPage: React.FC = () => {
           </AnimatePresence>
         </motion.div>
 
-        {/* Deposit tiers */}
+        {/* Deposit tiers — one panel, rows instead of boxes */}
         <motion.section
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...spring, delay: 0.1 }}
-          className="card p-6 md:p-8"
+          className="panel p-6 md:p-8"
         >
-          <div className="flex items-end justify-between flex-wrap gap-3 mb-5">
+          <div className="flex items-end justify-between flex-wrap gap-3 mb-4">
             <div>
               <span className="label-eyebrow">{tr('bonuses.deposit.eyebrow', 'Deposit bonuses')}</span>
               <h2 className="text-[20px] sm:text-[24px] font-bold tracking-tight mt-1.5 leading-none">
-                Top up, get more
+                {tr('bonuses.deposit.title', 'Top up, get more')}
               </h2>
             </div>
             <motion.button
               whileTap={tap}
               onClick={() => navigate('/profile?tab=balance')}
-              className="h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold inline-flex items-center gap-1.5"
-              style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.6)' }}
+              className="h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold"
             >
-              Refill now <ArrowRight size={13} strokeWidth={2.4} />
+              {tr('bonuses.deposit.cta', 'Refill now')}
             </motion.button>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {DEPOSIT_TIERS.map((t, i) => (
-              <motion.div
-                key={t.label}
-                whileHover={{ y: -3 }}
-                transition={spring}
-                className="card-flat p-4 relative overflow-hidden"
-              >
-                <div className="absolute top-3 right-3 pill bg-accent-soft text-accent inline-flex items-center gap-1">
-                  <Percent size={10} strokeWidth={2.4} />
-                  {t.bonus}
+          <div>
+            {DEPOSIT_TIERS.map((t) => (
+              <div key={t.label} className="kv-row">
+                <div className="min-w-0">
+                  <span className="text-[13.5px] font-bold text-ink tracking-tight">
+                    {tr(`bonuses.tier.${t.label}.label`, t.label)}
+                  </span>
+                  <span className="text-[12px] text-ink-muted font-medium ml-2">
+                    {tr(`bonuses.tier.${t.label}.sub`, t.sub)}
+                  </span>
                 </div>
-                <div className="label-meta">{tr(`bonuses.tier.${t.label}.label`, t.label)}</div>
-                <div className="mt-2 text-[20px] font-bold tracking-tight tabular-nums text-ink leading-none">
-                  {t.min.toLocaleString()} Kč+
+                <div className="flex items-baseline gap-3 shrink-0">
+                  <span className="text-[13px] font-bold text-ink tabular-nums">
+                    {t.min.toLocaleString()} Kč+
+                  </span>
+                  <span className="text-[13px] font-bold text-accent tabular-nums w-10 text-right">
+                    +{t.bonus}%
+                  </span>
                 </div>
-                <div className="text-[11.5px] text-ink-dim font-medium mt-2">{tr(`bonuses.tier.${t.label}.sub`, t.sub)}</div>
-              </motion.div>
+              </div>
             ))}
           </div>
         </motion.section>
 
-        {/* How it works */}
+        {/* How it works — one panel, numbered rows */}
         <motion.section
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...spring, delay: 0.15 }}
-          className="card p-6 md:p-8"
+          className="panel p-6 md:p-8"
         >
           <span className="label-eyebrow">{tr('bonuses.how.eyebrow', 'How it works')}</span>
-          <h2 className="text-[20px] sm:text-[24px] font-bold tracking-tight mt-1.5 leading-none mb-5">
-            Three steps to your bonus
+          <h2 className="text-[20px] sm:text-[24px] font-bold tracking-tight mt-1.5 leading-none mb-4">
+            {tr('bonuses.how.title', 'Three steps to your bonus')}
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="space-y-0">
             {[
-              { n: '01', t: 'Sign in', s: 'Connect your Steam account so we can attribute bonuses to you.' },
-              { n: '02', t: 'Trade or top up', s: 'Bonuses unlock automatically as you hit milestones.' },
-              { n: '03', t: 'Claim instantly', s: 'Credits and crates land in your account the moment you claim.' },
+              { n: '1', t: tr('bonuses.how.step1.title', 'Sign in'), s: tr('bonuses.how.step1.sub', 'Connect your Steam account so we can attribute bonuses to you.') },
+              { n: '2', t: tr('bonuses.how.step2.title', 'Trade or top up'), s: tr('bonuses.how.step2.sub', 'Bonuses unlock automatically as you hit milestones.') },
+              { n: '3', t: tr('bonuses.how.step3.title', 'Claim instantly'), s: tr('bonuses.how.step3.sub', 'Credits and crates land in your account the moment you claim.') },
             ].map((step) => (
-              <div key={step.n} className="card-flat p-5">
-                <div className="text-[26px] font-bold tracking-tight tabular-nums text-accent leading-none">
+              <div key={step.n} className="kv-row items-start">
+                <span className="text-[13px] font-bold text-ink-dim tabular-nums w-6 shrink-0 pt-0.5">
                   {step.n}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[14px] font-bold text-ink tracking-tight">{step.t}</div>
+                  <p className="text-[12.5px] text-ink-muted font-medium mt-0.5 leading-relaxed">{step.s}</p>
                 </div>
-                <div className="text-[15px] font-bold text-ink tracking-tight mt-3 leading-tight">{step.t}</div>
-                <p className="text-[12.5px] text-ink-muted font-medium mt-2 leading-relaxed">{step.s}</p>
               </div>
             ))}
           </div>

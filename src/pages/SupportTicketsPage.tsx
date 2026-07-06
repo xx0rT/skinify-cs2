@@ -16,6 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
+import { useT } from '../lib/useT';
 import { sendTicketCreatedEmail } from '../utils/emailService';
 import { TICKET_PREFILL_KEY } from '../components/SupportChatWidget';
 import LandingNav from '../components/LandingNav';
@@ -95,6 +96,7 @@ const SupportTicketsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
+  const t = useT();
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -341,9 +343,9 @@ const SupportTicketsPage: React.FC = () => {
             <ChevronLeft size={16} strokeWidth={2.4} />
           </motion.button>
           <div className="flex-1 min-w-0">
-            <span className="label-eyebrow">Support</span>
+            <span className="label-eyebrow">{t('tickets.eyebrow', 'Support')}</span>
             <h1 className="text-[22px] sm:text-[26px] font-bold tracking-tight leading-none mt-1">
-              My tickets
+              {t('tickets.title', 'My tickets')}
             </h1>
           </div>
           <motion.button
@@ -352,7 +354,7 @@ const SupportTicketsPage: React.FC = () => {
             className="h-11 px-4 sm:px-5 rounded-full bg-accent text-on-accent text-[13.5px] font-bold inline-flex items-center gap-1.5 shrink-0"
           >
             <Plus size={15} strokeWidth={2.6} />
-            <span className="hidden sm:inline">New ticket</span>
+            <span className="hidden sm:inline">{t('tickets.new', 'New ticket')}</span>
           </motion.button>
         </motion.div>
 
@@ -368,7 +370,7 @@ const SupportTicketsPage: React.FC = () => {
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search tickets…"
+              placeholder={t('tickets.search', 'Search tickets…')}
               className="flex-1 bg-transparent outline-none text-[13.5px] font-medium text-ink placeholder:text-ink-dim min-w-0"
             />
           </div>
@@ -391,7 +393,9 @@ const SupportTicketsPage: React.FC = () => {
                     />
                   )}
                   <span className="relative">
-                    {status === 'all' ? 'All' : STATUS_META[status].label}
+                    {status === 'all'
+                      ? t('tickets.filter.all', 'All')
+                      : t(`tickets.status.${status}`, STATUS_META[status].label)}
                   </span>
                 </button>
               );
@@ -414,11 +418,11 @@ const SupportTicketsPage: React.FC = () => {
             ) : filteredTickets.length === 0 ? (
               <div className="p-10 text-center">
                 <MessageSquare size={24} className="mx-auto text-ink-muted mb-3" />
-                <p className="text-[14px] font-bold text-ink">No tickets found</p>
+                <p className="text-[14px] font-bold text-ink">{t('tickets.empty.title', 'No tickets found')}</p>
                 <p className="text-[12.5px] text-ink-muted font-medium mt-1">
                   {searchQuery
-                    ? 'Try a different search.'
-                    : 'Open your first ticket and we’ll get back fast.'}
+                    ? t('tickets.empty.search', 'Try a different search.')
+                    : t('tickets.empty.lead', 'Open your first ticket and we’ll get back fast.')}
                 </p>
                 {!searchQuery && (
                   <button
@@ -426,7 +430,7 @@ const SupportTicketsPage: React.FC = () => {
                     className="mt-5 h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold inline-flex items-center gap-1.5"
                   >
                     <Plus size={13} strokeWidth={2.6} />
-                    New ticket
+                    {t('tickets.new', 'New ticket')}
                   </button>
                 )}
               </div>
@@ -460,7 +464,7 @@ const SupportTicketsPage: React.FC = () => {
                           </span>
                           <span className="mt-1.5 flex items-center gap-2">
                             <span className={`pill !px-2 !py-0.5 text-[10px] ${meta.pill}`}>
-                              {meta.label}
+                              {t(`tickets.status.${ticket.status}`, meta.label)}
                             </span>
                             <span className="text-[10.5px] text-ink-dim font-medium tabular-nums">
                               {new Date(ticket.created_at).toLocaleDateString()}
@@ -507,10 +511,10 @@ const SupportTicketsPage: React.FC = () => {
                       <span
                         className={`pill !px-2 !py-0.5 text-[10px] ${STATUS_META[selectedTicket.status].pill}`}
                       >
-                        {STATUS_META[selectedTicket.status].label}
+                        {t(`tickets.status.${selectedTicket.status}`, STATUS_META[selectedTicket.status].label)}
                       </span>
                       <span className="text-[10.5px] text-ink-dim font-semibold uppercase tracking-wider">
-                        {selectedTicket.category} · {selectedTicket.priority}
+                        {t(`tickets.category.${selectedTicket.category}`, selectedTicket.category)} · {t(`tickets.priority.${selectedTicket.priority}`, selectedTicket.priority)}
                       </span>
                     </div>
                   </div>
@@ -547,7 +551,7 @@ const SupportTicketsPage: React.FC = () => {
                         <div className={`max-w-[80%] flex flex-col gap-1 ${mine ? 'items-end' : 'items-start'}`}>
                           {!mine && (
                             <span className="text-[10.5px] font-bold uppercase tracking-wider text-accent px-1">
-                              Skinify support
+                              {t('tickets.staff', 'Skinify support')}
                             </span>
                           )}
                           <div
@@ -574,7 +578,7 @@ const SupportTicketsPage: React.FC = () => {
                   {selectedTicket.status === 'resolved' && (
                     <div className="flex justify-center pt-2">
                       <span className="pill bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1.5">
-                        <CheckCircle2 size={12} strokeWidth={2.4} /> Resolved
+                        <CheckCircle2 size={12} strokeWidth={2.4} /> {t('tickets.status.resolved', 'Resolved')}
                       </span>
                     </div>
                   )}
@@ -592,7 +596,7 @@ const SupportTicketsPage: React.FC = () => {
                           sendMessage();
                         }
                       }}
-                      placeholder="Write a reply…"
+                      placeholder={t('tickets.reply', 'Write a reply…')}
                       rows={1}
                       maxLength={2000}
                       className="flex-1 min-h-[42px] max-h-[140px] rounded-2xl bg-subtle px-3.5 py-2.5 text-[13.5px] text-ink font-medium outline-none focus:ring-2 focus:ring-accent/40 resize-none"
@@ -623,9 +627,9 @@ const SupportTicketsPage: React.FC = () => {
               >
                 <div className="text-center">
                   <Clock size={24} className="mx-auto text-ink-muted mb-3" />
-                  <p className="text-[15px] font-bold text-ink">Select a ticket</p>
+                  <p className="text-[15px] font-bold text-ink">{t('tickets.select.title', 'Select a ticket')}</p>
                   <p className="text-[12.5px] text-ink-muted font-medium mt-1">
-                    Pick a ticket from the list to see the conversation.
+                    {t('tickets.select.lead', 'Pick a ticket from the list to see the conversation.')}
                   </p>
                 </div>
               </motion.div>
@@ -655,9 +659,9 @@ const SupportTicketsPage: React.FC = () => {
             >
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <span className="label-eyebrow">Support</span>
+                  <span className="label-eyebrow">{t('tickets.eyebrow', 'Support')}</span>
                   <h2 className="text-[19px] font-bold tracking-tight leading-none mt-1">
-                    New ticket
+                    {t('tickets.new', 'New ticket')}
                   </h2>
                 </div>
                 <button
@@ -671,29 +675,29 @@ const SupportTicketsPage: React.FC = () => {
 
               <div className="space-y-4">
                 <div>
-                  <label className="label-meta block mb-1.5">Subject</label>
+                  <label className="label-meta block mb-1.5">{t('tickets.form.subject', 'Subject')}</label>
                   <input
                     value={newTicket.subject}
                     onChange={(e) => setNewTicket({ ...newTicket, subject: e.target.value })}
-                    placeholder="What's the issue?"
+                    placeholder={t('tickets.form.subjectPh', "What's the issue?")}
                     maxLength={120}
                     className="w-full h-11 px-4 rounded-xl bg-subtle outline-none text-ink placeholder:text-ink-dim text-[14px] font-medium focus:ring-2 focus:ring-accent/40 transition-shadow"
                   />
                 </div>
                 <div>
-                  <label className="label-meta block mb-1.5">Description</label>
+                  <label className="label-meta block mb-1.5">{t('tickets.form.description', 'Description')}</label>
                   <textarea
                     value={newTicket.description}
                     onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
                     rows={5}
                     maxLength={4000}
-                    placeholder="Tell us what happened. Include order IDs if relevant."
+                    placeholder={t('tickets.form.descriptionPh', 'Tell us what happened. Include order IDs if relevant.')}
                     className="w-full px-4 py-3 rounded-xl bg-subtle outline-none text-ink placeholder:text-ink-dim text-[14px] font-medium focus:ring-2 focus:ring-accent/40 transition-shadow resize-none"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="label-meta block mb-1.5">Category</label>
+                    <label className="label-meta block mb-1.5">{t('tickets.form.category', 'Category')}</label>
                     <select
                       value={newTicket.category}
                       onChange={(e) => setNewTicket({ ...newTicket, category: e.target.value })}
@@ -701,13 +705,13 @@ const SupportTicketsPage: React.FC = () => {
                     >
                       {CATEGORIES.map((c) => (
                         <option key={c} value={c}>
-                          {c.charAt(0).toUpperCase() + c.slice(1)}
+                          {t(`tickets.category.${c}`, c.charAt(0).toUpperCase() + c.slice(1))}
                         </option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="label-meta block mb-1.5">Priority</label>
+                    <label className="label-meta block mb-1.5">{t('tickets.form.priority', 'Priority')}</label>
                     <select
                       value={newTicket.priority}
                       onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value })}
@@ -715,7 +719,7 @@ const SupportTicketsPage: React.FC = () => {
                     >
                       {PRIORITIES.map((p) => (
                         <option key={p} value={p}>
-                          {p.charAt(0).toUpperCase() + p.slice(1)}
+                          {t(`tickets.priority.${p}`, p.charAt(0).toUpperCase() + p.slice(1))}
                         </option>
                       ))}
                     </select>
@@ -732,7 +736,7 @@ const SupportTicketsPage: React.FC = () => {
                   ) : (
                     <Send size={14} strokeWidth={2.4} />
                   )}
-                  {creating ? 'Creating…' : 'Create ticket'}
+                  {creating ? t('tickets.form.creating', 'Creating…') : t('tickets.form.submit', 'Create ticket')}
                 </motion.button>
               </div>
             </motion.div>
@@ -740,7 +744,11 @@ const SupportTicketsPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <Footer slim />
+      {/* Desktop uses a fixed one-viewport layout — the footer would
+          eat the panel height, so it only renders on mobile. */}
+      <div className="lg:hidden">
+        <Footer slim />
+      </div>
     </div>
   );
 };

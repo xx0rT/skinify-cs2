@@ -226,14 +226,14 @@ const LandingPage: React.FC = () => {
     } else {
       ys = [0.1, 0.18, 0.3, 0.28, 0.45, 0.5, 0.62, 0.6, 0.72, 0.8, 0.86, 0.95];
     }
-    /* Map 0..1 (bottom→top) into the 0..60 viewBox (inverted Y). */
     const coords = ys.map((v, i) => {
-      const x = (i / (N - 1)) * 200;
+      const x = 8 + (i / (N - 1)) * 184; // 8px side margin inside the viewBox
       const y = 54 - v * 46; // keep 6px top/bottom padding
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     });
+    /* Map 0..1 (bottom→top) into the 0..60 viewBox (inverted Y). */
     const line = 'M' + coords.join(' L');
-    const area = `${line} L200,60 L0,60 Z`;
+    const area = `${line} L192,60 L8,60 Z`;
     return { line, area };
   }, [marketplaceItems]);
   const promotedItems = useMemo(() => {
@@ -278,9 +278,28 @@ const LandingPage: React.FC = () => {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...spring, delay: 0.12 }}
-            className="card p-6 flex flex-col h-full"
+            className="card p-6 sm:p-7 flex flex-col h-full"
           >
-            <div className="mb-4 flex-1 min-h-[100px] rounded-2xl bg-subtle/60 overflow-hidden relative">
+            <div className="flex items-center justify-between mb-1">
+              <span className="label-eyebrow">
+                {user
+                  ? t('landing.portfolio.eyebrow.signedIn', 'Your portfolio')
+                  : t('landing.portfolio.eyebrow.signedOut', 'Marketplace volume')}
+              </span>
+              <span className="pill bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                +2.4%
+              </span>
+            </div>
+            <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none text-ink tabular-nums break-words">
+              {user ? formatPrice(portfolio) : formatPrice(36714736)}
+            </div>
+            <div className="text-[13px] text-ink-muted font-medium mt-1.5 mb-4">
+              {user
+                ? t('landing.portfolio.balance', 'Available balance')
+                : t('landing.portfolio.volume', 'Total volume traded')}
+            </div>
+
+            <div className="mb-4 mx-1 sm:mx-2 h-[100px] sm:h-[130px] rounded-2xl bg-subtle/60 overflow-hidden relative">
               <svg
                 viewBox="0 0 200 60"
                 preserveAspectRatio="none"
@@ -301,7 +320,7 @@ const LandingPage: React.FC = () => {
                   d={sparkPaths.line}
                   fill="none"
                   stroke="rgb(var(--accent))"
-                  strokeWidth="2"
+                  strokeWidth="1.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -316,43 +335,24 @@ const LandingPage: React.FC = () => {
               </svg>
             </div>
 
-            <div className="flex items-center justify-between mb-1">
-              <span className="label-eyebrow">
-                {user
-                  ? t('landing.portfolio.eyebrow.signedIn', 'Your portfolio')
-                  : t('landing.portfolio.eyebrow.signedOut', 'Marketplace volume')}
-              </span>
-              <span className="pill bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-                +2.4%
-              </span>
-            </div>
-            <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none text-ink tabular-nums break-words">
-              {user ? formatPrice(portfolio) : formatPrice(36714736)}
-            </div>
-            <div className="text-[13px] text-ink-muted font-medium mt-1.5 mb-4">
-              {user
-                ? t('landing.portfolio.balance', 'Available balance')
-                : t('landing.portfolio.volume', 'Total volume traded')}
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div className="card-flat px-3 py-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="card-flat px-3 py-2">
                 <div className="label-meta">{t('landing.stat.fee', 'Fee')}</div>
-                <div className="text-[15px] font-bold text-ink mt-0.5 tabular-nums">0%</div>
+                <div className="text-[14px] font-bold text-ink mt-0.5 tabular-nums">0%</div>
               </div>
-              <div className="card-flat px-3 py-2.5">
+              <div className="card-flat px-3 py-2">
                 <div className="label-meta">{t('landing.stat.listings', 'Listings')}</div>
-                <div className="text-[15px] font-bold text-ink mt-0.5 tabular-nums">
+                <div className="text-[14px] font-bold text-ink mt-0.5 tabular-nums">
                   {(marketplaceItems?.length || 60794).toLocaleString()}
                 </div>
               </div>
-              <div className="card-flat px-3 py-2.5">
+              <div className="card-flat px-3 py-2">
                 <div className="label-meta">{t('landing.stat.escrow', 'Escrow')}</div>
-                <div className="text-[15px] font-bold text-ink mt-0.5 tabular-nums">8d</div>
+                <div className="text-[14px] font-bold text-ink mt-0.5 tabular-nums">8d</div>
               </div>
-              <div className="card-flat px-3 py-2.5">
+              <div className="card-flat px-3 py-2">
                 <div className="label-meta">{t('landing.stat.avgDelivery', 'Avg delivery')}</div>
-                <div className="text-[15px] font-bold text-ink mt-0.5 tabular-nums">{'<1m'}</div>
+                <div className="text-[14px] font-bold text-ink mt-0.5 tabular-nums">{'<1m'}</div>
               </div>
             </div>
           </motion.div>

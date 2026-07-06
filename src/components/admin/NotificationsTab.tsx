@@ -14,7 +14,18 @@ interface Notification {
   starts_at: string;
   ends_at?: string;
   created_at: string;
+  link_url?: string | null;
+  link_label?: string | null;
 }
+
+/* One-click destinations for the link fields — the routes users most
+   often need to be sent to from an announcement. */
+const LINK_PRESETS = [
+  { label: 'Marketplace', url: '/marketplace' },
+  { label: 'Bonuses', url: '/bonuses' },
+  { label: 'Deposit', url: '/profile?tab=balance' },
+  { label: 'Support', url: '/support' },
+];
 
 const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -30,7 +41,9 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
     target_audience: 'all',
     is_active: true,
     starts_at: new Date().toISOString().slice(0, 16),
-    ends_at: ''
+    ends_at: '',
+    link_url: '',
+    link_label: ''
   });
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -70,7 +83,9 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
 
       const notificationData: any = {
         ...formData,
-        ends_at: formData.ends_at || null
+        ends_at: formData.ends_at || null,
+        link_url: formData.link_url.trim() || null,
+        link_label: formData.link_label.trim() || null
       };
       /* Steam-auth admins have no Supabase session — only attach
          created_by when we actually have an auth uuid. */
@@ -148,7 +163,9 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
       target_audience: 'all',
       is_active: true,
       starts_at: new Date().toISOString().slice(0, 16),
-      ends_at: ''
+      ends_at: '',
+      link_url: '',
+      link_label: ''
     });
     setEditingNotification(null);
   };
@@ -163,7 +180,9 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
       target_audience: notification.target_audience,
       is_active: notification.is_active,
       starts_at: new Date(notification.starts_at).toISOString().slice(0, 16),
-      ends_at: notification.ends_at ? new Date(notification.ends_at).toISOString().slice(0, 16) : ''
+      ends_at: notification.ends_at ? new Date(notification.ends_at).toISOString().slice(0, 16) : '',
+      link_url: notification.link_url || '',
+      link_label: notification.link_label || ''
     });
     setShowModal(true);
   };
@@ -269,6 +288,11 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
                       <span>Target: {notification.target_audience}</span>
                       <span>Starts: {new Date(notification.starts_at).toLocaleString()}</span>
                       {notification.ends_at && <span>Ends: {new Date(notification.ends_at).toLocaleString()}</span>}
+                      {notification.link_url && (
+                        <span className="text-accent font-semibold">
+                          → {notification.link_label || notification.link_url}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-2 ml-4">
@@ -420,6 +444,55 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
                   />
                 </div>
               </div>
+              {/* Optional redirect link — button rendered inside the
+                  user-facing notification. */}
+              <div>
+                <label className="label-meta block mb-1.5">Link (optional)</label>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {LINK_PRESETS.map((preset) => (
+                    <button
+                      key={preset.url}
+                      type="button"
+                      onClick={() =>
+                        setFormData({ ...formData, link_url: preset.url, link_label: preset.label })
+                      }
+                      className={`h-8 px-3 rounded-full text-[11.5px] font-bold transition-colors ${
+                        formData.link_url === preset.url
+                          ? 'bg-accent text-on-accent'
+                          : 'bg-subtle text-ink-muted hover:text-ink'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                  {formData.link_url && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, link_url: '', link_label: '' })}
+                      className="h-8 px-3 rounded-full text-[11.5px] font-bold bg-subtle text-rose-500 hover:bg-rose-500/10 transition-colors"
+                    >
+                      Remove link
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <input
+                    type="text"
+                    value={formData.link_url}
+                    onChange={(e) => setFormData({ ...formData, link_url: e.target.value })}
+                    placeholder="/marketplace or https://…"
+                    className="w-full bg-subtle rounded-xl px-4 py-2.5 text-ink text-[14px] font-medium outline-none focus:ring-2 focus:ring-accent/40 transition-shadow"
+                  />
+                  <input
+                    type="text"
+                    value={formData.link_label}
+                    onChange={(e) => setFormData({ ...formData, link_label: e.target.value })}
+                    placeholder="Button label (e.g. Open marketplace)"
+                    className="w-full bg-subtle rounded-xl px-4 py-2.5 text-ink text-[14px] font-medium outline-none focus:ring-2 focus:ring-accent/40 transition-shadow"
+                  />
+                </div>
+              </div>
+
               <div className="flex items-center">
                 <input
                   type="checkbox"
@@ -465,6 +538,11 @@ const NotificationsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
                       <div className="text-[12.5px] text-ink-muted font-medium mt-0.5 whitespace-pre-wrap">
                         {formData.message || 'Message body…'}
                       </div>
+                      {formData.link_url && (
+                        <span className="inline-flex items-center h-7 px-3 mt-2 rounded-full bg-accent text-on-accent text-[11.5px] font-bold">
+                          {formData.link_label || 'Open'}
+                        </span>
+                      )}
                     </div>
                   </motion.div>
                 </div>
