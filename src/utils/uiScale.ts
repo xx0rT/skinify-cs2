@@ -35,6 +35,8 @@ export function getUiScale(): UiScale {
   return 100;
 }
 
+let resizeHooked = false;
+
 export function applyUiScale(scale: UiScale): void {
   const root = document.documentElement as HTMLElement;
   const clamped = clamp(scale);
@@ -48,21 +50,37 @@ export function applyUiScale(scale: UiScale): void {
   root.style.setProperty('zoom', String(z));
   root.style.removeProperty('width');
 
-  /* Chromium re-derives the layout width under zoom so the page keeps
-     filling the viewport. WebKit (iOS Safari) does not — it lays the
-     page out at the original viewport width and renders it scaled,
-     which leaves a growing gap on the right below 100% (and overflow
-     above it). Measure instead of UA-sniffing: if the zoomed root no
-     longer spans the visual viewport, stretch its layout width by the
-     inverse of the zoom so `layout × zoom = viewport` again. The
-     percentage stays correct across rotations, so no resize listener
-     is needed. */
+  /* Engines disagree on how zoom on the root affects the initial
+     containing block. Chromium lays the root out at viewport/zoom CSS
+     px so the scaled result fills the screen. WebKit keeps the layout
+     at the raw viewport width, so the scaled page underflows (<100%,
+     gap on the right) or overflows (>100%). We can't probe this via
+     getBoundingClientRect — its zoom semantics ALSO differ per engine
+     (that ambiguity caused a desktop gap at 130%). Instead compare the
+     root's layout width (offsetWidth, engine-agnostic CSS px) against
+     both hypotheses and only compensate when it matches the buggy one.
+     Compensation is an exact pixel width so it can't be re-scaled by
+     whichever base the engine resolves percentages against. */
   requestAnimationFrame(() => {
-    const rendered = root.getBoundingClientRect().width;
-    if (Math.abs(rendered - window.innerWidth) > 1) {
-      root.style.setProperty('width', `${100 / z}%`);
+    if (!root.style.zoom) return;
+    const layout = root.offsetWidth;
+    const correct = window.innerWidth / z;
+    const buggy = window.innerWidth;
+    if (Math.abs(layout - buggy) < Math.abs(layout - correct)) {
+      root.style.setProperty('width', `${Math.round(window.innerWidth / z)}px`);
     }
   });
+
+  /* Pixel widths don't track rotations / window resizes — re-run the
+     measurement whenever the viewport changes. */
+  if (!resizeHooked) {
+    resizeHooked = true;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    window.addEventListener('resize', () => {
+      clearTimeout(t);
+      t = setTimeout(() => applyUiScale(getUiScale()), 120);
+    });
+  }
 }
 
 export function setUiScale(scale: UiScale): void {
