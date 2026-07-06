@@ -322,6 +322,134 @@ export const SEO_LANDING_PAGES: SeoLandingPageContent[] = [
 
   /* ─── Comparison pages ──────────────────────────────────────────────── */
   {
+    slug: 'instant-sell-cs2-skins',
+    lang: 'en',
+    title: 'Instant Sell CS2 Skins — List in Under a Minute | Skinify',
+    description:
+      'Sell CS2 skins instantly: sign in with Steam, list from your inventory in one click, get paid in real money with a 2% fee. No Steam wallet lock-in.',
+    h1: 'Instant sell CS2 skins — from inventory to listed in under a minute',
+    lede:
+      'Skinify pulls your tradable CS2 inventory the moment you sign in with Steam. Pick items, set prices (or accept the suggested market price), and your listings are live immediately — buyers pay in real money, you cash out to your bank.',
+    cta: { label: 'Open your inventory', href: '/profile?tab=inventory' },
+    sections: [
+      {
+        h2: 'How fast is "instant"?',
+        paragraphs: [
+          'Listing is instant: your Steam inventory loads automatically, bulk listing puts dozens of items on the marketplace in one click, and they are visible to buyers the same second. There is no review queue and no listing fee.',
+          'Selling speed then depends on demand and pricing. Popular liquid skins (AK-47 Redline, AWP Asiimov, case keys tier) priced at or slightly under market typically sell within hours. When a buyer pays, you get a notification and email — send the Steam trade offer, and after the escrow window your money is withdrawable.',
+        ],
+        bullets: [
+          'One-click bulk listing straight from your Steam inventory',
+          'Suggested pricing based on live market data — no research needed',
+          '2% seller fee, 0% listing fee, free edits and delists',
+          'Optional 49 Kč promotion pushes a listing to the landing page',
+        ],
+      },
+      {
+        h2: 'Instant selling vs instant-buyout sites',
+        paragraphs: [
+          '"Instant buyout" sites pay you immediately but typically at 60–80% of market value — that is where their margin lives. Skinify is a peer-to-peer marketplace: you set the price and keep 98% of it. If you want speed on Skinify, price 3–5% under the lowest comparable listing and liquid items move fast.',
+          'For rare knives, gloves, and high-float collectibles, a marketplace is the only sane option — buyout sites quote them terribly because they cannot resell them quickly.',
+        ],
+      },
+      {
+        h2: 'Getting paid',
+        paragraphs: [
+          'When your item sells and the buyer confirms the Steam trade, an 8-day escrow window covers Steam\'s trade-back period. After it passes, funds move to your withdrawable balance. Czech bank payouts are instant, SEPA takes 1–2 business days, and there is no minimum lock-in — your money is yours.',
+        ],
+      },
+    ],
+    faq: [
+      {
+        q: 'Can I sell CS2 skins instantly for cash?',
+        a: 'You can list instantly and get paid as soon as a buyer purchases — usually hours for liquid skins priced at market. Unlike instant-buyout sites that pay 60–80% of value, you keep 98% of your price on Skinify.',
+      },
+      {
+        q: 'Is there a listing fee?',
+        a: 'No. Listing, editing prices, and delisting are free. Skinify only takes 2% when a sale actually completes.',
+      },
+      {
+        q: 'How do I get my money?',
+        a: 'After the 8-day escrow window, funds are withdrawable to any Czech bank (instant) or via SEPA (1–2 business days). Payouts are in real currency, not Steam wallet credit.',
+      },
+      {
+        q: 'Do I need the Steam Mobile Authenticator?',
+        a: 'Strongly recommended. Without it, Steam itself holds all trades for 15 days — no marketplace can bypass that. With it, trades complete in minutes.',
+      },
+    ],
+    related: [
+      { label: 'Sell CS2 skins — full guide', href: '/cs2-sell-skins' },
+      { label: 'Turn CS2 skins into cash', href: '/cs2-skins-to-cash' },
+      { label: 'What are the fees?', href: '/faq/what-are-the-fees' },
+      { label: 'How to withdraw money', href: '/faq/how-to-withdraw-money' },
+      { label: 'Skinify vs Skinport', href: '/vs/skinport' },
+    ],
+  },
+  {
+    slug: 'cs2-skins-to-cash',
+    lang: 'en',
+    title: 'CS2 Skins to Cash — Turn Skins into Real Money | Skinify',
+    description:
+      'Convert CS2 skins to real money, not Steam wallet credit. 2% seller fee, escrow-protected trades, instant Czech bank payouts and SEPA. Cash out safely.',
+    h1: 'Turn CS2 skins into real cash',
+    lede:
+      'Steam Market pays you in wallet credit you can never withdraw. Skinify pays in real currency: sell your skins to other players, then send the money to your bank account.',
+    cta: { label: 'Start selling', href: '/profile?tab=inventory' },
+    sections: [
+      {
+        h2: 'Why Steam wallet money isn\'t real money',
+        paragraphs: [
+          'When you sell on the Steam Community Market, Valve takes 15% and credits the rest to your Steam wallet. That balance can only buy Steam games and items — it cannot be withdrawn, transferred, or gifted. Your skins became store credit, not cash.',
+          'Skinify is built for the opposite: every sale settles in real currency (Kč) that you withdraw to a bank account. The fee is 2% instead of 15%, so on a 10,000 Kč inventory you keep 9,800 Kč instead of 8,500 Kč.',
+        ],
+      },
+      {
+        h2: 'The path from skin to bank account',
+        paragraphs: [
+          'Sign in with Steam, list your items, and wait for a buyer. When someone pays, their money enters escrow, you send the Steam trade offer, and after the 8-day protection window the funds land in your withdrawable balance.',
+        ],
+        bullets: [
+          'Czech banks (ČSOB, KB, Fio, mBank, Air Bank…): instant payout, 0 Kč fee',
+          'SEPA transfers: 1–2 business days, free under 10,000 Kč',
+          'Withdrawals over ~€500 require a one-time 5-minute identity check (KYC)',
+          'No minimum balance, no monthly withdrawal limits',
+        ],
+      },
+      {
+        h2: 'How much cash are your skins worth?',
+        paragraphs: [
+          'Rough rule: your Steam Market inventory value minus ~10% is what it realistically converts to in cash on a 2%-fee marketplace, because real-money prices run slightly under Steam\'s inflated wallet prices. That is still dramatically more than instant-buyout sites, which typically offer 60–80% of market value.',
+          'Liquid items (popular rifle skins, knives in common patterns, cases) convert fastest. Rare pattern seeds, low floats, and stickered items take longer but often sell above market to collectors.',
+        ],
+      },
+    ],
+    faq: [
+      {
+        q: 'Can I really withdraw the money to my bank?',
+        a: 'Yes — that is the whole point. Czech bank payouts arrive instantly, SEPA in 1–2 business days. Skinify never pays in locked wallet credit.',
+      },
+      {
+        q: 'How much do I lose in fees when cashing out?',
+        a: 'Skinify charges 2% on the sale. Czech bank withdrawals are free; SEPA is free under 10,000 Kč. Compare with Steam Market: 15% fee AND the money is locked in Steam forever.',
+      },
+      {
+        q: 'Is converting skins to cash legal?',
+        a: 'Yes. Selling your own virtual items is legal in the EU. Skinify s.r.o. is a registered Czech company (IČO 29671311) that issues receipts, and large withdrawals go through standard KYC identity checks.',
+      },
+      {
+        q: 'What is the fastest way to cash out a whole inventory?',
+        a: 'Bulk-list everything a few percent under the lowest comparable listings. Liquid items sell within hours; the long tail takes days. Avoid instant-buyout sites unless you accept losing 20–40% of value for speed.',
+      },
+    ],
+    related: [
+      { label: 'Instant sell CS2 skins', href: '/instant-sell-cs2-skins' },
+      { label: 'How to withdraw money', href: '/faq/how-to-withdraw-money' },
+      { label: 'How escrow protects you', href: '/faq/how-does-escrow-work' },
+      { label: 'Skinify vs Steam Market', href: '/vs/steam-market' },
+      { label: 'Sell CS2 skins', href: '/cs2-sell-skins' },
+    ],
+  },
+  {
     slug: 'vs/steam-market',
     lang: 'en',
     title: 'Skinify vs Steam Market — Compare Fees, Speed, Cashout',
@@ -385,9 +513,9 @@ export const SEO_LANDING_PAGES: SeoLandingPageContent[] = [
   {
     slug: 'vs/skinport',
     lang: 'en',
-    title: 'Skinify vs Skinport — CS2 Marketplace Fee & Feature Comparison',
+    title: 'Skinport Fees vs Skinify — Seller Fee Comparison 2026',
     description:
-      'Compare Skinify (Czech-based, 2% seller fee, PayU payments) vs Skinport (German-based, 12% seller fee). Both bypass Steam wallet — see which fits you.',
+      'Skinport\'s selling fee is 12% — Skinify charges 2%. Full fee and feature comparison of the two EU marketplaces: payouts, escrow, payment methods.',
     h1: 'Skinify vs Skinport',
     lede:
       'Both are EU-based CS2 marketplaces that pay in real currency, not Steam wallet. They differ on fees, payment methods, and target market.',

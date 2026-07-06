@@ -388,6 +388,8 @@ export default function App() {
                 SeoLandingPage component reads it via slug. */}
             <Route path="/buy-cs2-skins" element={<SeoLandingPage />} />
             <Route path="/cs2-sell-skins" element={<SeoLandingPage />} />
+            <Route path="/instant-sell-cs2-skins" element={<SeoLandingPage />} />
+            <Route path="/cs2-skins-to-cash" element={<SeoLandingPage />} />
             <Route path="/cs2-skiny-koupit" element={<SeoLandingPage />} />
             <Route path="/cs2-nuze-koupit" element={<SeoLandingPage />} />
             <Route path="/vs/:slug" element={<SeoLandingPage />} />
