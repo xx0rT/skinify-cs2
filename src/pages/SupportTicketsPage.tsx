@@ -239,6 +239,30 @@ const SupportTicketsPage: React.FC = () => {
     }
   };
 
+  /* One open ticket per user — support triages faster when issues
+     aren't spread across parallel tickets. */
+  const hasOpenTicket = tickets.some(
+    (tk) => tk.status === 'open' || tk.status === 'in_progress',
+  );
+
+  const openCreateModal = () => {
+    if (hasOpenTicket) {
+      addToast(
+        t(
+          'tickets.limit',
+          'You already have an open ticket — reply there or wait until it’s resolved before opening a new one.',
+        ),
+        'warning',
+      );
+      const existing = tickets.find(
+        (tk) => tk.status === 'open' || tk.status === 'in_progress',
+      );
+      if (existing) setSelectedTicket(existing);
+      return;
+    }
+    setShowCreateModal(true);
+  };
+
   const createTicket = async () => {
     if (!newTicket.subject || !newTicket.description) {
       addToast('Please fill in all fields', 'error');
@@ -246,6 +270,14 @@ const SupportTicketsPage: React.FC = () => {
     }
     if (!dbUserId) {
       addToast('Your account is still loading — try again in a second.', 'error');
+      return;
+    }
+    if (hasOpenTicket) {
+      addToast(
+        t('tickets.limit', 'You already have an open ticket — reply there instead.'),
+        'warning',
+      );
+      setShowCreateModal(false);
       return;
     }
 
@@ -350,7 +382,7 @@ const SupportTicketsPage: React.FC = () => {
           </div>
           <motion.button
             whileTap={tap}
-            onClick={() => setShowCreateModal(true)}
+            onClick={openCreateModal}
             className="h-11 px-4 sm:px-5 rounded-full bg-accent text-on-accent text-[13.5px] font-bold inline-flex items-center gap-1.5 shrink-0"
           >
             <Plus size={15} strokeWidth={2.6} />
@@ -426,7 +458,7 @@ const SupportTicketsPage: React.FC = () => {
                 </p>
                 {!searchQuery && (
                   <button
-                    onClick={() => setShowCreateModal(true)}
+                    onClick={openCreateModal}
                     className="mt-5 h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold inline-flex items-center gap-1.5"
                   >
                     <Plus size={13} strokeWidth={2.6} />

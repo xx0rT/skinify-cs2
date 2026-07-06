@@ -1,5 +1,6 @@
 export const translations: Record<string, Record<string, string>> = {
   en: {
+    'tickets.limit': 'You already have an open ticket — reply there or wait until it\'s resolved before opening a new one.',
     'tickets.eyebrow': 'Support',
     'tickets.title': 'My tickets',
     'tickets.new': 'New ticket',
@@ -533,6 +534,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
 
   cs: {
+    'tickets.limit': 'Už máte otevřený tiket — odpovězte v něm, nebo počkejte na jeho vyřešení, než otevřete nový.',
     'tickets.eyebrow': 'Podpora',
     'tickets.title': 'Moje tikety',
     'tickets.new': 'Nový tiket',
@@ -1263,6 +1265,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
 
   de: {
+    'tickets.limit': 'Sie haben bereits ein offenes Ticket — antworten Sie dort oder warten Sie auf die Lösung, bevor Sie ein neues eröffnen.',
     'tickets.eyebrow': 'Support',
     'tickets.title': 'Meine Tickets',
     'tickets.new': 'Neues Ticket',
@@ -1587,6 +1590,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
 
   ru: {
+    'tickets.limit': 'У вас уже есть открытый тикет — ответьте в нём или дождитесь решения, прежде чем открывать новый.',
     'tickets.eyebrow': 'Поддержка',
     'tickets.title': 'Мои тикеты',
     'tickets.new': 'Новый тикет',

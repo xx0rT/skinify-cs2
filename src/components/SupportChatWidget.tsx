@@ -42,6 +42,98 @@ const STARTERS = [
   "Why can't I trade?",
 ];
 
+/* ── Chat sounds ─────────────────────────────────────────────────────
+   Two short synthesized blips (WebAudio, no asset files): a rising
+   tone when the user sends, a softer two-note chime when the
+   assistant replies. The context is created lazily on the first send
+   (a user gesture, so autoplay policies allow it). */
+let audioCtx: AudioContext | null = null;
+
+function tone(freqFrom: number, freqTo: number, startAt: number, dur: number, peak: number) {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime + startAt;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freqFrom, t0);
+  osc.frequency.exponentialRampToValueAtTime(freqTo, t0 + dur);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.05);
+}
+
+function playSendSound() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    tone(620, 920, 0, 0.12, 0.05);
+  } catch {
+    /* no audio available */
+  }
+}
+
+function playReceiveSound() {
+  try {
+    if (!audioCtx) return; // only after the user has interacted
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    tone(720, 720, 0, 0.1, 0.04);
+    tone(560, 560, 0.09, 0.14, 0.035);
+  } catch {
+    /* no audio available */
+  }
+}
+
+/* ── Rich text ───────────────────────────────────────────────────────
+   The model answers in light Markdown: **bold** and [label](url) plus
+   bare URLs. Render those instead of showing literal asterisks.
+   Internal links (skinify.gg or a /path) navigate in-app. */
+const RICH_TOKEN =
+  /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s)]+|\bskinify\.gg[^\s)]*)/g;
+
+function renderRichText(
+  text: string,
+  mine: boolean,
+  go: (url: string) => void,
+): React.ReactNode[] {
+  const linkCls = mine
+    ? 'underline font-bold hover:opacity-80 transition-opacity'
+    : 'text-accent font-bold underline decoration-accent/40 underline-offset-2 hover:decoration-accent transition-colors';
+  const out: React.ReactNode[] = [];
+  let last = 0;
+  let key = 0;
+  for (const match of text.matchAll(RICH_TOKEN)) {
+    const token = match[0];
+    const at = match.index ?? 0;
+    if (at > last) out.push(text.slice(last, at));
+    if (token.startsWith('**')) {
+      out.push(<strong key={key++} className="font-bold">{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith('[')) {
+      const m = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      if (m) {
+        out.push(
+          <button key={key++} onClick={() => go(m[2])} className={linkCls}>
+            {m[1]}
+          </button>,
+        );
+      } else {
+        out.push(token);
+      }
+    } else {
+      out.push(
+        <button key={key++} onClick={() => go(token)} className={linkCls}>
+          {token.replace(/^https?:\/\//, '')}
+        </button>,
+      );
+    }
+    last = at + token.length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
 const SupportChatWidget: React.FC = () => {
   const navigate = useNavigate();
   const language = useTranslationStore((s) => s.currentLanguage);
@@ -68,10 +160,24 @@ const SupportChatWidget: React.FC = () => {
     if (open) setTimeout(() => inputRef.current?.focus(), 80);
   }, [open, expanded]);
 
+  /* Open links from chat: internal paths / skinify.gg URLs navigate
+     in-app; anything external opens a new tab. */
+  const openChatLink = (url: string) => {
+    const normalized = url.replace(/^https?:\/\/(www\.)?skinify\.gg/i, '').replace(/^skinify\.gg/i, '');
+    if (normalized === '' || normalized.startsWith('/')) {
+      navigate(normalized || '/');
+      return;
+    }
+    if (/^https?:\/\//i.test(url)) {
+      window.open(url, '_blank', 'noopener');
+    }
+  };
+
   const send = async (raw?: string) => {
     const content = (raw ?? text).trim();
     if (!content || thinking) return;
     setText('');
+    playSendSound();
     const next: ChatMsg[] = [...messages, { role: 'user', content, ts: Date.now() }];
     setMessages(next);
     setThinking(true);
@@ -93,6 +199,7 @@ const SupportChatWidget: React.FC = () => {
         ? body.reply
         : "I couldn't reach the assistant right now — please try again in a moment, or open a support ticket at skinify.gg/tickets and a human will pick it up.";
       setMessages((prev) => [...prev, { role: 'assistant', content: reply, ts: Date.now() }]);
+      playReceiveSound();
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -274,7 +381,7 @@ const SupportChatWidget: React.FC = () => {
                         : 'bg-subtle text-ink rounded-bl-md'
                     }`}
                   >
-                    {m.content}
+                    {renderRichText(m.content, m.role === 'user', openChatLink)}
                   </div>
                 </motion.div>
               ))}
