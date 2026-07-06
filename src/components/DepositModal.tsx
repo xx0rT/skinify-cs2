@@ -319,7 +319,14 @@ export const DepositModal: React.FC = () => {
 
       if (!res.ok) {
         const text = await res.text().catch(() => '');
-        throw new Error(text || `PayU error ${res.status}`);
+        let msg = text || `PayU error ${res.status}`;
+        try {
+          const parsed = JSON.parse(text);
+          if (parsed?.error) msg = parsed.error;
+        } catch {
+          /* not JSON — keep raw text */
+        }
+        throw new Error(msg);
       }
 
       const data = await res.json();

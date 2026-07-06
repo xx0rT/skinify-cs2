@@ -333,6 +333,42 @@ Deno.serve(async (req: Request) => {
     console.log("Ext Order ID:", orderData.extOrderId);
 
     const accessToken = await getPayUAccessToken();
+
+    /* Preflight: ask PayU which payment methods are actually enabled on
+       this POS. A freshly-registered merchant account has none until
+       PayU finishes business verification (and a PLN-only POS has none
+       for CZK) — creating the order anyway strands the user on PayU's
+       "no active payment methods" page. Better to fail here with a
+       clear message. If the token lacks scope for this endpoint we skip
+       the check rather than block payments. */
+    try {
+      const pmRes = await fetch(
+        `${PAYU_CONFIG.apiUrl}/api/v2_1/paymethods`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (pmRes.ok) {
+        const pm = await pmRes.json();
+        const enabled = (pm.payByLinks || []).filter(
+          (m: any) => m.status === "ENABLED",
+        );
+        console.log(`PayU paymethods: ${enabled.length} enabled of ${(pm.payByLinks || []).length}`);
+        if ((pm.payByLinks || []).length > 0 && enabled.length === 0) {
+          return new Response(
+            JSON.stringify({
+              error:
+                "Payments are not activated yet — the PayU merchant account has no enabled payment methods. Finish PayU business verification / enable methods for CZK in the PayU panel.",
+              code: "PAYU_NO_ACTIVE_METHODS",
+            }),
+            { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+      } else {
+        console.log("PayU paymethods preflight skipped, status:", pmRes.status);
+      }
+    } catch (e) {
+      console.log("PayU paymethods preflight failed (non-fatal):", e);
+    }
+
     const orderUrl = `${PAYU_CONFIG.apiUrl}/api/v2_1/orders`;
 
     console.log("=== SENDING TO PAYU ===");
