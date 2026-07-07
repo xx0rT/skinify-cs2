@@ -279,8 +279,8 @@ const LineChart: React.FC<{
     return [0, step, step * 2, step * 3, data.length - 1];
   })();
 
-  const handleMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
+  const handleMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * W;
     const i = Math.round(((x - PAD.left) / innerW) * (data.length - 1));
     if (i >= 0 && i < data.length) setHover(i);
@@ -300,14 +300,15 @@ const LineChart: React.FC<{
   const endX = xAt(data.length - 1);
   const endY = yAt(data[data.length - 1]?.[metric] || 0);
 
-  return (
-    <div className="relative">
+  /* The animated chart body only depends on the drawn data — memoize
+     it so hover mousemoves (which change state up to ~60×/s) re-render
+     ONLY the tiny crosshair overlay below, not every gradient, path,
+     and motion element. This is what made the page crawl. */
+  const chartBody = useMemo(() => (
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="w-full h-64"
         preserveAspectRatio="none"
-        onMouseMove={handleMove}
-        onMouseLeave={() => setHover(null)}
       >
         <defs>
           <linearGradient id="perf-area" x1="0" x2="0" y1="0" y2="1">
@@ -318,13 +319,6 @@ const LineChart: React.FC<{
             <stop offset="0%" stopColor="rgb(var(--accent))" stopOpacity="0.85" />
             <stop offset="100%" stopColor="rgb(var(--accent))" stopOpacity="1" />
           </linearGradient>
-          <filter id="perf-glow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="2.5" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
           <clipPath id="perf-clip">
             <motion.rect
               key={`clip-${drawKey}`}
@@ -395,21 +389,6 @@ const LineChart: React.FC<{
           transition={{ duration: 1.3, ease: [0.6, 0.05, 0.2, 1] }}
         />
 
-        {/* Glow trace overlay — slim, blurred, draws together with the main line */}
-        <motion.path
-          key={`glow-${drawKey}`}
-          d={linePath}
-          stroke="rgb(var(--accent))"
-          strokeOpacity="0.45"
-          strokeWidth="4"
-          strokeLinecap="round"
-          fill="none"
-          filter="url(#perf-glow)"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 1.3, ease: [0.6, 0.05, 0.2, 1] }}
-        />
-
         {/* Pulse rings on the highest points — fade in after the line lands */}
         {pulseIdx.map((i, k) => (
           <motion.circle
@@ -456,28 +435,6 @@ const LineChart: React.FC<{
           </>
         )}
 
-        {/* Hover crosshair */}
-        {hover !== null && (
-          <>
-            <line
-              x1={xAt(hover)}
-              x2={xAt(hover)}
-              y1={PAD.top}
-              y2={PAD.top + innerH}
-              stroke="rgb(var(--ink-dim))"
-              strokeWidth="1"
-            />
-            <circle
-              cx={xAt(hover)}
-              cy={yAt(data[hover][metric])}
-              r="5"
-              fill="rgb(var(--accent))"
-              stroke="rgb(var(--surface))"
-              strokeWidth="2"
-            />
-          </>
-        )}
-
         {/* X-axis ticks — fade in last */}
         {tickIdx.map((i, k) => (
           <motion.text
@@ -496,6 +453,42 @@ const LineChart: React.FC<{
           </motion.text>
         ))}
       </svg>
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [drawKey]);
+
+  return (
+    <div
+      className="relative"
+      onMouseMove={handleMove}
+      onMouseLeave={() => setHover(null)}
+    >
+      {chartBody}
+
+      {/* Hover crosshair — its own overlay svg, cheap to re-render */}
+      {hover !== null && (
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          preserveAspectRatio="none"
+          className="absolute inset-0 w-full h-64 pointer-events-none"
+        >
+          <line
+            x1={xAt(hover)}
+            x2={xAt(hover)}
+            y1={PAD.top}
+            y2={PAD.top + innerH}
+            stroke="rgb(var(--ink-dim))"
+            strokeWidth="1"
+          />
+          <circle
+            cx={xAt(hover)}
+            cy={yAt(data[hover][metric])}
+            r="5"
+            fill="rgb(var(--accent))"
+            stroke="rgb(var(--surface))"
+            strokeWidth="2"
+          />
+        </svg>
+      )}
 
       {/* Tooltip */}
       <AnimatePresence>
