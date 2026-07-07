@@ -311,9 +311,11 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
            Setting both covers older crawler versions. */
         className="notranslate group relative cursor-pointer bg-surface flex flex-col h-full transition-shadow"
         style={{
-          boxShadow: hoverLift
-            ? 'inset 0 0 0 1px rgb(255 255 255 / 0.04), inset 0 -1px 0 0 rgb(255 255 255 / 0.04)'
-            : `inset 0 0 0 1px rgb(255 255 255 / 0.04), inset 0 -1px 0 0 rgb(255 255 255 / 0.04)`,
+          /* Hairline seams between tiles — the theme's --line token so
+             they're visible on light AND dark (the old white ring
+             disappeared on light backgrounds). */
+          boxShadow:
+            'inset 0 0 0 1px rgb(var(--line) / 0.85), inset 0 -1px 0 0 rgb(var(--line) / 0.85)',
           /* CSS variable that the rarity-ring hover rule below reads.
              Falls back to the accent colour when rarity is unknown. */
           ['--rarity' as any]: color || 'rgb(var(--accent))',
