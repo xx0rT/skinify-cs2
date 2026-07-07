@@ -1,15 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  TrendingUp,
-  TrendingDown,
-  Activity,
-  Coins,
-  Repeat2,
-  CheckCircle2,
-} from 'lucide-react';
-import { supabase } from '../../../lib/supabaseClient';
 import { useAuthStore } from '../../../store/authStore';
+import { useOrderStore } from '../../../store/orderStore';
 import { useCurrencyStore } from '../../../store/currencyStore';
 import { spring, tap } from '../../../lib/motion';
 
@@ -38,20 +30,28 @@ const PERIODS: { id: Period; label: string; days: number }[] = [
   { id: '90d', label: 'Last 90 days', days: 90 },
 ];
 
-const METRICS: { id: Metric; label: string; Icon: React.ComponentType<any>; fmt: 'currency' | 'count' }[] = [
-  { id: 'profit', label: 'Total profit', Icon: Coins,        fmt: 'currency' },
-  { id: 'volume', label: 'Total volume', Icon: TrendingUp,   fmt: 'currency' },
-  { id: 'trades', label: 'Total trades', Icon: Repeat2,      fmt: 'count' },
+const METRICS: { id: Metric; label: string; fmt: 'currency' | 'count' }[] = [
+  { id: 'profit', label: 'Total profit', fmt: 'currency' },
+  { id: 'volume', label: 'Total volume', fmt: 'currency' },
+  { id: 'trades', label: 'Total trades', fmt: 'count' },
 ];
 
 const TradingPerformanceTab: React.FC = () => {
   const { user } = useAuthStore();
+  const { orders, fetchOrders } = useOrderStore();
   const { formatPrice } = useCurrencyStore();
   const [period, setPeriod] = useState<Period>('30d');
   const [metric, setMetric] = useState<Metric>('profit');
   const [data, setData] = useState<DailyPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ totalOrders: 0, completed: 0 });
+
+  /* Orders come from the orders edge function (service role) via the
+     store — a direct table read is blocked by RLS under the anon key,
+     which is why this tab used to render only dashes. */
+  useEffect(() => {
+    if (user?.steamId) fetchOrders(user.steamId);
+  }, [user?.steamId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,17 +63,10 @@ const TradingPerformanceTab: React.FC = () => {
         const from = new Date();
         from.setDate(from.getDate() - days);
 
-        const { data: orders } = await supabase
-          .from('orders')
-          .select('total_amount, status, created_at, buyer_steam_id, seller_steam_id')
-          .or(`buyer_steam_id.eq.${user.steamId},seller_steam_id.eq.${user.steamId}`)
-          .gte('created_at', from.toISOString())
-          .order('created_at', { ascending: true });
-
-        const { data: allOrders } = await supabase
-          .from('orders')
-          .select('status')
-          .or(`buyer_steam_id.eq.${user.steamId},seller_steam_id.eq.${user.steamId}`);
+        const inRange = (orders || []).filter(
+          (o: any) => new Date(o.created_at || 0) >= from,
+        );
+        const allOrders = orders || [];
 
         if (cancelled) return;
 
@@ -86,16 +79,18 @@ const TradingPerformanceTab: React.FC = () => {
           points.set(key, { date: key, profit: 0, volume: 0, trades: 0 });
         }
 
-        (orders || []).forEach((o: any) => {
+        inRange.forEach((o: any) => {
           const key = new Date(o.created_at).toISOString().split('T')[0];
           const p = points.get(key);
           if (!p) return;
           const amount = Number(o.total_amount || 0);
+          const isSeller = o.seller_steam_id === user.steamId;
           p.volume += amount;
           p.trades += 1;
-          if (o.status === 'completed') {
-            // Treat 2% margin as proxy profit until real data is available
-            p.profit += amount * 0.02;
+          /* Profit = money in minus money out: sales earn (minus the
+             2% marketplace fee), purchases cost. */
+          if (o.status !== 'cancelled' && o.status !== 'refunded') {
+            p.profit += isSeller ? amount * 0.98 : -amount;
           }
         });
 
@@ -115,7 +110,7 @@ const TradingPerformanceTab: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [user?.steamId, period]);
+  }, [user?.steamId, period, orders]);
 
   const totals = useMemo(() => {
     const profit = data.reduce((s, p) => s + p.profit, 0);
@@ -162,7 +157,6 @@ const TradingPerformanceTab: React.FC = () => {
       {/* KPI cards — clicking one switches the chart metric */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {METRICS.map((m) => {
-          const Icon = m.Icon;
           const active = metric === m.id;
           const value =
             m.id === 'profit' ? totals.profit : m.id === 'volume' ? totals.volume : totals.trades;
@@ -175,11 +169,8 @@ const TradingPerformanceTab: React.FC = () => {
                 active ? 'ring-2 ring-accent' : 'hover:ring-1 hover:ring-line'
               }`}
             >
-              <div className="flex items-start justify-between mb-3">
+              <div className="mb-3">
                 <span className="label-meta">{m.label}</span>
-                <div className={`icon-chip-sm ${active ? 'bg-accent text-on-accent' : 'bg-accent-soft text-accent'}`}>
-                  <Icon size={14} strokeWidth={2.4} />
-                </div>
               </div>
               <div className="text-[26px] font-bold tracking-tight tabular-nums text-ink leading-none">
                 {loading ? '—' : fmt(value, m.fmt)}
@@ -201,10 +192,7 @@ const TradingPerformanceTab: React.FC = () => {
               {fmt(metric === 'profit' ? totals.profit : metric === 'volume' ? totals.volume : totals.trades, METRICS.find((m) => m.id === metric)!.fmt)}
             </h3>
           </div>
-          <span className="pill bg-accent-soft text-ink">
-            <Activity size={12} strokeWidth={2.4} className="text-accent" />
-            Live data
-          </span>
+          <span className="pill bg-accent-soft text-ink">Live data</span>
         </div>
 
         {loading ? (
@@ -212,7 +200,6 @@ const TradingPerformanceTab: React.FC = () => {
         ) : data.every((p) => p[metric] === 0) ? (
           <div className="h-64 grid place-items-center text-center">
             <div>
-              <Activity size={24} className="mx-auto text-ink-muted mb-2" />
               <p className="text-[14px] text-ink-muted font-medium">
                 No {metric} in this period yet.
               </p>
@@ -223,32 +210,36 @@ const TradingPerformanceTab: React.FC = () => {
         )}
       </div>
 
-      {/* Secondary stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatTile
-          label="Avg daily profit"
-          value={loading ? '—' : formatPrice(Math.round(totals.dailyAvgProfit))}
-          Icon={TrendingUp}
-          sub={`${PERIODS.find((p) => p.id === period)!.label.toLowerCase()}`}
-        />
-        <StatTile
-          label="Peak day"
-          value={loading ? '—' : fmt(totals.peak, METRICS.find((m) => m.id === metric)!.fmt)}
-          Icon={TrendingUp}
-          sub={totals.peakDay ? new Date(totals.peakDay.date).toLocaleDateString() : '—'}
-        />
-        <StatTile
-          label="Trades / day"
-          value={loading ? '—' : (totals.trades / Math.max(1, data.length)).toFixed(1)}
-          Icon={Repeat2}
-          sub={`${totals.trades} total`}
-        />
-        <StatTile
-          label="Success rate"
-          value={loading ? '—' : `${totals.successRate.toFixed(0)}%`}
-          Icon={CheckCircle2}
-          sub={`${stats.completed} of ${stats.totalOrders}`}
-        />
+      {/* Secondary stats — one quiet text line, no boxes. */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-1 text-[12px] font-medium text-ink-muted">
+        <span>
+          Avg daily{' '}
+          <span className="font-bold text-ink tabular-nums">
+            {loading ? '—' : formatPrice(Math.round(totals.dailyAvgProfit))}
+          </span>
+        </span>
+        <span>
+          Peak day{' '}
+          <span className="font-bold text-ink tabular-nums">
+            {loading ? '—' : fmt(totals.peak, METRICS.find((m) => m.id === metric)!.fmt)}
+          </span>
+          {totals.peakDay ? (
+            <span className="text-ink-dim"> · {new Date(totals.peakDay.date).toLocaleDateString()}</span>
+          ) : null}
+        </span>
+        <span>
+          Trades / day{' '}
+          <span className="font-bold text-ink tabular-nums">
+            {loading ? '—' : (totals.trades / Math.max(1, data.length)).toFixed(1)}
+          </span>
+        </span>
+        <span>
+          Success rate{' '}
+          <span className="font-bold text-ink tabular-nums">
+            {loading ? '—' : `${totals.successRate.toFixed(0)}%`}
+          </span>
+          <span className="text-ink-dim"> · {stats.completed} of {stats.totalOrders}</span>
+        </span>
       </div>
     </div>
   );
@@ -533,25 +524,5 @@ const LineChart: React.FC<{
     </div>
   );
 };
-
-const StatTile: React.FC<{
-  label: string;
-  value: string;
-  Icon: React.ComponentType<any>;
-  sub?: string;
-}> = ({ label, value, Icon, sub }) => (
-  <motion.div whileHover={{ y: -2 }} transition={spring} className="card p-4">
-    <div className="flex items-start justify-between mb-3">
-      <span className="label-meta">{label}</span>
-      <div className="icon-chip-sm bg-accent-soft">
-        <Icon size={14} strokeWidth={2.2} className="text-accent" />
-      </div>
-    </div>
-    <div className="text-[18px] font-bold tracking-tight tabular-nums text-ink leading-none">
-      {value}
-    </div>
-    {sub && <div className="text-[11.5px] text-ink-dim font-medium mt-1.5">{sub}</div>}
-  </motion.div>
-);
 
 export default TradingPerformanceTab;

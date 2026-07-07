@@ -7,7 +7,6 @@ import {
   ArrowDownLeft,
   ChevronRight,
   Search,
-  TrendingUp,
   Clock,
   CheckCircle2,
   AlertTriangle,
@@ -237,11 +236,20 @@ const TradesTab: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <KpiCard label="Purchased" value={formatPrice(kpis.boughtVal)} sub={`${kpis.boughtN} order${kpis.boughtN === 1 ? '' : 's'}`} Icon={ArrowDownLeft} />
-        <KpiCard label="Sold"      value={formatPrice(kpis.soldVal)}   sub={`${kpis.soldN} sale${kpis.soldN === 1 ? '' : 's'}`} Icon={ArrowUpRight} />
-        <KpiCard label="In escrow" value={formatPrice(kpis.escrowVal)} sub={`${kpis.escrowN} order${kpis.escrowN === 1 ? '' : 's'}`} Icon={TrendingUp} />
+      {/* Summary — one quiet text line instead of boxed KPI cards. */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-1 text-[12px] font-medium text-ink-muted">
+        <span>
+          Purchased <span className="font-bold text-ink tabular-nums">{formatPrice(kpis.boughtVal)}</span>
+          <span className="text-ink-dim"> · {kpis.boughtN} order{kpis.boughtN === 1 ? '' : 's'}</span>
+        </span>
+        <span>
+          Sold <span className="font-bold text-ink tabular-nums">{formatPrice(kpis.soldVal)}</span>
+          <span className="text-ink-dim"> · {kpis.soldN} sale{kpis.soldN === 1 ? '' : 's'}</span>
+        </span>
+        <span>
+          In escrow <span className="font-bold text-ink tabular-nums">{formatPrice(kpis.escrowVal)}</span>
+          <span className="text-ink-dim"> · {kpis.escrowN} order{kpis.escrowN === 1 ? '' : 's'}</span>
+        </span>
       </div>
 
       {/* Toolbar */}
@@ -374,6 +382,24 @@ const TradesTab: React.FC = () => {
                       >
                         <div className="px-3 pb-3 pt-1 space-y-3">
                           <Timeline entry={e} formatPrice={formatPrice} />
+                          {/* Contact the counterparty — seller on a
+                              purchase, buyer on a sale. */}
+                          {(e.kind === 'purchase' || e.kind === 'sale') &&
+                            (() => {
+                              const peer =
+                                e.kind === 'purchase'
+                                  ? e.raw?.seller_steam_id
+                                  : e.raw?.buyer_steam_id;
+                              if (!peer || peer === user?.steamId) return null;
+                              return (
+                                <button
+                                  onClick={() => navigate(`/messages?peer=${peer}`)}
+                                  className="h-9 px-4 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[12.5px] font-bold transition-colors"
+                                >
+                                  {e.kind === 'purchase' ? 'Message seller' : 'Message buyer'}
+                                </button>
+                              );
+                            })()}
                           {(e.items || []).length > 0 && (
                             <div className="space-y-2">
                               {(e.items || []).map((it: any, i: number) => (
@@ -574,25 +600,5 @@ const KindIcon: React.FC<{ kind: FeedEntry['kind']; positive: boolean }> = ({ ki
     </div>
   );
 };
-
-const KpiCard: React.FC<{
-  label: string;
-  value: string;
-  sub: string;
-  Icon: React.ComponentType<any>;
-}> = ({ label, value, sub, Icon }) => (
-  <motion.div whileHover={{ y: -2 }} transition={spring} className="card p-4">
-    <div className="flex items-start justify-between mb-3">
-      <span className="label-meta">{label}</span>
-      <div className="icon-chip-sm bg-accent-soft">
-        <Icon size={14} strokeWidth={2.2} className="text-accent" />
-      </div>
-    </div>
-    <div className="text-[22px] font-bold tracking-tight tabular-nums text-ink leading-none">
-      {value}
-    </div>
-    <div className="text-[11.5px] text-ink-dim font-medium mt-1.5">{sub}</div>
-  </motion.div>
-);
 
 export default TradesTab;
