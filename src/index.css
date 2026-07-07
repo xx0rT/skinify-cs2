@@ -121,8 +121,13 @@ html {
 }
 
 #root {
-  /* DO NOT add overflow here — it breaks sticky positioning. */
+  /* `clip` is a NON-scrolling overflow — unlike `hidden` it does not
+     create a scroll container, so `position: sticky` in descendants
+     keeps working while any oversized child is clipped instead of
+     producing a horizontal scrollbar. This is the primary guard
+     against sideways scroll on phones. */
   max-width: 100vw;
+  overflow-x: clip;
 }
 
 /* Re-enable selection where you actually need it */
@@ -176,7 +181,12 @@ body {
 @media (max-width: 1023px) {
   input:not([type='checkbox']):not([type='radio']):not([type='range']),
   textarea,
-  select {
+  select,
+  [contenteditable] {
+    /* 16px is the exact threshold iOS Safari uses to decide whether to
+       auto-zoom on focus — anything below it triggers the zoom. Keep
+       this at 16px (not larger) so density elsewhere is unaffected.
+       Applies to every text-entry control, including search boxes. */
     font-size: 16px !important;
   }
 }

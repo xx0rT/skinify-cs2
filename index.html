@@ -6,7 +6,11 @@
     <meta name='dmca-site-verification' content='9cb1cfc0-5c9d-4546-981d-bc8d34bc4c7d' />
     <link rel="icon" type="image/png" href="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png" />
     <link rel="apple-touch-icon" href="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
+    <!-- initial-scale=1 so the app renders at true device width (0.9
+         made it start zoomed out). The 16px input rule in index.css
+         stops iOS from auto-zooming on field focus; pinch-zoom stays
+         available for accessibility (user-scalable=yes). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
 
     <!-- Performance Optimizations -->
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />

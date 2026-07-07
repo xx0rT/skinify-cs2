@@ -35,51 +35,26 @@ export function getUiScale(): UiScale {
   return 100;
 }
 
-let resizeHooked = false;
-
 export function applyUiScale(scale: UiScale): void {
-  const root = document.documentElement as HTMLElement;
   const clamped = clamp(scale);
   const z = clamped / 100;
-  root.style.setProperty('transition', 'zoom 160ms ease-out');
+
+  /* Scale #root, not <html>. When zoom is on the document element the
+     browsers disagree on how the initial containing block reacts — on
+     WebKit the page under-/overflows and leaves a gap on the right at
+     scales other than 100%. Applying zoom to #root instead makes the
+     zoomed content live inside a normal flow box that is already
+     width-constrained to the viewport (`#root { max-width: 100vw }`),
+     so its width follows the viewport at every scale and there is no
+     gap and no horizontal scroll — no width compensation needed. */
+  const root = document.getElementById('root') as HTMLElement | null;
+  const target = root || (document.documentElement as HTMLElement);
+
+  target.style.setProperty('transition', 'zoom 160ms ease-out');
   if (clamped === 100) {
-    root.style.removeProperty('zoom');
-    root.style.removeProperty('width');
-    return;
-  }
-  root.style.setProperty('zoom', String(z));
-  root.style.removeProperty('width');
-
-  /* Engines disagree on how zoom on the root affects the initial
-     containing block. Chromium lays the root out at viewport/zoom CSS
-     px so the scaled result fills the screen. WebKit keeps the layout
-     at the raw viewport width, so the scaled page underflows (<100%,
-     gap on the right) or overflows (>100%). We can't probe this via
-     getBoundingClientRect — its zoom semantics ALSO differ per engine
-     (that ambiguity caused a desktop gap at 130%). Instead compare the
-     root's layout width (offsetWidth, engine-agnostic CSS px) against
-     both hypotheses and only compensate when it matches the buggy one.
-     Compensation is an exact pixel width so it can't be re-scaled by
-     whichever base the engine resolves percentages against. */
-  requestAnimationFrame(() => {
-    if (!root.style.zoom) return;
-    const layout = root.offsetWidth;
-    const correct = window.innerWidth / z;
-    const buggy = window.innerWidth;
-    if (Math.abs(layout - buggy) < Math.abs(layout - correct)) {
-      root.style.setProperty('width', `${Math.round(window.innerWidth / z)}px`);
-    }
-  });
-
-  /* Pixel widths don't track rotations / window resizes — re-run the
-     measurement whenever the viewport changes. */
-  if (!resizeHooked) {
-    resizeHooked = true;
-    let t: ReturnType<typeof setTimeout> | undefined;
-    window.addEventListener('resize', () => {
-      clearTimeout(t);
-      t = setTimeout(() => applyUiScale(getUiScale()), 120);
-    });
+    target.style.removeProperty('zoom');
+  } else {
+    target.style.setProperty('zoom', String(z));
   }
 }
 

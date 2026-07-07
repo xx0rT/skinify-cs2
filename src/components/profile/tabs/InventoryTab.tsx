@@ -46,6 +46,11 @@ interface InvItem {
       API. Carried through to listing creation so the marketplace card
       can later resolve real float + paint seed via /skin-float. */
   inspect_link?: string;
+  /** Real float + paint-seed values pulled from the Steam inventory
+      (asset_properties / descriptions). Carried into the listing so
+      buyers see them without a CSFloat round-trip. */
+  float?: string;
+  pattern?: string;
 }
 
 type Sort = 'value-desc' | 'value-asc' | 'name';
@@ -107,6 +112,8 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
             marketable: it.marketable !== false,
             listed_for_sale: listedIds.has(aid),
             inspect_link: it.inspect_link || it.inspectLink || undefined,
+            float: it.float ?? it.float_value ?? undefined,
+            pattern: it.pattern ?? it.paint_seed ?? it.pattern_template ?? undefined,
           };
         });
 
@@ -202,9 +209,13 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
         image_url: item.image,
         description: info.description || `${item.condition} ${item.name}`,
         listing_type: info.listingType === 'auction' ? 'auction' : 'standard',
-        /* Inspect link travels with the listing so post-list it can
-           be used for real float lookups in /functions/v1/skin-float. */
+        /* Inspect link + float/pattern travel with the listing so the
+           detail page shows real Steam data and the inspect button
+           works. If float/pattern are missing the server backfills
+           them from the inspect link via CSFloat. */
         inspect_link: item.inspect_link,
+        float_value: item.float,
+        pattern_template: item.pattern,
       };
       if (info.visibility === 'private') body.listing_type = 'private';
 
