@@ -13,6 +13,7 @@ import { useBalanceStore } from '../../../store/balanceStore';
 import { useToastStore } from '../../../store/toastStore';
 import { useCurrencyStore } from '../../../store/currencyStore';
 import { openDepositModal } from '../../DepositModal';
+import WithdrawModal from '../../ui/WithdrawModal';
 import { spring, tap } from '../../../lib/motion';
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -28,6 +29,7 @@ type TxFilter = 'all' | 'deposits' | 'spent' | 'received';
 const BalanceTab: React.FC = () => {
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
+  const [showWithdraw, setShowWithdraw] = useState(false);
   const { formatPrice } = useCurrencyStore();
   const {
     balance,
@@ -126,14 +128,7 @@ const BalanceTab: React.FC = () => {
               <motion.button
                 whileTap={tap}
                 whileHover={{ scale: 1.02 }}
-                onClick={() =>
-                  addToast({
-                    type: 'info',
-                    title: 'Withdrawals',
-                    message: 'Withdrawals are processed within 24h once configured.',
-                    duration: 4500,
-                  })
-                }
+                onClick={() => setShowWithdraw(true)}
                 className="h-12 px-6 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[14px] flex items-center gap-2 transition-colors"
               >
                 <ArrowUpFromLine size={15} strokeWidth={2.2} />
@@ -288,6 +283,18 @@ const BalanceTab: React.FC = () => {
           </ul>
         )}
       </motion.div>
+
+      {/* Withdrawal request — user picks amount + payout method; the
+          request lands in the admin panel's Withdrawals queue. */}
+      <WithdrawModal
+        isOpen={showWithdraw}
+        onClose={() => setShowWithdraw(false)}
+        onSuccess={() => {
+          setShowWithdraw(false);
+          if (user?.steamId) fetchBalance(user.steamId);
+        }}
+        currentBalance={Number(balance || 0)}
+      />
     </div>
   );
 };
