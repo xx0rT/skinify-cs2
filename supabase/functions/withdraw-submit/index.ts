@@ -175,15 +175,18 @@ Deno.serve(async (req) => {
     });
   }
 
-  /* Notify admin via user_notifications. Admin panel picks this up. */
-  await supabase.from('user_notifications').insert({
-    user_steam_id: '76561198021723640',
-    type: 'warning',
-    title: 'New withdrawal request',
-    message: `${amount} CZK via ${method} (${steamId})`,
-    action_url: '/admin?tab=withdrawals',
-    metadata: { withdraw_request_id: reqRow.id, amount, method, steam_id: steamId },
-  });
+  /* Notify admins via user_notifications. Admin panel picks this up. */
+  const ADMIN_STEAM_IDS = ['76561198021723640', '76561198156985354'];
+  await supabase.from('user_notifications').insert(
+    ADMIN_STEAM_IDS.map((adminId) => ({
+      user_steam_id: adminId,
+      type: 'warning',
+      title: 'New withdrawal request',
+      message: `${amount} CZK via ${method} (${steamId})`,
+      action_url: '/admin?tab=withdrawals',
+      metadata: { withdraw_request_id: reqRow.id, amount, method, steam_id: steamId },
+    })),
+  );
 
   return json(201, {
     data: {

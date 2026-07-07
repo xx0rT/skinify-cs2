@@ -1290,20 +1290,34 @@ export const WithdrawalsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
     import('../../store/authStore').then(({ useAuthStore }) => {
       setAdminSteamId(useAuthStore.getState().user?.steamId || null);
     });
-    fetchRequests();
   }, []);
 
-  const fetchRequests = async () => {
+  /* Requests are listed via the withdraw-review function (service
+     role) — the table's RLS blocks anon reads, and Steam-auth admins
+     have no Supabase session, so a direct .from() came back empty. */
+  useEffect(() => {
+    if (adminSteamId) fetchRequests(adminSteamId);
+  }, [adminSteamId]);
+
+  const fetchRequests = async (steamId?: string | null) => {
+    const sid = steamId ?? adminSteamId;
+    if (!sid) return;
     setLoading(true);
     try {
-      if (!supabase) return;
-      const { data, error } = await supabase
-        .from('withdraw_requests')
-        .select('*, users(display_name, steam_id)')
-        .order('created_at', { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      setRows(data || []);
+      const { getSupabaseCredentials } = await import('../../utils/supabaseHelpers');
+      const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+      const res = await fetch(`${supabaseUrl}/functions/v1/withdraw-review`, {
+        headers: {
+          Authorization: `Bearer ${supabaseKey}`,
+          apikey: supabaseKey,
+          'x-admin-steam-id': sid,
+        },
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(body?.error?.message || `Server error (${res.status})`);
+      }
+      setRows(body?.data || []);
     } catch (err: any) {
       console.error('[admin/withdrawals] fetch failed:', err);
       addToast({
@@ -1376,7 +1390,7 @@ export const WithdrawalsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
           Review and process pending withdrawal requests.
         </p>
         <button
-          onClick={fetchRequests}
+          onClick={() => fetchRequests()}
           className="text-[13px] font-bold text-ink-muted hover:text-ink flex items-center gap-1.5"
           disabled={loading}
         >

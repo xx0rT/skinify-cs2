@@ -30,13 +30,13 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
     'authorization, x-client-info, apikey, content-type, x-admin-steam-id',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Max-Age': '3600',
 };
 
 /* Same allowlist as src/hooks/useAdminAuth.ts. Keep in sync when
    admins are added or removed. */
-const ADMIN_STEAM_IDS = new Set(['76561198021723640']);
+const ADMIN_STEAM_IDS = new Set(['76561198021723640', '76561198156985354']);
 
 function json(status: number, body: any) {
   return new Response(JSON.stringify(body), {
@@ -49,8 +49,8 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
-  if (req.method !== 'POST') {
-    return json(405, { error: { code: 'method_not_allowed', message: 'Use POST.' } });
+  if (req.method !== 'POST' && req.method !== 'GET') {
+    return json(405, { error: { code: 'method_not_allowed', message: 'Use GET or POST.' } });
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -63,6 +63,26 @@ Deno.serve(async (req) => {
   const adminSteamId = req.headers.get('x-admin-steam-id');
   if (!adminSteamId || !ADMIN_STEAM_IDS.has(adminSteamId)) {
     return json(403, { error: { code: 'forbidden', message: 'Admin access required.' } });
+  }
+
+  /* GET — list requests for the admin panel. The table's RLS only
+     grants SELECT to authenticated users, and Steam-auth admins run on
+     the anon key, so the panel reads through this service-role path
+     (which also keeps payout details off the public API). */
+  if (req.method === 'GET') {
+    const url = new URL(req.url);
+    const status = url.searchParams.get('status');
+    let query = supabase
+      .from('withdraw_requests')
+      .select('*, users(display_name, steam_id)')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (status && status !== 'all') query = query.eq('status', status);
+    const { data, error } = await query;
+    if (error) {
+      return json(500, { error: { code: 'db_error', message: error.message } });
+    }
+    return json(200, { data: data || [] });
   }
 
   let body: any;
