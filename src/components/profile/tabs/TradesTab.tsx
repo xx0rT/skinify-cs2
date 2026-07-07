@@ -20,6 +20,8 @@ import { useAuthStore } from '../../../store/authStore';
 import { useOrderStore } from '../../../store/orderStore';
 import { useBalanceStore } from '../../../store/balanceStore';
 import { useCurrencyStore } from '../../../store/currencyStore';
+import { useToastStore } from '../../../store/toastStore';
+import { getSupabaseCredentials } from '../../../utils/supabaseHelpers';
 import { spring, tap } from '../../../lib/motion';
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -76,10 +78,111 @@ const TradesTab: React.FC = () => {
   const { orders, fetchOrders } = useOrderStore();
   const { transactions, fetchTransactions, fetchBalance } = useBalanceStore();
   const { formatPrice } = useCurrencyStore();
+  const { addToast } = useToastStore();
   const [view, setView] = useState<View>('all');
   const [query, setQuery] = useState('');
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [verifyingKey, setVerifyingKey] = useState<string | null>(null);
+
+  /* ── Seller P2P delivery ─────────────────────────────────────────
+     "Send trade" opens Steam's trade window pre-targeted at the buyer
+     (their saved trade URL carries partner + token — Steam doesn't
+     allow pre-filling items via URL, so the seller picks the sold
+     item in the window). "Verify delivery" runs the server-side
+     watcher: verify-order polls the buyer's Steam inventory for the
+     sold asset IDs and, once found, marks the order complete and
+     credits the seller's escrow balance. */
+  const openSteamTrade = async (entry: FeedEntry) => {
+    const buyerSteamId = entry.raw?.buyer_steam_id;
+    if (!buyerSteamId) return;
+    try {
+      const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+      const res = await fetch(
+        `${supabaseUrl}/rest/v1/users?steam_id=eq.${buyerSteamId}&select=trade_url`,
+        { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
+      );
+      const rows = await res.json().catch(() => []);
+      const tradeUrl = rows?.[0]?.trade_url;
+      const itemNames = (entry.items || [])
+        .map((it: any) => it.name || it.market_name)
+        .filter(Boolean)
+        .join(', ');
+      if (tradeUrl && /^https:\/\/steamcommunity\.com\/tradeoffer\//.test(tradeUrl)) {
+        window.open(tradeUrl, '_blank', 'noopener');
+        addToast({
+          type: 'info',
+          title: 'Steam trade opened',
+          message: `Add ${itemNames || 'the sold item(s)'} to the trade and send it. Then come back and hit “Verify delivery”.`,
+          duration: 9000,
+        });
+      } else {
+        window.open(
+          `https://steamcommunity.com/profiles/${buyerSteamId}`,
+          '_blank',
+          'noopener',
+        );
+        addToast({
+          type: 'warning',
+          title: 'Buyer has no trade URL saved',
+          message: 'Opened their Steam profile instead — send the trade from there.',
+          duration: 8000,
+        });
+      }
+    } catch {
+      addToast({ type: 'error', title: 'Could not open the trade window' });
+    }
+  };
+
+  const verifyDelivery = async (entry: FeedEntry) => {
+    const o = entry.raw || {};
+    if (!user?.steamId || !o.transaction_id || verifyingKey) return;
+    setVerifyingKey(entry.key);
+    try {
+      const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+      const res = await fetch(`${supabaseUrl}/functions/v1/verify-order`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${supabaseKey}`,
+          apikey: supabaseKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transaction_id: o.transaction_id,
+          seller_steam_id: user.steamId,
+          buyer_steam_id: o.buyer_steam_id,
+          items: (entry.items || []).map((it: any) => ({
+            asset_id: it.asset_id || it.assetid || '',
+            item_name: it.name || it.market_name || '',
+          })),
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok && body?.verification_passed) {
+        addToast({
+          type: 'success',
+          title: 'Delivery verified',
+          message: 'Items found in the buyer’s inventory — escrow credited to your balance.',
+          duration: 8000,
+        });
+        refresh();
+      } else {
+        addToast({
+          type: 'warning',
+          title: 'Not verified yet',
+          message:
+            body?.error ||
+            body?.message ||
+            'Items weren’t found in the buyer’s inventory yet. If the buyer just accepted, wait a minute and try again.',
+          duration: 9000,
+        });
+      }
+    } catch (err: any) {
+      addToast({ type: 'error', title: 'Verification failed', message: err?.message });
+    } finally {
+      setVerifyingKey(null);
+    }
+  };
 
   useEffect(() => {
     if (!user?.steamId) return;
@@ -382,24 +485,45 @@ const TradesTab: React.FC = () => {
                       >
                         <div className="px-3 pb-3 pt-1 space-y-3">
                           <Timeline entry={e} formatPrice={formatPrice} />
-                          {/* Contact the counterparty — seller on a
-                              purchase, buyer on a sale. */}
-                          {(e.kind === 'purchase' || e.kind === 'sale') &&
-                            (() => {
-                              const peer =
-                                e.kind === 'purchase'
-                                  ? e.raw?.seller_steam_id
-                                  : e.raw?.buyer_steam_id;
-                              if (!peer || peer === user?.steamId) return null;
-                              return (
-                                <button
-                                  onClick={() => navigate(`/messages?peer=${peer}`)}
-                                  className="h-9 px-4 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[12.5px] font-bold transition-colors"
-                                >
-                                  {e.kind === 'purchase' ? 'Message seller' : 'Message buyer'}
-                                </button>
-                              );
-                            })()}
+                          {/* Row actions: contact the counterparty, and on
+                              an undelivered sale the P2P delivery flow. */}
+                          {(e.kind === 'purchase' || e.kind === 'sale') && (
+                            <div className="flex flex-wrap gap-2">
+                              {e.kind === 'sale' &&
+                                (e.status === 'escrow' || e.status === 'pending') && (
+                                  <>
+                                    <button
+                                      onClick={() => openSteamTrade(e)}
+                                      className="h-9 px-4 rounded-full bg-accent text-on-accent text-[12.5px] font-bold hover:opacity-90 transition-opacity"
+                                    >
+                                      Send trade
+                                    </button>
+                                    <button
+                                      onClick={() => verifyDelivery(e)}
+                                      disabled={verifyingKey === e.key}
+                                      className="h-9 px-4 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[12.5px] font-bold transition-colors disabled:opacity-50"
+                                    >
+                                      {verifyingKey === e.key ? 'Verifying…' : 'Verify delivery'}
+                                    </button>
+                                  </>
+                                )}
+                              {(() => {
+                                const peer =
+                                  e.kind === 'purchase'
+                                    ? e.raw?.seller_steam_id
+                                    : e.raw?.buyer_steam_id;
+                                if (!peer || peer === user?.steamId) return null;
+                                return (
+                                  <button
+                                    onClick={() => navigate(`/messages?peer=${peer}`)}
+                                    className="h-9 px-4 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[12.5px] font-bold transition-colors"
+                                  >
+                                    {e.kind === 'purchase' ? 'Message seller' : 'Message buyer'}
+                                  </button>
+                                );
+                              })()}
+                            </div>
+                          )}
                           {(e.items || []).length > 0 && (
                             <div className="space-y-2">
                               {(e.items || []).map((it: any, i: number) => (

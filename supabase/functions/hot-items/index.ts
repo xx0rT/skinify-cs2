@@ -362,6 +362,21 @@ Deno.serve(async (req) => {
 
       console.log('✅ Hot item created, promotion fee will be deducted by database trigger');
 
+      /* Persist the promoted flags on the listing itself (service
+         role — the client's anon update was silently blocked by RLS,
+         which is why the promoted state vanished on refresh). */
+      const { error: flagError } = await supabase
+        .from('marketplace_listings')
+        .update({
+          is_promoted: true,
+          promoted_at: new Date().toISOString(),
+          promoted_until: expiresAt,
+        })
+        .eq('id', promoteData.listing_id);
+      if (flagError) {
+        console.error('Failed to set listing promoted flags:', flagError);
+      }
+
       // Create success notification
       await createNotification(
         supabase,

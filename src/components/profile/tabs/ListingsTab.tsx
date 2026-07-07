@@ -52,6 +52,7 @@ interface Listing {
   float?: number | string | null;
   /** Paid promotion — true when the 49 Kč fee was paid. */
   is_promoted?: boolean;
+  promoted_until?: string | null;
 }
 
 type Sort = 'newest' | 'price-desc' | 'price-asc' | 'views';
@@ -76,6 +77,7 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
   const [confirmPromote, setConfirmPromote] = useState<Listing | null>(null);
   const [dontAskAgain, setDontAskAgain] = useState(false);
   const [shopAddedIds, setShopAddedIds] = useState<Set<string>>(new Set());
+  const [promotingIds, setPromotingIds] = useState<Set<string>>(new Set());
   const [editPrice, setEditPrice] = useState('');
 
   useEffect(() => {
@@ -111,6 +113,7 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
         created_at: l.created_at || l.listed_at || new Date().toISOString(),
         listing_type: l.listing_type || 'standard',
         is_promoted: l.is_promoted === true,
+        promoted_until: l.promoted_until || null,
       }));
       setListings(formatted);
     } catch {
@@ -225,7 +228,7 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
      listing → also feed the hot-items rail. Any failure rolls the
      state back and explains why. */
   const handlePromote = (l: Listing) => {
-    if (l.is_promoted) return;
+    if (l.is_promoted || promotingIds.has(String(l.id))) return;
     /* Pre-check funds so we never optimistically flip the button (or
        hit the server) when the user can't actually afford the fee. */
     if (Number(balance || 0) < PROMOTE_FEE_CZK) {
@@ -252,6 +255,10 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
 
   const executePromotion = async (l: Listing) => {
     setConfirmPromote(null);
+    const key = String(l.id);
+    /* In-flight guard — a double click used to fire the charge twice
+       before the optimistic state landed. */
+    if (promotingIds.has(key)) return;
     if (Number(balance || 0) < PROMOTE_FEE_CZK) {
       addToast({
         type: 'warning',
@@ -260,63 +267,30 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
       });
       return;
     }
+    setPromotingIds((prev) => new Set(prev).add(key));
+    const promotedUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     /* Instant UI — promoted state applies the moment the user commits. */
     setListings((prev) =>
-      prev.map((x) => (x.id === l.id ? { ...x, is_promoted: true } : x)),
+      prev.map((x) =>
+        x.id === l.id ? { ...x, is_promoted: true, promoted_until: promotedUntil } : x,
+      ),
     );
     const rollback = () =>
       setListings((prev) =>
-        prev.map((x) => (x.id === l.id ? { ...x, is_promoted: false } : x)),
+        prev.map((x) =>
+          x.id === l.id ? { ...x, is_promoted: false, promoted_until: null } : x,
+        ),
       );
 
     try {
       const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
 
-      /* 1. Charge the fee — a completed `purchase` transaction which
-         the balance function deducts from current_balance. */
-      const feeRes = await fetch(`${supabaseUrl}/functions/v1/balance`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          steam_id: steamId,
-          type: 'purchase',
-          amount: PROMOTE_FEE_CZK,
-          description: `Listing promotion · ${l.item_name}`,
-          status: 'completed',
-        }),
-      });
-      const feeData = await feeRes.json().catch(() => ({}));
-      if (!feeRes.ok) {
-        rollback();
-        addToast({
-          type: 'error',
-          title: 'Promotion failed',
-          message:
-            feeData?.error ||
-            `Could not charge the ${PROMOTE_FEE_CZK} Kč fee — check your balance.`,
-        });
-        return;
-      }
-
-      /* 2. Persist the promoted flag (7 days). */
-      const promotedUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-      const { error: updErr } = await supabase
-        .from('marketplace_listings')
-        .update({
-          is_promoted: true,
-          promoted_at: new Date().toISOString(),
-          promoted_until: promotedUntil,
-        })
-        .eq('id', l.id);
-      if (updErr) {
-        console.error('[promote] flag update failed:', updErr);
-      }
-
-      /* 3. Feed the "hot items" rail too — fire and forget. */
-      fetch(`${supabaseUrl}/functions/v1/hot-items`, {
+      /* ONE charge, server-side: the hot-items function verifies the
+         balance, debits the 49 Kč fee, creates the featured entry AND
+         persists the listing's promoted flags with service role. The
+         client previously charged a second fee via the balance
+         function on top of this — that's the "promoted 3×" bill. */
+      const res = await fetch(`${supabaseUrl}/functions/v1/hot-items`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -325,8 +299,37 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
           asset_id: l.asset_id || String(l.id),
           duration_hours: 24 * 7,
         }),
-      }).catch(() => {});
+      });
+      const data = await res.json().catch(() => ({}));
 
+      if (res.status === 409) {
+        /* Already promoted server-side — keep the flag, no new charge. */
+        addToast({
+          type: 'info',
+          title: 'Already promoted',
+          message: `${l.item_name} is already featured${
+            data?.expires_at ? ` until ${new Date(data.expires_at).toLocaleDateString()}` : ''
+          }.`,
+        });
+        return;
+      }
+      if (!res.ok) {
+        rollback();
+        addToast({
+          type: 'error',
+          title: 'Promotion failed',
+          message: data?.error || `Could not charge the ${PROMOTE_FEE_CZK} Kč fee.`,
+        });
+        return;
+      }
+
+      if (data?.expires_at) {
+        setListings((prev) =>
+          prev.map((x) =>
+            x.id === l.id ? { ...x, promoted_until: data.expires_at } : x,
+          ),
+        );
+      }
       fetchBalance(steamId);
       addToast({
         type: 'success',
@@ -339,6 +342,12 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
         type: 'error',
         title: 'Promotion failed',
         message: err?.message || 'Network error',
+      });
+    } finally {
+      setPromotingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
       });
     }
   };
@@ -501,6 +510,7 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
                 onPromote={() => handlePromote(l)}
                 onAddToShop={() => handleAddToShop(l)}
                 promoted={!!l.is_promoted}
+                promotedUntil={l.promoted_until || null}
                 inShop={shopAddedIds.has(String(l.id))}
                 promoteLabel={formatFee(PROMOTE_FEE_CZK)}
                 onView={() => navigate(`/item/${l.id}`)}
@@ -652,6 +662,7 @@ const ListingCard: React.FC<{
   onSaveEdit: () => void;
   onRemove: () => void;
   onPromote: () => void;
+  promotedUntil?: string | null;
   promoted?: boolean;
   inShop?: boolean;
   onAddToShop: () => void;
@@ -670,6 +681,7 @@ const ListingCard: React.FC<{
   onSaveEdit,
   onRemove,
   onPromote,
+  promotedUntil,
   promoted = false,
   inShop = false,
   onAddToShop,
@@ -904,7 +916,14 @@ const ListingCard: React.FC<{
                   className="w-full h-8 rounded-sm bg-emerald-500 text-white text-[11.5px] font-bold inline-flex items-center justify-center gap-1"
                 >
                   <Check size={12} strokeWidth={2.8} />
-                  Promoted · 7 days
+                  {(() => {
+                    if (!promotedUntil) return 'Promoted';
+                    const days = Math.max(
+                      0,
+                      Math.ceil((new Date(promotedUntil).getTime() - Date.now()) / 86_400_000),
+                    );
+                    return `Promoted · ${days}d left`;
+                  })()}
                 </motion.div>
               ) : (
                 <motion.button

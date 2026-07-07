@@ -670,8 +670,9 @@ Deno.serve(async (req) => {
             asset_id: assetIds.join(','),
             verification_status: 'failed',
             error_message: 'Multi-round verification failed - items not found in buyer inventory',
-            api_response: { 
-              verification_rounds: verificationResults || [],
+            api_response: {
+              /* verificationResults is scoped inside the helper — referencing
+                 it here crashed the failure path with a ReferenceError. */
               error: 'Multi-round verification failed'
             }
           });

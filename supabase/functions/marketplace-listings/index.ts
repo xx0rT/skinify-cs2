@@ -221,6 +221,7 @@ Deno.serve(async (req) => {
           description: listing.description,
           listing_type: listing.listing_type,
           is_promoted: listing.is_promoted === true,
+          promoted_until: listing.promoted_until || null,
           promoted: listing.is_promoted === true,
           share_token: listing.share_token,
           /* Resolve placeholders the same way the bulk listing
@@ -353,6 +354,7 @@ Deno.serve(async (req) => {
         pattern: listing.pattern_template,
         stickers: listing.stickers,
         is_promoted: listing.is_promoted === true,
+          promoted_until: listing.promoted_until || null,
         promoted: listing.is_promoted === true,
         seller: {
           /* Sourced from the listing's `user_id` join, NOT the

@@ -8,7 +8,7 @@ import {
   X as XIcon,
   ThumbsUp,
 } from 'lucide-react';
-import { supabase } from '../../lib/supabaseClient';
+import { getSupabaseCredentials } from '../../utils/supabaseHelpers';
 import { useAuthStore } from '../../store/authStore';
 import { useToastStore } from '../../store/toastStore';
 import { spring, tap } from '../../lib/motion';
@@ -91,48 +91,32 @@ const UserReviews: React.FC<UserReviewsProps> = ({ userId, steamId }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, user?.steamId]);
 
+  /* Reviews + eligibility come from the `reviews` edge function —
+     user_reviews RLS is authenticated-only, and Steam-OpenID users run
+     on the anon key, so a direct table read returned nothing (and the
+     old insert used steam ids where the table wants users.id uuids). */
   const fetchUserIdAndReviews = async () => {
     try {
       setIsLoading(true);
-
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('steam_id', userId)
-        .maybeSingle();
-
-      if (userError) throw userError;
-      if (!userData) {
-        setReviews([]);
-        return;
-      }
-
-      setActualUserId(userData.id);
-
-      const { data: reviewsData, error } = await supabase
-        .from('user_reviews')
-        .select(
-          `
-          id,
-          reviewer_id,
-          rating,
-          comment,
-          is_verified_purchase,
-          created_at,
-          reviewer:users!user_reviews_reviewer_id_fkey(display_name, avatar_url)
-        `,
-        )
-        .eq('reviewed_user_id', userData.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      // Supabase typings return reviewer as an array when the alias isn't unique;
-      // flatten for downstream consumers.
-      const normalized = (reviewsData || []).map((r: any) => ({
+      const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${supabaseKey}`,
+        apikey: supabaseKey,
+      };
+      if (user?.steamId) headers['x-steam-id'] = user.steamId;
+      const res = await fetch(
+        `${supabaseUrl}/functions/v1/reviews?steam_id=${steamId}`,
+        { headers },
+      );
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || `Server error (${res.status})`);
+      const normalized = (body?.reviews || []).map((r: any) => ({
         ...r,
         reviewer: Array.isArray(r.reviewer) ? r.reviewer[0] : r.reviewer,
       })) as Review[];
       setReviews(normalized);
+      setCanReview(Boolean(body?.can_review));
+      setActualUserId('resolved-server-side');
     } catch (e) {
       console.error('Error fetching reviews:', e);
     } finally {
@@ -141,33 +125,7 @@ const UserReviews: React.FC<UserReviewsProps> = ({ userId, steamId }) => {
   };
 
   const checkCanReview = async () => {
-    if (!user || !userId || user.steamId === steamId) {
-      setCanReview(false);
-      return;
-    }
-    try {
-      /* Has the viewer ever traded with this seller? */
-      const { data: completedOrders } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('status', 'completed')
-        .or(`buyer_steam_id.eq.${user.steamId},seller_steam_id.eq.${user.steamId}`)
-        .or(`buyer_steam_id.eq.${steamId},seller_steam_id.eq.${steamId}`)
-        .limit(1);
-
-      const { data: existingReview } = await supabase
-        .from('user_reviews')
-        .select('id')
-        .eq('reviewer_id', user.steamId)
-        .eq('reviewed_user_id', userId)
-        .maybeSingle();
-
-      setCanReview(
-        !!completedOrders && completedOrders.length > 0 && !existingReview,
-      );
-    } catch (e) {
-      console.error('Error checking review eligibility:', e);
-    }
+    /* Eligibility is included in the GET response. */
   };
 
   /* Aggregate stats derived from the loaded reviews so the header
@@ -198,14 +156,23 @@ const UserReviews: React.FC<UserReviewsProps> = ({ userId, steamId }) => {
     }
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('user_reviews').insert({
-        reviewer_id: user.steamId,
-        reviewed_user_id: actualUserId,
-        rating: rating,
-        comment: comment.trim(),
-        is_verified_purchase: true,
+      const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+      const res = await fetch(`${supabaseUrl}/functions/v1/reviews`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${supabaseKey}`,
+          apikey: supabaseKey,
+          'Content-Type': 'application/json',
+          'x-steam-id': user.steamId,
+        },
+        body: JSON.stringify({
+          reviewed_steam_id: steamId,
+          rating,
+          comment: comment.trim(),
+        }),
       });
-      if (error) throw error;
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || `Server error (${res.status})`);
 
       addToast({
         type: 'success',
