@@ -259,20 +259,8 @@ const LandingPage: React.FC = () => {
           CS2 Marketplace — Buy and Sell CS2 Skins on Skinify
         </h1>
 
-        {promotedItems.length > 0 && (
-        <PromotedWall
-          items={promotedItems}
-          onView={(id) => navigate(`/item/${id}`)}
-          onAddCart={handleAddCart}
-          onToggleWish={handleWish}
-          isWished={(id) => isInWishlist(id)}
-          formatPrice={formatPrice}
-        />
-        )}
-
-        {/* ===== HERO ===== */}
-        {/* Left showcase (raw skins above the fold) removed per design —
-            the hero is now the single stats/volume card, full width. */}
+        {/* ===== HERO — the first thing on the page: your profile
+            status when signed in, a welcome summary when not. ===== */}
         <section className="mb-3">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -280,24 +268,94 @@ const LandingPage: React.FC = () => {
             transition={{ ...spring, delay: 0.12 }}
             className="card p-6 sm:p-7 flex flex-col h-full"
           >
-            <div className="flex items-center justify-between mb-1">
-              <span className="label-eyebrow">
-                {user
-                  ? t('landing.portfolio.eyebrow.signedIn', 'Your portfolio')
-                  : t('landing.portfolio.eyebrow.signedOut', 'Marketplace volume')}
-              </span>
-              <span className="pill bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-                +2.4%
-              </span>
-            </div>
-            <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none text-ink tabular-nums break-words">
-              {user ? formatPrice(portfolio) : formatPrice(36714736)}
-            </div>
-            <div className="text-[13px] text-ink-muted font-medium mt-1.5 mb-4">
-              {user
-                ? t('landing.portfolio.balance', 'Available balance')
-                : t('landing.portfolio.volume', 'Total volume traded')}
-            </div>
+            {user ? (
+              <>
+                <div className="flex items-center gap-3.5 mb-4">
+                  {user.avatarUrl && (
+                    <img
+                      src={user.avatarUrl}
+                      alt=""
+                      className="w-12 h-12 rounded-full object-cover shrink-0"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <span className="label-eyebrow">
+                      {t('landing.welcome.back', 'Welcome back')}
+                    </span>
+                    <div className="text-[19px] sm:text-[22px] font-bold tracking-tight leading-tight truncate">
+                      {user.displayName || 'Trader'}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate('/profile')}
+                    className="hidden sm:inline-flex h-10 px-4 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[12.5px] font-bold items-center transition-colors shrink-0"
+                  >
+                    {t('landing.welcome.profile', 'Open profile')}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="label-eyebrow">
+                    {t('landing.portfolio.eyebrow.signedIn', 'Your portfolio')}
+                  </span>
+                  <span className="pill bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                    +2.4%
+                  </span>
+                </div>
+                <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none text-ink tabular-nums break-words">
+                  {formatPrice(portfolio)}
+                </div>
+                <div className="text-[13px] text-ink-muted font-medium mt-1.5 mb-4">
+                  {t('landing.portfolio.balance', 'Available balance')}
+                </div>
+              </>
+            ) : (
+              <>
+                <span className="label-eyebrow">
+                  {t('landing.hero.eyebrow', 'CS2 marketplace · 0% buyer fees')}
+                </span>
+                <div className="mt-2 flex flex-wrap items-end justify-between gap-4 mb-4">
+                  <div className="max-w-[640px]">
+                    <h2 className="text-[24px] sm:text-[30px] font-bold tracking-tight leading-tight">
+                      {t('landing.hero.headline', 'Buy and sell CS2 skins with zero buyer fees')}
+                    </h2>
+                    <p className="text-[13.5px] text-ink-muted font-medium mt-2 leading-relaxed">
+                      {t(
+                        'landing.hero.lead',
+                        'Escrow-protected trades, sub-60-second Steam delivery, real-money payouts.',
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => navigate('/marketplace')}
+                      className="h-11 px-5 rounded-full bg-accent text-on-accent text-[13px] font-bold"
+                    >
+                      {t('landing.hero.browseMarket', 'Browse the marketplace')}
+                    </button>
+                    <button
+                      onClick={() => navigate('/profile?tab=inventory')}
+                      className="h-11 px-5 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[13px] font-bold transition-colors"
+                    >
+                      {t('landing.hero.startSelling', 'Start selling')}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="label-eyebrow">
+                    {t('landing.portfolio.eyebrow.signedOut', 'Marketplace volume')}
+                  </span>
+                  <span className="pill bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                    +2.4%
+                  </span>
+                </div>
+                <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none text-ink tabular-nums break-words">
+                  {formatPrice(36714736)}
+                </div>
+                <div className="text-[13px] text-ink-muted font-medium mt-1.5 mb-4">
+                  {t('landing.portfolio.volume', 'Total volume traded')}
+                </div>
+              </>
+            )}
 
             <div className="mb-4 mx-1 sm:mx-2 h-[100px] sm:h-[130px] rounded-2xl bg-subtle/60 overflow-hidden relative">
               <svg
@@ -358,6 +416,33 @@ const LandingPage: React.FC = () => {
           </motion.div>
         </section>
 
+        {/* Promoted skins (paid placements) directly under the hero. */}
+        {promotedItems.length > 0 && (
+          <PromotedWall
+            items={promotedItems}
+            onView={(id) => navigate(`/item/${id}`)}
+            onAddCart={handleAddCart}
+            onToggleWish={handleWish}
+            isWished={(id) => isInWishlist(id)}
+            formatPrice={formatPrice}
+          />
+        )}
+
+        {/* When few sellers are paying for promotion the wall looks
+            thin — back-fill with the 15 newest marketplace listings,
+            fading the last row into translucency with a button to the
+            full marketplace underneath. */}
+        {promotedItems.length < 6 && (
+          <LatestListings
+            items={marketplaceItems || []}
+            onView={(id) => navigate(`/item/${id}`)}
+            onAddCart={handleAddCart}
+            onToggleWish={handleWish}
+            isWished={(id) => isInWishlist(id)}
+            formatPrice={formatPrice}
+            onOpenMarketplace={() => navigate('/marketplace')}
+          />
+        )}
 
         <Reveal className="mb-6">
           <LiveActivityFeed />
@@ -1118,6 +1203,104 @@ const FeaturedCarousel: React.FC<{
         </div>
       )}
     </div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   LatestListings — back-fill under the promoted wall when few sellers
+   pay for promotion. Shows the 15 newest marketplace listings; the
+   grid's tail fades into translucency and a button below opens the
+   full marketplace.
+   ───────────────────────────────────────────────────────────────────────── */
+const LatestListings: React.FC<{
+  items: any[];
+  onView: (id: string) => void;
+  onAddCart: (item: any) => void;
+  onToggleWish: (item: any) => void;
+  isWished: (id: string) => boolean;
+  formatPrice: (n: number) => string;
+  onOpenMarketplace: () => void;
+}> = ({ items, onView, onAddCart, onToggleWish, isWished, formatPrice, onOpenMarketplace }) => {
+  const t = useT();
+
+  const latest = useMemo(
+    () =>
+      [...(items || [])]
+        .sort(
+          (a: any, b: any) =>
+            new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime(),
+        )
+        .slice(0, 15),
+    [items],
+  );
+
+  if (latest.length === 0) return null;
+
+  return (
+    <section className="mb-8">
+      <div className="mb-4 px-1">
+        <h2 className="text-[17px] font-bold text-ink tracking-tight">
+          {t('landing.section.browse.title', 'Procházet tržiště')}
+        </h2>
+        <p className="text-[12.5px] text-ink-muted mt-0.5 font-medium">
+          {t('landing.latest.lead', 'The newest listings across the marketplace')}
+        </p>
+      </div>
+
+      <div className="relative">
+        <div
+          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-0 isolate"
+          style={{
+            /* The tail of the grid dissolves into the page — reads as
+               "there's more" and hands off to the button below. */
+            maskImage:
+              'linear-gradient(to bottom, #000 0%, #000 62%, rgb(0 0 0 / 0.45) 82%, transparent 100%)',
+            WebkitMaskImage:
+              'linear-gradient(to bottom, #000 0%, #000 62%, rgb(0 0 0 / 0.45) 82%, transparent 100%)',
+          }}
+        >
+          {latest.map((item: any, i: number) => {
+            /* Cards under the fade shouldn't catch hovers/clicks. */
+            const faded = i >= latest.length - 5;
+            return (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{
+                  duration: 0.28,
+                  delay: Math.min(i * 0.02, 0.3),
+                  ease: [0.2, 0.65, 0.3, 1],
+                }}
+                className={faded ? 'pointer-events-none' : ''}
+              >
+                <SkinCard
+                  variant="tile"
+                  item={item}
+                  onView={() => onView(String(item.id))}
+                  onAddCart={() => onAddCart(item)}
+                  onToggleWish={() => onToggleWish(item)}
+                  wished={isWished(item.id)}
+                  formatPrice={formatPrice}
+                />
+              </motion.div>
+            );
+          })}
+        </div>
+
+        <div className="-mt-10 relative z-10 flex justify-center">
+          <motion.button
+            whileTap={tap}
+            whileHover={{ scale: 1.03 }}
+            onClick={onOpenMarketplace}
+            className="h-11 px-7 rounded-full bg-accent text-on-accent text-[13px] font-bold inline-flex items-center gap-1.5"
+          >
+            {t('landing.latest.openMarketplace', 'Open the marketplace')}
+            <ArrowRight size={13} strokeWidth={2.6} />
+          </motion.button>
+        </div>
+      </div>
+    </section>
   );
 };
 

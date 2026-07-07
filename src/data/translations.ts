@@ -1,5 +1,9 @@
 export const translations: Record<string, Record<string, string>> = {
   en: {
+    'landing.welcome.back': 'Welcome back',
+    'landing.welcome.profile': 'Open profile',
+    'landing.latest.lead': 'The newest listings across the marketplace',
+    'landing.latest.openMarketplace': 'Open the marketplace',
     'tickets.limit': 'You already have an open ticket — reply there or wait until it\'s resolved before opening a new one.',
     'tickets.eyebrow': 'Support',
     'tickets.title': 'My tickets',
@@ -534,6 +538,10 @@ export const translations: Record<string, Record<string, string>> = {
   },
 
   cs: {
+    'landing.welcome.back': 'Vítejte zpět',
+    'landing.welcome.profile': 'Otevřít profil',
+    'landing.latest.lead': 'Nejnovější nabídky napříč tržištěm',
+    'landing.latest.openMarketplace': 'Otevřít tržiště',
     'tickets.limit': 'Už máte otevřený tiket — odpovězte v něm, nebo počkejte na jeho vyřešení, než otevřete nový.',
     'tickets.eyebrow': 'Podpora',
     'tickets.title': 'Moje tikety',
@@ -1265,6 +1273,10 @@ export const translations: Record<string, Record<string, string>> = {
   },
 
   de: {
+    'landing.welcome.back': 'Willkommen zurück',
+    'landing.welcome.profile': 'Profil öffnen',
+    'landing.latest.lead': 'Die neuesten Angebote auf dem Marktplatz',
+    'landing.latest.openMarketplace': 'Marktplatz öffnen',
     'tickets.limit': 'Sie haben bereits ein offenes Ticket — antworten Sie dort oder warten Sie auf die Lösung, bevor Sie ein neues eröffnen.',
     'tickets.eyebrow': 'Support',
     'tickets.title': 'Meine Tickets',
@@ -1590,6 +1602,10 @@ export const translations: Record<string, Record<string, string>> = {
   },
 
   ru: {
+    'landing.welcome.back': 'С возвращением',
+    'landing.welcome.profile': 'Открыть профиль',
+    'landing.latest.lead': 'Самые новые лоты на маркетплейсе',
+    'landing.latest.openMarketplace': 'Открыть маркетплейс',
     'tickets.limit': 'У вас уже есть открытый тикет — ответьте в нём или дождитесь решения, прежде чем открывать новый.',
     'tickets.eyebrow': 'Поддержка',
     'tickets.title': 'Мои тикеты',
