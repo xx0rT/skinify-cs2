@@ -98,12 +98,15 @@ const TradesTab: React.FC = () => {
     if (!buyerSteamId) return;
     try {
       const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+      /* The users column is `trade_link`; the order row may also carry
+         a `steam_trade_url` snapshot from checkout — prefer the live
+         profile value, fall back to the order's. */
       const res = await fetch(
-        `${supabaseUrl}/rest/v1/users?steam_id=eq.${buyerSteamId}&select=trade_url`,
+        `${supabaseUrl}/rest/v1/users?steam_id=eq.${buyerSteamId}&select=trade_link`,
         { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } },
       );
       const rows = await res.json().catch(() => []);
-      const tradeUrl = rows?.[0]?.trade_url;
+      const tradeUrl = rows?.[0]?.trade_link || entry.raw?.steam_trade_url;
       const itemNames = (entry.items || [])
         .map((it: any) => it.name || it.market_name)
         .filter(Boolean)
