@@ -16,6 +16,10 @@ interface MetaOptions {
   jsonLd?: object | object[];
   /** `noindex` set if true — used on Profile, Cart, Auth pages. */
   noindex?: boolean;
+  /** Language codes with live `/:lang` route variants of this page.
+      Emits `<link rel="alternate" hreflang>` tags (plus x-default →
+      canonical). Only pass codes whose routes actually resolve. */
+  langAlternates?: string[];
 }
 
 const DEFAULT_OG = 'https://skinify.gg/og-cover.png';
@@ -33,6 +37,7 @@ export function useDocumentMeta({
   ogImage,
   jsonLd,
   noindex,
+  langAlternates,
 }: MetaOptions) {
   useEffect(() => {
     if (title) {
@@ -61,6 +66,31 @@ export function useDocumentMeta({
     const url = canonical ?? `https://skinify.gg${window.location.pathname}`;
     setLink('canonical', url);
     setMeta('property', 'og:url', url);
+
+    /* hreflang alternates — tell Google which URL serves which
+       language so localized variants don't compete as duplicates.
+       Managed tags are cleared on every run so route changes never
+       leave stale alternates behind. */
+    document.head
+      .querySelectorAll('link[rel="alternate"][data-skinify-hreflang]')
+      .forEach((el) => el.remove());
+    if (langAlternates && langAlternates.length > 0 && !noindex) {
+      const path = url.replace(/^https:\/\/skinify\.gg/, '') || '/';
+      const add = (hreflang: string, href: string) => {
+        const el = document.createElement('link');
+        el.rel = 'alternate';
+        el.hreflang = hreflang;
+        el.href = href;
+        el.setAttribute('data-skinify-hreflang', '1');
+        document.head.appendChild(el);
+      };
+      add('x-default', url);
+      add('en', url);
+      for (const code of langAlternates) {
+        if (code === 'en') continue;
+        add(code, `https://skinify.gg/${code}${path === '/' ? '' : path}`);
+      }
+    }
 
     // Robots: noindex for private/account pages, otherwise full crawl.
     setMeta(

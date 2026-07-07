@@ -98,6 +98,7 @@ const LandingPage: React.FC = () => {
       ? 'Peer-to-peer tržiště CS2 s 0% poplatkem pro kupující. Obchody chráněné escrowem, doručení přes Steam do 60 sekund, výplaty v reálných penězích. Nakupujte AK-47, AWP, Karambit, M9 Bayonet, rukavice a vzácné patterny od ověřených prodejců.'
       : 'The peer-to-peer CS2 marketplace with 0% buyer fees. Escrow-protected trades, sub-60-second Steam delivery, real-money payouts. Buy AK-47, AWP, Karambit, M9 Bayonet, gloves and rare patterns from verified sellers.',
     canonical: 'https://skinify.gg/',
+    langAlternates: ['cs', 'de', 'ru'],
     keywords:
       'cs2 marketplace, cs2 skins, buy cs2 skins, sell cs2 skins, instant sell cs2 skins, cs2 skins to cash, cs2 skins to money, skins to cash, cash out cs2 skins, sell skins for real money, counter-strike 2 marketplace, ak-47 redline, awp dragon lore, karambit doppler, m9 bayonet fade, sport gloves, butterfly knife, p2p cs2 trading, 0 fee cs2 marketplace, escrow cs2, instant steam delivery, cs2 skin prices, skinport alternative, skinport fees, steam market alternative, skinify cs2, skinyfi, skinyfy, skinifi, скинифай, скины кс2 продать, cs2 tržiště, cs2 skiny koupit, prodat cs2 skiny, cs2 obchod, cs2 nůž koupit',
     jsonLd: faqJsonLd(LANDING_FAQ),
