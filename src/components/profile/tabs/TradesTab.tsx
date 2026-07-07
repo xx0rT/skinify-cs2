@@ -643,10 +643,22 @@ const Timeline: React.FC<{ entry: FeedEntry; formatPrice: (n: number) => string 
 
   const holdUntil = entry.raw?.metadata?.hold_until;
   const escrowReleaseDate = entry.raw?.escrow_release_date;
+  const releaseDate =
+    entry.status === 'escrow' && (holdUntil || escrowReleaseDate)
+      ? new Date(holdUntil || escrowReleaseDate)
+      : null;
   const referenceId = entry.raw?.transaction_id || entry.raw?.reference_id;
 
+  /* Progress header: "step X of Y" + a filled bar — the state of the
+     whole order is readable before parsing individual steps. */
+  const doneCount = steps.filter((s) => s.done).length;
+  const activeIdx = steps.findIndex((s) => s.active);
+  const progressPct = Math.round(
+    (Math.max(doneCount, activeIdx + 1) / steps.length) * 100,
+  );
+
   return (
-    <div className="card-flat p-3.5 space-y-3">
+    <div className="card-flat p-4 space-y-4">
       <div className="flex items-center justify-between gap-3">
         <span className="label-eyebrow">Tracking</span>
         {referenceId && (
@@ -656,33 +668,73 @@ const Timeline: React.FC<{ entry: FeedEntry; formatPrice: (n: number) => string 
         )}
       </div>
 
-      <ol className="space-y-2.5">
+      <div className="h-1.5 rounded-full bg-subtle overflow-hidden">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${progressPct}%` }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
+          className="h-full rounded-full bg-accent"
+        />
+      </div>
+
+      {/* Stepper — one continuous rail; each segment fills as the step
+          completes so the eye reads progress top-to-bottom. */}
+      <ol>
         {steps.map((step, i) => {
-          const tone =
-            step.active
-              ? 'bg-accent text-on-accent'
-              : step.done
-              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-              : 'bg-subtle text-ink-muted';
+          const isLast = i === steps.length - 1;
+          const upcoming = !step.done && !step.active;
           return (
-            <li key={i} className="flex items-start gap-3 relative">
-              <div className={`w-7 h-7 rounded-full grid place-items-center shrink-0 ${tone}`}>
-                <step.Icon size={13} strokeWidth={2.4} />
+            <li key={i} className="flex gap-3">
+              {/* Rail column: dot + connecting segment */}
+              <div className="flex flex-col items-center w-5 shrink-0">
+                {step.done && !step.active ? (
+                  <span className="w-5 h-5 rounded-full bg-accent grid place-items-center shrink-0">
+                    <CheckCircle2 size={12} strokeWidth={3} className="text-on-accent" />
+                  </span>
+                ) : step.active ? (
+                  <span className="relative w-5 h-5 rounded-full grid place-items-center shrink-0 ring-2 ring-accent bg-surface">
+                    <motion.span
+                      className="w-2 h-2 rounded-full bg-accent"
+                      animate={{ scale: [1, 1.45, 1], opacity: [1, 0.6, 1] }}
+                      transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+                    />
+                  </span>
+                ) : (
+                  <span className="w-5 h-5 rounded-full border-2 border-line bg-surface shrink-0" />
+                )}
+                {!isLast && (
+                  <span
+                    className={`w-0.5 flex-1 min-h-[18px] my-0.5 rounded-full ${
+                      step.done ? 'bg-accent' : 'bg-line'
+                    }`}
+                    aria-hidden
+                  />
+                )}
               </div>
-              {i < steps.length - 1 && (
-                <span
-                  className="absolute left-3.5 top-7 bottom-0 w-px bg-line"
-                  style={{ transform: 'translateX(-0.5px)' }}
-                  aria-hidden
-                />
-              )}
-              <div className="flex-1 min-w-0 pt-0.5">
-                <div className="text-[12.5px] font-semibold text-ink tracking-tight">
+
+              <div className={`flex-1 min-w-0 ${isLast ? '' : 'pb-3'}`}>
+                <div
+                  className={`text-[13px] tracking-tight leading-5 ${
+                    upcoming
+                      ? 'font-medium text-ink-dim'
+                      : 'font-bold text-ink'
+                  }`}
+                >
                   {step.label}
+                  {step.active && (
+                    <span className="ml-2 pill !py-0.5 !px-2 text-[9.5px] bg-accent-soft text-accent align-middle">
+                      Current
+                    </span>
+                  )}
                 </div>
                 {step.date && (
-                  <div className="text-[10.5px] text-ink-dim font-medium mt-0.5">
+                  <div className="text-[11px] text-ink-dim font-medium mt-0.5 tabular-nums">
                     {new Date(step.date).toLocaleString()}
+                  </div>
+                )}
+                {step.active && releaseDate && (
+                  <div className="text-[11.5px] text-amber-600 dark:text-amber-400 font-semibold mt-0.5">
+                    Releases {releaseDate.toLocaleDateString()}
                   </div>
                 )}
               </div>
@@ -691,14 +743,7 @@ const Timeline: React.FC<{ entry: FeedEntry; formatPrice: (n: number) => string 
         })}
       </ol>
 
-      {(holdUntil || escrowReleaseDate) && entry.status === 'escrow' && (
-        <div className="flex items-center gap-2 text-[11.5px] text-ink-muted font-medium pt-1 border-t border-line">
-          <Hourglass size={11} className="text-amber-600" />
-          Releases {new Date(holdUntil || escrowReleaseDate).toLocaleDateString()}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between pt-1 border-t border-line">
+      <div className="flex items-center justify-between pt-2 border-t border-line/60">
         <span className="text-[11.5px] text-ink-muted font-medium">Amount</span>
         <span className="text-[13px] font-bold text-ink tabular-nums">
           {entry.positive ? '+' : '−'}{formatPrice(entry.amount)}
