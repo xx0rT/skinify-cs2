@@ -155,6 +155,9 @@ const SettingsTab: React.FC = () => {
   const { totalDeposited } = useBalanceStore();
   const { mode, setMode, palette, setPalette, resolvedMode } = useTheme();
   const [uiScale, setUiScaleState] = useState<UiScale>(() => getUiScale());
+  /* True while the user is actively dragging the font-size slider —
+     lets us defer the (expensive) zoom apply until the drag ends. */
+  const uiScaleDraggingRef = useRef(false);
   const { selectedCurrency, setSelectedCurrency } = useCurrencyStore();
   const [searchParams] = useSearchParams();
   const apiSectionRef = useRef<HTMLDivElement | null>(null);
@@ -506,9 +509,10 @@ const SettingsTab: React.FC = () => {
           </div>
         </div>
 
-        {/* Font size / UI scale — slider; zoom applies live while
-            dragging so the whole interface scales smoothly under the
-            cursor. */}
+        {/* Font size / UI scale — the % readout and fill track follow
+            the drag live, but the actual zoom is only applied when the
+            drag ENDS. Applying it mid-drag rescaled the slider under
+            the pointer, which made dragging feel jumpy. */}
         <div className="mt-5">
           <div className="flex items-center justify-between mb-3">
             <div className="label-eyebrow">Font size</div>
@@ -537,10 +541,23 @@ const SettingsTab: React.FC = () => {
               max={UI_SCALE_MAX}
               step={UI_SCALE_STEP}
               value={uiScale}
+              onPointerDown={() => {
+                uiScaleDraggingRef.current = true;
+              }}
               onChange={(e) => {
                 const v = Number(e.target.value) as UiScale;
-                setUiScale(v);
                 setUiScaleState(v);
+                /* Keyboard / click-to-jump (no pointer drag in
+                   progress) commits immediately. */
+                if (!uiScaleDraggingRef.current) setUiScale(v);
+              }}
+              onPointerUp={(e) => {
+                uiScaleDraggingRef.current = false;
+                setUiScale(Number((e.target as HTMLInputElement).value) as UiScale);
+              }}
+              onTouchEnd={(e) => {
+                uiScaleDraggingRef.current = false;
+                setUiScale(Number((e.target as HTMLInputElement).value) as UiScale);
               }}
               aria-label="Font size"
               className="relative w-full appearance-none bg-transparent cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150 [&::-webkit-slider-thumb]:hover:scale-110 [&::-webkit-slider-thumb]:active:scale-125 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-accent [&::-moz-range-thumb]:border-0"
