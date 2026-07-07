@@ -24,7 +24,7 @@ export const InventoryTab: React.FC<{ addToast: any }> = ({ addToast }) => {
       if (supabase) {
         const { data, error } = await supabase
           .from('marketplace_listings')
-          .select('*, users(username)')
+          .select('*, users(display_name)')
           .order('created_at', { ascending: false })
           .limit(50);
         
@@ -86,7 +86,7 @@ export const InventoryTab: React.FC<{ addToast: any }> = ({ addToast }) => {
               {listings.map((listing) => (
                 <tr key={listing.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
                   <td className="py-3 px-4 text-white">{listing.item_name || 'Unknown Item'}</td>
-                  <td className="py-3 px-4 text-gray-300">{listing.users?.username || 'Unknown'}</td>
+                  <td className="py-3 px-4 text-gray-300">{listing.users?.display_name || 'Unknown'}</td>
                   <td className="py-3 px-4 text-white font-semibold">{(listing.price || 0).toLocaleString('cs-CZ')} Kč</td>
                   <td className="py-3 px-4">
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -278,7 +278,7 @@ export const SupportTab: React.FC<{ addToast: any }> = ({ addToast }) => {
       if (supabase) {
         const { data, error } = await supabase
           .from('support_tickets')
-          .select('*, users(username)')
+          .select('*, users(display_name)')
           .order('created_at', { ascending: false })
           .limit(50);
         
@@ -313,7 +313,7 @@ export const SupportTab: React.FC<{ addToast: any }> = ({ addToast }) => {
             {tickets.map((ticket) => (
               <tr key={ticket.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
                 <td className="py-3 px-4 text-gray-300 font-mono text-sm">{ticket.id.slice(0, 8)}</td>
-                <td className="py-3 px-4 text-white">{ticket.users?.username || 'Unknown'}</td>
+                <td className="py-3 px-4 text-white">{ticket.users?.display_name || 'Unknown'}</td>
                 <td className="py-3 px-4 text-gray-300">{ticket.subject}</td>
                 <td className="py-3 px-4">
                   <span className={`px-3 py-1 rounded-full text-xs ${
@@ -526,7 +526,7 @@ export const WithdrawalsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
       if (supabase) {
         const { data, error } = await supabase
           .from('transactions')
-          .select('*, users(username)')
+          .select('*, users(display_name)')
           .eq('type', 'withdrawal')
           .order('created_at', { ascending: false });
         
@@ -580,7 +580,7 @@ export const WithdrawalsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
           <tbody>
             {withdrawals.map((w) => (
               <tr key={w.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
-                <td className="py-3 px-4 text-white">{w.users?.username || 'Unknown'}</td>
+                <td className="py-3 px-4 text-white">{w.users?.display_name || 'Unknown'}</td>
                 <td className="py-3 px-4 text-white font-semibold">{(w.amount || 0).toLocaleString('cs-CZ')} Kč</td>
                 <td className="py-3 px-4 text-gray-300">{w.payment_method || 'N/A'}</td>
                 <td className="py-3 px-4">

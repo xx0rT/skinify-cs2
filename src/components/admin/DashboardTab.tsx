@@ -70,7 +70,7 @@ const DashboardTab: React.FC<{ onGoTo?: (tab: string) => void }> = ({ onGoTo }) 
         supabase.from('users').select('*', { count: 'exact', head: true }).gte('last_login', last24h.toISOString()),
         supabase.from('user_transactions').select('amount, status, type'),
         supabase.from('user_transactions').select('*', { count: 'exact', head: true }).eq('type', 'withdrawal').eq('status', 'pending'),
-        supabase.from('marketplace_listings').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+        supabase.from('marketplace_listings').select('*', { count: 'exact', head: true }).eq('is_active', true),
         supabase.from('user_transactions').select('*').order('created_at', { ascending: false }).limit(5)
       ]);
 

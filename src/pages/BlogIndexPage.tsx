@@ -90,7 +90,7 @@ const BlogIndexPage: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('blog_posts')
-          .select('id, slug, title, excerpt, category, cover_image_url, author_name, read_time_minutes, views, published_at')
+          .select('id, slug, title, excerpt, category, cover_image_url, author_name, views, published_at')
           .eq('is_published', true)
           .order('published_at', { ascending: false })
           .limit(60);

@@ -95,7 +95,7 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
         supabase
           .from('marketplace_listings')
           .select('*', { count: 'exact', head: true })
-          .eq('status', 'active'),
+          .eq('is_active', true),
         supabase
           .from('users')
           .select('created_at')
@@ -109,7 +109,7 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
         supabase
           .from('marketplace_listings')
           .select('item_name, price, views, image_url')
-          .eq('status', 'active')
+          .eq('is_active', true)
           .order('views', { ascending: false })
           .limit(5),
         supabase

@@ -1561,7 +1561,7 @@ export const MonitoringTab: React.FC<{ addToast: any }> = ({ addToast }) => {
         supabase
           .from('marketplace_listings')
           .select('*', { count: 'exact', head: true })
-          .eq('status', 'active'),
+          .eq('is_active', true),
         supabase
           .from('user_transactions')
           .select('id, type, status, amount, created_at')
