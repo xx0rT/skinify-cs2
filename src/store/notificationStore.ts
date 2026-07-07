@@ -108,7 +108,19 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
       if (response.ok) {
         const data = await response.json();
-        const personal: Notification[] = data.notifications || [];
+        /* Rows from user_notifications carry `created_at`; the UI
+           reads `timestamp` — without this mapping every personal
+           notification rendered "Invalid Date". Also surface the row's
+           action_url through metadata so the link button renders. */
+        const personal: Notification[] = (data.notifications || []).map((n: any) => ({
+          ...n,
+          id: String(n.id),
+          timestamp: n.timestamp || n.created_at || new Date().toISOString(),
+          metadata: {
+            ...(n.metadata || {}),
+            action_url: n.metadata?.action_url || n.action_url || undefined,
+          },
+        }));
         const merged = [...globalNotifs, ...personal];
         set({
           notifications: merged,

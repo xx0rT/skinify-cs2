@@ -21,6 +21,7 @@ import Footer from '../components/Footer';
 import LiveActivityFeed from '../components/LiveActivityFeed';
 import { SkinCard, SkinCardSkeleton } from '../components/ui/SkinCard';
 import { spring, tap } from '../lib/motion';
+import { openDepositModal } from '../components/DepositModal';
 
 const sectionVariants = {
   hidden: { opacity: 0, y: 14 },
@@ -269,45 +270,58 @@ const LandingPage: React.FC = () => {
             className="card p-6 sm:p-7 flex flex-col h-full"
           >
             {user ? (
-              <>
-                <div className="flex items-center gap-3.5 mb-4">
+              /* Signed-in header: identity on the left, balance on the
+                 right, one row — reads as a compact account summary
+                 instead of two stacked mini-sections. */
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-4 mb-5">
+                <div className="flex items-center gap-3.5 flex-1 min-w-[220px]">
                   {user.avatarUrl && (
                     <img
                       src={user.avatarUrl}
                       alt=""
-                      className="w-12 h-12 rounded-full object-cover shrink-0"
+                      className="w-14 h-14 rounded-2xl object-cover shrink-0"
                     />
                   )}
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0">
                     <span className="label-eyebrow">
                       {t('landing.welcome.back', 'Welcome back')}
                     </span>
-                    <div className="text-[19px] sm:text-[22px] font-bold tracking-tight leading-tight truncate">
+                    <div className="text-[20px] sm:text-[24px] font-bold tracking-tight leading-tight truncate">
                       {user.displayName || 'Trader'}
                     </div>
                   </div>
-                  <button
-                    onClick={() => navigate('/profile')}
-                    className="hidden sm:inline-flex h-10 px-4 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[12.5px] font-bold items-center transition-colors shrink-0"
-                  >
-                    {t('landing.welcome.profile', 'Open profile')}
-                  </button>
                 </div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="label-eyebrow">
-                    {t('landing.portfolio.eyebrow.signedIn', 'Your portfolio')}
-                  </span>
-                  <span className="pill bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-                    +2.4%
-                  </span>
+
+                <div className="flex items-center gap-5 sm:gap-6">
+                  <div className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <span className="label-meta">
+                        {t('landing.portfolio.balance', 'Available balance')}
+                      </span>
+                      <span className="pill bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                        +2.4%
+                      </span>
+                    </div>
+                    <div className="text-[26px] sm:text-[30px] font-bold tracking-tight leading-none text-ink tabular-nums mt-1">
+                      {formatPrice(portfolio)}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => openDepositModal()}
+                      className="h-11 px-5 rounded-full bg-accent text-on-accent text-[13px] font-bold"
+                    >
+                      {t('nav.refill', 'Refill')}
+                    </button>
+                    <button
+                      onClick={() => navigate('/profile')}
+                      className="hidden sm:inline-flex h-11 px-4 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[13px] font-bold items-center transition-colors"
+                    >
+                      {t('landing.welcome.profile', 'Open profile')}
+                    </button>
+                  </div>
                 </div>
-                <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none text-ink tabular-nums break-words">
-                  {formatPrice(portfolio)}
-                </div>
-                <div className="text-[13px] text-ink-muted font-medium mt-1.5 mb-4">
-                  {t('landing.portfolio.balance', 'Available balance')}
-                </div>
-              </>
+              </div>
             ) : (
               <>
                 <span className="label-eyebrow">
@@ -416,23 +430,9 @@ const LandingPage: React.FC = () => {
           </motion.div>
         </section>
 
-        {/* Promoted skins (paid placements) directly under the hero. */}
-        {promotedItems.length > 0 && (
-          <PromotedWall
-            items={promotedItems}
-            onView={(id) => navigate(`/item/${id}`)}
-            onAddCart={handleAddCart}
-            onToggleWish={handleWish}
-            isWished={(id) => isInWishlist(id)}
-            formatPrice={formatPrice}
-          />
-        )}
-
-        {/* When few sellers are paying for promotion the wall looks
-            thin — back-fill with the 15 newest marketplace listings,
-            fading the last row into translucency with a button to the
-            full marketplace underneath. */}
-        {promotedItems.length < 6 && (
+        {/* The 15 newest marketplace listings, fading into translucency
+            with a button to the full marketplace underneath. */}
+        {(
           <LatestListings
             items={marketplaceItems || []}
             onView={(id) => navigate(`/item/${id}`)}
