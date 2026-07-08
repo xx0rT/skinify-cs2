@@ -175,18 +175,42 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
 
   /* Shared derived values used by grid + tile variants. Hoisted here so
      the two branches don't redeclare them. */
-  const floatNum =
-    skinFloat.data?.float != null
-      ? Number(skinFloat.data.float)
-      : item.float != null
-      ? Number(item.float)
-      : null;
+
+  /* Wearability — cases, graffiti, coins/collectibles, capsules, patches,
+     music kits, agents and other "Not Painted / Base Grade" items have NO
+     float, paint seed or wear. For those we hide the float bar + paint
+     seed entirely so the card doesn't show a meaningless "float 0.0000".
+     Detected from the type string + the condition Steam ships. */
+  const hasWear = (() => {
+    const t = (item.type || '').toLowerCase();
+    const cond = (item.condition || '').toLowerCase();
+    const NON_WEAR = [
+      'container', 'case', 'capsule', 'graffiti', 'collectible', 'coin',
+      'music', 'patch', 'agent', 'sticker', 'pin', 'gift', 'tool', 'tag', 'pass',
+    ];
+    if (NON_WEAR.some((k) => t.includes(k))) return false;
+    // Steam labels non-wear items' exterior as "Not Painted".
+    if (cond === 'not painted' || cond === '') {
+      // Only treat empty condition as wearable if we actually have a float.
+      if (cond === 'not painted') return false;
+    }
+    return true;
+  })();
+
+  const floatNum = !hasWear
+    ? null
+    : skinFloat.data?.float != null
+    ? Number(skinFloat.data.float)
+    : item.float != null
+    ? Number(item.float)
+    : null;
   const floatPct =
     floatNum != null && Number.isFinite(floatNum)
       ? Math.max(0, Math.min(1, floatNum)) * 100
       : null;
-  const seed =
-    skinFloat.data?.paint_seed ?? item.paintSeed ?? item.patternTemplate;
+  const seed = !hasWear
+    ? null
+    : skinFloat.data?.paint_seed ?? item.paintSeed ?? item.patternTemplate;
   const online = item.seller?.online ?? false;
   const stickers = Array.isArray(item.stickers)
     ? item.stickers
@@ -572,8 +596,10 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
             {abbrevType(item.type)}
           </div>
 
-          {/* Float metadata — ALWAYS rendered. Compact row with float
-              value + paint seed before the gradient bar. */}
+          {/* Float metadata — only for wearable items. Cases, graffiti,
+              coins, capsules etc. have no float/paint, so the whole row is
+              omitted for them (mt-auto keeps the card bottom-aligned). */}
+          {hasWear && (
           <div className="mt-auto pt-3">
             <div className="flex items-center justify-between text-[10.5px] font-medium tabular-nums mb-1">
               <span className="text-ink-muted font-mono truncate">
@@ -615,6 +641,7 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
               )}
             </div>
           </div>
+          )}
           </div>
         </div>
 
