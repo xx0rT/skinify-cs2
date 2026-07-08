@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { X, ShoppingCart, Heart, ExternalLink, User, Star } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, ShoppingCart, Heart, ExternalLink, ShieldCheck, Zap } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useCartStore } from '../../store/cartStore';
 import { useWishlistStore } from '../../store/wishlistStore';
 import { useToastStore } from '../../store/toastStore';
 import { useCurrencyStore } from '../../store/currencyStore';
+import { rarityColor } from '../ui/SkinCard';
+import { tap } from '../../lib/motion';
 
 interface ShopItemModalProps {
   itemId: number;
@@ -24,9 +26,11 @@ interface ListingData {
   condition: string;
   rarity: string;
   float_value: number | null;
+  paint_seed?: number | null;
   description: string | null;
   is_active: boolean;
   seller_id: string;
+  stickers?: any[] | null;
   users: {
     id: string;
     steam_id: string;
@@ -36,276 +40,289 @@ interface ListingData {
 }
 
 const ShopItemModal: React.FC<ShopItemModalProps> = ({ itemId, onClose, accent, config }) => {
-  const btnRadius = config?.buttonShape === 'square' ? '0.5rem' : '9999px';
+  const btnRadius = config?.buttonShape === 'square' ? '0.75rem' : '9999px';
   const accentTint = config?.accentTint ?? true;
+  const accentColor = accent || 'rgb(var(--accent))';
+
   const [listing, setListing] = useState<ListingData | null>(null);
   const [loading, setLoading] = useState(true);
   const { addItem } = useCartStore();
   const { addItem: addToWishlist, isInWishlist } = useWishlistStore();
   const { addToast } = useToastStore();
-  const { convertPrice, currency } = useCurrencyStore();
+  const { formatPrice } = useCurrencyStore();
 
   useEffect(() => {
-    fetchListing();
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('marketplace_listings')
+          .select(`*, users ( id, steam_id, display_name, avatar_url )`)
+          .eq('id', itemId)
+          .single();
+        if (error) throw error;
+        if (!cancelled) setListing(data as any);
+      } catch (e) {
+        console.error('Error fetching listing:', e);
+        addToast({ type: 'error', title: 'Could not load item' });
+        onClose();
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [itemId]);
 
-  const fetchListing = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('marketplace_listings')
-        .select(`
-          *,
-          users (
-            id,
-            steam_id,
-            display_name,
-            avatar_url
-          )
-        `)
-        .eq('id', itemId)
-        .single();
+  // Esc to close.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
-      if (error) throw error;
-      setListing(data);
-    } catch (error) {
-      console.error('Error fetching listing:', error);
-      addToast('Failed to load item details', 'error');
-      onClose();
-    } finally {
-      setLoading(false);
-    }
-  };
+  const toCartItem = (l: ListingData) => ({
+    id: l.id.toString(),
+    name: l.item_name,
+    type: l.item_type,
+    price: l.price,
+    image: l.image_url,
+    seller: {
+      steamId: l.users.steam_id,
+      displayName: l.users.display_name,
+      avatarUrl: l.users.avatar_url,
+    },
+    condition: l.condition,
+    rarity: l.rarity,
+    float: l.float_value?.toString(),
+  });
 
   const handleAddToCart = () => {
     if (!listing) return;
-
-    addItem({
-      id: listing.id.toString(),
-      name: listing.item_name,
-      type: listing.item_type,
-      price: listing.price,
-      image: listing.image_url,
-      seller: {
-        steamId: listing.users.steam_id,
-        displayName: listing.users.display_name,
-        avatarUrl: listing.users.avatar_url,
-      },
-      condition: listing.condition,
-      rarity: listing.rarity,
-      float: listing.float_value?.toString(),
-    });
-
-    addToast('Added to cart!', 'success');
+    addItem(toCartItem(listing) as any);
+    addToast({ type: 'success', title: 'Added to cart', message: listing.item_name });
   };
-
   const handleAddToWishlist = () => {
     if (!listing) return;
-
-    addToWishlist({
-      id: listing.id.toString(),
-      name: listing.item_name,
-      type: listing.item_type,
-      price: listing.price,
-      image: listing.image_url,
-      seller: {
-        steamId: listing.users.steam_id,
-        displayName: listing.users.display_name,
-        avatarUrl: listing.users.avatar_url,
-      },
-      condition: listing.condition,
-      rarity: listing.rarity,
-      float: listing.float_value?.toString(),
-    });
-
-    addToast('Added to wishlist!', 'success');
+    addToWishlist(toCartItem(listing) as any);
+    addToast({ type: 'success', title: 'Added to wishlist', message: listing.item_name });
   };
 
-  if (loading) {
-    return (
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-        <div className="bg-gray-800 rounded-xl p-8">
-          <div className="animate-spin w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full mx-auto" />
-          <p className="text-white mt-4">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!listing) {
-    return null;
-  }
-
-  const displayPrice = convertPrice(listing.price);
-  const inWishlist = isInWishlist(listing.id.toString());
+  const color = listing ? rarityColor(listing.rarity) : 'rgb(var(--accent))';
+  const floatNum = listing?.float_value != null ? Number(listing.float_value) : null;
+  const floatPct =
+    floatNum != null && Number.isFinite(floatNum) ? Math.max(0, Math.min(1, floatNum)) * 100 : null;
+  const stickers = Array.isArray(listing?.stickers) ? listing!.stickers : [];
+  const inWishlist = listing ? isInWishlist(listing.id.toString()) : false;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-gray-800 rounded-xl border border-gray-700 w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.18 }}
+        onClick={onClose}
+        className="fixed inset-0 z-[100] bg-black/55 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
       >
-        {/* Header */}
-        <div className="sticky top-0 bg-gray-800 border-b border-gray-700 p-6 flex items-center justify-between z-10">
-          <h2 className="text-2xl font-bold text-white">{listing.item_name}</h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-700 rounded-lg transition"
-          >
-            <X className="w-6 h-6 text-gray-400" />
-          </button>
-        </div>
-
-        <div className="p-6">
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* Image */}
-            <div className="space-y-4">
-              <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-8 border border-gray-700">
-                <img
-                  src={listing.image_url}
-                  alt={listing.item_name}
-                  className="w-full h-auto object-contain"
-                />
-              </div>
-
-              {/* Seller Info */}
-              <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-700">
-                <div className="flex items-center gap-3 mb-2">
-                  <User className="w-5 h-5 text-purple-400" />
-                  <span className="text-white font-semibold">Seller</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <img
-                    src={listing.users.avatar_url}
-                    alt={listing.users.display_name}
-                    className="w-10 h-10 rounded-full"
-                  />
-                  <div>
-                    <div className="text-white font-medium">{listing.users.display_name}</div>
-                    <div className="text-gray-400 text-sm">View Profile</div>
-                  </div>
-                </div>
-              </div>
+        <motion.div
+          initial={{ y: 40, opacity: 0, scale: 0.98 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          exit={{ y: 40, opacity: 0, scale: 0.98 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          onClick={(e) => e.stopPropagation()}
+          className="w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto bg-surface rounded-t-3xl sm:rounded-3xl shadow-2xl"
+        >
+          {loading || !listing ? (
+            <div className="p-16 grid place-items-center">
+              <div className="w-8 h-8 rounded-full border-[3px] border-line border-t-accent animate-spin" />
             </div>
-
-            {/* Details */}
-            <div className="space-y-6">
-              {/* Price */}
-              <div>
-                <div className="text-4xl font-bold text-purple-400 mb-2">
-                  {displayPrice.toLocaleString()} {currency}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                      listing.condition === 'Factory New'
-                        ? 'bg-green-500/20 text-green-400'
-                        : listing.condition === 'Minimal Wear'
-                        ? 'bg-blue-500/20 text-blue-400'
-                        : 'bg-gray-500/20 text-gray-400'
-                    }`}
-                  >
-                    {listing.condition}
-                  </span>
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-500/20 text-purple-400">
-                    {listing.item_type}
-                  </span>
-                </div>
-              </div>
-
-              {/* Item Details */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between py-2 border-b border-gray-700">
-                  <span className="text-gray-400">Rarity</span>
-                  <span className="text-white font-medium capitalize">{listing.rarity}</span>
-                </div>
-
-                {listing.float_value && (
-                  <div className="flex items-center justify-between py-2 border-b border-gray-700">
-                    <span className="text-gray-400">Float Value</span>
-                    <span className="text-white font-medium">{listing.float_value.toFixed(8)}</span>
+          ) : (
+            <>
+              {/* Header */}
+              <div className="sticky top-0 z-10 bg-surface/95 backdrop-blur border-b border-line px-5 sm:px-6 py-4 flex items-center justify-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                    <span className="label-eyebrow truncate" style={{ color }}>
+                      {listing.rarity} · {listing.condition}
+                    </span>
                   </div>
-                )}
-
-                <div className="flex items-center justify-between py-2 border-b border-gray-700">
-                  <span className="text-gray-400">Type</span>
-                  <span className="text-white font-medium">{listing.item_type}</span>
+                  <h2 className="text-[18px] sm:text-[20px] font-bold text-ink tracking-tight truncate mt-0.5">
+                    {listing.item_name}
+                  </h2>
                 </div>
-
-                <div className="flex items-center justify-between py-2">
-                  <span className="text-gray-400">Status</span>
-                  <span className="text-green-400 font-medium">Available</span>
-                </div>
+                <button
+                  onClick={onClose}
+                  className="icon-chip-sm hover:bg-subtle transition-colors shrink-0 -mr-1"
+                  aria-label="Close"
+                >
+                  <X size={16} strokeWidth={2.2} className="text-ink-muted" />
+                </button>
               </div>
 
-              {/* Description */}
-              {listing.description && (
-                <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-700">
-                  <h3 className="text-white font-semibold mb-2">Description</h3>
-                  <p className="text-gray-300 text-sm">{listing.description}</p>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="space-y-3">
-                <button
-                  onClick={handleAddToCart}
-                  className="w-full flex items-center justify-center gap-2 text-white px-6 py-4 font-semibold transition shadow-lg hover:opacity-90"
-                  style={{
-                    borderRadius: btnRadius,
-                    background:
-                      accentTint && accent
-                        ? accent
-                        : 'linear-gradient(to right, #9333ea, #2563eb)',
-                  }}
-                >
-                  <ShoppingCart size={20} />
-                  Add to Cart
-                </button>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={handleAddToWishlist}
-                    disabled={inWishlist}
-                    className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition ${
-                      inWishlist
-                        ? 'bg-pink-500/20 text-pink-400 cursor-not-allowed'
-                        : 'bg-gray-700 hover:bg-gray-600 text-white'
-                    }`}
+              <div className="p-5 sm:p-6 grid md:grid-cols-2 gap-6">
+                {/* Left: image + wear + stickers */}
+                <div className="space-y-4">
+                  <div
+                    className="relative aspect-[5/4] rounded-2xl grid place-items-center overflow-hidden"
+                    style={{ background: `linear-gradient(180deg, transparent, ${color}22)` }}
                   >
-                    <Heart size={18} className={inWishlist ? 'fill-current' : ''} />
-                    {inWishlist ? 'In Wishlist' : 'Wishlist'}
-                  </button>
+                    <img
+                      src={listing.image_url}
+                      alt={listing.item_name}
+                      className="w-[82%] h-[82%] object-contain"
+                    />
+                    <div className="absolute inset-x-0 bottom-0 h-[3px]" style={{ background: color }} />
+                  </div>
 
+                  {/* Wear bar */}
+                  {floatPct != null && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="label-eyebrow">Wear</span>
+                        <span className="text-[12px] font-mono tabular-nums text-ink">
+                          {floatNum!.toFixed(6)}
+                        </span>
+                      </div>
+                      <div className="relative w-full h-2 rounded-full overflow-hidden bg-subtle">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${floatPct}%` }}
+                          transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+                          className="absolute inset-y-0 left-0"
+                          style={{ background: 'linear-gradient(90deg,#22c55e,#84cc16,#eab308,#f97316,#ef4444)' }}
+                        />
+                        <motion.div
+                          initial={{ left: 0 }}
+                          animate={{ left: `${floatPct}%` }}
+                          transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+                          className="absolute top-0"
+                          style={{ width: 0, height: 0, marginLeft: -5, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '6px solid rgb(var(--ink))' }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Stickers */}
+                  {stickers.length > 0 && (
+                    <div>
+                      <span className="label-eyebrow">Stickers</span>
+                      <div className="mt-2 flex items-center gap-2 flex-wrap">
+                        {stickers.slice(0, 6).map((s: any, i: number) => {
+                          const img = typeof s === 'string' ? undefined : s.image;
+                          const label = typeof s === 'string' ? s : s.name || '';
+                          return (
+                            <div key={i} title={label} className="w-11 h-11 rounded-xl bg-subtle grid place-items-center overflow-hidden ring-1 ring-line">
+                              {img ? <img src={img} alt={label} className="w-full h-full object-contain" /> : <span className="text-[9px] font-bold text-ink-muted">{label.slice(0, 2)}</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Seller */}
                   <button
                     onClick={() => window.open(`/user/${listing.users.steam_id}`, '_blank')}
-                    className="flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white px-4 py-3 rounded-xl font-medium transition"
+                    className="w-full flex items-center gap-3 rounded-2xl bg-subtle/60 hover:bg-subtle p-3 transition-colors text-left"
                   >
-                    <ExternalLink size={18} />
-                    Seller
+                    <img src={listing.users.avatar_url} alt="" className="w-10 h-10 rounded-xl object-cover" />
+                    <div className="min-w-0 flex-1">
+                      <div className="label-meta">Seller</div>
+                      <div className="text-[13.5px] font-bold text-ink truncate">{listing.users.display_name}</div>
+                    </div>
+                    <ExternalLink size={14} className="text-ink-muted shrink-0" />
                   </button>
                 </div>
-              </div>
 
-              {/* Trust Indicators */}
-              <div className="bg-gradient-to-r from-green-500/10 to-blue-500/10 rounded-xl p-4 border border-green-500/20">
-                <div className="flex items-start gap-3">
-                  <Star className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                {/* Right: price + details + actions */}
+                <div className="space-y-5">
                   <div>
-                    <div className="text-white font-semibold mb-1">Secure Transaction</div>
-                    <div className="text-gray-300 text-sm">
-                      Protected by our escrow system. Your payment is held securely until you receive the item.
+                    <span className="label-eyebrow">Price</span>
+                    <div className="text-[34px] font-bold text-ink tracking-tight tabular-nums leading-none mt-1">
+                      {formatPrice(listing.price)}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-line/60 pt-1">
+                    <Row label="Exterior" value={listing.condition} />
+                    <Row label="Rarity" value={<span className="capitalize">{listing.rarity}</span>} />
+                    <Row label="Type" value={listing.item_type} />
+                    {floatNum != null && <Row label="Float" value={floatNum.toFixed(6)} mono />}
+                    {listing.paint_seed != null && <Row label="Paint seed" value={`#${listing.paint_seed}`} mono />}
+                    <Row label="Status" value={<span className="text-emerald-600 dark:text-emerald-400 font-bold">Available</span>} />
+                  </div>
+
+                  {listing.description && (
+                    <div className="rounded-2xl bg-subtle/60 p-3.5">
+                      <div className="label-eyebrow mb-1">Description</div>
+                      <p className="text-[13px] text-ink-muted leading-relaxed">{listing.description}</p>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="space-y-2.5">
+                    <motion.button
+                      whileTap={tap}
+                      onClick={handleAddToCart}
+                      className="w-full h-12 inline-flex items-center justify-center gap-2 text-[14px] font-bold text-white transition-opacity hover:opacity-90"
+                      style={{
+                        borderRadius: btnRadius,
+                        background: accentTint ? accentColor : 'rgb(var(--accent))',
+                        color: accentTint ? '#fff' : 'rgb(var(--on-accent))',
+                      }}
+                    >
+                      <ShoppingCart size={16} strokeWidth={2.4} />
+                      Add to cart
+                    </motion.button>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <button
+                        onClick={handleAddToWishlist}
+                        disabled={inWishlist}
+                        className={`h-11 inline-flex items-center justify-center gap-2 text-[13px] font-bold transition-colors ${
+                          inWishlist ? 'bg-accent/12 text-accent cursor-default' : 'bg-subtle hover:bg-bg text-ink'
+                        }`}
+                        style={{ borderRadius: btnRadius }}
+                      >
+                        <Heart size={15} className={inWishlist ? 'fill-current' : ''} />
+                        {inWishlist ? 'Wishlisted' : 'Wishlist'}
+                      </button>
+                      <button
+                        onClick={() => window.open(`/user/${listing.users.steam_id}`, '_blank')}
+                        className="h-11 inline-flex items-center justify-center gap-2 bg-subtle hover:bg-bg text-ink text-[13px] font-bold transition-colors"
+                        style={{ borderRadius: btnRadius }}
+                      >
+                        <ExternalLink size={15} />
+                        Seller
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Trust */}
+                  <div className="rounded-2xl p-3.5 flex items-start gap-3 bg-emerald-500/8" style={{ boxShadow: 'inset 0 0 0 1px rgb(16 185 129 / 0.25)' }}>
+                    <ShieldCheck size={16} strokeWidth={2.4} className="text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="text-[13px] font-bold text-ink">Secure escrow</div>
+                      <p className="text-[12px] text-ink-muted font-medium mt-0.5 leading-relaxed">
+                        Your payment is held until the item lands in your inventory.
+                      </p>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
+            </>
+          )}
+        </motion.div>
       </motion.div>
-    </div>
+    </AnimatePresence>
   );
 };
+
+const Row: React.FC<{ label: string; value: React.ReactNode; mono?: boolean }> = ({ label, value, mono }) => (
+  <div className="kv-row">
+    <span className="kv-label">{label}</span>
+    <span className={`kv-value truncate ${mono ? 'font-mono' : ''}`}>{value}</span>
+  </div>
+);
 
 export default ShopItemModal;
