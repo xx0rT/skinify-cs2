@@ -901,6 +901,39 @@ const HorizontalSlider: React.FC<{ children: React.ReactNode }> = ({ children })
     if (!node) return;
     node.scrollBy({ left: dir * Math.round(node.clientWidth * 0.8), behavior: 'smooth' });
   };
+
+  /* Click-and-drag to scroll (desktop). Touch devices already have
+     native momentum scrolling. We track pointer movement and translate it
+     into scrollLeft; a small movement threshold prevents drags from
+     swallowing genuine clicks (add-to-cart / open item). */
+  const drag = useRef({ active: false, startX: 0, startScroll: 0, moved: false });
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    // Ignore drags that start on a button/link so their click still fires.
+    if ((e.target as HTMLElement).closest('button, a')) return;
+    const node = ref.current;
+    if (!node) return;
+    drag.current = { active: true, startX: e.clientX, startScroll: node.scrollLeft, moved: false };
+    node.setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    const node = ref.current;
+    if (!node || !drag.current.active) return;
+    const dx = e.clientX - drag.current.startX;
+    if (Math.abs(dx) > 4) drag.current.moved = true;
+    node.scrollLeft = drag.current.startScroll - dx;
+  };
+  const endDrag = (e: React.PointerEvent) => {
+    const node = ref.current;
+    if (node) node.releasePointerCapture?.(e.pointerId);
+    // Suppress the click that follows a real drag so it doesn't open an item.
+    if (drag.current.moved) {
+      const stop = (ev: Event) => { ev.stopPropagation(); ev.preventDefault(); };
+      node?.addEventListener('click', stop, { capture: true, once: true });
+    }
+    drag.current.active = false;
+  };
+
   return (
     <div className="relative">
       <button
@@ -925,7 +958,11 @@ const HorizontalSlider: React.FC<{ children: React.ReactNode }> = ({ children })
           hovered, so neither end gets clipped by overflow-x scroll. */}
       <div
         ref={ref}
-        className="flex gap-2 overflow-x-auto snap-x snap-mandatory scrollbar-thin pt-6 pb-16 -my-4"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        className="flex gap-2 overflow-x-auto snap-x snap-mandatory scrollbar-thin pt-6 pb-16 -my-4 cursor-grab active:cursor-grabbing select-none touch-pan-x"
       >
         {children}
       </div>
