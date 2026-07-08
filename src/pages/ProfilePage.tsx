@@ -712,6 +712,7 @@ const OverviewTab: React.FC<{
   transactions: any[];
 }> = ({ balance, onGoTo, formatPrice, user, joinedAt, transactions }) => {
   const tr = useT();
+  const navigate = useNavigate();
   const recentTx = (transactions || []).slice(0, 6);
 
   return (
@@ -884,8 +885,13 @@ const OverviewTab: React.FC<{
         action={
           <motion.button
             whileTap={tap}
-            onClick={() => onGoTo('settings')}
-            className="h-10 px-4 rounded-full bg-subtle hover:bg-bg text-ink text-[13px] font-bold transition-colors"
+            onClick={() =>
+              /* Go to Settings → Account AND flag `verify=1` so the KYC
+                 section auto-launches the Sumsub flow (previously this just
+                 switched tabs and did nothing). */
+              navigate('/profile?tab=settings&sub=profile&verify=1')
+            }
+            className="h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold transition-opacity hover:opacity-90"
           >
             {tr('profile.kyc.cta', 'Complete')}
           </motion.button>

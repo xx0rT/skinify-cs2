@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, X, BadgeCheck, Loader2 } from 'lucide-react';
 import SumsubWebSdk from '@sumsub/websdk-react';
@@ -44,6 +45,9 @@ const KycVerification: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
+  const sectionRef = useRef<HTMLDivElement | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoStartedRef = useRef(false);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -62,7 +66,7 @@ const KycVerification: React.FC = () => {
     else setStatusLoading(false);
   }, [user, refreshStatus]);
 
-  const startVerification = async () => {
+  const startVerification = useCallback(async () => {
     setLaunching(true);
     try {
       const res = await kycPost({ action: 'access_token' });
@@ -74,7 +78,22 @@ const KycVerification: React.FC = () => {
     } finally {
       setLaunching(false);
     }
-  };
+  }, [addToast]);
+
+  /* Deep-link: arriving with ?verify=1 (from the Overview "Complete"
+     button) scrolls to this section and auto-starts the flow once — unless
+     the user is already verified. The param is then cleared so a refresh
+     doesn't relaunch. */
+  useEffect(() => {
+    if (statusLoading || autoStartedRef.current) return;
+    if (searchParams.get('verify') !== '1') return;
+    autoStartedRef.current = true;
+    sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!verified) startVerification();
+    const next = new URLSearchParams(searchParams);
+    next.delete('verify');
+    setSearchParams(next, { replace: true });
+  }, [statusLoading, verified, searchParams, setSearchParams, startVerification]);
 
   // WebSDK asks for a fresh token when the current one expires.
   const refreshToken = async () => {
@@ -95,7 +114,7 @@ const KycVerification: React.FC = () => {
   };
 
   return (
-    <div className="card p-5 md:p-6">
+    <div ref={sectionRef} className="card p-5 md:p-6 scroll-mt-24">
       <div className="mb-4">
         <h2 className="text-[17px] font-bold tracking-tight leading-none text-ink">
           Identity verification
