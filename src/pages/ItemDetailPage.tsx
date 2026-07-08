@@ -128,6 +128,9 @@ const ItemDetailPage: React.FC = () => {
     initialFloat: item?.float as any,
     initialPaintSeed: (item?.paintSeed ?? item?.patternTemplate ?? item?.paint_seed) as any,
     inspectLink: (item as any)?.inspect_link ?? (item as any)?.inspectLink ?? null,
+    steamId: (item as any)?.seller?.steamId ?? (item as any)?.seller_steam_id ?? null,
+    assetId: (item as any)?.asset_id ?? (item as any)?.assetId ?? null,
+    marketHashName: (item as any)?.market_hash_name ?? item?.market_name ?? item?.name ?? null,
     fallbackKey: String(item?.id || item?.market_name || item?.name || ''),
   });
 
@@ -1475,9 +1478,12 @@ const DetailsPanel: React.FC<{ item: any }> = ({ item }) => {
             so the animation respects the page's motion-reduce setting. */}
         <div className="relative w-full h-2.5 overflow-hidden rounded-full bg-subtle">
           <motion.div
+            /* `key` on the float value so the fill re-animates when the
+               Steam-fetched float arrives after mount (async), not just on
+               first scroll-into-view. */
+            key={`fill-${floatPct ?? 'none'}`}
             initial={{ width: '0%' }}
-            whileInView={{ width: floatPct != null ? `${floatPct}%` : '0%' }}
-            viewport={{ once: true, margin: '0px 0px -40px 0px' }}
+            animate={{ width: floatPct != null ? `${floatPct}%` : '0%' }}
             transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
             className="absolute inset-y-0 left-0"
             style={{
@@ -1490,9 +1496,9 @@ const DetailsPanel: React.FC<{ item: any }> = ({ item }) => {
           />
           {floatPct != null && (
             <motion.div
+              key={`marker-${floatPct}`}
               initial={{ left: '0%' }}
-              whileInView={{ left: `${floatPct}%` }}
-              viewport={{ once: true, margin: '0px 0px -40px 0px' }}
+              animate={{ left: `${floatPct}%` }}
               transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
               className="absolute top-0"
               style={{

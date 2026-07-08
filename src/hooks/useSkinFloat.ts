@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getSupabaseCredentials } from '../utils/supabaseHelpers';
 
 /* ─────────────────────────────────────────────────────────────────────────
    useSkinFloat — surfaces float + paint_seed + stickers for a listing.
@@ -52,10 +53,16 @@ interface Args {
   a?: string | null;
   d?: string | null;
   m?: string | null;
+  /** Steam-direct lookup keys. When present (and float/seed aren't already
+      on the listing), the hook fetches full item details from the seller's
+      Steam inventory via the `steam-item` edge function — stickers,
+      exterior, and float/paint-seed when Steam ships them. */
+  steamId?: string | null;
+  assetId?: string | null;
+  marketHashName?: string | null;
   /** Stable identifier used to derive a deterministic fallback float +
-      paint seed when the listing has no inspect link (so the UI never
-      shows "—"). The real edge-function value overrides as soon as
-      it's available. */
+      paint seed when nothing better is available (so the UI never shows
+      "—"). Real Steam values override as soon as they resolve. */
   fallbackKey?: string | null;
 }
 
@@ -98,6 +105,11 @@ function syntheticFloat(key: string): {
   return { float, paint_seed, paint_index, def_index };
 }
 
+/* Module-level caches so many cards asking for the same seller inventory
+   share one request and a resolved result persists across mounts. */
+const steamMemo = new Map<string, SkinFloatData>();
+const steamInflight = new Map<string, Promise<SkinFloatData | null>>();
+
 export function useSkinFloat({
   enabled = true,
   initialFloat,
@@ -107,6 +119,9 @@ export function useSkinFloat({
   a,
   d,
   m,
+  steamId,
+  assetId,
+  marketHashName,
   fallbackKey,
 }: Args) {
   const [data, setData] = useState<SkinFloatData | null>(() => {
@@ -143,38 +158,108 @@ export function useSkinFloat({
     }
     return null;
   });
-  const [loading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  /* No network lookup. All descriptive data (float when Steam ships it,
-     stickers, rarity) comes from Steam via the user-inventory parser and
-     rides on the listing row → it's already merged into `data` above via
-     the initial values + synthetic fallback. We intentionally do NOT call
-     any CSFloat proxy. The effect below only re-syncs `data` if the
-     incoming initial values change (e.g. the parent re-fetches the row). */
+  /* Steam-direct enrichment. When we have a seller steamId + (assetId or
+     market_hash_name), fetch full item details (stickers, exterior, and
+     float/paint-seed when Steam ships them) from the `steam-item` edge
+     function, which reads the seller's public Steam inventory. No CSFloat.
+     Results are cached per (steamId, asset/name). */
   useEffect(() => {
     if (!enabled) return;
+
     const hasInitialFloat =
-      initialFloat != null && initialFloat !== '' &&
-      Number.isFinite(Number(initialFloat));
+      initialFloat != null && initialFloat !== '' && Number.isFinite(Number(initialFloat));
     const hasInitialSeed =
-      initialPaintSeed != null && initialPaintSeed !== '' &&
-      Number.isFinite(Number(initialPaintSeed));
-    if (!hasInitialFloat && !hasInitialSeed) return;
-    setData((prev) => {
-      const synth = fallbackKey
-        ? syntheticFloat(fallbackKey)
-        : { float: 0, paint_seed: 0, paint_index: 0, def_index: 0 };
-      return {
-        float: hasInitialFloat ? Number(initialFloat) : prev?.float ?? synth.float,
-        paint_seed: hasInitialSeed ? Number(initialPaintSeed) : prev?.paint_seed ?? synth.paint_seed,
-        paint_index: prev?.paint_index ?? synth.paint_index,
-        def_index: prev?.def_index ?? synth.def_index,
-        rarity: prev?.rarity ?? null,
-        preview_image: prev?.preview_image ?? null,
-        stickers: prev?.stickers ?? [],
-      };
+      initialPaintSeed != null && initialPaintSeed !== '' && Number.isFinite(Number(initialPaintSeed));
+
+    // Nothing to look up with, or we already have both values locally.
+    const canLookup = !!steamId && (!!assetId || !!marketHashName);
+    if (!canLookup) return;
+
+    const key = `${steamId}:${assetId || marketHashName}`;
+    if (steamMemo.has(key)) {
+      setData((prev) => mergeSteam(prev, steamMemo.get(key)!, fallbackKey));
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+
+    const run =
+      steamInflight.get(key) ||
+      (async (): Promise<SkinFloatData | null> => {
+        try {
+          const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+          const params = new URLSearchParams({ steamId: String(steamId) });
+          if (assetId) params.set('assetId', String(assetId));
+          if (marketHashName) params.set('name', String(marketHashName));
+          const res = await fetch(`${supabaseUrl}/functions/v1/steam-item?${params}`, {
+            headers: { Authorization: `Bearer ${supabaseKey}` },
+          });
+          if (!res.ok) return null;
+          const body = await res.json();
+          if (!body?.found) return null;
+          const resolved: SkinFloatData = {
+            float: body.float ?? null,
+            paint_seed: body.paint_seed ?? null,
+            paint_index: body.paint_index ?? null,
+            def_index: null,
+            rarity: body.rarity ?? null,
+            preview_image: null,
+            stickers: Array.isArray(body.stickers)
+              ? body.stickers.map((st: any, i: number) => ({
+                  slot: st.slot ?? i,
+                  sticker_id: 0,
+                  name: st.name || '',
+                  image: st.image || '',
+                  wear: 0,
+                }))
+              : [],
+          };
+          steamMemo.set(key, resolved);
+          return resolved;
+        } catch {
+          return null;
+        } finally {
+          steamInflight.delete(key);
+        }
+      })();
+    steamInflight.set(key, run);
+
+    run.then((result) => {
+      if (cancelled) return;
+      setLoading(false);
+      if (result) setData((prev) => mergeSteam(prev, result, fallbackKey));
     });
-  }, [enabled, initialFloat, initialPaintSeed, fallbackKey]);
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, steamId, assetId, marketHashName, initialFloat, initialPaintSeed, fallbackKey]);
 
   return { data, loading };
+}
+
+/* Merge a Steam result over the current data, preferring real values and
+   falling back to synthetic only for what Steam didn't provide. */
+function mergeSteam(
+  prev: SkinFloatData | null,
+  steam: SkinFloatData,
+  fallbackKey?: string | null,
+): SkinFloatData {
+  const synth = fallbackKey
+    ? syntheticFloat(fallbackKey)
+    : { float: 0, paint_seed: 0, paint_index: 0, def_index: 0 };
+  return {
+    float: steam.float ?? prev?.float ?? synth.float,
+    paint_seed: steam.paint_seed ?? prev?.paint_seed ?? synth.paint_seed,
+    paint_index: steam.paint_index ?? prev?.paint_index ?? synth.paint_index,
+    def_index: prev?.def_index ?? synth.def_index,
+    rarity: steam.rarity ?? prev?.rarity ?? null,
+    preview_image: prev?.preview_image ?? null,
+    // Prefer Steam's real stickers; keep any we already had otherwise.
+    stickers: steam.stickers?.length ? steam.stickers : prev?.stickers ?? [],
+  };
 }
