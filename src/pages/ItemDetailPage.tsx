@@ -40,6 +40,7 @@ import {
   SimilarItemsRow,
 } from '../components/item/ItemDetailExtras';
 import AuctionBidPanel from '../components/item/AuctionBidPanel';
+import ExteriorListingsTable from '../components/item/ExteriorListingsTable';
 
 /* ─────────────────────────────────────────────────────────────────────────
    ItemDetailPage
@@ -876,6 +877,16 @@ const ItemDetailPage: React.FC = () => {
             </section>
             )}
             </div>
+
+            {/* Buy-by-exterior table — every listing of this skin grouped by
+                wear, with a "starts from" price per exterior. */}
+            <ExteriorListingsTable
+              item={item}
+              allItems={allItems}
+              formatPrice={formatPrice}
+              onBuy={(it) => handleAddCart(it)}
+              onView={(it) => navigate(`/item/${it.id}`)}
+            />
 
             {/* Seller */}
             {item.seller?.name && (
