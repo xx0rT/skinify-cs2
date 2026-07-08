@@ -22,7 +22,7 @@ export const InventoryTab: React.FC<{ addToast: any }> = ({ addToast }) => {
       if (supabase) {
         const { data, error } = await supabase
           .from('marketplace_listings')
-          .select('*, users(username)')
+          .select('*, users(display_name)')
           .order('created_at', { ascending: false })
           .limit(50);
 

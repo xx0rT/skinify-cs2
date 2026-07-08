@@ -328,7 +328,7 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
         onMouseLeave={(e) => {
           if (hoverLift) return;
           (e.currentTarget as HTMLElement).style.boxShadow =
-            'inset 0 0 0 0.5px rgb(var(--line) / 0.5), inset 0 -0.5px 0 0 rgb(var(--line) / 0.5)';
+            'inset 0 0 0 0.5px rgb(var(--line) / 0.28), inset 0 -0.5px 0 0 rgb(var(--line) / 0.28)';
         }}
       >
         {/* Image area. The bottom edge carries a sharp 1.5px rarity

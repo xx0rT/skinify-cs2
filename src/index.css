@@ -112,6 +112,13 @@ html {
   -webkit-tap-highlight-color: transparent;
   scroll-padding-top: 80px;
   text-rendering: optimizeLegibility;
+  /* Reserve the scrollbar's space permanently. Modals lock scroll with
+     `body { overflow: hidden }`, which removes the vertical scrollbar and
+     — because `100vw` counts the scrollbar width — used to reflow the page
+     ~15px wider, leaving a white strip on the right while a modal was open.
+     `scrollbar-gutter: stable` keeps the gutter reserved so opening/closing
+     a modal causes no horizontal shift. */
+  scrollbar-gutter: stable;
   /* `overflow-x: hidden` on <html> or #root would break `position: sticky`
      because it makes the root a scroll container. We instead lock the
      viewport width and let `overflow-x: clip` on the body alone catch
