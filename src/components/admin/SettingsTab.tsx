@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw, Plus, Trash2 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
+import { useAuthStore } from '../../store/authStore';
 
 interface SystemSetting {
   id: string;
@@ -84,6 +85,26 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ addToast }) => {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
   const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
   const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+  const adminSteamId = useAuthStore((s) => s.user?.steamId);
+
+  /* Admin reads/writes on system_settings + promo_codes go through the
+     admin-settings edge function (service_role). Direct anon-key access
+     401s because Steam-OpenID admins hold no Supabase Auth session and
+     those tables are RLS-protected. Mirrors the withdraw-review model. */
+  const adminPost = async (payload: Record<string, unknown>): Promise<any> => {
+    const res = await fetch(`${supabaseUrl}/functions/v1/admin-settings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${supabaseKey}`,
+        'X-Steam-Id': adminSteamId || '',
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error || `Server error (${res.status})`);
+    return data;
+  };
 
   useEffect(() => {
     fetchSettings();
@@ -93,15 +114,10 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ addToast }) => {
   const fetchSettings = async () => {
     setLoading(true);
     try {
-      if (supabase) {
-        const { data, error } = await supabase
-          .from('system_settings')
-          .select('*')
-          .order('category', { ascending: true });
-        if (!error && data && data.length > 0) {
-          setSettings(data);
-          return;
-        }
+      const { settings: data } = await adminPost({ action: 'list_settings' });
+      if (Array.isArray(data) && data.length > 0) {
+        setSettings(data);
+        return;
       }
       setSettings(DEFAULT_SETTINGS);
     } catch {
@@ -113,13 +129,8 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ addToast }) => {
 
   const fetchPromoCodes = async () => {
     try {
-      if (!supabase) return;
-      const { data, error } = await supabase
-        .from('promo_codes')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setPromoCodes(data || []);
+      const { promos } = await adminPost({ action: 'list_promos' });
+      setPromoCodes(promos || []);
     } catch (error: any) {
       console.error('Error fetching promo codes:', error);
     }
@@ -132,26 +143,19 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ addToast }) => {
 
   const handleSaveSetting = async () => {
     try {
-      if (!supabase || !editModal) return;
+      if (!editModal) return;
       const parsedValue = JSON.parse(editValue);
 
-      /* Rows from DEFAULT_SETTINGS have no id — upsert them by key so the
-         first edit seeds the table instead of silently updating nothing. */
-      const { error } = editModal.id
-        ? await supabase
-            .from('system_settings')
-            .update({ value: parsedValue, updated_at: new Date().toISOString() })
-            .eq('id', editModal.id)
-        : await supabase.from('system_settings').insert([
-            {
-              key: editModal.key,
-              value: parsedValue,
-              description: editModal.description,
-              category: editModal.category,
-            },
-          ]);
-
-      if (error) throw error;
+      /* Rows from DEFAULT_SETTINGS have no id — the function upserts them
+         by key so the first edit seeds the table. */
+      await adminPost({
+        action: 'save_setting',
+        id: editModal.id || undefined,
+        key: editModal.key,
+        value: parsedValue,
+        description: editModal.description,
+        category: editModal.category,
+      });
 
       addToast({ type: 'success', title: 'Saved', message: `${editModal.key} updated` });
       setEditModal(null);
@@ -163,24 +167,11 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ addToast }) => {
 
   const handleCreatePromo = async () => {
     try {
-      if (!supabase) return;
       if (!newPromo.code || newPromo.discount_value <= 0) {
         addToast({ type: 'error', title: 'Error', message: 'Please fill all required fields' });
         return;
       }
-      const { error } = await supabase.from('promo_codes').insert([
-        {
-          code: newPromo.code.toUpperCase(),
-          discount_type: newPromo.discount_type,
-          discount_value: newPromo.discount_value,
-          max_uses: newPromo.max_uses,
-          current_uses: 0,
-          valid_from: newPromo.valid_from,
-          valid_until: newPromo.valid_until,
-          is_active: true,
-        },
-      ]);
-      if (error) throw error;
+      await adminPost({ action: 'create_promo', promo: newPromo });
 
       addToast({ type: 'success', title: 'Created', message: `Promo code ${newPromo.code.toUpperCase()} is live` });
       setPromoModal(false);
@@ -200,9 +191,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ addToast }) => {
 
   const handleTogglePromo = async (promoId: string, isActive: boolean) => {
     try {
-      if (!supabase) return;
-      const { error } = await supabase.from('promo_codes').update({ is_active: !isActive }).eq('id', promoId);
-      if (error) throw error;
+      await adminPost({ action: 'toggle_promo', id: promoId, isActive });
       addToast({ type: 'success', title: 'Updated', message: `Promo code ${!isActive ? 'activated' : 'deactivated'}` });
       fetchPromoCodes();
     } catch {
@@ -212,10 +201,8 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ addToast }) => {
 
   const handleDeletePromo = async (promoId: string) => {
     try {
-      if (!supabase) return;
       if (!confirm('Are you sure you want to delete this promo code?')) return;
-      const { error } = await supabase.from('promo_codes').delete().eq('id', promoId);
-      if (error) throw error;
+      await adminPost({ action: 'delete_promo', id: promoId });
       addToast({ type: 'success', title: 'Deleted', message: 'Promo code deleted' });
       fetchPromoCodes();
     } catch {

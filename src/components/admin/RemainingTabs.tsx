@@ -3,10 +3,34 @@ import { motion } from 'framer-motion';
 import { Package, Lock, BarChart3, Settings, MessageSquare, Wrench, Wallet, Activity, Search, RefreshCw, Download, Eye, CreditCard as Edit, Trash2, CheckCircle, X, Shield, TrendingUp, Users, DollarSign, AlertTriangle, Bell, Database, Code, TestTube, FileText, MousePointerClick, Calendar, ShoppingCart } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useAuthStore } from '../../store/authStore';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+
+/* Today's dashboard counters — the get_today_stats Postgres RPC was never
+   created (404). We fetch them from the admin-settings edge function
+   (service_role) so Steam-OpenID admins, who hold no Supabase session,
+   still get real numbers instead of an RLS 401 / RPC 404. */
+async function fetchTodayStats(steamId: string | undefined): Promise<any | null> {
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/admin-settings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${supabaseKey}`,
+        'X-Steam-Id': steamId || '',
+      },
+      body: JSON.stringify({ action: 'today_stats' }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => ({}));
+    return data?.stats ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export const InventoryTab: React.FC<{ addToast: any }> = ({ addToast }) => {
   const [listings, setListings] = useState<any[]>([]);
@@ -125,6 +149,7 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
   const [pageStats, setPageStats] = useState<any[]>([]);
   const [eventStats, setEventStats] = useState<any[]>([]);
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('7d');
+  const adminSteamId = useAuthStore((s) => s.user?.steamId);
 
   useEffect(() => {
     fetchAnalytics();
@@ -134,7 +159,7 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
     setLoading(true);
     try {
       if (supabase) {
-        const { data: todayData } = await supabase.rpc('get_today_stats');
+        const todayData = await fetchTodayStats(adminSteamId);
         if (todayData) {
           setTodayStats(todayData);
         }
