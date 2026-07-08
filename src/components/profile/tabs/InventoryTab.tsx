@@ -493,7 +493,7 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
       ) : (
         <motion.div
           layout
-          className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+          className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
         >
           <AnimatePresence mode="popLayout">
             {filtered.map((item, i) => (
@@ -563,11 +563,13 @@ const KpiTile: React.FC<{
   </motion.div>
 );
 
-/* Bespoke inventory tile — a cleaner, denser card than the marketplace
-   SkinCard. Rarity-tinted image well with a corner rarity stripe, a
-   compact status pill (Listed / Untradable), a hover-revealed select
-   check, and an integrated float bar + price footer with the List action
-   inline. Selected state gets a full rarity-colored ring + lift. */
+/* Inventory tile — matches the Listings/Nabídky ListingCard exactly:
+   sharp rounded-md corners, a single-surface card with an inset hairline
+   that turns into a rarity ring on hover, an image panel with a rarity
+   wash + 2px stripe divider, a slim float bar over type/float, then name,
+   condition and price. Inventory-only bits (select check, Listed /
+   Untradable status, the List action, selected state) are layered on in
+   the same visual language. */
 const ItemCard: React.FC<{
   item: InvItem;
   index: number;
@@ -577,123 +579,132 @@ const ItemCard: React.FC<{
   formatPrice: (n: number) => string;
 }> = ({ item, index, selected, onToggleSelect, onList, formatPrice }) => {
   const blocked = !item.tradable || item.listed_for_sale;
-  const color = rarityColor(item.rarity);
+  const r = rarityColor(item.rarity);
   const floatNum =
-    item.float != null && Number.isFinite(Number(item.float)) ? Number(item.float) : null;
-  const floatPct = floatNum != null ? Math.max(0, Math.min(1, floatNum)) * 100 : null;
-  const seed = (item as any).pattern ?? (item as any).paint_seed;
+    item.float != null && item.float !== '' && Number.isFinite(Number(item.float))
+      ? Number(item.float)
+      : null;
+  const floatPct =
+    floatNum != null && Number.isFinite(floatNum) ? Math.max(0, Math.min(1, floatNum)) * 100 : null;
 
   return (
-    <motion.div
+    <motion.article
       layout
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ ...spring, delay: Math.min(index * 0.012, 0.18) }}
-      whileHover={blocked ? undefined : { y: -3 }}
+      whileHover={blocked ? undefined : { y: -2 }}
       onClick={blocked ? undefined : onToggleSelect}
-      className={`group relative flex flex-col rounded-2xl bg-surface overflow-hidden transition-all ${
-        blocked ? 'cursor-not-allowed' : 'cursor-pointer'
+      className={`group relative bg-surface rounded-md overflow-hidden flex flex-col transition-shadow ${
+        blocked ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'
       }`}
       style={{
         boxShadow: selected
-          ? `inset 0 0 0 2px ${color}, 0 12px 28px -14px ${color}`
-          : 'inset 0 0 0 1px rgb(var(--line) / 0.5)',
+          ? 'inset 0 0 0 1.5px var(--rarity), 0 12px 28px -16px rgb(0 0 0 / 0.35)'
+          : 'inset 0 0 0 1px rgb(var(--ink) / 0.08)',
+        ['--rarity' as any]: r || 'rgb(var(--accent))',
+      }}
+      onMouseEnter={(e) => {
+        if (blocked || selected) return;
+        (e.currentTarget as HTMLElement).style.boxShadow =
+          'inset 0 0 0 1.5px var(--rarity), 0 12px 28px -16px rgb(0 0 0 / 0.35)';
+      }}
+      onMouseLeave={(e) => {
+        if (selected) return;
+        (e.currentTarget as HTMLElement).style.boxShadow = 'inset 0 0 0 1px rgb(var(--ink) / 0.08)';
       }}
     >
-      {/* Image well — rarity gradient bg + bottom rarity stripe */}
-      <div
-        className="relative aspect-[5/4] flex items-center justify-center px-5 pt-4 pb-3 overflow-hidden"
-        style={{
-          background: `linear-gradient(180deg, transparent 0%, ${color}14 60%, ${color}2e 100%)`,
-        }}
-      >
+      {/* IMAGE PANEL — rarity wash from the bottom + sharp 2px stripe. */}
+      <div className="relative aspect-[5/3.4] overflow-hidden bg-gradient-to-b from-subtle/30 to-subtle/60">
+        {r && (
+          <>
+            <div
+              aria-hidden
+              className="absolute inset-x-0 bottom-0 h-[45%] pointer-events-none"
+              style={{ background: `linear-gradient(to top, ${r}59 0%, ${r}22 40%, transparent 100%)` }}
+            />
+            <div aria-hidden className="absolute inset-x-0 bottom-0 h-[2px] pointer-events-none" style={{ background: r }} />
+          </>
+        )}
         <CachedImage
           src={item.image}
           alt={item.name}
-          className={`w-full h-full object-contain transition-transform duration-300 ${
-            blocked ? '' : 'group-hover:scale-[1.05]'
+          className={`absolute inset-0 m-auto max-h-[85%] max-w-[85%] object-contain transition-transform duration-300 ${
+            blocked ? '' : 'group-hover:scale-[1.04]'
           }`}
         />
-        <div className="absolute inset-x-0 bottom-0 h-[2px]" style={{ background: color }} aria-hidden />
 
-        {/* Status pill */}
-        {item.listed_for_sale ? (
-          <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 backdrop-blur-sm z-10">
-            <CheckCircle2 size={10} strokeWidth={2.6} />
-            Listed
-          </span>
-        ) : !item.tradable ? (
-          <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300 backdrop-blur-sm z-10">
-            Untradable
-          </span>
-        ) : null}
-
-        {/* Select check */}
-        {!blocked && (
-          <div
-            className={`absolute top-2.5 right-2.5 w-6 h-6 rounded-full grid place-items-center transition-all z-10 ${
-              selected
-                ? 'bg-accent text-on-accent scale-100'
-                : 'bg-bg/70 text-ink-muted opacity-0 group-hover:opacity-100 scale-90'
-            }`}
-          >
-            <CheckCircle2 size={13} strokeWidth={2.6} />
-          </div>
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="px-3 pt-2 pb-3 flex-1 flex flex-col">
-        {/* Rarity + condition chip */}
-        <div className="flex items-center gap-1.5 mb-1">
-          <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: color }} aria-hidden />
-          <span className="text-[11px] font-semibold truncate" style={{ color }}>
-            {item.condition || item.type || 'Item'}
-          </span>
-        </div>
-
-        {/* Name */}
-        <h3 className="text-[13.5px] font-bold text-ink truncate tracking-tight leading-tight" title={item.name}>
-          {item.name}
-        </h3>
-
-        {/* Float row */}
-        <div className="mt-2">
-          <div className="flex items-center justify-between text-[10.5px] font-mono font-medium mb-1">
-            <span className="text-ink-muted">
-              {floatNum != null ? `float ${floatNum.toFixed(4)}` : 'float —'}
-            </span>
-            <span className="text-ink-dim">{seed != null ? `#${String(seed)}` : ''}</span>
-          </div>
-          <div className="relative w-full h-1.5 rounded-full overflow-hidden bg-subtle">
-            <div
-              className="absolute inset-0"
-              style={{
-                background: 'linear-gradient(90deg,#22c55e 0%,#84cc16 25%,#eab308 50%,#f97316 75%,#ef4444 100%)',
-                opacity: floatPct != null ? 1 : 0.25,
-              }}
-              aria-hidden
-            />
-            {floatPct != null && (
-              <div
-                className="absolute top-0 bottom-0 w-[2px] bg-white shadow"
-                style={{ left: `calc(${floatPct}% - 1px)` }}
-                aria-hidden
-              />
+        {/* Top meta row — status pill (left) + select check (right) */}
+        <div className="absolute top-0 inset-x-0 p-2 flex items-start justify-between gap-2 z-10">
+          <div className="flex items-center gap-1.5">
+            {item.listed_for_sale && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase rounded-sm bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                <CheckCircle2 size={9} strokeWidth={2.8} />
+                Listed
+              </span>
+            )}
+            {!item.tradable && (
+              <span className="px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase rounded-sm bg-rose-500/15 text-rose-700 dark:text-rose-300">
+                Untradable
+              </span>
             )}
           </div>
+          {!blocked && (
+            <span
+              className={`w-6 h-6 rounded-full grid place-items-center transition-all ${
+                selected
+                  ? 'bg-accent text-on-accent'
+                  : 'bg-bg/75 backdrop-blur-sm text-ink-muted opacity-0 group-hover:opacity-100'
+              }`}
+            >
+              <CheckCircle2 size={13} strokeWidth={2.6} />
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* INFO + ACTIONS — single padded surface divided only by the stripe. */}
+      <div className="p-3 space-y-3 flex-1 flex flex-col">
+        {/* Float bar (when known) — type + float above a slim wear gauge */}
+        {floatPct != null ? (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-2 text-[9.5px] font-bold uppercase tracking-wider text-ink-dim">
+              <span className="truncate">{item.type}</span>
+              <span className="font-mono tabular-nums text-ink">{floatNum!.toFixed(4)}</span>
+            </div>
+            <div className="relative h-[3px] bg-subtle rounded-sm overflow-hidden">
+              <div
+                className="absolute inset-y-0 left-0"
+                style={{
+                  width: `${floatPct}%`,
+                  background: 'linear-gradient(90deg, #22c55e 0%, #84cc16 25%, #eab308 50%, #f97316 75%, #ef4444 100%)',
+                  backgroundSize: `${10000 / floatPct}% 100%`,
+                  backgroundPosition: 'left center',
+                }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="text-[9.5px] font-bold uppercase tracking-wider text-ink-dim truncate">
+            {item.type}
+          </div>
+        )}
+
+        {/* Name + condition */}
+        <div className="min-w-0 -mt-1">
+          <div className="text-[13.5px] font-bold text-ink tracking-tight leading-tight truncate" title={item.name}>
+            {item.name}
+          </div>
+          <div className="text-[11px] text-ink-muted font-medium truncate mt-0.5">
+            {item.condition || '—'}
+          </div>
         </div>
 
-        {/* Footer — price + list */}
-        <div className="mt-3 flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <div className="text-[9.5px] uppercase tracking-wider font-bold text-ink-dim leading-none">
-              Est. value
-            </div>
-            <div className="text-[14px] font-bold text-ink tabular-nums leading-none mt-1">
-              {formatPrice(Number(item.price_estimate || 0))}
-            </div>
+        {/* Price + list action */}
+        <div className="mt-auto flex items-center justify-between gap-2">
+          <div className="text-[18px] font-bold text-ink tracking-tight tabular-nums leading-none">
+            {formatPrice(Number(item.price_estimate || 0))}
           </div>
           {!item.listed_for_sale && item.tradable && (
             <motion.button
@@ -710,7 +721,7 @@ const ItemCard: React.FC<{
           )}
         </div>
       </div>
-    </motion.div>
+    </motion.article>
   );
 };
 
@@ -765,7 +776,7 @@ const SortPicker: React.FC<{ sort: Sort; onChange: (s: Sort) => void }> = ({ sor
 };
 
 const SkeletonGrid: React.FC = () => (
-  <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+  <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
     {Array.from({ length: 10 }).map((_, i) => (
       <div key={i} className="skel" style={{ aspectRatio: '5 / 6.4' }} />
     ))}
