@@ -16,7 +16,8 @@ import { useToastStore } from '../../../store/toastStore';
 import { useAuthStore } from '../../../store/authStore';
 import { useCurrencyStore } from '../../../store/currencyStore';
 import { spring, tap } from '../../../lib/motion';
-import { SkinCard } from '../../ui/SkinCard';
+import { rarityColor } from '../../ui/SkinCard';
+import { CachedImage } from '../../ui/CachedImage';
 import { ListItemModal, ListingData } from '../../marketplace/ListItemModal';
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -562,10 +563,11 @@ const KpiTile: React.FC<{
   </motion.div>
 );
 
-/* Uses the marketplace SkinCard for the visual so inventory tiles
-   look identical to listings everywhere else on the site. Adds an
-   inventory-only overlay (selection check / listed badge / untradable
-   badge) and a "List" action stacked beneath the card. */
+/* Bespoke inventory tile — a cleaner, denser card than the marketplace
+   SkinCard. Rarity-tinted image well with a corner rarity stripe, a
+   compact status pill (Listed / Untradable), a hover-revealed select
+   check, and an integrated float bar + price footer with the List action
+   inline. Selected state gets a full rarity-colored ring + lift. */
 const ItemCard: React.FC<{
   item: InvItem;
   index: number;
@@ -575,17 +577,12 @@ const ItemCard: React.FC<{
   formatPrice: (n: number) => string;
 }> = ({ item, index, selected, onToggleSelect, onList, formatPrice }) => {
   const blocked = !item.tradable || item.listed_for_sale;
-  const cardItem = {
-    id: String(item.id),
-    name: item.name,
-    market_name: item.name,
-    image: item.image,
-    price: Number(item.price_estimate || 0),
-    type: item.type,
-    rarity: item.rarity,
-    condition: item.condition,
-    seller: { steamId: '', name: '', online: false },
-  } as any;
+  const color = rarityColor(item.rarity);
+  const floatNum =
+    item.float != null && Number.isFinite(Number(item.float)) ? Number(item.float) : null;
+  const floatPct = floatNum != null ? Math.max(0, Math.min(1, floatNum)) * 100 : null;
+  const seed = (item as any).pattern ?? (item as any).paint_seed;
+
   return (
     <motion.div
       layout
@@ -593,58 +590,126 @@ const ItemCard: React.FC<{
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ ...spring, delay: Math.min(index * 0.012, 0.18) }}
-      className={`space-y-2 ${blocked ? 'opacity-70' : ''}`}
+      whileHover={blocked ? undefined : { y: -3 }}
+      onClick={blocked ? undefined : onToggleSelect}
+      className={`group relative flex flex-col rounded-2xl bg-surface overflow-hidden transition-all ${
+        blocked ? 'cursor-not-allowed' : 'cursor-pointer'
+      }`}
+      style={{
+        boxShadow: selected
+          ? `inset 0 0 0 2px ${color}, 0 12px 28px -14px ${color}`
+          : 'inset 0 0 0 1px rgb(var(--line) / 0.5)',
+      }}
     >
+      {/* Image well — rarity gradient bg + bottom rarity stripe */}
       <div
-        onClick={blocked ? undefined : onToggleSelect}
-        className={`relative rounded-3xl transition-shadow ${
-          blocked ? 'cursor-not-allowed' : 'cursor-pointer'
-        } ${selected ? 'ring-2 ring-accent ring-offset-2 ring-offset-bg' : ''}`}
+        className="relative aspect-[5/4] flex items-center justify-center px-5 pt-4 pb-3 overflow-hidden"
+        style={{
+          background: `linear-gradient(180deg, transparent 0%, ${color}14 60%, ${color}2e 100%)`,
+        }}
       >
-        <SkinCard
-          variant="tile"
-          hoverLift={false}
-          item={cardItem}
-          /* Suppress in-card navigation; we want the wrapper's
-             onClick to drive selection instead. */
-          onView={() => {
-            if (!blocked) onToggleSelect();
-          }}
-          formatPrice={formatPrice}
+        <CachedImage
+          src={item.image}
+          alt={item.name}
+          className={`w-full h-full object-contain transition-transform duration-300 ${
+            blocked ? '' : 'group-hover:scale-[1.05]'
+          }`}
         />
-        {item.listed_for_sale && (
-          <span className="absolute top-3 left-3 pill bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1 z-10">
-            <CheckCircle2 size={11} strokeWidth={2.4} />
+        <div className="absolute inset-x-0 bottom-0 h-[2px]" style={{ background: color }} aria-hidden />
+
+        {/* Status pill */}
+        {item.listed_for_sale ? (
+          <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 backdrop-blur-sm z-10">
+            <CheckCircle2 size={10} strokeWidth={2.6} />
             Listed
           </span>
-        )}
-        {!item.tradable && (
-          <span className="absolute top-3 left-3 pill bg-rose-500/15 text-rose-700 dark:text-rose-300 z-10">
+        ) : !item.tradable ? (
+          <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300 backdrop-blur-sm z-10">
             Untradable
           </span>
-        )}
+        ) : null}
+
+        {/* Select check */}
         {!blocked && (
           <div
-            className={`absolute top-3 right-3 w-6 h-6 rounded-full grid place-items-center transition-all z-10 ${
+            className={`absolute top-2.5 right-2.5 w-6 h-6 rounded-full grid place-items-center transition-all z-10 ${
               selected
-                ? 'bg-accent text-on-accent'
-                : 'bg-bg/80 text-transparent opacity-0 hover:opacity-100'
+                ? 'bg-accent text-on-accent scale-100'
+                : 'bg-bg/70 text-ink-muted opacity-0 group-hover:opacity-100 scale-90'
             }`}
           >
-            <CheckCircle2 size={12} strokeWidth={2.6} />
+            <CheckCircle2 size={13} strokeWidth={2.6} />
           </div>
         )}
       </div>
-      {!item.listed_for_sale && item.tradable && (
-        <motion.button
-          whileTap={tap}
-          onClick={onList}
-          className="w-full h-9 rounded-full bg-accent text-on-accent text-[12px] font-bold inline-flex items-center justify-center gap-1.5"
-        >
-          <Tag size={12} strokeWidth={2.4} />
-          List item
-        </motion.button>
-      )}
+
+      {/* Content */}
+      <div className="px-3 pt-2 pb-3 flex-1 flex flex-col">
+        {/* Rarity + condition chip */}
+        <div className="flex items-center gap-1.5 mb-1">
+          <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: color }} aria-hidden />
+          <span className="text-[11px] font-semibold truncate" style={{ color }}>
+            {item.condition || item.type || 'Item'}
+          </span>
+        </div>
+
+        {/* Name */}
+        <h3 className="text-[13.5px] font-bold text-ink truncate tracking-tight leading-tight" title={item.name}>
+          {item.name}
+        </h3>
+
+        {/* Float row */}
+        <div className="mt-2">
+          <div className="flex items-center justify-between text-[10.5px] font-mono font-medium mb-1">
+            <span className="text-ink-muted">
+              {floatNum != null ? `float ${floatNum.toFixed(4)}` : 'float —'}
+            </span>
+            <span className="text-ink-dim">{seed != null ? `#${String(seed)}` : ''}</span>
+          </div>
+          <div className="relative w-full h-1.5 rounded-full overflow-hidden bg-subtle">
+            <div
+              className="absolute inset-0"
+              style={{
+                background: 'linear-gradient(90deg,#22c55e 0%,#84cc16 25%,#eab308 50%,#f97316 75%,#ef4444 100%)',
+                opacity: floatPct != null ? 1 : 0.25,
+              }}
+              aria-hidden
+            />
+            {floatPct != null && (
+              <div
+                className="absolute top-0 bottom-0 w-[2px] bg-white shadow"
+                style={{ left: `calc(${floatPct}% - 1px)` }}
+                aria-hidden
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Footer — price + list */}
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-[9.5px] uppercase tracking-wider font-bold text-ink-dim leading-none">
+              Est. value
+            </div>
+            <div className="text-[14px] font-bold text-ink tabular-nums leading-none mt-1">
+              {formatPrice(Number(item.price_estimate || 0))}
+            </div>
+          </div>
+          {!item.listed_for_sale && item.tradable && (
+            <motion.button
+              whileTap={tap}
+              onClick={(e) => {
+                e.stopPropagation();
+                onList();
+              }}
+              className="h-8 px-3 rounded-full bg-accent text-on-accent text-[11.5px] font-bold inline-flex items-center gap-1.5 shrink-0"
+            >
+              <Tag size={11} strokeWidth={2.4} />
+              List
+            </motion.button>
+          )}
+        </div>
+      </div>
     </motion.div>
   );
 };
