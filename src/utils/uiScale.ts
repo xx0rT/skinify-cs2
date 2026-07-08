@@ -39,22 +39,25 @@ export function applyUiScale(scale: UiScale): void {
   const clamped = clamp(scale);
   const z = clamped / 100;
 
-  /* Scale #root, not <html>. When zoom is on the document element the
-     browsers disagree on how the initial containing block reacts — on
-     WebKit the page under-/overflows and leaves a gap on the right at
-     scales other than 100%. Applying zoom to #root instead makes the
-     zoomed content live inside a normal flow box that is already
-     width-constrained to the viewport (`#root { max-width: 100vw }`),
-     so its width follows the viewport at every scale and there is no
-     gap and no horizontal scroll — no width compensation needed. */
+  /* Scale #root, not <html>, so zoomed content lives in a normal flow box.
+
+     The gap: `zoom: z` makes an element occupy z× its physical space. With
+     `#root { width: 100% }` the root computes 100% of the *unzoomed*
+     containing block and zoom then shrinks it to z×100%, so at z<1 a strip
+     on the right (where the body background shows through) is left
+     uncovered. We compensate by widening the root to `100% / z` *before*
+     zoom — at z=0.85 that is ~117.6%, which renders back to exactly 100%
+     of the viewport after zoom. At z=1 we clear the override entirely. */
   const root = document.getElementById('root') as HTMLElement | null;
   const target = root || (document.documentElement as HTMLElement);
 
   target.style.setProperty('transition', 'zoom 160ms ease-out');
   if (clamped === 100) {
     target.style.removeProperty('zoom');
+    target.style.removeProperty('width');
   } else {
     target.style.setProperty('zoom', String(z));
+    target.style.setProperty('width', `${100 / z}%`);
   }
 }
 

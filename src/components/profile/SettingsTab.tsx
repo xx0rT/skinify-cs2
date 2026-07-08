@@ -13,9 +13,12 @@ import {
   Plus,
   Save,
   Shield,
+  ShieldCheck,
+  Smartphone,
   Sun,
   Trash2,
 } from 'lucide-react';
+import QRCode from 'qrcode';
 import { useAuthStore } from '../../store/authStore';
 import { useToastStore } from '../../store/toastStore';
 import { useBalanceStore } from '../../store/balanceStore';
@@ -138,6 +141,42 @@ async function revokeKey(id: string): Promise<void> {
   }
 }
 
+/* ───── Two-factor (TOTP / Google Authenticator) API ─────────────────
+   Backed by the `two-factor` edge function. Uses the same auth-header
+   strategy as the api-keys calls (Supabase JWT when present, else anon
+   key + X-Steam-Id). The QR is rendered client-side from the returned
+   otpauth URI — the app CSP blocks third-party image hosts. */
+interface TwoFactorStatus {
+  enabled: boolean;
+  hasPending: boolean;
+}
+interface TwoFactorSetup {
+  secret: string;
+  otpauth: string;
+}
+
+async function fetchTwoFactorStatus(): Promise<TwoFactorStatus> {
+  const { supabaseUrl } = getSupabaseCredentials();
+  const headers = await apiKeyAuthHeaders();
+  const res = await fetch(`${supabaseUrl}/functions/v1/two-factor`, { headers });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body?.error || `Server error (${res.status})`);
+  return { enabled: !!body.enabled, hasPending: !!body.hasPending };
+}
+
+async function postTwoFactor(payload: Record<string, unknown>): Promise<any> {
+  const { supabaseUrl } = getSupabaseCredentials();
+  const headers = await apiKeyAuthHeaders();
+  const res = await fetch(`${supabaseUrl}/functions/v1/two-factor`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body?.error || `Server error (${res.status})`);
+  return body;
+}
+
 /**
  * SettingsTab — fills the Profile → Settings tab content.
  *
@@ -184,6 +223,103 @@ const SettingsTab: React.FC = () => {
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [justCreated, setJustCreated] = useState<{ id: string; key: string } | null>(null);
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
+
+  /* ── Two-factor (TOTP) state ──
+     - tfaStatus: enabled? (drives the enabled vs. disabled card)
+     - tfaSetup: the pending secret + otpauth once "Enable" is clicked
+     - tfaQr: data URL of the QR rendered from the otpauth URI
+     - tfaCode: the 6-digit code the user types to confirm enrollment
+     - tfaBackup: single-use recovery codes returned on activation
+     - tfaDisableCode: code required to turn 2FA off again */
+  const [tfaStatus, setTfaStatus] = useState<TwoFactorStatus | null>(null);
+  const [tfaSetup, setTfaSetup] = useState<TwoFactorSetup | null>(null);
+  const [tfaQr, setTfaQr] = useState<string | null>(null);
+  const [tfaCode, setTfaCode] = useState('');
+  const [tfaBackup, setTfaBackup] = useState<string[] | null>(null);
+  const [tfaBusy, setTfaBusy] = useState(false);
+  const [tfaSecretCopied, setTfaSecretCopied] = useState(false);
+  const [showDisable2fa, setShowDisable2fa] = useState(false);
+  const [tfaDisableCode, setTfaDisableCode] = useState('');
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    fetchTwoFactorStatus()
+      .then((s) => { if (!cancelled) setTfaStatus(s); })
+      .catch(() => { if (!cancelled) setTfaStatus({ enabled: false, hasPending: false }); });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const handleStart2fa = async () => {
+    setTfaBusy(true);
+    try {
+      const setup = (await postTwoFactor({ action: 'setup' })) as TwoFactorSetup;
+      setTfaSetup(setup);
+      setTfaCode('');
+      setTfaBackup(null);
+      const qr = await QRCode.toDataURL(setup.otpauth, {
+        errorCorrectionLevel: 'M',
+        margin: 1,
+        width: 220,
+        color: { dark: '#000000', light: '#ffffff' },
+      });
+      setTfaQr(qr);
+    } catch (e: any) {
+      addToast({ type: 'error', title: 'Could not start 2FA', message: e?.message });
+    } finally {
+      setTfaBusy(false);
+    }
+  };
+
+  const handleConfirm2fa = async () => {
+    if (!/^\d{6}$/.test(tfaCode.trim())) {
+      addToast({ type: 'warning', title: 'Enter the 6-digit code', message: 'From your authenticator app.' });
+      return;
+    }
+    setTfaBusy(true);
+    try {
+      const res = await postTwoFactor({ action: 'enable', code: tfaCode.trim() });
+      setTfaBackup(res.backupCodes || []);
+      setTfaSetup(null);
+      setTfaQr(null);
+      setTfaCode('');
+      setTfaStatus({ enabled: true, hasPending: false });
+      addToast({ type: 'success', title: 'Two-factor enabled', message: 'Your account is now protected.' });
+    } catch (e: any) {
+      addToast({ type: 'error', title: 'Verification failed', message: e?.message });
+    } finally {
+      setTfaBusy(false);
+    }
+  };
+
+  const handleDisable2fa = async () => {
+    if (!tfaDisableCode.trim()) {
+      addToast({ type: 'warning', title: 'Enter a code', message: 'Authenticator or backup code.' });
+      return;
+    }
+    setTfaBusy(true);
+    try {
+      await postTwoFactor({ action: 'disable', code: tfaDisableCode.trim() });
+      setTfaStatus({ enabled: false, hasPending: false });
+      setShowDisable2fa(false);
+      setTfaDisableCode('');
+      setTfaBackup(null);
+      addToast({ type: 'info', title: 'Two-factor disabled' });
+    } catch (e: any) {
+      addToast({ type: 'error', title: 'Could not disable', message: e?.message });
+    } finally {
+      setTfaBusy(false);
+    }
+  };
+
+  const copyTfaSecret = async () => {
+    if (!tfaSetup?.secret) return;
+    try {
+      await navigator.clipboard.writeText(tfaSetup.secret);
+      setTfaSecretCopied(true);
+      setTimeout(() => setTfaSecretCopied(false), 1500);
+    } catch { /* clipboard blocked */ }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -439,6 +575,232 @@ const SettingsTab: React.FC = () => {
             {savingTrade ? 'Saving…' : 'Save trade URL'}
           </motion.button>
         </div>
+      </Section>
+
+      {/* ───── Two-factor authentication ─────────────────────── */}
+      <Section
+        title="Two-factor authentication"
+        subtitle="Protect your account with a code from Google Authenticator, Authy, or any TOTP app."
+      >
+        {/* Enabled state */}
+        {tfaStatus?.enabled && !tfaBackup && (
+          <div>
+            <div
+              className="rounded-2xl p-4 flex items-start gap-3 bg-emerald-500/10"
+              style={{ boxShadow: 'inset 0 0 0 1px rgb(16 185 129 / 0.35)' }}
+            >
+              <ShieldCheck size={18} strokeWidth={2.4} className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[13.5px] font-bold text-ink leading-tight">
+                  Two-factor is on
+                </div>
+                <p className="text-[12px] text-ink-muted font-medium mt-1 leading-relaxed">
+                  You'll be asked for a 6-digit code from your authenticator app on sensitive actions.
+                </p>
+              </div>
+            </div>
+            {!showDisable2fa ? (
+              <div className="flex justify-end mt-3">
+                <button
+                  onClick={() => setShowDisable2fa(true)}
+                  className="h-10 px-4 rounded-full bg-rose-500/10 hover:bg-rose-500/15 text-rose-700 dark:text-rose-300 font-semibold text-[13px] transition-colors"
+                >
+                  Turn off 2FA
+                </button>
+              </div>
+            ) : (
+              <div className="mt-3 rounded-2xl bg-subtle/60 p-4">
+                <div className="text-[12.5px] font-semibold text-ink mb-2">
+                  Enter an authenticator or backup code to confirm.
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={tfaDisableCode}
+                    onChange={(e) => setTfaDisableCode(e.target.value)}
+                    placeholder="123456 or backup code"
+                    className="flex-1 h-11 px-4 rounded-full bg-bg text-ink text-[14px] font-medium outline-none focus:ring-2 ring-accent/30"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleDisable2fa}
+                      disabled={tfaBusy}
+                      className="h-11 px-4 rounded-full bg-rose-500 text-white font-bold text-[13px] disabled:opacity-60"
+                    >
+                      {tfaBusy ? 'Working…' : 'Disable'}
+                    </button>
+                    <button
+                      onClick={() => { setShowDisable2fa(false); setTfaDisableCode(''); }}
+                      className="h-11 px-4 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[13px] transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Backup codes reveal — shown once, right after enabling. */}
+        {tfaBackup && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl p-4"
+            style={{ background: 'rgb(var(--accent) / 0.08)', boxShadow: 'inset 0 0 0 1px rgb(var(--accent) / 0.35)' }}
+          >
+            <div className="text-[11px] font-bold uppercase tracking-wider text-accent mb-1.5">
+              Save your backup codes — you won't see them again
+            </div>
+            <p className="text-[12px] text-ink-muted font-medium mb-3">
+              Each code works once if you lose access to your authenticator app.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {tfaBackup.map((c) => (
+                <code key={c} className="text-[13px] font-mono font-semibold text-ink bg-bg rounded-xl px-3 py-2 text-center select-all">
+                  {c}
+                </code>
+              ))}
+            </div>
+            <div className="flex justify-end mt-3 gap-2">
+              <button
+                onClick={() => navigator.clipboard?.writeText(tfaBackup.join('\n')).catch(() => {})}
+                className="h-10 px-4 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[13px] transition-colors inline-flex items-center gap-1.5"
+              >
+                <Copy size={13} strokeWidth={2.2} /> Copy all
+              </button>
+              <button
+                onClick={() => setTfaBackup(null)}
+                className="h-10 px-4 rounded-full bg-accent text-on-accent font-bold text-[13px]"
+              >
+                Done
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Disabled state — either the CTA to begin, or the enrollment flow */}
+        {tfaStatus && !tfaStatus.enabled && !tfaBackup && (
+          <div>
+            {!tfaSetup ? (
+              <div className="rounded-2xl bg-subtle/50 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-accent/12 grid place-items-center shrink-0">
+                  <Smartphone size={18} strokeWidth={2.2} className="text-accent" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13.5px] font-bold text-ink leading-tight">
+                    Add an authenticator app
+                  </div>
+                  <p className="text-[12px] text-ink-muted font-medium mt-0.5 leading-relaxed">
+                    Scan a QR code with Google Authenticator to secure your account with time-based codes.
+                  </p>
+                </div>
+                <motion.button
+                  whileTap={tap}
+                  onClick={handleStart2fa}
+                  disabled={tfaBusy}
+                  className="h-11 px-5 rounded-full bg-accent text-on-accent font-bold text-[13.5px] inline-flex items-center justify-center gap-2 disabled:opacity-60 shrink-0"
+                  style={{ boxShadow: '0 8px 20px -10px rgb(var(--accent) / 0.6)' }}
+                >
+                  <Shield size={14} strokeWidth={2.4} />
+                  {tfaBusy ? 'Preparing…' : 'Set up 2FA'}
+                </motion.button>
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-subtle/50 p-4 md:p-5">
+                <div className="flex flex-col md:flex-row gap-5">
+                  {/* QR */}
+                  <div className="shrink-0 mx-auto md:mx-0">
+                    {tfaQr ? (
+                      <img
+                        src={tfaQr}
+                        alt="Authenticator QR code"
+                        className="w-[200px] h-[200px] rounded-2xl bg-white p-2"
+                      />
+                    ) : (
+                      <div className="w-[200px] h-[200px] rounded-2xl bg-bg grid place-items-center">
+                        <span className="text-[12px] text-ink-muted font-medium">Generating…</span>
+                      </div>
+                    )}
+                  </div>
+                  {/* Steps */}
+                  <div className="flex-1 min-w-0">
+                    <ol className="space-y-2.5 text-[13px] text-ink font-medium">
+                      <li className="flex gap-2.5">
+                        <span className="w-5 h-5 rounded-full bg-accent/15 text-accent text-[11px] font-bold grid place-items-center shrink-0 mt-0.5">1</span>
+                        <span>Open Google Authenticator (or any TOTP app) and scan the QR code.</span>
+                      </li>
+                      <li className="flex gap-2.5">
+                        <span className="w-5 h-5 rounded-full bg-accent/15 text-accent text-[11px] font-bold grid place-items-center shrink-0 mt-0.5">2</span>
+                        <span>
+                          Can't scan? Enter this key manually:
+                          <span className="mt-1.5 flex items-center gap-2">
+                            <code className="text-[12.5px] font-mono font-semibold text-ink bg-bg rounded-lg px-2.5 py-1.5 select-all break-all">
+                              {tfaSetup.secret}
+                            </code>
+                            <button
+                              onClick={copyTfaSecret}
+                              className="icon-chip-sm hover:bg-bg shrink-0"
+                              aria-label="Copy secret"
+                            >
+                              {tfaSecretCopied ? (
+                                <Check size={13} strokeWidth={2.4} className="text-emerald-600 dark:text-emerald-400" />
+                              ) : (
+                                <Copy size={13} strokeWidth={2.2} className="text-ink-muted" />
+                              )}
+                            </button>
+                          </span>
+                        </span>
+                      </li>
+                      <li className="flex gap-2.5">
+                        <span className="w-5 h-5 rounded-full bg-accent/15 text-accent text-[11px] font-bold grid place-items-center shrink-0 mt-0.5">3</span>
+                        <span>Enter the 6-digit code the app shows to finish.</span>
+                      </li>
+                    </ol>
+
+                    <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                      <input
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={6}
+                        value={tfaCode}
+                        onChange={(e) => setTfaCode(e.target.value.replace(/\D/g, ''))}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleConfirm2fa(); }}
+                        placeholder="123456"
+                        className="flex-1 h-11 px-4 rounded-full bg-bg text-ink text-[16px] font-bold tabular-nums tracking-[0.3em] text-center outline-none focus:ring-2 ring-accent/30"
+                      />
+                      <div className="flex gap-2">
+                        <motion.button
+                          whileTap={tap}
+                          onClick={handleConfirm2fa}
+                          disabled={tfaBusy}
+                          className="h-11 px-5 rounded-full bg-accent text-on-accent font-bold text-[13.5px] disabled:opacity-60"
+                        >
+                          {tfaBusy ? 'Verifying…' : 'Verify & enable'}
+                        </motion.button>
+                        <button
+                          onClick={() => { setTfaSetup(null); setTfaQr(null); setTfaCode(''); }}
+                          className="h-11 px-4 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[13px] transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Loading placeholder before status resolves */}
+        {!tfaStatus && (
+          <div className="rounded-2xl bg-subtle/30 p-6 text-center">
+            <p className="text-[12.5px] text-ink-muted font-medium">Loading security settings…</p>
+          </div>
+        )}
       </Section>
 
       {/* ───── Appearance ────────────────────────────────────── */}
