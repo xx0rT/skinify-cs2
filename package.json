@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@sumsub/websdk": "^2.6.3",
+    "@sumsub/websdk-react": "^2.6.3",
     "@supabase/supabase-js": "^2.39.0",
     "framer-motion": "^11.18.2",
     "gsap": "^3.13.0",

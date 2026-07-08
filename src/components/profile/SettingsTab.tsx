@@ -21,6 +21,7 @@ import {
 import QRCode from 'qrcode';
 import { Monitor as MonitorIcon, MapPin } from 'lucide-react';
 import { listDevices, revokeDevice, isCurrentDevice, DeviceRow } from '../../utils/twoFactor';
+import KycVerification from './KycVerification';
 import { useAuthStore } from '../../store/authStore';
 import { useToastStore } from '../../store/toastStore';
 import { useBalanceStore } from '../../store/balanceStore';
@@ -837,6 +838,9 @@ const SettingsTab: React.FC = () => {
           </div>
         )}
       </Section>
+
+      {/* ───── Identity verification (KYC) ────────────────────── */}
+      <KycVerification />
 
       {/* ───── Sessions / devices ─────────────────────────────── */}
       <Section
