@@ -55,9 +55,17 @@ export function applyUiScale(scale: UiScale): void {
   if (clamped === 100) {
     target.style.removeProperty('zoom');
     target.style.removeProperty('width');
+    target.style.removeProperty('max-width');
   } else {
     target.style.setProperty('zoom', String(z));
+    /* Widen so the zoomed box refills the viewport (at z=0.85 → ~117.6%,
+       which renders back to 100vw after zoom). The global CSS rule
+       `#root { max-width: 100vw }` would otherwise CLAMP this widened
+       value straight back to 100vw — cancelling the compensation and
+       leaving the right-hand gap (most visible on mobile). Override
+       max-width here so the compensation actually takes effect. */
     target.style.setProperty('width', `${100 / z}%`);
+    target.style.setProperty('max-width', `${100 / z}%`);
   }
 }
 
