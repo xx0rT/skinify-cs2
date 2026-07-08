@@ -315,7 +315,7 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
              they're visible on light AND dark (the old white ring
              disappeared on light backgrounds). */
           boxShadow:
-            'inset 0 0 0 0.5px rgb(var(--line) / 0.5), inset 0 -0.5px 0 0 rgb(var(--line) / 0.5)',
+            'inset 0 0 0 1px rgb(var(--line) / 0.9), inset 0 -1px 0 0 rgb(var(--line) / 0.9)',
           /* CSS variable that the rarity-ring hover rule below reads.
              Falls back to the accent colour when rarity is unknown. */
           ['--rarity' as any]: color || 'rgb(var(--accent))',
@@ -328,7 +328,7 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
         onMouseLeave={(e) => {
           if (hoverLift) return;
           (e.currentTarget as HTMLElement).style.boxShadow =
-            'inset 0 0 0 0.5px rgb(var(--line) / 0.28), inset 0 -0.5px 0 0 rgb(var(--line) / 0.28)';
+            'inset 0 0 0 1px rgb(var(--line) / 0.9), inset 0 -1px 0 0 rgb(var(--line) / 0.9)';
         }}
       >
         {/* Image area. The bottom edge carries a sharp 1.5px rarity

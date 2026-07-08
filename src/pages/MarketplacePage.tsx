@@ -902,8 +902,8 @@ const MarketplacePage: React.FC = () => {
                          the cards a consistent visual size regardless of
                          the sidebar state. */
                       filtersOpen
-                        ? 'lg:grid-cols-4 xl:grid-cols-4'
-                        : 'lg:grid-cols-5 xl:grid-cols-5'
+                        ? 'lg:grid-cols-4 xl:grid-cols-5'
+                        : 'lg:grid-cols-5 xl:grid-cols-6'
                     }`
                     : 'space-y-2'
                 }
@@ -949,8 +949,8 @@ const MarketplacePage: React.FC = () => {
                      Filters open  → sidebar eats ~280px → 5 cols at xl.
                      Filters closed → full width → 6 cols at xl. */
                   filtersOpen
-                    ? 'lg:grid-cols-4 xl:grid-cols-4'
-                    : 'lg:grid-cols-5 xl:grid-cols-5'
+                    ? 'lg:grid-cols-4 xl:grid-cols-5'
+                    : 'lg:grid-cols-5 xl:grid-cols-6'
                 }`}
               >
                 {filtered.map((item: any) => (

@@ -882,7 +882,7 @@ const ItemDetailPage: React.FC = () => {
                 wear, with a "starts from" price per exterior. */}
             <ExteriorListingsTable
               item={item}
-              allItems={allItems}
+              allItems={browseSource}
               formatPrice={formatPrice}
               onBuy={(it) => handleAddCart(it)}
               onView={(it) => navigate(`/item/${it.id}`)}
