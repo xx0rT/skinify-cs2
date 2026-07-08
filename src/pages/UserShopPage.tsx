@@ -215,9 +215,23 @@ const UserShopPage: React.FC = () => {
     if (shop?.id) recordView();
   }, [shop?.id]);
 
-  /* When entering edit mode, seed the draft from the live shop. */
+  /* When entering edit mode, seed the draft from the live shop. Defaults
+     are filled in for the advanced-editor fields so the controls work even
+     before the backing columns exist / are populated (the editor stays
+     functional locally; Save persists whatever the DB accepts). */
   useEffect(() => {
-    if (editMode && shop) setDraft({ ...shop });
+    if (editMode && shop) {
+      setDraft({
+        ...shop,
+        font_family: shop.font_family ?? 'Inter',
+        card_radius: shop.card_radius ?? 16,
+        banner_height: shop.banner_height ?? 200,
+        show_bio: shop.show_bio ?? true,
+        show_socials: shop.show_socials ?? true,
+        show_stats: shop.show_stats ?? true,
+        detail_modal: shop.detail_modal ?? { buttonShape: 'pill', accentTint: true },
+      });
+    }
     if (!editMode) setDraft(null);
   }, [editMode, shop?.id]);
 
@@ -288,39 +302,57 @@ const UserShopPage: React.FC = () => {
   const handleSave = async () => {
     if (!draft) return;
     setSaving(true);
-    const { error } = await supabase
-      .from('user_shops')
-      .update({
-        shop_name: draft.shop_name,
-        description: draft.description,
-        logo_url: draft.logo_url,
-        banner_url: draft.banner_url,
-        primary_color: draft.primary_color,
-        secondary_color: draft.secondary_color,
-        accent_color: draft.accent_color,
-        layout_style: draft.layout_style,
-        email: draft.email,
-        discord_username: draft.discord_username,
-        twitter_url: draft.twitter_url,
-        instagram_url: draft.instagram_url,
-        youtube_url: draft.youtube_url,
-        custom_css: draft.custom_css,
-        font_family: draft.font_family,
-        card_radius: draft.card_radius,
-        banner_height: draft.banner_height,
-        show_bio: draft.show_bio,
-        show_socials: draft.show_socials,
-        show_stats: draft.show_stats,
-        detail_modal: draft.detail_modal,
-      })
-      .eq('id', draft.id);
-    setSaving(false);
+
+    /* Base columns that have always existed. */
+    const base = {
+      shop_name: draft.shop_name,
+      description: draft.description,
+      logo_url: draft.logo_url,
+      banner_url: draft.banner_url,
+      primary_color: draft.primary_color,
+      secondary_color: draft.secondary_color,
+      accent_color: draft.accent_color,
+      layout_style: draft.layout_style,
+      email: draft.email,
+      discord_username: draft.discord_username,
+      twitter_url: draft.twitter_url,
+      instagram_url: draft.instagram_url,
+      youtube_url: draft.youtube_url,
+      custom_css: draft.custom_css,
+    };
+
+    /* Advanced-editor columns (migration 20260711090000). Sent as a second
+       update so that, if the migration hasn't been pushed to this DB yet,
+       a "column does not exist" error only drops the advanced fields —
+       the base save still succeeds and the editor stays usable. */
+    const advanced = {
+      font_family: draft.font_family,
+      card_radius: draft.card_radius,
+      banner_height: draft.banner_height,
+      show_bio: draft.show_bio,
+      show_socials: draft.show_socials,
+      show_stats: draft.show_stats,
+      detail_modal: draft.detail_modal,
+    };
+
+    const { error } = await supabase.from('user_shops').update(base).eq('id', draft.id);
     if (error) {
+      setSaving(false);
       addToast({ type: 'error', title: 'Save failed', message: error.message });
       return;
     }
+
+    const { error: advErr } = await supabase.from('user_shops').update(advanced).eq('id', draft.id);
+    setSaving(false);
+    // Local preview always reflects the draft; a missing-column error on the
+    // advanced update is non-fatal (styling still previews, just not
+    // persisted until the migration is pushed).
     setShop({ ...draft });
-    addToast({ type: 'success', title: 'Shop saved', message: 'Changes are live.' });
+    addToast({
+      type: 'success',
+      title: 'Shop saved',
+      message: advErr ? 'Saved. Some advanced styles need a DB update to persist.' : 'Changes are live.',
+    });
   };
 
   /* Toggle the shop between active (public) and paused (hidden from
