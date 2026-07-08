@@ -47,23 +47,29 @@ const APP_TOKEN = Deno.env.get('SUMSUB_APP_TOKEN') || '';
 const SECRET = Deno.env.get('SUMSUB_SECRET_KEY') || '';
 const LEVEL = Deno.env.get('SUMSUB_LEVEL_NAME') || LEVEL_NAME;
 
-/* Signed fetch against the Sumsub API. */
+/* Signed fetch against the Sumsub API. `body` is only sent when non-null —
+   endpoints like accessTokens take their params in the query string and
+   reject any body ("Unexpected body"). The signature is computed over the
+   EXACT bytes sent (empty string when there's no body), and Content-Type is
+   only set when there's actually a body. */
 async function sumsub(method: string, path: string, body?: unknown): Promise<Response> {
   const ts = Math.floor(Date.now() / 1000).toString();
-  const payload = body ? JSON.stringify(body) : '';
+  const hasBody = body !== undefined && body !== null;
+  const payload = hasBody ? JSON.stringify(body) : '';
   const sig = createHmac('sha256', SECRET)
     .update(ts + method.toUpperCase() + path + payload)
     .digest('hex');
+  const headers: Record<string, string> = {
+    'X-App-Token': APP_TOKEN,
+    'X-App-Access-Sig': sig,
+    'X-App-Access-Ts': ts,
+    Accept: 'application/json',
+  };
+  if (hasBody) headers['Content-Type'] = 'application/json';
   return fetch(BASE + path, {
     method,
-    headers: {
-      'X-App-Token': APP_TOKEN,
-      'X-App-Access-Sig': sig,
-      'X-App-Access-Ts': ts,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: body ? payload : undefined,
+    headers,
+    body: hasBody ? payload : undefined,
   });
 }
 
@@ -116,10 +122,19 @@ Deno.serve(async (req) => {
       // A short-lived token the WebSDK uses. Sumsub creates the applicant
       // lazily on first use of the token for this externalUserId + level.
       const path = `/resources/accessTokens?userId=${encodeURIComponent(externalUserId)}&levelName=${encodeURIComponent(LEVEL)}&ttlInSecs=600`;
-      const res = await sumsub('POST', path, {});
+      // No body — params are in the query string (a body triggers Sumsub's
+      // "Unexpected body" 400).
+      const res = await sumsub('POST', path);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        return json(502, { error: data?.description || `Sumsub error ${res.status}` });
+        // Surface Sumsub's real reason (e.g. unknown levelName) so the
+        // client toast is actionable instead of a bare 502.
+        return json(502, {
+          error:
+            data?.description ||
+            data?.errorName ||
+            `Sumsub error ${res.status}. Check that level "${LEVEL}" exists in your Sumsub dashboard.`,
+        });
       }
       return json(200, { token: data.token, userId: externalUserId });
     }
