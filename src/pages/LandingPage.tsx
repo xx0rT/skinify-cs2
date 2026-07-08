@@ -3,6 +3,7 @@ import { motion, AnimatePresence, useReducedMotion, useScroll, useTransform } fr
 import {
   ArrowRight,
   ChevronRight,
+  Flame,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -268,61 +269,72 @@ const LandingPage: React.FC = () => {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...spring, delay: 0.12 }}
-            className="card p-6 sm:p-7 flex flex-col h-full"
+            className="card p-6 sm:p-7 flex flex-col h-full relative overflow-hidden"
           >
             {user ? (
-              /* Signed-in header: identity on the left, balance on the
-                 right, one row — reads as a compact account summary
-                 instead of two stacked mini-sections. */
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-4 mb-5">
-                <div className="flex items-center gap-3.5 flex-1 min-w-[220px]">
-                  {user.avatarUrl && (
-                    <img
-                      src={user.avatarUrl}
-                      alt=""
-                      className="w-14 h-14 rounded-2xl object-cover shrink-0"
-                    />
-                  )}
-                  <div className="min-w-0">
-                    <span className="label-eyebrow">
-                      {t('landing.welcome.back', 'Welcome back')}
-                    </span>
-                    <div className="text-[20px] sm:text-[24px] font-bold tracking-tight leading-tight truncate">
-                      {user.displayName || 'Trader'}
+              /* Signed-in header — redesigned: avatar with an accent ring,
+                 a prominent balance block on its own accent-tinted panel,
+                 and clear primary/secondary actions. A soft accent wash in
+                 the top-right gives the card depth without noise. */
+              <>
+                <div
+                  aria-hidden
+                  className="absolute -top-16 -right-16 w-56 h-56 rounded-full pointer-events-none"
+                  style={{ background: 'radial-gradient(circle, rgb(var(--accent) / 0.14), transparent 70%)' }}
+                />
+                <div className="relative flex flex-wrap items-center gap-x-6 gap-y-4 mb-5">
+                  <div className="flex items-center gap-3.5 flex-1 min-w-[200px]">
+                    {user.avatarUrl && (
+                      <div className="relative shrink-0">
+                        <img
+                          src={user.avatarUrl}
+                          alt=""
+                          className="w-16 h-16 rounded-2xl object-cover ring-2 ring-accent/30"
+                        />
+                        <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 ring-2 ring-surface" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <span className="label-eyebrow">
+                        {t('landing.welcome.back', 'Welcome back')}
+                      </span>
+                      <div className="text-[22px] sm:text-[26px] font-bold tracking-tight leading-tight truncate">
+                        {user.displayName || 'Trader'}
+                      </div>
+                      <button
+                        onClick={() => navigate('/profile')}
+                        className="text-[12px] font-semibold text-accent hover:opacity-80 transition-opacity mt-0.5"
+                      >
+                        {t('landing.welcome.profile', 'Open profile')} →
+                      </button>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-5 sm:gap-6">
-                  <div className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <span className="label-meta">
-                        {t('landing.portfolio.balance', 'Available balance')}
-                      </span>
-                      <span className="pill bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-                        +2.4%
-                      </span>
+                  {/* Balance panel */}
+                  <div className="rounded-2xl bg-accent/[0.07] px-5 py-3.5 flex items-center gap-5">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="label-meta">
+                          {t('landing.portfolio.balance', 'Available balance')}
+                        </span>
+                        <span className="pill bg-emerald-500/12 text-emerald-700 dark:text-emerald-400 text-[10px]">
+                          +2.4%
+                        </span>
+                      </div>
+                      <div className="text-[27px] sm:text-[32px] font-bold tracking-tight leading-none text-ink tabular-nums mt-1">
+                        {formatPrice(portfolio)}
+                      </div>
                     </div>
-                    <div className="text-[26px] sm:text-[30px] font-bold tracking-tight leading-none text-ink tabular-nums mt-1">
-                      {formatPrice(portfolio)}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
                     <button
                       onClick={() => openDepositModal()}
-                      className="h-11 px-5 rounded-full bg-accent text-on-accent text-[13px] font-bold"
+                      className="h-11 px-5 rounded-full bg-accent text-on-accent text-[13px] font-bold shrink-0"
+                      style={{ boxShadow: '0 8px 20px -10px rgb(var(--accent) / 0.6)' }}
                     >
                       {t('nav.refill', 'Refill')}
                     </button>
-                    <button
-                      onClick={() => navigate('/profile')}
-                      className="hidden sm:inline-flex h-11 px-4 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[13px] font-bold items-center transition-colors"
-                    >
-                      {t('landing.welcome.profile', 'Open profile')}
-                    </button>
                   </div>
                 </div>
-              </div>
+              </>
             ) : (
               <>
                 <span className="label-eyebrow">
@@ -430,6 +442,20 @@ const LandingPage: React.FC = () => {
             </div>
           </motion.div>
         </section>
+
+        {/* ===== PROMOTED — the very first items a visitor sees, right
+            under the welcome banner. Only paid promotions appear; when
+            none are active the row renders nothing. ===== */}
+        {promotedItems.length > 0 && (
+          <PromotedRow
+            items={promotedItems}
+            onView={(id) => navigate(`/item/${id}`)}
+            onAddCart={handleAddCart}
+            onToggleWish={handleWish}
+            isWished={(id) => isInWishlist(id)}
+            formatPrice={formatPrice}
+          />
+        )}
 
         {/* The 15 newest marketplace listings, fading into translucency
             with a button to the full marketplace underneath. */}
@@ -891,6 +917,102 @@ const LandingPage: React.FC = () => {
 
       <Footer />
     </div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   PromotedRow — the first thing under the welcome banner: a horizontal,
+   click-and-drag slider of paid-promotion listings. Accent-framed header
+   with a flame badge so it reads as "featured". Only renders when there
+   are promoted items (caller guards on length).
+   ───────────────────────────────────────────────────────────────────────── */
+const PromotedRow: React.FC<{
+  items: any[];
+  onView: (id: string) => void;
+  onAddCart: (item: any) => void;
+  onToggleWish: (item: any) => void;
+  isWished: (id: string) => boolean;
+  formatPrice: (n: number) => string;
+}> = ({ items, onView, onAddCart, onToggleWish, isWished, formatPrice }) => {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const drag = useRef({ active: false, startX: 0, startScroll: 0, moved: false });
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest('button, a')) return;
+    const node = ref.current;
+    if (!node) return;
+    drag.current = { active: true, startX: e.clientX, startScroll: node.scrollLeft, moved: false };
+    node.setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    const node = ref.current;
+    if (!node || !drag.current.active) return;
+    const dx = e.clientX - drag.current.startX;
+    if (Math.abs(dx) > 4) drag.current.moved = true;
+    node.scrollLeft = drag.current.startScroll - dx;
+  };
+  const endDrag = (e: React.PointerEvent) => {
+    const node = ref.current;
+    if (node) node.releasePointerCapture?.(e.pointerId);
+    if (drag.current.moved) {
+      const stop = (ev: Event) => { ev.stopPropagation(); ev.preventDefault(); };
+      node?.addEventListener('click', stop, { capture: true, once: true });
+    }
+    drag.current.active = false;
+  };
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ...spring, delay: 0.16 }}
+      className="mb-6 rounded-3xl p-4 sm:p-5 relative overflow-hidden"
+      style={{
+        background:
+          'linear-gradient(120deg, rgb(var(--accent) / 0.10), rgb(var(--accent) / 0.02) 60%)',
+        boxShadow: 'inset 0 0 0 1px rgb(var(--accent) / 0.22)',
+      }}
+    >
+      <div className="flex items-center justify-between mb-3.5">
+        <div className="flex items-center gap-2.5">
+          <span className="w-9 h-9 rounded-2xl grid place-items-center bg-accent/15 text-accent shrink-0">
+            <Flame size={17} strokeWidth={2.4} />
+          </span>
+          <div>
+            <div className="label-eyebrow text-accent">Featured</div>
+            <h2 className="text-[17px] font-bold text-ink tracking-tight leading-none mt-0.5">
+              Promoted right now
+            </h2>
+          </div>
+        </div>
+        <span className="pill bg-accent/12 text-accent text-[11px] font-bold">
+          {items.length} live
+        </span>
+      </div>
+
+      <div
+        ref={ref}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        className="flex gap-3 overflow-x-auto scrollbar-thin pt-6 pb-16 -my-4 cursor-grab active:cursor-grabbing select-none touch-pan-x"
+      >
+        {items.slice(0, 20).map((it) => (
+          <div key={it.id} className="shrink-0 w-52">
+            <SkinCard
+              variant="tile"
+              item={it}
+              onView={() => onView(String(it.id))}
+              onAddCart={() => onAddCart(it)}
+              onToggleWish={() => onToggleWish(it)}
+              wished={isWished(String(it.id))}
+              formatPrice={formatPrice}
+            />
+          </div>
+        ))}
+      </div>
+    </motion.section>
   );
 };
 
