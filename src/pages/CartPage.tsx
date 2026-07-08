@@ -26,6 +26,7 @@ import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import { CachedImage } from '../components/ui/CachedImage';
 import ConfirmationModal from '../components/ui/ConfirmationModal';
+import BuyGate, { getBuyRequirements, BuyRequirement } from '../components/checkout/BuyGate';
 import { rarityColor } from '../components/ui/SkinCard';
 import { spring, tap } from '../lib/motion';
 
@@ -62,6 +63,9 @@ const CartPage: React.FC = () => {
      confetti / "order placed" frame) before routing the user away.
      The route push is deferred 1.4s so the user reads the success cue. */
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+  /* Buy-gate: unmet requirements (Steam link / trade URL / KYC) that must
+     be satisfied before checkout can proceed. */
+  const [buyGate, setBuyGate] = useState<BuyRequirement[] | null>(null);
 
   useEffect(() => {
     if (user?.steamId) fetchBalance(user.steamId);
@@ -87,6 +91,14 @@ const CartPage: React.FC = () => {
     if (items.length === 0) return;
     if (!user) {
       addToast({ type: 'warning', title: 'Login required', message: 'Sign in to check out.' });
+      return;
+    }
+    /* Gate: email/credentials users must link Steam, add a trade URL, and
+       pass KYC before buying. Steam-OpenID users clear the Steam step
+       inherently but still need a trade link. */
+    const reqs = getBuyRequirements(user);
+    if (reqs.length > 0) {
+      setBuyGate(reqs);
       return;
     }
     if (!canAfford) {
@@ -506,6 +518,12 @@ const CartPage: React.FC = () => {
         processing={processing}
         success={checkoutSuccess}
         formatPrice={formatPrice}
+      />
+
+      <BuyGate
+        open={!!buyGate}
+        onClose={() => setBuyGate(null)}
+        requirements={buyGate || []}
       />
     </div>
   );
