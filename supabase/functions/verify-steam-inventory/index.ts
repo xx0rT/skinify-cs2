@@ -225,6 +225,7 @@ Deno.serve(async (req) => {
         }
 
         // Update order with verification results
+        const verifiedAt = new Date().toISOString();
         await supabase
           .from('orders')
           .update({
@@ -232,10 +233,50 @@ Deno.serve(async (req) => {
             inventory_check_attempted: true,
             inventory_check_result: allItemsFound ? 'verified' : 'items_missing',
             inventory_check_details: verificationResults,
-            inventory_check_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            inventory_check_at: verifiedAt,
+            updated_at: verifiedAt
           })
           .eq('transaction_id', transaction_id);
+
+        // ── Start the 8-day escrow clock on confirmed delivery ──
+        // The seller's sale funds were placed in pending with
+        // escrow_awaiting_delivery=true and NO start time. Now that the
+        // asset(s) are confirmed in the buyer's inventory, stamp
+        // escrow_start_at on every matching sale transaction. Only from
+        // this moment does auto-escrow-release count the 8 days. If items
+        // were NOT all found, we leave the clock unstarted so funds stay
+        // held until a later successful check (or manual review).
+        if (allItemsFound) {
+          const { data: saleTxns } = await supabase
+            .from('user_transactions')
+            .select('id, metadata')
+            .eq('type', 'sale')
+            .contains('metadata', { order_id: transaction_id });
+
+          for (const tx of saleTxns || []) {
+            const meta = tx.metadata || {};
+            // Idempotent: don't reset the clock if already started.
+            if (meta.escrow_start_at) continue;
+            await supabase
+              .from('user_transactions')
+              .update({
+                metadata: {
+                  ...meta,
+                  escrow_awaiting_delivery: false,
+                  escrow_start_at: verifiedAt,
+                  hold_until: new Date(
+                    new Date(verifiedAt).getTime() + 8 * 24 * 60 * 60 * 1000,
+                  ).toISOString(),
+                  delivery_confirmed_at: verifiedAt,
+                },
+                updated_at: verifiedAt,
+              })
+              .eq('id', tx.id);
+          }
+          console.log(
+            `Escrow clock started for ${saleTxns?.length || 0} sale txn(s) on order ${transaction_id}`,
+          );
+        }
 
         console.log(`Verification result: ${allItemsFound ? 'ALL ITEMS FOUND' : 'SOME ITEMS MISSING'}`);
 

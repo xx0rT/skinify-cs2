@@ -262,7 +262,12 @@ async function processSellerPayment(
               multi_seller_order: true,
               payment_source: 'buyer_confirmation',
               pending_wallet: true,
-              hold_until: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString()
+              // The 8-day escrow clock does NOT start at sale time. It starts
+              // only once verify-steam-inventory confirms the asset(s) landed
+              // in the buyer's inventory — that stamps escrow_start_at, and
+              // auto-escrow-release keys off that. Until then the funds stay
+              // pending indefinitely.
+              escrow_awaiting_delivery: true
             }
           };
 
@@ -353,7 +358,9 @@ async function processSellerPayment(
             items: order.items,
             payment_source: 'buyer_confirmation',
             pending_wallet: true,
-            hold_until: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString()
+            // Escrow clock starts on buyer-inventory confirmation (see the
+            // multi-seller branch above), not at sale time.
+            escrow_awaiting_delivery: true
           }
         };
 
@@ -1172,7 +1179,10 @@ Deno.serve(async (req) => {
                   items: sellerItems,
                   payment_source: 'order_creation',
                   pending_wallet: true,
-                  hold_until: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString(),
+                  // Escrow clock starts on buyer-inventory confirmation, not
+                  // at order creation. verify-steam-inventory stamps
+                  // escrow_start_at; auto-escrow-release keys off that.
+                  escrow_awaiting_delivery: true,
                 },
               });
 

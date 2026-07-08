@@ -390,7 +390,13 @@ async function releaseEscrowPayment(supabase: any, transactionId: string) {
         buyer_steam_id: order.buyer_steam_id,
         verification_completed: true,
         items: order.items,
-        verification_method: 'steam_api_multi_round'
+        verification_method: 'steam_api_multi_round',
+        // Hold in pending; the 8-day escrow clock only starts once
+        // verify-steam-inventory confirms delivery into the buyer's
+        // inventory (stamps escrow_start_at). auto-escrow-release keys
+        // off escrow_start_at, not completed_at.
+        pending_wallet: true,
+        escrow_awaiting_delivery: true
       }
     };
 

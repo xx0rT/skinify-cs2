@@ -52,21 +52,34 @@ async function releasePendingFunds(supabase: any) {
   console.log('=== CHECKING FOR PENDING FUNDS TO RELEASE ===');
 
   try {
-    // Find transactions where 8 days have passed since creation and they're in pending status
+    // The 8-day escrow clock starts on CONFIRMED DELIVERY, not sale time.
+    // verify-steam-inventory stamps metadata.escrow_start_at once the asset
+    // is confirmed in the buyer's inventory. We release a sale only when:
+    //   - it's still pending_wallet=true, and
+    //   - escrow_start_at is set (delivery confirmed), and
+    //   - escrow_start_at is ≥ 8 days ago.
+    // Sales still awaiting delivery (escrow_start_at unset) are skipped —
+    // their funds stay held until the buyer actually receives the item.
     const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
-    
-    const { data: expiredPendingTransactions, error } = await supabase
+
+    const { data: pendingSales, error } = await supabase
       .from('user_transactions')
       .select('*')
       .eq('type', 'sale')
-      .lte('completed_at', eightDaysAgo)
-      .contains('metadata', { pending_wallet: true })
-      .eq('status', 'completed');
+      .eq('status', 'completed')
+      .contains('metadata', { pending_wallet: true });
 
     if (error) {
-      console.error('Failed to fetch expired pending transactions:', error);
+      console.error('Failed to fetch pending sale transactions:', error);
       return;
     }
+
+    // Filter in code: escrow_start_at present AND matured. (postgrest can't
+    // cleanly do a ≤ comparison on a nested jsonb timestamp.)
+    const expiredPendingTransactions = (pendingSales || []).filter((t: any) => {
+      const startAt = t.metadata?.escrow_start_at;
+      return startAt && new Date(startAt).getTime() <= new Date(eightDaysAgo).getTime();
+    });
 
     console.log(`Found ${expiredPendingTransactions?.length || 0} expired pending transactions to release`);
 
