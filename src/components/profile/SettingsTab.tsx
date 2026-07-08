@@ -19,6 +19,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import QRCode from 'qrcode';
+import { Monitor as MonitorIcon, MapPin } from 'lucide-react';
+import { listDevices, revokeDevice, isCurrentDevice, DeviceRow } from '../../utils/twoFactor';
 import { useAuthStore } from '../../store/authStore';
 import { useToastStore } from '../../store/toastStore';
 import { useBalanceStore } from '../../store/balanceStore';
@@ -309,6 +311,39 @@ const SettingsTab: React.FC = () => {
       addToast({ type: 'error', title: 'Could not disable', message: e?.message });
     } finally {
       setTfaBusy(false);
+    }
+  };
+
+  /* ── Sessions / devices ── */
+  const [devices, setDevices] = useState<DeviceRow[]>([]);
+  const [devicesLoading, setDevicesLoading] = useState(true);
+  const [revokingDevice, setRevokingDevice] = useState<string | null>(null);
+
+  const loadDevices = async () => {
+    setDevicesLoading(true);
+    try {
+      setDevices(await listDevices());
+    } catch {
+      setDevices([]);
+    } finally {
+      setDevicesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) loadDevices();
+  }, [user]);
+
+  const handleRevokeDevice = async (id: string) => {
+    setRevokingDevice(id);
+    try {
+      await revokeDevice(id);
+      setDevices((prev) => prev.filter((d) => d.id !== id));
+      addToast({ type: 'info', title: 'Signed out of device' });
+    } catch (e: any) {
+      addToast({ type: 'error', title: 'Could not revoke', message: e?.message });
+    } finally {
+      setRevokingDevice(null);
     }
   };
 
@@ -801,6 +836,77 @@ const SettingsTab: React.FC = () => {
             <p className="text-[12.5px] text-ink-muted font-medium">Loading security settings…</p>
           </div>
         )}
+      </Section>
+
+      {/* ───── Sessions / devices ─────────────────────────────── */}
+      <Section
+        title="Devices & sessions"
+        subtitle="Places you're signed in. Revoke any you don't recognise."
+      >
+        {devicesLoading ? (
+          <div className="rounded-2xl bg-subtle/30 p-6 text-center">
+            <p className="text-[12.5px] text-ink-muted font-medium">Loading sessions…</p>
+          </div>
+        ) : devices.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-line p-6 text-center">
+            <p className="text-[13px] text-ink-muted font-medium">
+              No recorded sessions yet. They'll appear here after your next sign-in.
+            </p>
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {devices.map((d) => {
+              const current = isCurrentDevice(d);
+              return (
+                <li
+                  key={d.id}
+                  className="rounded-2xl bg-subtle/40 p-3.5 flex items-center gap-3"
+                >
+                  <div className="w-10 h-10 rounded-2xl bg-bg grid place-items-center shrink-0">
+                    <MonitorIcon size={18} strokeWidth={2} className="text-ink-muted" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[13.5px] font-bold text-ink truncate">
+                        {d.device_name || 'Unknown device'}
+                      </span>
+                      {current && (
+                        <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                          This device
+                        </span>
+                      )}
+                      {d.trusted && (
+                        <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-accent/12 text-accent">
+                          Trusted
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11.5px] text-ink-muted font-medium mt-0.5 flex items-center gap-1.5 flex-wrap">
+                      <MapPin size={11} strokeWidth={2} className="shrink-0" />
+                      <span className="font-mono">{d.ip || 'unknown IP'}</span>
+                      <span className="text-ink-dim">·</span>
+                      <span>Last seen {new Date(d.last_seen_at).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  {!current && (
+                    <button
+                      onClick={() => handleRevokeDevice(d.id)}
+                      disabled={revokingDevice === d.id}
+                      className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-[12px] font-bold transition-colors disabled:opacity-50 shrink-0"
+                    >
+                      <Trash2 size={12} strokeWidth={2.4} />
+                      {revokingDevice === d.id ? '…' : 'Sign out'}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <p className="text-[11.5px] text-ink-dim font-medium mt-3 leading-relaxed">
+          A “trusted” device won't be asked for a two-factor code at sign-in. Revoking a device
+          also removes its trust — it'll need a fresh code next time.
+        </p>
       </Section>
 
       {/* ───── Appearance ────────────────────────────────────── */}

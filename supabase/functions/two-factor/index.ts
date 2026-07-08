@@ -149,6 +149,88 @@ function otpauthUri(secret: string, label: string): string {
   return `otpauth://totp/${issuer}:${account}?secret=${secret}&issuer=${issuer}&algorithm=SHA1&digits=${DIGITS}&period=${PERIOD}`;
 }
 
+/* ───────────────────────── devices ─────────────────────────────────
+   Friendly label from a User-Agent + client IP from the usual proxy
+   headers. Good enough for a human-readable sessions list. */
+function deviceNameFromUA(ua: string): string {
+  const u = ua || '';
+  let browser = 'Browser';
+  if (/Edg\//.test(u)) browser = 'Edge';
+  else if (/OPR\/|Opera/.test(u)) browser = 'Opera';
+  else if (/Chrome\//.test(u) && !/Chromium/.test(u)) browser = 'Chrome';
+  else if (/Firefox\//.test(u)) browser = 'Firefox';
+  else if (/Safari\//.test(u) && /Version\//.test(u)) browser = 'Safari';
+  let os = '';
+  if (/Windows NT/.test(u)) os = 'Windows';
+  else if (/Mac OS X|Macintosh/.test(u)) os = 'macOS';
+  else if (/Android/.test(u)) os = 'Android';
+  else if (/iPhone|iPad|iOS/.test(u)) os = 'iOS';
+  else if (/Linux/.test(u)) os = 'Linux';
+  return os ? `${browser} on ${os}` : browser;
+}
+
+function clientIp(req: Request): string {
+  const xff = req.headers.get('x-forwarded-for') || '';
+  if (xff) return xff.split(',')[0].trim();
+  return req.headers.get('x-real-ip') || req.headers.get('cf-connecting-ip') || 'unknown';
+}
+
+function randomDeviceToken(): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/* Record or refresh a device/session row for this login. Returns the
+   token (existing or newly minted) plus whether it's trusted. */
+async function recordDevice(
+  supabase: any,
+  req: Request,
+  userId: string,
+  steamId: string | undefined,
+  incomingToken: string | null,
+  markTrusted: boolean,
+): Promise<{ token: string; trusted: boolean }> {
+  const ua = req.headers.get('user-agent') || '';
+  const ip = clientIp(req);
+  const now = new Date().toISOString();
+
+  if (incomingToken) {
+    const { data: existing } = await supabase
+      .from('user_devices')
+      .select('id, trusted')
+      .eq('user_id', userId)
+      .eq('device_token', incomingToken)
+      .maybeSingle();
+    if (existing) {
+      await supabase
+        .from('user_devices')
+        .update({
+          last_seen_at: now,
+          ip,
+          user_agent: ua,
+          device_name: deviceNameFromUA(ua),
+          trusted: markTrusted ? true : existing.trusted,
+        })
+        .eq('id', existing.id);
+      return { token: incomingToken, trusted: markTrusted ? true : existing.trusted };
+    }
+  }
+
+  const token = incomingToken || randomDeviceToken();
+  await supabase.from('user_devices').insert({
+    user_id: userId,
+    steam_id: steamId || null,
+    device_token: token,
+    trusted: markTrusted,
+    ip,
+    user_agent: ua,
+    device_name: deviceNameFromUA(ua),
+    last_seen_at: now,
+  });
+  return { token, trusted: markTrusted };
+}
+
 /* ───────────────────────── identity ─────────────────────────────── */
 async function resolveUser(
   req: Request,
@@ -304,7 +386,9 @@ Deno.serve(async (req: Request) => {
 
       if (action === 'verify') {
         // Login-time check. Accepts a TOTP or consumes a single-use
-        // backup code (removes it from the stored list on success).
+        // backup code. On success, records/refreshes the device and — when
+        // rememberDevice is set — trusts it so future logins from this
+        // device skip the 2FA prompt.
         const code = String(body?.code || '');
         const { data: row } = await supabase
           .from('users')
@@ -314,17 +398,85 @@ Deno.serve(async (req: Request) => {
         if (!row?.totp_enabled || !row.totp_secret) {
           return jsonResponse(400, { error: 'Two-factor is not enabled.' });
         }
+        const remember = !!body?.rememberDevice;
+        const incoming = (body?.deviceToken as string) || null;
+
+        const finish = async (method: string, extra: Record<string, unknown> = {}) => {
+          const dev = await recordDevice(supabase, req, userId, resolved.steamId, incoming, remember);
+          return jsonResponse(200, { ok: true, method, deviceToken: dev.token, trusted: dev.trusted, ...extra });
+        };
+
         if (await verifyTotp(row.totp_secret, code)) {
-          return jsonResponse(200, { ok: true, method: 'totp' });
+          return finish('totp');
         }
         const codes: string[] = Array.isArray(row.totp_backup_codes) ? row.totp_backup_codes : [];
         const normalizedBackup = code.replace(/\s/g, '').toUpperCase();
         if (codes.includes(normalizedBackup)) {
           const remaining = codes.filter((c) => c !== normalizedBackup);
           await supabase.from('users').update({ totp_backup_codes: remaining }).eq('id', userId);
-          return jsonResponse(200, { ok: true, method: 'backup', remaining: remaining.length });
+          return finish('backup', { remaining: remaining.length });
         }
         return jsonResponse(400, { error: 'Invalid code.' });
+      }
+
+      if (action === 'check_device') {
+        // Called at login BEFORE prompting: does 2FA even apply, and is
+        // this device already trusted (→ skip the code)? Also refreshes
+        // last_seen for the session list.
+        const { data: row } = await supabase
+          .from('users')
+          .select('totp_enabled')
+          .eq('id', userId)
+          .maybeSingle();
+        const enabled = !!row?.totp_enabled;
+        const incoming = (body?.deviceToken as string) || null;
+        let trusted = false;
+        if (enabled && incoming) {
+          const { data: dev } = await supabase
+            .from('user_devices')
+            .select('id, trusted')
+            .eq('user_id', userId)
+            .eq('device_token', incoming)
+            .maybeSingle();
+          trusted = !!dev?.trusted;
+          if (dev) {
+            await supabase
+              .from('user_devices')
+              .update({ last_seen_at: new Date().toISOString(), ip: clientIp(req), user_agent: req.headers.get('user-agent') || '' })
+              .eq('id', dev.id);
+          }
+        }
+        return jsonResponse(200, { twoFactorEnabled: enabled, deviceTrusted: trusted, needsCode: enabled && !trusted });
+      }
+
+      if (action === 'record_login') {
+        // Log a session for a non-2FA login (or Steam login) so it shows
+        // in the sessions list. Never trusts — trust only comes from a
+        // passed 2FA challenge.
+        const incoming = (body?.deviceToken as string) || null;
+        const dev = await recordDevice(supabase, req, userId, resolved.steamId, incoming, false);
+        return jsonResponse(200, { ok: true, deviceToken: dev.token });
+      }
+
+      if (action === 'list_devices') {
+        const { data: devices } = await supabase
+          .from('user_devices')
+          .select('id, device_token, trusted, ip, user_agent, device_name, last_seen_at, created_at')
+          .eq('user_id', userId)
+          .order('last_seen_at', { ascending: false });
+        return jsonResponse(200, { devices: devices || [] });
+      }
+
+      if (action === 'revoke_device') {
+        const id = String(body?.id || '');
+        if (!id) return jsonResponse(400, { error: 'Missing device id.' });
+        const { error: delErr } = await supabase
+          .from('user_devices')
+          .delete()
+          .eq('user_id', userId)
+          .eq('id', id);
+        if (delErr) return jsonResponse(500, { error: delErr.message });
+        return jsonResponse(200, { ok: true });
       }
 
       return jsonResponse(400, { error: `Unknown action "${action}".` });

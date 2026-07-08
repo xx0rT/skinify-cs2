@@ -16,6 +16,7 @@ import { useAuthStore } from '../store/authStore';
 import { attachSteamIdToCurrentUser } from '../utils/credentialAuth';
 import LandingNav from '../components/LandingNav';
 import { spring, tap } from '../lib/motion';
+import { recordLogin } from '../utils/twoFactor';
 
 /* ─────────────────────────────────────────────────────────────────────────
    AuthCallback — handles the Steam OpenID response
@@ -311,6 +312,9 @@ export default function AuthCallback() {
           referred_by: userData.referred_by,
           referral_code: userData.referral_code,
         });
+
+        // Log this Steam session so it appears in Settings → Devices.
+        recordLogin(userData.steamId);
 
         setStatus('success');
 

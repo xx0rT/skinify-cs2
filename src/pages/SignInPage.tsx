@@ -15,6 +15,8 @@ import SteamLogin from '../components/auth/SteamLogin';
 import { useToastStore } from '../store/toastStore';
 import { useAuthStore } from '../store/authStore';
 import { signInWithPassword, requestPasswordReset } from '../utils/credentialAuth';
+import { checkDevice, recordLogin } from '../utils/twoFactor';
+import TwoFactorChallenge from '../components/auth/TwoFactorChallenge';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import { spring, tap } from '../lib/motion';
 
@@ -49,8 +51,29 @@ const SignInPage: React.FC = () => {
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [promoCode, setPromoCode] = useState('');
   const [referralCode, setReferralCode] = useState('');
+  /* Holds the authenticated user while we wait for a 2FA code. Null when
+     no challenge is pending. */
+  const [pending2fa, setPending2fa] = useState<any | null>(null);
 
   const redirectTo = (location.state as any)?.from || '/marketplace';
+
+  /* Finish the login: stash codes, set the user, log the session, go. */
+  const finishLogin = (loggedUser: any) => {
+    try {
+      if (promoCode.trim()) localStorage.setItem('skinify_promo_code', promoCode.trim());
+      if (referralCode.trim()) localStorage.setItem('skinify_referral_code', referralCode.trim());
+    } catch {
+      /* private mode */
+    }
+    setUser(loggedUser);
+    recordLogin(); // best-effort session log
+    addToast({
+      type: 'success',
+      title: 'Welcome back',
+      message: loggedUser.displayName || loggedUser.email || '',
+    });
+    navigate(redirectTo, { replace: true });
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,22 +89,16 @@ const SignInPage: React.FC = () => {
         setError(result.error || 'Sign in failed.');
         return;
       }
-      /* Stash any codes so the next backend pass can apply them. We
-         deliberately stash *before* the redirect so even an
-         immediately-applied bonus call sees them. */
-      try {
-        if (promoCode.trim()) localStorage.setItem('skinify_promo_code', promoCode.trim());
-        if (referralCode.trim()) localStorage.setItem('skinify_referral_code', referralCode.trim());
-      } catch {
-        /* private mode */
+      /* 2FA gate: the Supabase session now exists, so we can ask the
+         two-factor function whether this account requires a code AND
+         whether this device is already trusted. If a code is needed,
+         defer completion until the challenge passes. */
+      const check = await checkDevice();
+      if (check.needsCode) {
+        setPending2fa(result.user);
+        return;
       }
-      setUser(result.user);
-      addToast({
-        type: 'success',
-        title: 'Welcome back',
-        message: result.user.displayName || result.user.email || '',
-      });
-      navigate(redirectTo, { replace: true });
+      finishLogin(result.user);
     } finally {
       setSubmitting(false);
     }
@@ -336,6 +353,19 @@ const SignInPage: React.FC = () => {
           </p>
         </motion.div>
       </main>
+
+      <TwoFactorChallenge
+        open={!!pending2fa}
+        onSuccess={() => {
+          const u = pending2fa;
+          setPending2fa(null);
+          if (u) finishLogin(u);
+        }}
+        onCancel={() => {
+          setPending2fa(null);
+          setError('Two-factor verification is required to sign in.');
+        }}
+      />
     </div>
   );
 };
