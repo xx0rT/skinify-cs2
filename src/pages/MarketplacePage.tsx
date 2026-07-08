@@ -11,6 +11,8 @@ import {
   ChevronDown,
   SlidersHorizontal,
   ArrowUpDown,
+  Check,
+  Layers,
 } from 'lucide-react';
 import { useMarketplaceItems } from '../hooks/useMarketplaceItems';
 import { useFilterStore } from '../store/filterStore';
@@ -22,7 +24,6 @@ import { useWishlistStore } from '../store/wishlistStore';
 import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import { SkinCard, SkinCardSkeleton } from '../components/ui/SkinCard';
-import MarketCartPanel from '../components/marketplace/MarketCartPanel';
 import { weaponCategories } from '../data/weaponCategories';
 import { MOCK_MARKET_ITEMS } from '../data/mockMarketItems';
 import { spring, tap } from '../lib/motion';
@@ -52,6 +53,18 @@ const RARITIES = [
   { key: 'Consumer', color: '#B0C3D9' },
 ];
 const EXTERIORS = ['Factory New', 'Minimal Wear', 'Field-Tested', 'Well-Worn', 'Battle-Scarred'];
+
+/* Top category bar. Each entry matches an item when any of its `match`
+   substrings appears in the item's `type`. "Misc" is the catch-all for
+   agents, stickers, cases, music kits, graffiti, patches, etc. */
+const CATEGORIES: { id: string; label: string; match: string[] }[] = [
+  { id: 'knives', label: 'Knives', match: ['knife', 'karambit', 'bayonet', 'dagger'] },
+  { id: 'gloves', label: 'Gloves', match: ['glove'] },
+  { id: 'pistols', label: 'Pistols', match: ['pistol'] },
+  { id: 'rifles', label: 'Rifles', match: ['rifle'] },
+  { id: 'smgs', label: 'SMGs', match: ['smg', 'submachine'] },
+  { id: 'misc', label: 'Misc', match: ['agent', 'sticker', 'case', 'container', 'music', 'graffiti', 'patch', 'collectible', 'pin'] },
+];
 
 const staggerParent = {
   hidden: {},
@@ -107,6 +120,14 @@ const MarketplacePage: React.FC = () => {
   const [floatRange, setFloatRange] = useState<[number, number]>([0, 1]);
   const [paintSeedQuery, setPaintSeedQuery] = useState('');
   const [patternQuery, setPatternQuery] = useState('');
+  /* Category bar (Knives / Gloves / Pistols / Rifles / SMGs / Misc). Each
+     maps to one or more weapon types. `null` = all. */
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  /* When true, identical items are NOT stacked — every listing renders as
+     its own card. Default is stacked (count badge on duplicates). */
+  const [unstacked, setUnstacked] = useState(false);
+  /* Which stacked group is expanded (revealing its individual listings). */
+  const [expandedStack, setExpandedStack] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.steamId) fetchWishlist(user.steamId);
@@ -150,6 +171,13 @@ const MarketplacePage: React.FC = () => {
       const name = (it.name || it.market_name || '').toLowerCase();
       if (searchQuery && !name.includes(searchQuery.toLowerCase())) return false;
       if (it.price < priceRange[0] || it.price > priceRange[1]) return false;
+
+      if (activeCategory) {
+        const cat = CATEGORIES.find((c) => c.id === activeCategory);
+        const t = (it.type || '').toLowerCase();
+        const name = (it.name || it.market_name || '').toLowerCase();
+        if (cat && !cat.match.some((m) => t.includes(m) || name.includes(m))) return false;
+      }
 
       if (activeTypes.size > 0) {
         const t = (it.type || '').toLowerCase();
@@ -214,7 +242,36 @@ const MarketplacePage: React.FC = () => {
         );
     }
     return out;
-  }, [items, searchQuery, priceRange, activeTypes, activeRarities, activeExteriors, special, sort, floatRange, paintSeedQuery, patternQuery]);
+  }, [items, searchQuery, priceRange, activeCategory, activeTypes, activeRarities, activeExteriors, special, sort, floatRange, paintSeedQuery, patternQuery]);
+
+  /* Stacking — group identical items (same market_hash_name / name +
+     condition + special) into a single representative card carrying a
+     `_stackCount` and `_stackItems`. The representative is the cheapest
+     of the group so the visible price reads as "from". Disabled when
+     `unstacked` is true (every listing renders on its own). */
+  const displayItems = useMemo(() => {
+    if (unstacked) return filtered;
+    const groups = new Map<string, any[]>();
+    for (const it of filtered) {
+      const key = (
+        it.market_hash_name ||
+        `${it.name || it.market_name || ''}|${it.condition || ''}|${it.special || ''}`
+      ).toLowerCase();
+      const arr = groups.get(key);
+      if (arr) arr.push(it);
+      else groups.set(key, [it]);
+    }
+    const out: any[] = [];
+    for (const [key, arr] of groups) {
+      if (arr.length === 1) {
+        out.push(arr[0]);
+      } else {
+        const cheapest = [...arr].sort((a, b) => (a.price || 0) - (b.price || 0))[0];
+        out.push({ ...cheapest, _stackKey: key, _stackCount: arr.length, _stackItems: arr });
+      }
+    }
+    return out;
+  }, [filtered, unstacked]);
 
   const activeFilterCount =
     (searchQuery ? 1 : 0) +
@@ -606,16 +663,99 @@ const MarketplacePage: React.FC = () => {
           )}
         </motion.div>
 
-        {/* 3-column rail on xl (filters · results · cart/trades). The cart
-            rail is xl-only; below that the results reclaim its space and the
-            cart lives on its own /cart page. */}
-        <div
-          className={`grid gap-4 ${
-            filtersOpen
-              ? 'lg:grid-cols-[280px_1fr] xl:grid-cols-[280px_1fr_320px]'
-              : 'grid-cols-1 xl:grid-cols-[1fr_320px]'
-          }`}
+        {/* ===== CATEGORY BAR (desktop) ===== */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...spring, delay: 0.08 }}
+          className="hidden md:flex items-center gap-1 mb-4 overflow-x-auto"
         >
+          {/* Category pills */}
+          {CATEGORIES.map((c) => {
+            const active = activeCategory === c.id;
+            return (
+              <button
+                key={c.id}
+                onClick={() => setActiveCategory(active ? null : c.id)}
+                className={`shrink-0 h-9 px-3.5 rounded-full text-[13px] font-bold transition-colors ${
+                  active ? 'bg-accent text-on-accent' : 'text-ink-muted hover:text-ink hover:bg-subtle'
+                }`}
+              >
+                {c.label}
+              </button>
+            );
+          })}
+
+          <div className="flex-1" />
+
+          {/* Refresh */}
+          <button
+            onClick={refetch}
+            className="shrink-0 w-9 h-9 rounded-full grid place-items-center text-ink-muted hover:text-ink hover:bg-subtle transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw size={15} strokeWidth={2} className={loading ? 'animate-spin' : ''} />
+          </button>
+
+          {/* Unstacked toggle */}
+          <button
+            onClick={() => {
+              setUnstacked((v) => !v);
+              setExpandedStack(null);
+            }}
+            className={`shrink-0 h-9 px-3 rounded-full inline-flex items-center gap-2 text-[13px] font-semibold transition-colors ${
+              unstacked ? 'bg-accent text-on-accent' : 'text-ink-muted hover:text-ink hover:bg-subtle'
+            }`}
+            title="Show every listing individually"
+          >
+            <span
+              className={`w-4 h-4 rounded-[5px] border-2 grid place-items-center ${
+                unstacked ? 'border-on-accent bg-on-accent/20' : 'border-current'
+              }`}
+            >
+              {unstacked && <Check size={10} strokeWidth={3} />}
+            </span>
+            Unstacked
+          </button>
+
+          {/* Sort */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setSortMenu((v) => !v)}
+              className="h-9 px-3 rounded-full inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink hover:bg-subtle transition-colors"
+            >
+              <ArrowUpDown size={14} strokeWidth={2.2} className="text-ink-muted" />
+              {SORT_OPTIONS.find((o) => o.key === sort)?.label}
+              <ChevronDown size={13} strokeWidth={2.2} className={`text-ink-muted transition-transform ${sortMenu ? 'rotate-180' : ''}`} />
+            </button>
+            <AnimatePresence>
+              {sortMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                  transition={{ duration: 0.16 }}
+                  className="card-elevated absolute right-0 mt-2 w-56 p-1.5 z-30"
+                  onMouseLeave={() => setSortMenu(false)}
+                >
+                  {SORT_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.key}
+                      onClick={() => { setSort(opt.key); setSortMenu(false); }}
+                      className={`w-full h-10 px-3 rounded-2xl text-left text-[13px] font-semibold transition-colors ${
+                        sort === opt.key ? 'bg-accent-soft text-ink' : 'text-ink-muted hover:bg-subtle hover:text-ink'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </motion.div>
+
+        <div className={`grid gap-4 ${filtersOpen ? 'lg:grid-cols-[280px_1fr]' : 'grid-cols-1'}`}>
           {/* ===== FILTERS — sidebar on lg+, bottom-sheet on <lg =====
               On large screens this is an in-flow sticky sidebar. Below lg we
               promote the same content to a fixed bottom-sheet so it doesn't
@@ -953,23 +1093,80 @@ const MarketplacePage: React.FC = () => {
                     : 'lg:grid-cols-5 xl:grid-cols-6'
                 }`}
               >
-                {filtered.map((item: any) => (
-                  <motion.div
-                    key={item.id}
-                    variants={staggerChild}
-                    transition={spring}
-                  >
-                    <SkinCard
-                      variant="tile"
-                      item={item}
-                      onView={() => navigate(`/item/${item.id}`)}
-                      onAddCart={() => handleAddCart(item)}
-                      onToggleWish={() => handleWish(item)}
-                      wished={isInWishlist(item.id)}
-                      formatPrice={formatPrice}
-                    />
-                  </motion.div>
-                ))}
+                {displayItems.map((item: any) => {
+                  const stackCount: number = item._stackCount || 0;
+                  const isStack = stackCount > 1;
+                  const isExpanded = isStack && expandedStack === item._stackKey;
+                  return (
+                    <React.Fragment key={item._stackKey || item.id}>
+                      <motion.div
+                        variants={staggerChild}
+                        transition={spring}
+                        className="relative"
+                      >
+                        {/* Stacked-count badge — click toggles the reveal */}
+                        {isStack && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedStack(isExpanded ? null : item._stackKey);
+                            }}
+                            className={`absolute top-2 left-2 z-20 inline-flex items-center gap-1 h-6 px-2 rounded-full text-[11px] font-bold shadow-md transition-colors ${
+                              isExpanded ? 'bg-ink text-bg' : 'bg-accent text-on-accent'
+                            }`}
+                            title={isExpanded ? 'Collapse stack' : `Show all ${stackCount} listings`}
+                          >
+                            <Layers size={11} strokeWidth={2.6} />
+                            {stackCount}
+                          </button>
+                        )}
+                        <SkinCard
+                          variant="tile"
+                          item={item}
+                          onView={() =>
+                            isStack
+                              ? setExpandedStack(isExpanded ? null : item._stackKey)
+                              : navigate(`/item/${item.id}`)
+                          }
+                          onAddCart={() => handleAddCart(item)}
+                          onToggleWish={() => handleWish(item)}
+                          wished={isInWishlist(item.id)}
+                          formatPrice={formatPrice}
+                        />
+                      </motion.div>
+
+                      {/* Revealed stack members — animate in right after the
+                          representative card. */}
+                      <AnimatePresence>
+                        {isExpanded &&
+                          item._stackItems.map((sub: any, i: number) => (
+                            <motion.div
+                              key={sub.id}
+                              layout
+                              initial={{ opacity: 0, scale: 0.9, y: -8 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.9, y: -8 }}
+                              transition={{ ...spring, delay: i * 0.03 }}
+                              className="relative"
+                            >
+                              <span className="absolute top-2 left-2 z-20 h-6 px-2 rounded-full bg-ink/80 text-bg text-[10.5px] font-bold grid place-items-center">
+                                #{i + 1}
+                              </span>
+                              <SkinCard
+                                variant="tile"
+                                item={sub}
+                                onView={() => navigate(`/item/${sub.id}`)}
+                                onAddCart={() => handleAddCart(sub)}
+                                onToggleWish={() => handleWish(sub)}
+                                wished={isInWishlist(sub.id)}
+                                formatPrice={formatPrice}
+                              />
+                            </motion.div>
+                          ))}
+                      </AnimatePresence>
+                    </React.Fragment>
+                  );
+                })}
               </motion.div>
             ) : (
               <motion.div
@@ -978,8 +1175,8 @@ const MarketplacePage: React.FC = () => {
                 animate="shown"
                 className="space-y-2"
               >
-                {filtered.map((item: any) => (
-                  <motion.div key={item.id} variants={staggerChild}>
+                {displayItems.map((item: any) => (
+                  <motion.div key={item._stackKey || item.id} variants={staggerChild}>
                     <SkinCard
                       variant="list"
                       item={item}
@@ -994,9 +1191,6 @@ const MarketplacePage: React.FC = () => {
               </motion.div>
             )}
           </div>
-
-          {/* ===== CART / TRADES RAIL (xl only) ===== */}
-          <MarketCartPanel />
         </div>
       </main>
 
