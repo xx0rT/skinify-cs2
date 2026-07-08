@@ -22,6 +22,7 @@ import { useWishlistStore } from '../store/wishlistStore';
 import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import { SkinCard, SkinCardSkeleton } from '../components/ui/SkinCard';
+import MarketCartPanel from '../components/marketplace/MarketCartPanel';
 import { weaponCategories } from '../data/weaponCategories';
 import { MOCK_MARKET_ITEMS } from '../data/mockMarketItems';
 import { spring, tap } from '../lib/motion';
@@ -605,7 +606,16 @@ const MarketplacePage: React.FC = () => {
           )}
         </motion.div>
 
-        <div className={`grid gap-4 ${filtersOpen ? 'lg:grid-cols-[280px_1fr]' : 'grid-cols-1'}`}>
+        {/* 3-column rail on xl (filters · results · cart/trades). The cart
+            rail is xl-only; below that the results reclaim its space and the
+            cart lives on its own /cart page. */}
+        <div
+          className={`grid gap-4 ${
+            filtersOpen
+              ? 'lg:grid-cols-[280px_1fr] xl:grid-cols-[280px_1fr_320px]'
+              : 'grid-cols-1 xl:grid-cols-[1fr_320px]'
+          }`}
+        >
           {/* ===== FILTERS — sidebar on lg+, bottom-sheet on <lg =====
               On large screens this is an in-flow sticky sidebar. Below lg we
               promote the same content to a fixed bottom-sheet so it doesn't
@@ -892,8 +902,8 @@ const MarketplacePage: React.FC = () => {
                          the cards a consistent visual size regardless of
                          the sidebar state. */
                       filtersOpen
-                        ? 'lg:grid-cols-4 xl:grid-cols-5'
-                        : 'lg:grid-cols-5 xl:grid-cols-6'
+                        ? 'lg:grid-cols-4 xl:grid-cols-4'
+                        : 'lg:grid-cols-5 xl:grid-cols-5'
                     }`
                     : 'space-y-2'
                 }
@@ -939,8 +949,8 @@ const MarketplacePage: React.FC = () => {
                      Filters open  → sidebar eats ~280px → 5 cols at xl.
                      Filters closed → full width → 6 cols at xl. */
                   filtersOpen
-                    ? 'lg:grid-cols-4 xl:grid-cols-5'
-                    : 'lg:grid-cols-5 xl:grid-cols-6'
+                    ? 'lg:grid-cols-4 xl:grid-cols-4'
+                    : 'lg:grid-cols-5 xl:grid-cols-5'
                 }`}
               >
                 {filtered.map((item: any) => (
@@ -984,6 +994,9 @@ const MarketplacePage: React.FC = () => {
               </motion.div>
             )}
           </div>
+
+          {/* ===== CART / TRADES RAIL (xl only) ===== */}
+          <MarketCartPanel />
         </div>
       </main>
 
