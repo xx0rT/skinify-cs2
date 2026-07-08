@@ -1,14 +1,20 @@
 import { useEffect, useState } from 'react';
-import { getSupabaseCredentials } from '../utils/supabaseHelpers';
 
 /* ─────────────────────────────────────────────────────────────────────────
-   useSkinFloat — lazy lookup of float + paint_seed for a listing.
+   useSkinFloat — surfaces float + paint_seed + stickers for a listing.
 
-   Hits supabase/functions/v1/skin-float, which proxies CSFloat and
-   caches per-asset (float never changes for an asset). Returns null
-   while loading, and the populated object once resolved. If the
-   listing already has both float and paint_seed locally we skip the
-   request entirely.
+   Source of truth is STEAM, not CSFloat. The `user-inventory` edge
+   function parses Steam's inventory descriptions
+   (steamcommunity.com/inventory/{steamid64}/730/2) for rarity, type,
+   stickers, inspect link, exterior/wear and — when Steam includes it in
+   the item description — the float value. Those parsed values ride along
+   on the listing/inventory row, so this hook reads them off the item and
+   fills any genuine gap with a deterministic synthetic so the UI never
+   shows "—". No third-party (CSFloat) proxy is contacted.
+
+   Steam's public inventory endpoint does not expose paint_seed / a precise
+   float for every item (only the in-game inspect coordinator does), so
+   when a value is truly absent we keep the stable synthetic fallback.
 
    The hook is intentionally simple — no SWR/Tanstack dependency — so
    it's safe to mount on every visible card in a long list.
@@ -92,9 +98,6 @@ function syntheticFloat(key: string): {
   return { float, paint_seed, paint_index, def_index };
 }
 
-const inflight = new Map<string, Promise<SkinFloatData | null>>();
-const memo = new Map<string, SkinFloatData>();
-
 export function useSkinFloat({
   enabled = true,
   initialFloat,
@@ -140,82 +143,38 @@ export function useSkinFloat({
     }
     return null;
   });
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
 
+  /* No network lookup. All descriptive data (float when Steam ships it,
+     stickers, rarity) comes from Steam via the user-inventory parser and
+     rides on the listing row → it's already merged into `data` above via
+     the initial values + synthetic fallback. We intentionally do NOT call
+     any CSFloat proxy. The effect below only re-syncs `data` if the
+     incoming initial values change (e.g. the parent re-fetches the row). */
   useEffect(() => {
     if (!enabled) return;
-    /* If we already have real (non-synthetic) float AND seed locally,
-       skip the network round-trip — the synthetic paint_index /
-       def_index set above stay as the deterministic fallback. */
     const hasInitialFloat =
       initialFloat != null && initialFloat !== '' &&
       Number.isFinite(Number(initialFloat));
     const hasInitialSeed =
       initialPaintSeed != null && initialPaintSeed !== '' &&
       Number.isFinite(Number(initialPaintSeed));
-    if (hasInitialFloat && hasInitialSeed) return;
-
-    /* Build the cache key. Same shape the edge function uses. */
-    const key =
-      inspectLink ||
-      (a && d ? `${s || m}:${a}:${d}` : null);
-    if (!key) {
-      /* Listing has no inspect_link and no s/a/d/m params — the float
-         endpoint has nothing to look up with, so we keep the synthetic
-         fallback set during initial state. Add an `inspect_link`
-         column to your listings table to enable real float lookups. */
-      return;
-    }
-
-    if (memo.has(key)) {
-      setData(memo.get(key)!);
-      return;
-    }
-
-    setLoading(true);
-    const existing = inflight.get(key);
-    const promise =
-      existing ||
-      (async () => {
-        try {
-          const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
-          const params = new URLSearchParams();
-          if (inspectLink) params.set('inspect', inspectLink);
-          if (s) params.set('s', s);
-          if (m) params.set('m', m);
-          if (a) params.set('a', a);
-          if (d) params.set('d', d);
-          const res = await fetch(
-            `${supabaseUrl}/functions/v1/skin-float?${params.toString()}`,
-            {
-              headers: {
-                Authorization: `Bearer ${supabaseKey}`,
-                'Content-Type': 'application/json',
-              },
-            },
-          );
-          if (!res.ok) return null;
-          const json = (await res.json()) as SkinFloatData;
-          memo.set(key, json);
-          return json;
-        } catch {
-          return null;
-        } finally {
-          inflight.delete(key);
-        }
-      })();
-    if (!existing) inflight.set(key, promise);
-
-    let cancelled = false;
-    promise.then((result) => {
-      if (cancelled) return;
-      setLoading(false);
-      if (result) setData(result);
+    if (!hasInitialFloat && !hasInitialSeed) return;
+    setData((prev) => {
+      const synth = fallbackKey
+        ? syntheticFloat(fallbackKey)
+        : { float: 0, paint_seed: 0, paint_index: 0, def_index: 0 };
+      return {
+        float: hasInitialFloat ? Number(initialFloat) : prev?.float ?? synth.float,
+        paint_seed: hasInitialSeed ? Number(initialPaintSeed) : prev?.paint_seed ?? synth.paint_seed,
+        paint_index: prev?.paint_index ?? synth.paint_index,
+        def_index: prev?.def_index ?? synth.def_index,
+        rarity: prev?.rarity ?? null,
+        preview_image: prev?.preview_image ?? null,
+        stickers: prev?.stickers ?? [],
+      };
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, inspectLink, s, a, d, m, data?.float, data?.paint_seed]);
+  }, [enabled, initialFloat, initialPaintSeed, fallbackKey]);
 
   return { data, loading };
 }
