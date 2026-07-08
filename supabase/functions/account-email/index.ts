@@ -84,19 +84,32 @@ async function sendViaBrevo(to: string, subject: string, html: string): Promise<
   if (!apiKey) return { ok: false, error: 'BREVO_API_KEY is not configured' };
   const senderEmail = Deno.env.get('BREVO_SENDER_EMAIL') || 'noreply@skinify.gg';
   const senderName = Deno.env.get('BREVO_SENDER_NAME') || 'Skinify';
-  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: { 'api-key': apiKey, 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({
-      sender: { email: senderEmail, name: senderName },
-      to: [{ email: to }],
-      subject,
-      htmlContent: html,
-    }),
-  });
+  let res: Response;
+  try {
+    res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': apiKey, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        sender: { email: senderEmail, name: senderName },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+      }),
+    });
+  } catch (e) {
+    return { ok: false, error: `Could not reach Brevo: ${(e as Error)?.message}` };
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    return { ok: false, error: body?.message || `Brevo failed (${res.status})` };
+    // Brevo's common failures, made human-readable:
+    //   401 unauthorized      → bad/missing BREVO_API_KEY
+    //   400 + sender error    → BREVO_SENDER_EMAIL not verified in Brevo
+    const code = body?.code || '';
+    let hint = body?.message || `Brevo error ${res.status}`;
+    if (res.status === 401) hint = 'Brevo rejected the API key (BREVO_API_KEY missing or wrong).';
+    else if (/sender/i.test(hint) || code === 'invalid_parameter')
+      hint = `Brevo rejected the sender "${senderEmail}" — verify it in Brevo → Senders. (${hint})`;
+    return { ok: false, error: hint };
   }
   return { ok: true };
 }
