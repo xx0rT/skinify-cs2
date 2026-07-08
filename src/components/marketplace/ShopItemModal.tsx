@@ -10,6 +10,9 @@ import { useCurrencyStore } from '../../store/currencyStore';
 interface ShopItemModalProps {
   itemId: number;
   onClose: () => void;
+  /* Per-shop styling from the shop editor's "Item detail modal" group. */
+  accent?: string;
+  config?: { buttonShape?: 'pill' | 'square'; accentTint?: boolean };
 }
 
 interface ListingData {
@@ -32,7 +35,9 @@ interface ListingData {
   };
 }
 
-const ShopItemModal: React.FC<ShopItemModalProps> = ({ itemId, onClose }) => {
+const ShopItemModal: React.FC<ShopItemModalProps> = ({ itemId, onClose, accent, config }) => {
+  const btnRadius = config?.buttonShape === 'square' ? '0.5rem' : '9999px';
+  const accentTint = config?.accentTint ?? true;
   const [listing, setListing] = useState<ListingData | null>(null);
   const [loading, setLoading] = useState(true);
   const { addItem } = useCartStore();
@@ -246,7 +251,14 @@ const ShopItemModal: React.FC<ShopItemModalProps> = ({ itemId, onClose }) => {
               <div className="space-y-3">
                 <button
                   onClick={handleAddToCart}
-                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white px-6 py-4 rounded-xl font-semibold transition shadow-lg"
+                  className="w-full flex items-center justify-center gap-2 text-white px-6 py-4 font-semibold transition shadow-lg hover:opacity-90"
+                  style={{
+                    borderRadius: btnRadius,
+                    background:
+                      accentTint && accent
+                        ? accent
+                        : 'linear-gradient(to right, #9333ea, #2563eb)',
+                  }}
                 >
                   <ShoppingCart size={20} />
                   Add to Cart

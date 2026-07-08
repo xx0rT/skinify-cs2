@@ -66,7 +66,25 @@ interface Shop {
   total_sales: number;
   custom_css?: string | null;
   is_active?: boolean;
+  /* Advanced editor controls (migration 20260711090000). */
+  font_family?: string | null;
+  card_style?: string | null;
+  banner_height?: number | null;
+  card_radius?: number | null;
+  show_bio?: boolean | null;
+  show_socials?: boolean | null;
+  show_stats?: boolean | null;
+  detail_modal?: Record<string, any> | null;
 }
+
+/* Font choices offered in the editor. Values are safe web/system fonts. */
+const SHOP_FONTS = [
+  { id: 'Inter', label: 'Inter (clean)' },
+  { id: 'Lexend', label: 'Lexend (rounded)' },
+  { id: 'Georgia, serif', label: 'Georgia (serif)' },
+  { id: "'Courier New', monospace", label: 'Mono' },
+  { id: 'system-ui', label: 'System' },
+];
 
 interface ShopItem {
   id: string;
@@ -287,6 +305,13 @@ const UserShopPage: React.FC = () => {
         instagram_url: draft.instagram_url,
         youtube_url: draft.youtube_url,
         custom_css: draft.custom_css,
+        font_family: draft.font_family,
+        card_radius: draft.card_radius,
+        banner_height: draft.banner_height,
+        show_bio: draft.show_bio,
+        show_socials: draft.show_socials,
+        show_stats: draft.show_stats,
+        detail_modal: draft.detail_modal,
       })
       .eq('id', draft.id);
     setSaving(false);
@@ -407,7 +432,9 @@ const UserShopPage: React.FC = () => {
 
   return (
     <div
-      className="min-h-screen shop-root"
+      className={`min-h-screen shop-root transition-[padding] duration-300 ${
+        isOwner && editMode ? 'lg:pl-[440px]' : ''
+      }`}
       style={{
         background: view.primary_color,
         color: textPrimary,
@@ -418,6 +445,8 @@ const UserShopPage: React.FC = () => {
         ['--shop-text' as any]: textPrimary,
         ['--shop-muted' as any]: textMuted,
         ['--shop-line' as any]: lineColor,
+        ['--shop-radius' as any]: `${view.card_radius ?? 16}px`,
+        fontFamily: view.font_family || undefined,
       }}
     >
       {/* The owner's CSS is scoped via the .shop-root wrapper above. We
@@ -457,16 +486,17 @@ const UserShopPage: React.FC = () => {
       <AnimatePresence>
         {isOwner && editMode && draft && (
           <motion.aside
-            initial={{ x: '110%' }}
+            initial={{ x: '-110%' }}
             animate={{ x: 0 }}
-            exit={{ x: '110%' }}
+            exit={{ x: '-110%' }}
             transition={{ type: 'spring', stiffness: 280, damping: 32 }}
-            /* Wider on lg+ so the colour pickers and CSS editor have room
-               to breathe — the previous 360px felt cramped. Sandbox-style
-               implies the editor should look like a real workspace, not
-               a settings dialog. */
-            className="fixed right-3 top-3 bottom-3 z-50 w-[420px] max-w-[94vw] rounded-3xl bg-[rgb(18,18,22)] text-white overflow-hidden flex flex-col"
-            style={{ boxShadow: '0 28px 60px -22px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)' }}
+            /* Full-screen editor rail — pinned to the left edge, full
+               height. The shop content is offset by `lg:pl-[440px]` so it
+               sits beside the rail as a live preview (a real two-pane
+               workspace, not a floating dialog). On mobile it covers the
+               screen. */
+            className="fixed left-0 top-0 bottom-0 z-50 w-full lg:w-[440px] bg-[rgb(16,16,20)] text-white overflow-hidden flex flex-col"
+            style={{ boxShadow: '24px 0 60px -24px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)' }}
           >
             {/* Header — eyebrow + close. Preview-as-visitor toggle is
                 surfaced in the actions row at the bottom of the header
@@ -629,6 +659,101 @@ const UserShopPage: React.FC = () => {
                 </div>
               </Group>
 
+              {/* Typography + card design */}
+              <Group title="Typography & cards">
+                <Field label="Font">
+                  <select
+                    value={draft.font_family || 'Inter'}
+                    onChange={(e) => setDraft({ ...draft, font_family: e.target.value })}
+                    className="editor-input"
+                  >
+                    {SHOP_FONTS.map((f) => (
+                      <option key={f.id} value={f.id} className="text-black">
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={`Card corner radius — ${draft.card_radius ?? 16}px`}>
+                  <input
+                    type="range"
+                    min={0}
+                    max={28}
+                    step={2}
+                    value={draft.card_radius ?? 16}
+                    onChange={(e) => setDraft({ ...draft, card_radius: Number(e.target.value) })}
+                    className="w-full accent-fuchsia-400"
+                  />
+                </Field>
+                <Field label={`Banner height — ${draft.banner_height ?? 200}px`}>
+                  <input
+                    type="range"
+                    min={120}
+                    max={360}
+                    step={10}
+                    value={draft.banner_height ?? 200}
+                    onChange={(e) => setDraft({ ...draft, banner_height: Number(e.target.value) })}
+                    className="w-full accent-fuchsia-400"
+                  />
+                </Field>
+              </Group>
+
+              {/* Section visibility */}
+              <Group title="Sections">
+                <ToggleRow
+                  label="Show bio / description"
+                  checked={draft.show_bio ?? true}
+                  onChange={(v) => setDraft({ ...draft, show_bio: v })}
+                />
+                <ToggleRow
+                  label="Show social links"
+                  checked={draft.show_socials ?? true}
+                  onChange={(v) => setDraft({ ...draft, show_socials: v })}
+                />
+                <ToggleRow
+                  label="Show stats (views / sales)"
+                  checked={draft.show_stats ?? true}
+                  onChange={(v) => setDraft({ ...draft, show_stats: v })}
+                />
+              </Group>
+
+              {/* Item detail modal look */}
+              <Group title="Item detail modal">
+                <Field label="Buy button shape">
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(['pill', 'square'] as const).map((shape) => {
+                      const active = (draft.detail_modal?.buttonShape || 'pill') === shape;
+                      return (
+                        <button
+                          key={shape}
+                          onClick={() =>
+                            setDraft({
+                              ...draft,
+                              detail_modal: { ...(draft.detail_modal || {}), buttonShape: shape },
+                            })
+                          }
+                          className={`h-9 text-[12px] font-bold capitalize transition-colors ${
+                            active ? 'bg-white text-black' : 'bg-white/8 text-white/80 hover:bg-white/14'
+                          } ${shape === 'pill' ? 'rounded-full' : 'rounded-md'}`}
+                        >
+                          {shape}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Field>
+                <ToggleRow
+                  label="Tint modal with accent"
+                  checked={draft.detail_modal?.accentTint ?? true}
+                  onChange={(v) =>
+                    setDraft({ ...draft, detail_modal: { ...(draft.detail_modal || {}), accentTint: v } })
+                  }
+                />
+                <p className="text-[10.5px] text-white/45 leading-relaxed">
+                  Controls how the item detail modal looks when a visitor opens one of your listings.
+                </p>
+              </Group>
+
               {/* Social / contact */}
               <div id="editor-group-contact" />
               <Group title="Contact">
@@ -785,8 +910,12 @@ const UserShopPage: React.FC = () => {
         {/* Banner */}
         {view.banner_url && (
           <div
-            className="shop-banner relative w-full aspect-[5/1.4] sm:aspect-[6/1.2] rounded-3xl overflow-hidden mb-6"
-            style={{ background: view.secondary_color }}
+            className="shop-banner relative w-full overflow-hidden mb-6"
+            style={{
+              background: view.secondary_color,
+              height: `${view.banner_height ?? 200}px`,
+              borderRadius: 'var(--shop-radius)',
+            }}
           >
             <img
               src={view.banner_url}
@@ -827,7 +956,7 @@ const UserShopPage: React.FC = () => {
               <h1 className="shop-title text-[28px] sm:text-[36px] font-bold tracking-tight leading-none truncate">
                 {view.shop_name || 'Untitled shop'}
               </h1>
-              {view.description && (
+              {(view.show_bio ?? true) && view.description && (
                 <p
                   className="text-[13.5px] sm:text-[14.5px] mt-3 leading-relaxed max-w-[560px]"
                   style={{ color: textMuted }}
@@ -835,22 +964,24 @@ const UserShopPage: React.FC = () => {
                   {view.description}
                 </p>
               )}
-              <div className="mt-3 flex items-center gap-4 text-[12px]" style={{ color: textMuted }}>
-                <span className="inline-flex items-center gap-1.5">
-                  <Eye size={11} strokeWidth={2.4} />
-                  {(view.total_views || 0).toLocaleString()} views
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <Sparkles size={11} strokeWidth={2.4} />
-                  {(view.total_sales || 0).toLocaleString()} sales
-                </span>
-              </div>
+              {(view.show_stats ?? true) && (
+                <div className="mt-3 flex items-center gap-4 text-[12px]" style={{ color: textMuted }}>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Eye size={11} strokeWidth={2.4} />
+                    {(view.total_views || 0).toLocaleString()} views
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Sparkles size={11} strokeWidth={2.4} />
+                    {(view.total_sales || 0).toLocaleString()} sales
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Socials + share */}
           <div className="flex items-center gap-2 flex-wrap">
-            {[
+            {(view.show_socials ?? true) && [
               view.twitter_url && { Icon: Twitter, href: view.twitter_url, label: 'Twitter' },
               view.instagram_url && { Icon: Instagram, href: view.instagram_url, label: 'Instagram' },
               view.youtube_url && { Icon: Youtube, href: view.youtube_url, label: 'YouTube' },
@@ -927,8 +1058,8 @@ const UserShopPage: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={spring}
                   whileHover={{ y: -3 }}
-                  className="shop-card text-left rounded-3xl overflow-hidden transition-shadow break-inside-avoid"
-                  style={{ background: view.secondary_color, color: textPrimary }}
+                  className="shop-card text-left overflow-hidden transition-shadow break-inside-avoid"
+                  style={{ background: view.secondary_color, color: textPrimary, borderRadius: 'var(--shop-radius)' }}
                 >
                   <div
                     className="relative aspect-[5/3.6] grid place-items-center"
@@ -1003,7 +1134,12 @@ const UserShopPage: React.FC = () => {
 
       {/* Item quick-view modal */}
       {selectedItemId !== null && (
-        <ShopItemModal itemId={selectedItemId} onClose={() => setSelectedItemId(null)} />
+        <ShopItemModal
+          itemId={selectedItemId}
+          onClose={() => setSelectedItemId(null)}
+          accent={view.accent_color}
+          config={view.detail_modal || {}}
+        />
       )}
 
       {/* Delete confirmation — typed safeguard. We require the user to
@@ -1130,6 +1266,31 @@ const ColorRow: React.FC<{
       />
     </div>
   </div>
+);
+
+const ToggleRow: React.FC<{
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}> = ({ label, checked, onChange }) => (
+  <button
+    type="button"
+    onClick={() => onChange(!checked)}
+    className="w-full flex items-center justify-between gap-3 py-1.5 text-left"
+  >
+    <span className="text-[12.5px] font-semibold text-white/85">{label}</span>
+    <span
+      className={`relative h-6 w-10 rounded-full transition-colors shrink-0 ${
+        checked ? 'bg-fuchsia-500' : 'bg-white/15'
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+          checked ? 'translate-x-4' : ''
+        }`}
+      />
+    </span>
+  </button>
 );
 
 export default UserShopPage;
