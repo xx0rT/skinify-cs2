@@ -907,18 +907,47 @@ const TileActionBar: React.FC<{
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
   const inspectInGame = () => {
-    const inspectLink =
+    /* Resolve an inspect link from any field the listing carries, or build
+       one from the raw S<owner>A<asset>D<dcode> parts when only those are
+       present. */
+    let inspectLink: string | null =
       (item as any).inspect_link ||
       (item as any).inspectLink ||
-      (item as any).inspect_url;
-    if (inspectLink) {
-      window.location.href = inspectLink;
-    } else {
+      (item as any).inspect_url ||
+      null;
+
+    if (!inspectLink) {
+      const owner = (item as any).seller?.steamId || (item as any).owner_steam_id;
+      const asset = (item as any).asset_id || (item as any).assetid;
+      const dcode = (item as any).d_code || (item as any).dcode || (item as any).inspect_d;
+      if (owner && asset && dcode) {
+        inspectLink = `steam://rungame/730/76561202255233023/+csgo_econ_action_preview%20S${owner}A${asset}D${dcode}`;
+      }
+    }
+
+    if (!inspectLink) {
       addToast({
         type: 'info',
         title: 'Inspect link unavailable',
         message: 'This listing did not include a Steam inspect link.',
       });
+      setMenuOpen(false);
+      return;
+    }
+
+    /* steam:// is a custom protocol — assigning window.location.href for it
+       is unreliable (some browsers silently drop it). Launch via a
+       transient anchor click, which reliably hands the URL to the OS
+       protocol handler without navigating the page away. */
+    try {
+      const a = document.createElement('a');
+      a.href = inspectLink;
+      a.rel = 'noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch {
+      window.location.href = inspectLink;
     }
     setMenuOpen(false);
   };
