@@ -244,14 +244,17 @@ const SettingsTab: React.FC = () => {
   const [showDisable2fa, setShowDisable2fa] = useState(false);
   const [tfaDisableCode, setTfaDisableCode] = useState('');
 
+  /* Stable primitive dep — see the note on the devices effect below. */
+  const authKey = user?.steamId || user?.id || user?.authUserId || '';
   useEffect(() => {
-    if (!user) return;
+    if (!authKey) return;
     let cancelled = false;
     fetchTwoFactorStatus()
       .then((s) => { if (!cancelled) setTfaStatus(s); })
       .catch(() => { if (!cancelled) setTfaStatus({ enabled: false, hasPending: false }); });
     return () => { cancelled = true; };
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authKey]);
 
   const handleStart2fa = async () => {
     setTfaBusy(true);
@@ -331,9 +334,16 @@ const SettingsTab: React.FC = () => {
     }
   };
 
+  /* Depend on a STABLE primitive (the id), not the whole `user` object —
+     authStore hands back a new object reference on many updates (patchUser,
+     KYC/status refreshes), and depending on the object re-ran this fetch on
+     every one of those, which set state → re-render → new object → refetch,
+     an infinite "Loading sessions…" loop. */
+  const userKey = user?.steamId || user?.id || user?.authUserId || '';
   useEffect(() => {
-    if (user) loadDevices();
-  }, [user]);
+    if (userKey) loadDevices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userKey]);
 
   const handleRevokeDevice = async (id: string) => {
     setRevokingDevice(id);

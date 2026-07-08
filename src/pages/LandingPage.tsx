@@ -93,11 +93,11 @@ const LandingPage: React.FC = () => {
 
   useDocumentMeta({
     title: isCS
-      ? 'Skinify — Tržiště CS2 · 0% poplatek pro kupující · Okamžité obchody'
-      : 'Skinify — CS2 Marketplace · 0% Buyer Fees · Instant Trades',
+      ? 'Skinify — Tržiště CS2 · 6% poplatek pro kupující · Okamžité obchody'
+      : 'Skinify — CS2 Marketplace · 6% Buyer Fees · Instant Trades',
     description: isCS
-      ? 'Peer-to-peer tržiště CS2 s 0% poplatkem pro kupující. Obchody chráněné escrowem, doručení přes Steam do 60 sekund, výplaty v reálných penězích. Nakupujte AK-47, AWP, Karambit, M9 Bayonet, rukavice a vzácné patterny od ověřených prodejců.'
-      : 'The peer-to-peer CS2 marketplace with 0% buyer fees. Escrow-protected trades, sub-60-second Steam delivery, real-money payouts. Buy AK-47, AWP, Karambit, M9 Bayonet, gloves and rare patterns from verified sellers.',
+      ? 'Peer-to-peer tržiště CS2 s 6% poplatkem pro kupující. Obchody chráněné escrowem, doručení přes Steam do 60 sekund, výplaty v reálných penězích. Nakupujte AK-47, AWP, Karambit, M9 Bayonet, rukavice a vzácné patterny od ověřených prodejců.'
+      : 'The peer-to-peer CS2 marketplace with 6% buyer fees. Escrow-protected trades, sub-60-second Steam delivery, real-money payouts. Buy AK-47, AWP, Karambit, M9 Bayonet, gloves and rare patterns from verified sellers.',
     canonical: 'https://skinify.gg/',
     langAlternates: ['cs', 'de', 'ru'],
     keywords:
