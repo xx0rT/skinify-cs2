@@ -14,7 +14,7 @@ import {
 import SteamLogin from '../components/auth/SteamLogin';
 import { useToastStore } from '../store/toastStore';
 import { useAuthStore } from '../store/authStore';
-import { signInWithPassword } from '../utils/credentialAuth';
+import { signInWithPassword, requestPasswordReset } from '../utils/credentialAuth';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import { spring, tap } from '../lib/motion';
 
@@ -85,6 +85,22 @@ const SignInPage: React.FC = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  /* Password reset — sends a Brevo email via the account-email function.
+     We never reveal whether the address exists. */
+  const handleForgot = async () => {
+    if (!email.trim()) {
+      setError('Enter your email above, then tap “Forgot password?” to get a reset link.');
+      return;
+    }
+    setError(null);
+    await requestPasswordReset(email.trim());
+    addToast({
+      type: 'success',
+      title: 'Check your inbox',
+      message: 'If an account exists for that email, a reset link is on its way.',
+    });
   };
 
   return (
@@ -238,6 +254,16 @@ const SignInPage: React.FC = () => {
                 </button>
               }
             />
+
+            <div className="flex justify-end -mt-1">
+              <button
+                type="button"
+                onClick={handleForgot}
+                className="text-[12px] font-semibold text-accent hover:opacity-80 transition-opacity"
+              >
+                Forgot password?
+              </button>
+            </div>
 
             {/* Promo / referral expander — collapsed by default so the
                 primary form stays compact for returning users. */}

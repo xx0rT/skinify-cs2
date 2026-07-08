@@ -118,6 +118,7 @@ const DevelopersPage = lazyWithRetry(() => import('./pages/DevelopersPage'));
 const OnboardingPage = lazyWithRetry(() => import('./pages/OnboardingPage'));
 const SignInPage = lazyWithRetry(() => import('./pages/SignInPage'));
 const SignUpPage = lazyWithRetry(() => import('./pages/SignUpPage'));
+const AuthActionPage = lazyWithRetry(() => import('./pages/AuthActionPage'));
 const MessagesPage = lazyWithRetry(() => import('./pages/MessagesPage'));
 const PressPage = lazyWithRetry(() => import('./pages/PressPage'));
 
@@ -296,6 +297,8 @@ export default function App() {
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/auth/signin" element={<SignInPage />} />
             <Route path="/auth/signup" element={<SignUpPage />} />
+            <Route path="/auth/confirm" element={<AuthActionPage mode="confirm" />} />
+            <Route path="/auth/reset" element={<AuthActionPage mode="reset" />} />
             <Route path="/login" element={<SignInPage />} />
             <Route path="/signup" element={<SignUpPage />} />
             <Route path="/register" element={<SignUpPage />} />

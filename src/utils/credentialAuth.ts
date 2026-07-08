@@ -1,5 +1,24 @@
 import { supabase } from '../lib/supabaseClient';
 import type { AuthUser } from '../store/authStore';
+import { getSupabaseCredentials } from './supabaseHelpers';
+
+/* Fire a request at the account-email edge function (Brevo-backed
+   confirmation / password-reset emails). Best-effort — returns the
+   outcome, never throws. */
+async function accountEmail(payload: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+    const res = await fetch(`${supabaseUrl}/functions/v1/account-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${supabaseKey}` },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json().catch(() => ({}));
+    return res.ok ? { ok: true } : { ok: false, error: body?.error };
+  } catch (e: any) {
+    return { ok: false, error: e?.message };
+  }
+}
 
 /* ─────────────────────────────────────────────────────────────────────────
    credentialAuth — email/password sign-up + sign-in via Supabase Auth.
@@ -50,9 +69,16 @@ export async function signUpWithPassword(
     }
 
     /* Some Supabase projects require email confirmation. In that case
-       data.session is null. We don't have an authenticated session yet
-       so just tell the caller. */
+       data.session is null. Send our own branded confirmation email via
+       Brevo (account-email edge function) so the mail comes from our
+       transactional sender rather than Supabase's built-in SMTP. */
     if (!data.session) {
+      await accountEmail({
+        action: 'send_confirmation',
+        email: data.user.email || email,
+        authUserId: data.user.id,
+        displayName,
+      });
       return {
         ok: false,
         error: 'Check your inbox to confirm your email address before signing in.',
@@ -102,13 +128,26 @@ export async function signOut(): Promise<void> {
   await supabase.auth.signOut();
 }
 
-/** Send a magic-link / password reset email. */
+/** Send a password reset email through Brevo (account-email edge
+ *  function). Always resolves ok — the function never reveals whether an
+ *  account exists, so we don't leak that here either. */
 export async function requestPasswordReset(email: string): Promise<AuthResult> {
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/auth/reset`,
-  });
-  if (error) return { ok: false, error: humanError(error.message) };
+  const res = await accountEmail({ action: 'send_reset', email: email.trim().toLowerCase() });
+  if (!res.ok) return { ok: false, error: res.error || 'Could not send reset email.' };
   return { ok: true, user: undefined as unknown as AuthUser };
+}
+
+/** Complete a password reset with the token from the emailed link. */
+export async function completePasswordReset(
+  token: string,
+  newPassword: string,
+): Promise<{ ok: boolean; error?: string }> {
+  return accountEmail({ action: 'reset', token, newPassword });
+}
+
+/** Confirm an email address with the token from the emailed link. */
+export async function confirmEmail(token: string): Promise<{ ok: boolean; error?: string }> {
+  return accountEmail({ action: 'confirm', token });
 }
 
 /** Re-hydrate the AuthUser object from public.users for the given auth UUID. */
