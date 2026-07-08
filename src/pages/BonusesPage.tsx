@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { getSupabaseCredentials } from '../utils/supabaseHelpers';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import useDocumentMeta from '../hooks/useDocumentMeta';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, ChevronDown, CheckCircle2 } from 'lucide-react';
 import LandingNav from '../components/LandingNav';
 import Footer from '../components/Footer';
 import { useAuthStore } from '../store/authStore';
@@ -26,15 +27,50 @@ interface BonusOffer {
   subtitle: string;
   reward: string;
   cooldownH: number;
+  /** Longer explanation shown when the card is expanded. */
+  details: string;
+}
+
+interface BonusStatus {
+  id: string;
+  progress: number;
+  target: number;
+  unit: 'login' | 'trades' | 'czk' | 'share';
+  eligible: boolean;
+  claimed: boolean;
+  completed: boolean;
+  onCooldown: boolean;
+  cooldownEndsAt: string | null;
+  rewardKind: 'credit' | 'crate';
+  rewardCzk: number;
+}
+
+/* How a bonus's progress reads, per unit. */
+function progressLabel(st: BonusStatus): string {
+  const { progress, target, unit } = st;
+  if (unit === 'czk') return `${Math.round(progress).toLocaleString('cs-CZ')} / ${target.toLocaleString('cs-CZ')} Kč`;
+  if (unit === 'trades') return `${progress} / ${target} trade${target === 1 ? '' : 's'}`;
+  if (unit === 'login') return progress >= target ? 'Ready today' : 'Come back tomorrow';
+  return progress >= target ? 'Ready' : 'Not yet';
+}
+
+function cooldownLabel(iso: string | null): string {
+  if (!iso) return '';
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return '';
+  const h = Math.floor(ms / 3_600_000);
+  if (h >= 24) return `${Math.ceil(h / 24)}d`;
+  if (h >= 1) return `${h}h`;
+  return `${Math.ceil(ms / 60_000)}m`;
 }
 
 const OFFERS: BonusOffer[] = [
-  { id: 'daily',   cadence: 'daily',   title: 'Daily login',       subtitle: 'Reward for opening Skinify each day', reward: '+50 Kč credit',  cooldownH: 24 },
-  { id: 'weekly',  cadence: 'weekly',  title: 'Weekly trade',      subtitle: 'Complete one trade this week',        reward: '+1.5% bonus',    cooldownH: 168 },
-  { id: 'monthly', cadence: 'monthly', title: 'Monthly milestone', subtitle: 'Spend 1,500 Kč this month',           reward: 'Loot crate',     cooldownH: 720 },
-  { id: 'streak',  cadence: 'daily',   title: '7-day streak',      subtitle: 'Login 7 days in a row',               reward: 'Premium crate',  cooldownH: 24 },
-  { id: 'spend',   cadence: 'weekly',  title: 'Spend bonus',       subtitle: 'Spend 500 Kč this week',              reward: '+5% credit',     cooldownH: 168 },
-  { id: 'social',  cadence: 'monthly', title: 'Share & earn',      subtitle: 'Share a trade on social media',       reward: '100 Kč credit',  cooldownH: 720 },
+  { id: 'daily',   cadence: 'daily',   title: 'Daily login',       subtitle: 'Reward for opening Skinify each day', reward: '+50 Kč credit',  cooldownH: 24,  details: 'Simply visit Skinify once a day. The credit lands in your balance instantly and the bonus refreshes every 24 hours.' },
+  { id: 'weekly',  cadence: 'weekly',  title: 'Weekly trade',      subtitle: 'Complete one trade this week',        reward: '+30 Kč credit',  cooldownH: 168, details: 'Complete at least one purchase during the current week (resets Monday). Escrow-completed orders count.' },
+  { id: 'monthly', cadence: 'monthly', title: 'Monthly milestone', subtitle: 'Spend 1,500 Kč this month',           reward: 'Loot crate',     cooldownH: 720, details: 'Spend a total of 1,500 Kč across your purchases this calendar month to unlock a loot crate.' },
+  { id: 'streak',  cadence: 'daily',   title: 'Trade veteran',     subtitle: 'Complete 7 trades total',             reward: 'Premium crate',  cooldownH: 24,  details: 'A one-time milestone: once you have 7 completed trades on your account, claim a premium crate. This bonus does not repeat.' },
+  { id: 'spend',   cadence: 'weekly',  title: 'Spend bonus',       subtitle: 'Spend 500 Kč this week',              reward: '+25 Kč credit',  cooldownH: 168, details: 'Reach 500 Kč in purchases within the current week to earn extra credit. Resets every Monday.' },
+  { id: 'social',  cadence: 'monthly', title: 'Share & earn',      subtitle: 'Share Skinify on social media',       reward: '100 Kč credit',  cooldownH: 720, details: 'Share Skinify with your friends, then self-attest by claiming. Available once every 30 days.' },
 ];
 
 const DEPOSIT_TIERS = [
@@ -56,18 +92,73 @@ const BonusesPage: React.FC = () => {
   const { addToast } = useToastStore();
   const tr = useT();
   const [filter, setFilter] = useState<Cadence | 'all'>('all');
-  const [claimed, setClaimed] = useState<Set<string>>(new Set());
+
+  /* Live per-bonus status from the `bonuses` edge function:
+     { id, progress, target, unit, eligible, claimed, completed,
+       onCooldown, cooldownEndsAt }. Keyed by bonus id. */
+  const [status, setStatus] = useState<Record<string, BonusStatus>>({});
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [claiming, setClaiming] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const loadStatus = useCallback(async () => {
+    if (!user?.steamId) {
+      setStatusLoading(false);
+      return;
+    }
+    try {
+      const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+      const res = await fetch(`${supabaseUrl}/functions/v1/bonuses`, {
+        headers: { Authorization: `Bearer ${supabaseKey}`, 'X-Steam-Id': user.steamId },
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok && Array.isArray(body.bonuses)) {
+        const map: Record<string, BonusStatus> = {};
+        for (const b of body.bonuses) map[b.id] = b;
+        setStatus(map);
+      }
+    } catch {
+      /* leave status empty → cards show "sign in / not ready" */
+    } finally {
+      setStatusLoading(false);
+    }
+  }, [user?.steamId]);
+
+  useEffect(() => {
+    loadStatus();
+  }, [loadStatus]);
 
   const visible = OFFERS.filter((o) => filter === 'all' || o.cadence === filter);
 
-  const claim = (o: BonusOffer) => {
-    if (!user) {
+  const claim = async (o: BonusOffer) => {
+    if (!user?.steamId) {
       addToast({ type: 'warning', title: 'Sign in', message: 'Sign in with Steam to claim bonuses.' });
       return;
     }
-    if (claimed.has(o.id)) return;
-    setClaimed((p) => new Set([...p, o.id]));
-    addToast({ type: 'success', title: 'Bonus claimed', message: `${o.title} · ${o.reward}` });
+    const st = status[o.id];
+    if (!st?.eligible || claiming) return;
+    setClaiming(o.id);
+    try {
+      const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+      const res = await fetch(`${supabaseUrl}/functions/v1/bonuses`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${supabaseKey}`,
+          'X-Steam-Id': user.steamId,
+        },
+        body: JSON.stringify({ action: 'claim', bonus_id: o.id }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        addToast({ type: 'error', title: 'Could not claim', message: body?.error || 'Try again.' });
+        return;
+      }
+      addToast({ type: 'success', title: 'Bonus claimed', message: `${o.title} · ${body.reward}` });
+      await loadStatus(); // refresh eligibility / cooldown so it flips to claimed
+    } finally {
+      setClaiming(null);
+    }
   };
 
   return (
@@ -158,7 +249,31 @@ const BonusesPage: React.FC = () => {
         <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           <AnimatePresence mode="popLayout">
             {visible.map((o, i) => {
-              const isClaimed = claimed.has(o.id);
+              const st = status[o.id];
+              const pct = st ? Math.min(100, (st.progress / st.target) * 100) : 0;
+              const isOpen = expanded === o.id;
+              const isClaiming = claiming === o.id;
+
+              /* Button state machine driven by the live status. */
+              let btnLabel = tr('bonuses.claim', 'Claim');
+              let btnDisabled = true;
+              let btnClass = 'bg-subtle text-ink-muted cursor-default';
+              if (!user) {
+                btnLabel = tr('bonuses.signin', 'Sign in');
+                btnDisabled = false;
+                btnClass = 'bg-accent text-on-accent hover:opacity-95';
+              } else if (st?.completed) {
+                btnLabel = tr('bonuses.completed', 'Completed');
+              } else if (st?.eligible) {
+                btnLabel = isClaiming ? '…' : tr('bonuses.claim', 'Claim');
+                btnDisabled = isClaiming;
+                btnClass = 'bg-accent text-on-accent hover:opacity-95';
+              } else if (st?.onCooldown) {
+                btnLabel = `${tr('bonuses.ready_in', 'Ready in')} ${cooldownLabel(st.cooldownEndsAt)}`;
+              } else {
+                btnLabel = tr('bonuses.locked', 'In progress');
+              }
+
               return (
                 <motion.div
                   layout
@@ -167,19 +282,73 @@ const BonusesPage: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.96 }}
                   transition={{ ...spring, delay: i * 0.04 }}
-                  whileHover={{ y: -2 }}
-                  className="panel p-5"
+                  className={`panel p-5 flex flex-col ${
+                    st?.eligible ? 'ring-1 ring-accent/40' : ''
+                  }`}
                 >
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <span className="label-meta">
                       {tr(`bonuses.cadence.${o.cadence}`, o.cadence)}
                     </span>
-                    <span className="text-[11px] text-ink-dim font-semibold tabular-nums">
-                      {o.cooldownH}h
-                    </span>
+                    {st?.completed ? (
+                      <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 size={11} strokeWidth={2.6} /> Done
+                      </span>
+                    ) : st?.eligible ? (
+                      <span className="text-[10.5px] font-bold text-accent">Ready to claim</span>
+                    ) : (
+                      <span className="text-[11px] text-ink-dim font-semibold tabular-nums">
+                        {o.cooldownH}h
+                      </span>
+                    )}
                   </div>
-                  <h3 className="text-[15px] font-bold text-ink tracking-tight leading-tight">{tr(`bonuses.offer.${o.id}.title`, o.title)}</h3>
-                  <p className="text-[12.5px] text-ink-muted font-medium mt-1.5 leading-relaxed">{tr(`bonuses.offer.${o.id}.subtitle`, o.subtitle)}</p>
+
+                  <h3 className="text-[15px] font-bold text-ink tracking-tight leading-tight">
+                    {tr(`bonuses.offer.${o.id}.title`, o.title)}
+                  </h3>
+                  <p className="text-[12.5px] text-ink-muted font-medium mt-1.5 leading-relaxed">
+                    {tr(`bonuses.offer.${o.id}.subtitle`, o.subtitle)}
+                  </p>
+
+                  {/* Progress bar + label — only meaningful once signed in */}
+                  {user && st && !st.completed && (
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between text-[11px] font-semibold mb-1.5">
+                        <span className="text-ink-muted">{progressLabel(st)}</span>
+                        <span className="text-ink-dim tabular-nums">{Math.round(pct)}%</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-subtle overflow-hidden">
+                        <motion.div
+                          className="h-full rounded-full bg-accent"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${pct}%` }}
+                          transition={{ ...spring, delay: 0.1 }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Expand for more info */}
+                  <button
+                    onClick={() => setExpanded(isOpen ? null : o.id)}
+                    className="mt-3 inline-flex items-center gap-1 text-[11.5px] font-bold text-accent hover:opacity-80 transition-opacity self-start"
+                  >
+                    {isOpen ? tr('bonuses.less', 'Less info') : tr('bonuses.more', 'More info')}
+                    <ChevronDown size={13} strokeWidth={2.6} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {isOpen && (
+                      <motion.p
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="text-[12px] text-ink-muted font-medium leading-relaxed overflow-hidden"
+                      >
+                        <span className="block pt-2">{tr(`bonuses.offer.${o.id}.details`, o.details)}</span>
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
 
                   <div className="mt-4 pt-4 border-t border-line/60 flex items-center justify-between">
                     <div className="text-[14px] font-bold text-ink tracking-tight">
@@ -188,14 +357,10 @@ const BonusesPage: React.FC = () => {
                     <motion.button
                       whileTap={tap}
                       onClick={() => claim(o)}
-                      disabled={isClaimed}
-                      className={`h-9 px-4 rounded-full text-[12.5px] font-bold transition-colors ${
-                        isClaimed
-                          ? 'bg-subtle text-ink-muted cursor-default'
-                          : 'bg-accent text-on-accent hover:opacity-95'
-                      }`}
+                      disabled={btnDisabled}
+                      className={`h-9 px-4 rounded-full text-[12.5px] font-bold transition-colors ${btnClass}`}
                     >
-                      {isClaimed ? tr('bonuses.claimed', 'Claimed') : tr('bonuses.claim', 'Claim')}
+                      {btnLabel}
                     </motion.button>
                   </div>
                 </motion.div>
