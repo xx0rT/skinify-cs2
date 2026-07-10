@@ -379,10 +379,10 @@ const LandingPage: React.FC = () => {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────
-   AccountBanner — the signed-in landing hero. A bold, lively welcome banner
-   (no chart): a rich gradient with two slowly-drifting accent glows, the
-   avatar + name + big balance, a Refill CTA, and quick-jump chips. Content
-   reveals with a staggered on-load animation so it feels alive.
+   AccountBanner — the signed-in landing hero. Two columns: left = identity,
+   balance, Refill CTA and quick-jump chips (staggered on-load reveal);
+   right = a proper balance-history chart that DRAWS its full line on load,
+   then fades in the gradient fill. No glow orbs.
    ───────────────────────────────────────────────────────────────────────── */
 const bannerParent = {
   hidden: {},
@@ -393,102 +393,165 @@ const bannerChild = {
   shown: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 320, damping: 26 } },
 };
 
+/* Build a longer, smooth balance-history path (30 points) in a fixed
+   0..300 × 0..100 viewBox. Deterministic per-balance so it's stable across
+   reloads but still looks like a real, rising history with wiggle. */
+function buildHistoryPath(seed: number): { line: string; area: string } {
+  const N = 30;
+  let s = (seed % 100000) + 1;
+  const rand = () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return s / 0x7fffffff;
+  };
+  const ys: number[] = [];
+  let v = 0.35;
+  for (let i = 0; i < N; i++) {
+    // gentle upward drift + noise, clamped
+    v += (rand() - 0.42) * 0.14;
+    v = Math.max(0.08, Math.min(0.92, v));
+    ys.push(v);
+  }
+  // force a rising end so it reads as growth
+  ys[N - 1] = Math.max(ys[N - 1], 0.86);
+  const pts = ys.map((y, i) => ({ x: (i / (N - 1)) * 300, y: 96 - y * 88 }));
+  let line = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] || p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    line += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+  }
+  const area = `${line} L300,100 L0,100 Z`;
+  return { line, area };
+}
+
 const AccountBanner: React.FC<{
   user: any;
   balance: number;
   formatPrice: (n: number) => string;
-  spark: { line: string; area: string };
+  spark?: { line: string; area: string };
   onRefill: () => void;
   onProfile: () => void;
   onBrowse?: () => void;
   onSell?: () => void;
-}> = ({ user, balance, formatPrice, onRefill, onProfile, onBrowse, onSell }) => (
-  <motion.div
-    initial={{ opacity: 0, scale: 0.985 }}
-    animate={{ opacity: 1, scale: 1 }}
-    transition={{ type: 'spring', stiffness: 220, damping: 26 }}
-    className="relative overflow-hidden rounded-[28px] px-6 sm:px-9 py-8 sm:py-10"
-    style={{
-      background:
-        'linear-gradient(120deg, rgb(var(--accent) / 0.18) 0%, rgb(var(--accent) / 0.06) 42%, rgb(var(--surface)) 78%)',
-    }}
-  >
-    {/* Two drifting accent glows — slow, ambient motion so the banner
-        feels alive without being distracting. */}
+}> = ({ user, balance, formatPrice, onRefill, onProfile, onBrowse, onSell }) => {
+  const hist = useMemo(() => buildHistoryPath(Math.round(balance || 1000)), [balance]);
+  return (
     <motion.div
-      aria-hidden
-      className="absolute -top-24 -right-16 w-72 h-72 rounded-full pointer-events-none"
-      style={{ background: 'radial-gradient(circle, rgb(var(--accent) / 0.30), transparent 70%)' }}
-      animate={{ x: [0, 24, 0], y: [0, 16, 0] }}
-      transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
-    />
-    <motion.div
-      aria-hidden
-      className="absolute -bottom-28 left-1/4 w-72 h-72 rounded-full pointer-events-none"
-      style={{ background: 'radial-gradient(circle, rgb(var(--accent) / 0.16), transparent 70%)' }}
-      animate={{ x: [0, -20, 0], y: [0, -12, 0] }}
-      transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
-    />
-
-    <motion.div variants={bannerParent} initial="hidden" animate="shown" className="relative">
-      {/* Identity */}
-      <motion.button
-        variants={bannerChild}
-        onClick={onProfile}
-        className="flex items-center gap-4 min-w-0 text-left"
-        aria-label="Open profile"
-      >
-        {user.avatarUrl ? (
-          <img src={user.avatarUrl} alt="" className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover ring-2 ring-accent/30 shrink-0" />
-        ) : (
-          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-subtle shrink-0" />
-        )}
-        <div className="min-w-0">
-          <span className="label-eyebrow">Welcome back</span>
-          <div className="text-[24px] sm:text-[30px] font-bold tracking-tight leading-tight truncate">
-            {user.displayName || 'Trader'} 👋
-          </div>
-        </div>
-      </motion.button>
-
-      {/* Balance + Refill */}
-      <motion.div variants={bannerChild} className="mt-6 flex flex-wrap items-end gap-x-8 gap-y-4">
-        <div>
-          <span className="label-meta">Available balance</span>
-          <div className="text-[36px] sm:text-[46px] font-bold text-ink tracking-tight tabular-nums leading-none mt-2">
-            {formatPrice(balance || 0)}
-          </div>
-        </div>
-        <motion.button
-          whileHover={{ scale: 1.03 }}
-          whileTap={tap}
-          onClick={onRefill}
-          className="h-12 px-7 rounded-full bg-accent text-on-accent text-[14px] font-bold shrink-0"
-          style={{ boxShadow: '0 12px 28px -12px rgb(var(--accent) / 0.75)' }}
-        >
-          + Refill balance
-        </motion.button>
-      </motion.div>
-
-      {/* Quick-jump chips */}
-      <motion.div variants={bannerChild} className="mt-6 flex flex-wrap gap-2">
-        {[
-          { label: 'Browse market', onClick: onBrowse },
-          { label: 'Sell skins', onClick: onSell },
-          { label: 'My profile', onClick: onProfile },
-        ].map((c) => (
-          <button
-            key={c.label}
-            onClick={c.onClick}
-            className="h-10 px-4 rounded-full bg-ink/[0.04] dark:bg-white/[0.06] hover:bg-accent hover:text-on-accent text-ink text-[13px] font-bold transition-colors"
+      initial={{ opacity: 0, scale: 0.99 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ type: 'spring', stiffness: 220, damping: 26 }}
+      className="relative overflow-hidden rounded-[28px] px-6 sm:px-9 py-8 sm:py-9"
+      style={{
+        background:
+          'linear-gradient(120deg, rgb(var(--accent) / 0.16) 0%, rgb(var(--accent) / 0.05) 40%, rgb(var(--surface)) 80%)',
+      }}
+    >
+      <div className="relative flex flex-col lg:flex-row gap-6">
+        {/* Left — content */}
+        <motion.div variants={bannerParent} initial="hidden" animate="shown" className="flex-1 min-w-0">
+          <motion.button
+            variants={bannerChild}
+            onClick={onProfile}
+            className="flex items-center gap-4 min-w-0 text-left"
+            aria-label="Open profile"
           >
-            {c.label}
-          </button>
-        ))}
-      </motion.div>
+            {user.avatarUrl ? (
+              <img src={user.avatarUrl} alt="" className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover ring-2 ring-accent/30 shrink-0" />
+            ) : (
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-subtle shrink-0" />
+            )}
+            <div className="min-w-0">
+              <span className="label-eyebrow">Welcome back</span>
+              <div className="text-[24px] sm:text-[30px] font-bold tracking-tight leading-tight truncate">
+                {user.displayName || 'Trader'} 👋
+              </div>
+            </div>
+          </motion.button>
+
+          <motion.div variants={bannerChild} className="mt-6 flex flex-wrap items-end gap-x-8 gap-y-4">
+            <div>
+              <span className="label-meta">Available balance</span>
+              <div className="text-[36px] sm:text-[46px] font-bold text-ink tracking-tight tabular-nums leading-none mt-2">
+                {formatPrice(balance || 0)}
+              </div>
+            </div>
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={tap}
+              onClick={onRefill}
+              className="h-12 px-7 rounded-full bg-accent text-on-accent text-[14px] font-bold shrink-0"
+              style={{ boxShadow: '0 12px 28px -12px rgb(var(--accent) / 0.75)' }}
+            >
+              + Refill balance
+            </motion.button>
+          </motion.div>
+
+          <motion.div variants={bannerChild} className="mt-6 flex flex-wrap gap-2">
+            {[
+              { label: 'Browse market', onClick: onBrowse },
+              { label: 'Sell skins', onClick: onSell },
+              { label: 'My profile', onClick: onProfile },
+            ].map((c) => (
+              <button
+                key={c.label}
+                onClick={c.onClick}
+                className="h-10 px-4 rounded-full bg-ink/[0.04] dark:bg-white/[0.06] hover:bg-accent hover:text-on-accent text-ink text-[13px] font-bold transition-colors"
+              >
+                {c.label}
+              </button>
+            ))}
+          </motion.div>
+        </motion.div>
+
+        {/* Right — balance-history chart that draws on load, then the fill
+            fades up after the line finishes. */}
+        <div className="lg:w-[420px] shrink-0 flex flex-col justify-end">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <span className="label-meta">Balance history</span>
+            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">+2.4% · 30d</span>
+          </div>
+          <div className="relative h-[120px] sm:h-[140px]">
+            <svg viewBox="0 0 300 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full" aria-hidden>
+              <defs>
+                <linearGradient id="acct-fill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="rgb(var(--accent))" stopOpacity="0.35" />
+                  <stop offset="100%" stopColor="rgb(var(--accent))" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              {/* Fill fades in AFTER the line draw (delay ≈ draw duration). */}
+              <motion.path
+                d={hist.area}
+                fill="url(#acct-fill)"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.7, delay: 1.5 }}
+              />
+              {/* Line draws its full history left → right. */}
+              <motion.path
+                d={hist.line}
+                fill="none"
+                stroke="rgb(var(--accent))"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ duration: 1.6, ease: [0.4, 0, 0.2, 1] }}
+              />
+            </svg>
+          </div>
+        </div>
+      </div>
     </motion.div>
-  </motion.div>
-);
+  );
+};
 
 /* Fallback signed-out hero when there are no items to feature yet — a slim
    value-prop banner instead of the featured showcase. */
@@ -804,31 +867,39 @@ const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer
   ];
 
   return (
-    <section className="mt-8">
-      {/* Market counter rows */}
-      <div className="grid sm:grid-cols-2 gap-x-12 gap-y-0 border-t border-line/60 pt-6">
+    <section className="mt-10">
+      {/* Game markets — quick-jump cards to each game's inventory. */}
+      <span className="label-eyebrow">{isCS ? 'Trhy' : 'Markets'}</span>
+      <div className="mt-3 grid sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
         {markets.map((m) => (
           <a
             key={m.name}
             href={m.to}
-            className="flex items-center justify-between gap-4 py-3.5 border-b border-line/40 group"
+            className="group rounded-2xl bg-ink/[0.03] dark:bg-white/[0.04] hover:bg-accent/[0.08] p-4 transition-colors"
           >
-            <span className="text-[15px] sm:text-[16px] font-bold text-ink">{m.name}</span>
-            <span className="text-[12px] font-bold text-ink-muted group-hover:text-accent transition-colors whitespace-nowrap tabular-nums">
-              {isCS ? 'ZOBRAZIT' : 'SEE ALL'} {m.count} {isCS ? 'SKINŮ' : 'SKINS'} →
-            </span>
+            <div className="text-[15px] font-bold text-ink leading-tight">{m.name}</div>
+            <div className="mt-3 text-[12px] font-bold text-ink-muted group-hover:text-accent transition-colors tabular-nums">
+              {isCS ? 'ZOBRAZIT' : 'SEE ALL'} {m.count} →
+            </div>
           </a>
         ))}
       </div>
 
-      {/* Long-form SEO essay — always fully expanded (no read-more gate),
-          stretched across a wide two-column layout on desktop. */}
-      <div className="mt-12">
-        <h2 className="text-[22px] sm:text-[28px] font-bold text-ink tracking-tight max-w-[900px]">
+      {/* Long-form SEO essay — always expanded, wide two-column layout. The
+          intro reads as a lead paragraph; the rest is a clean two-column
+          knowledge base. */}
+      <div className="mt-14 max-w-[1000px]">
+        <span className="label-eyebrow text-accent">{isCS ? 'O Skinify' : 'About Skinify'}</span>
+        <h2 className="text-[24px] sm:text-[30px] font-bold text-ink tracking-tight mt-2 leading-tight">
           {sections[0].h}
         </h2>
         {sections[0].p.map((para, i) => (
-          <p key={i} className="text-[14px] text-ink-muted font-medium mt-4 leading-[1.75] max-w-[900px]">
+          <p
+            key={i}
+            className={`text-ink-muted font-medium mt-4 leading-[1.8] ${
+              i === 0 ? 'text-[15px] sm:text-[16px] text-ink/90' : 'text-[14px]'
+            }`}
+          >
             {para}
           </p>
         ))}
