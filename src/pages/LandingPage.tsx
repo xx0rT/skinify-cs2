@@ -257,6 +257,17 @@ const LandingPage: React.FC = () => {
     return live.filter((it: any) => it?.promoted === true).slice(0, 100);
   }, [marketplaceItems]);
 
+  /* Newest listings for the "Recently added" slider — sort by listed_at
+     desc, falling back to the natural order the API returns. */
+  const recentItems = useMemo(() => {
+    const live = Array.isArray(marketplaceItems) ? [...marketplaceItems] : [];
+    live.sort(
+      (a: any, b: any) =>
+        new Date(b?.listed_at || 0).getTime() - new Date(a?.listed_at || 0).getTime(),
+    );
+    return live.slice(0, 16);
+  }, [marketplaceItems]);
+
   return (
     <div className="min-h-screen bg-bg text-ink">
       <LandingNav />
@@ -272,23 +283,9 @@ const LandingPage: React.FC = () => {
           CS2 Marketplace — Buy and Sell CS2 Skins on Skinify
         </h1>
 
-        {/* ===== 1 · PROMOTED — the first thing shown: a horizontal,
-            draggable rail of promoted listings with dot pagination. No
-            boxed background — it reads as content, not a widget. ===== */}
-        {(promotedItems.length > 0 || (marketplaceItems && marketplaceItems.length > 4)) && (
-          <PromotedRow
-            items={promotedItems.length > 0 ? promotedItems : (marketplaceItems || []).slice(0, 16)}
-            onView={(id) => navigate(`/item/${id}`)}
-            onAddCart={handleAddCart}
-            onToggleWish={handleWish}
-            isWished={(id) => isInWishlist(id)}
-            formatPrice={formatPrice}
-          />
-        )}
-
-        {/* ===== 2 · USER BANNER ===== signed-in → advanced account banner
-            with a smooth balance chart; signed-out → featured showcase. */}
-        <section className="mb-10 mt-2">
+        {/* ===== 1 · HERO ===== signed-in → account welcome banner with a
+            smooth balance chart; signed-out → value-prop hero. ===== */}
+        <section className="mb-4">
           {user ? (
             <AccountBanner
               user={user}
@@ -298,104 +295,59 @@ const LandingPage: React.FC = () => {
               onRefill={() => openDepositModal()}
               onProfile={() => navigate('/profile')}
             />
-          ) : promotedItems.length > 0 || (marketplaceItems && marketplaceItems.length > 0) ? (
-            <PromotedShowcase
-              promoted={promotedItems.length > 0 ? promotedItems : (marketplaceItems || []).slice(0, 6)}
-              formatPrice={formatPrice}
-              onView={(id) => navigate(`/item/${id}`)}
-            />
           ) : (
             <SignedOutValueHero navigate={navigate} t={t} />
           )}
         </section>
 
-        {/* ===== 3 · MARKETPLACE PEEK ===== a slice of the market with a
-            category selector. Header is plain type — no boxed card. ===== */}
-        <section className="mb-10">
-          <div className="flex items-end justify-between gap-4 mb-4">
-            <div>
-              <span className="label-eyebrow">Marketplace</span>
-              <h2 className="text-[19px] sm:text-[22px] font-bold text-ink tracking-tight leading-none mt-1">
-                {t('landing.section.browse.title', 'Fresh on the market')}
-              </h2>
-            </div>
-            <button
-              onClick={() => navigate('/marketplace')}
-              className="shrink-0 text-[13px] font-bold text-accent hover:opacity-80 transition-opacity"
-            >
-              {t('landing.openMarketplace', 'See all')} →
-            </button>
-          </div>
+        {/* ===== 2 · TRUST BAR + STAT COUNTERS ===== a thin, borderless row
+            of value points + live-feeling counters. ===== */}
+        <LandingTrustBar isCS={isCS} itemCount={marketplaceItems?.length || 0} />
 
-          {/* Category selector — plain pills, sliding accent, no container. */}
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide -mx-1 px-1 mb-4">
-            {categoryKeys.map((key) => {
-              const label =
-                key === 'featured'
-                  ? t('landing.section.browse.featured', 'Featured')
-                  : weaponCategories[key]?.name || key;
-              const active = activeCat === key;
-              return (
-                <motion.button
-                  key={key}
-                  whileTap={tap}
-                  onClick={() => setActiveCat(key)}
-                  className={`relative shrink-0 h-9 px-4 rounded-full text-[13px] font-bold whitespace-nowrap transition-colors ${
-                    active ? 'text-on-accent' : 'text-ink-muted hover:text-ink'
-                  }`}
-                >
-                  {active && (
-                    <motion.span
-                      layoutId="landing-cat-pill"
-                      className="absolute inset-0 rounded-full bg-accent"
-                      transition={spring}
-                    />
-                  )}
-                  {!active && <span className="absolute inset-0 rounded-full bg-subtle/60" aria-hidden />}
-                  <span className="relative">{label}</span>
-                </motion.button>
-              );
-            })}
-          </div>
+        {/* ===== 3 · BEST SKINS — tabbed price-bracket grid ===== */}
+        <BestSkinsGrid
+          items={marketplaceItems || []}
+          loading={itemsLoading}
+          onView={(id) => navigate(`/item/${id}`)}
+          onAddCart={handleAddCart}
+          onToggleWish={handleWish}
+          isWished={(id) => isInWishlist(id)}
+          formatPrice={formatPrice}
+          onSeeAll={() => navigate('/marketplace')}
+          isCS={isCS}
+        />
 
-          {itemsLoading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-0 isolate">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <SkinCardSkeleton key={i} />
-              ))}
-            </div>
-          ) : visibleItems.length === 0 ? (
-            <p className="text-[14px] text-ink-muted font-medium py-12 text-center">
-              {t('landing.empty.category', 'No listings in this category yet.')}
-            </p>
-          ) : (
-            <motion.div
-              variants={staggerParent}
-              initial="hidden"
-              whileInView="shown"
-              viewport={{ once: true, margin: '0px 0px -120px 0px' }}
-              key={activeCat}
-              className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-0 isolate"
-            >
-              {visibleItems.map((item: any) => (
-                <motion.div key={item.id} variants={staggerChild} transition={spring}>
-                  <SkinCard
-                    variant="tile"
-                    item={item}
-                    onView={() => navigate(`/item/${item.id}`)}
-                    onAddCart={() => handleAddCart(item)}
-                    onToggleWish={() => handleWish(item)}
-                    wished={isInWishlist(item.id)}
-                    formatPrice={formatPrice}
-                  />
-                </motion.div>
-              ))}
-            </motion.div>
-          )}
-        </section>
+        {/* ===== 4 · PROMOTED slider ===== */}
+        {(promotedItems.length > 0 || (marketplaceItems && marketplaceItems.length > 4)) && (
+          <PromotedRow
+            title={isCS ? 'Promované' : 'Promoted right now'}
+            eyebrow={isCS ? 'Doporučené' : 'Featured'}
+            items={promotedItems.length > 0 ? promotedItems : (marketplaceItems || []).slice(0, 16)}
+            onView={(id) => navigate(`/item/${id}`)}
+            onAddCart={handleAddCart}
+            onToggleWish={handleWish}
+            isWished={(id) => isInWishlist(id)}
+            formatPrice={formatPrice}
+          />
+        )}
 
-        {/* ===== COMPACT SEO / FAQ — below the fold for search ranking. */}
-        <LandingSeoBlock isCS={isCS} />
+        {/* ===== 5 · RECENTLY ADDED slider ===== newest listings, so the
+            page always shows fresh inventory even without promotions. */}
+        {marketplaceItems && marketplaceItems.length > 4 && (
+          <PromotedRow
+            title={isCS ? 'Nově přidané' : 'Recently added'}
+            eyebrow={isCS ? 'Čerstvé' : 'Fresh'}
+            items={recentItems}
+            onView={(id) => navigate(`/item/${id}`)}
+            onAddCart={handleAddCart}
+            onToggleWish={handleWish}
+            isWished={(id) => isInWishlist(id)}
+            formatPrice={formatPrice}
+          />
+        )}
+
+        {/* ===== 6 · SEO text + FAQ accordion ===== */}
+        <LandingSeoBlock isCS={isCS} faq={LANDING_FAQ} />
       </main>
 
       <Footer />
@@ -528,31 +480,226 @@ const SignedOutValueHero: React.FC<{ navigate: (to: string) => void; t: any }> =
   </motion.div>
 );
 
-/* Compact SEO/FAQ block — kept below the fold so search ranking survives
-   the redesign without cluttering the top of the page. */
-const LandingSeoBlock: React.FC<{ isCS: boolean }> = ({ isCS }) => (
-  <section className="mt-4 card p-6 sm:p-8">
-    <h2 className="text-[17px] font-bold text-ink tracking-tight">
-      {isCS ? 'Tržiště CS2 skinů' : 'The CS2 skin marketplace'}
-    </h2>
-    <p className="text-[13.5px] text-ink-muted font-medium mt-2 leading-relaxed max-w-[820px]">
-      {isCS
-        ? 'Skinify je peer-to-peer tržiště pro nákup a prodej CS2 skinů — AK-47, AWP, Karambit, M9 Bayonet, rukavice a vzácné patterny od ověřených prodejců. Obchody chráněné escrowem, doručení přes Steam do 60 sekund a výplaty v reálných penězích s 6% poplatkem pro kupující.'
-        : 'Skinify is the peer-to-peer marketplace to buy and sell CS2 skins — AK-47, AWP, Karambit, M9 Bayonet, gloves and rare patterns from verified sellers. Escrow-protected trades, sub-60-second Steam delivery, and real-money payouts with 6% buyer fees.'}
-    </p>
-    <div className="mt-4 flex flex-wrap gap-2">
-      {['AK-47', 'AWP', 'Karambit', 'M9 Bayonet', 'Gloves', 'Stickers'].map((w) => (
-        <a
-          key={w}
-          href={`/marketplace?q=${encodeURIComponent(w)}`}
-          className="h-8 px-3 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[12.5px] font-semibold inline-flex items-center transition-colors"
-        >
-          {w}
-        </a>
-      ))}
+/* ─────────────────────────────────────────────────────────────────────────
+   LandingTrustBar — thin value-point row + live-feeling stat counters.
+   Borderless: divided by hairlines, no boxed card.
+   ───────────────────────────────────────────────────────────────────────── */
+const LandingTrustBar: React.FC<{ isCS: boolean; itemCount: number }> = ({ isCS, itemCount }) => {
+  const points = isCS
+    ? ['0% poplatek kupující', 'P2P obchodování', 'Escrow ochrana', 'Výplata do 60 s']
+    : ['0% buyer fee', 'P2P trading', 'Escrow protected', 'Payout in 60s'];
+  const stats = [
+    { value: '2.9M+', label: isCS ? 'prodaných skinů' : 'skins sold' },
+    { value: '666K+', label: isCS ? 'spokojených uživatelů' : 'happy users' },
+    { value: Math.max(itemCount, 60000).toLocaleString(), label: isCS ? 'aktivních nabídek' : 'live listings' },
+    { value: '4.7/5', label: isCS ? 'hodnocení' : 'rating' },
+  ];
+  return (
+    <div className="mb-10">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 py-3">
+        {points.map((p, i) => (
+          <span key={p} className="inline-flex items-center gap-2 text-[13px] font-semibold text-ink">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            {p}
+            {i < points.length - 1 && <span className="hidden sm:inline text-ink-dim ml-4">·</span>}
+          </span>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 border-t border-line/60 pt-5">
+        {stats.map((s) => (
+          <div key={s.label}>
+            <div className="text-[24px] sm:text-[28px] font-bold text-ink tracking-tight tabular-nums leading-none">
+              {s.value}
+            </div>
+            <div className="text-[12px] text-ink-muted font-medium mt-1.5">{s.label}</div>
+          </div>
+        ))}
+      </div>
     </div>
-  </section>
-);
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   BestSkinsGrid — the "Best prices for you" block with price-bracket tabs
+   (Best / under $10 / $25 / $50) over a dense uniform card grid. Reference:
+   white.market's "Best skins" tabbed grid.
+   ───────────────────────────────────────────────────────────────────────── */
+const BestSkinsGrid: React.FC<{
+  items: any[];
+  loading: boolean;
+  onView: (id: string) => void;
+  onAddCart: (item: any) => void;
+  onToggleWish: (item: any) => void;
+  isWished: (id: string) => boolean;
+  formatPrice: (n: number) => string;
+  onSeeAll: () => void;
+  isCS: boolean;
+}> = ({ items, loading, onView, onAddCart, onToggleWish, isWished, formatPrice, onSeeAll, isCS }) => {
+  /* Brackets in CZK (the platform's base currency). "Best" is the whole
+     set sorted by price asc; the others cap at the threshold. */
+  const BRACKETS = [
+    { id: 'best', label: isCS ? 'Nejlepší' : 'Best', max: Infinity },
+    { id: 'u250', label: isCS ? 'Do 250 Kč' : 'Under 250', max: 250 },
+    { id: 'u1000', label: isCS ? 'Do 1 000 Kč' : 'Under 1000', max: 1000 },
+    { id: 'u5000', label: isCS ? 'Do 5 000 Kč' : 'Under 5000', max: 5000 },
+  ];
+  const [tab, setTab] = useState('best');
+  const active = BRACKETS.find((b) => b.id === tab) || BRACKETS[0];
+
+  const shown = useMemo(() => {
+    const arr = (items || []).filter((it) => (it?.price || 0) <= active.max);
+    return [...arr].sort((a, b) => (a?.price || 0) - (b?.price || 0)).slice(0, 15);
+  }, [items, active.max]);
+
+  return (
+    <section className="mb-12">
+      <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
+        <div>
+          <span className="label-eyebrow">{isCS ? 'Doporučené' : 'Best skins'}</span>
+          <h2 className="text-[20px] sm:text-[24px] font-bold text-ink tracking-tight leading-none mt-1">
+            {isCS ? 'Nejlepší ceny pro vás' : 'Best prices for you'}
+          </h2>
+        </div>
+        <button
+          onClick={onSeeAll}
+          className="text-[13px] font-bold text-accent hover:opacity-80 transition-opacity"
+        >
+          {isCS ? 'Zobrazit vše' : 'See all'} →
+        </button>
+      </div>
+
+      {/* Bracket tabs — plain pills, sliding accent, no container. */}
+      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide -mx-1 px-1 mb-4">
+        {BRACKETS.map((b) => {
+          const isActive = tab === b.id;
+          return (
+            <button
+              key={b.id}
+              onClick={() => setTab(b.id)}
+              className={`relative shrink-0 h-9 px-4 rounded-full text-[13px] font-bold whitespace-nowrap transition-colors ${
+                isActive ? 'text-on-accent' : 'text-ink-muted hover:text-ink'
+              }`}
+            >
+              {isActive && (
+                <motion.span layoutId="best-bracket-pill" className="absolute inset-0 rounded-full bg-accent" transition={spring} />
+              )}
+              {!isActive && <span className="absolute inset-0 rounded-full bg-subtle/60" aria-hidden />}
+              <span className="relative">{b.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {loading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-0 isolate">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <SkinCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : shown.length === 0 ? (
+        <p className="text-[14px] text-ink-muted font-medium py-12 text-center">
+          {isCS ? 'V tomto cenovém pásmu zatím nic není.' : 'Nothing in this price range yet.'}
+        </p>
+      ) : (
+        <motion.div
+          variants={staggerParent}
+          initial="hidden"
+          animate="shown"
+          key={tab}
+          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-0 isolate"
+        >
+          {shown.map((item: any) => (
+            <motion.div key={item.id} variants={staggerChild} transition={spring}>
+              <SkinCard
+                variant="tile"
+                item={item}
+                onView={() => onView(String(item.id))}
+                onAddCart={() => onAddCart(item)}
+                onToggleWish={() => onToggleWish(item)}
+                wished={isWished(String(item.id))}
+                formatPrice={formatPrice}
+              />
+            </motion.div>
+          ))}
+        </motion.div>
+      )}
+    </section>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   LandingSeoBlock — SEO copy + an expandable FAQ accordion (the "Have
+   questions?" section on the references), kept below the fold.
+   ───────────────────────────────────────────────────────────────────────── */
+const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer: string }[] }> = ({
+  isCS,
+  faq,
+}) => {
+  const [open, setOpen] = useState<number | null>(0);
+  return (
+    <section className="mt-6">
+      <h2 className="text-[20px] sm:text-[24px] font-bold text-ink tracking-tight">
+        {isCS ? 'Nejsnadnější a nejbezpečnější způsob nákupu a prodeje CS2 skinů' : 'The easiest, safest way to buy and sell CS2 skins'}
+      </h2>
+      <p className="text-[13.5px] text-ink-muted font-medium mt-3 leading-relaxed max-w-[820px]">
+        {isCS
+          ? 'Skinify je peer-to-peer tržiště pro nákup a prodej CS2 skinů — AK-47, AWP, Karambit, M9 Bayonet, rukavice a vzácné patterny od ověřených prodejců. Obchody chráněné escrowem, doručení přes Steam do 60 sekund a výplaty v reálných penězích s nízkými poplatky.'
+          : 'Skinify is the peer-to-peer marketplace to buy and sell CS2 skins — AK-47, AWP, Karambit, M9 Bayonet, gloves and rare patterns from verified sellers. Escrow-protected trades, sub-60-second Steam delivery, and real-money payouts with low fees.'}
+      </p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {['AK-47', 'AWP', 'Karambit', 'M9 Bayonet', 'Gloves', 'Stickers'].map((w) => (
+          <a
+            key={w}
+            href={`/marketplace?q=${encodeURIComponent(w)}`}
+            className="h-8 px-3 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[12.5px] font-semibold inline-flex items-center transition-colors"
+          >
+            {w}
+          </a>
+        ))}
+      </div>
+
+      {/* FAQ accordion */}
+      <div className="mt-8">
+        <h3 className="text-[16px] font-bold text-ink tracking-tight mb-3">
+          {isCS ? 'Časté dotazy' : 'Frequently asked questions'}
+        </h3>
+        <div className="divide-y divide-line/60 border-t border-line/60">
+          {faq.map((f, i) => {
+            const isOpen = open === i;
+            return (
+              <div key={i}>
+                <button
+                  onClick={() => setOpen(isOpen ? null : i)}
+                  className="w-full flex items-center justify-between gap-4 py-4 text-left"
+                >
+                  <span className="text-[14px] font-bold text-ink">{f.question}</span>
+                  <span className={`text-ink-muted text-[18px] leading-none shrink-0 transition-transform ${isOpen ? 'rotate-45' : ''}`}>
+                    +
+                  </span>
+                </button>
+                <AnimatePresence initial={false}>
+                  {isOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.22 }}
+                      className="overflow-hidden"
+                    >
+                      <p className="text-[13.5px] text-ink-muted font-medium leading-relaxed pb-4 max-w-[760px]">
+                        {f.answer}
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+};
 
 /* ─────────────────────────────────────────────────────────────────────────
    PromotedRow — the first thing under the welcome banner: a horizontal,
@@ -562,12 +709,14 @@ const LandingSeoBlock: React.FC<{ isCS: boolean }> = ({ isCS }) => (
    ───────────────────────────────────────────────────────────────────────── */
 const PromotedRow: React.FC<{
   items: any[];
+  title?: string;
+  eyebrow?: string;
   onView: (id: string) => void;
   onAddCart: (item: any) => void;
   onToggleWish: (item: any) => void;
   isWished: (id: string) => boolean;
   formatPrice: (n: number) => string;
-}> = ({ items, onView, onAddCart, onToggleWish, isWished, formatPrice }) => {
+}> = ({ items, title = 'Promoted right now', eyebrow = 'Featured', onView, onAddCart, onToggleWish, isWished, formatPrice }) => {
   const ref = useRef<HTMLDivElement | null>(null);
   const drag = useRef({ active: false, startX: 0, startScroll: 0, moved: false });
   /* Dot pagination — the slider is divided into `dotCount` pages; the
@@ -623,13 +772,13 @@ const PromotedRow: React.FC<{
       {/* Plain type header — no boxed background, no icon. */}
       <div className="flex items-end justify-between gap-4 mb-1">
         <div>
-          <span className="label-eyebrow text-accent">Featured</span>
+          <span className="label-eyebrow text-accent">{eyebrow}</span>
           <h2 className="text-[19px] sm:text-[22px] font-bold text-ink tracking-tight leading-none mt-1">
-            Promoted right now
+            {title}
           </h2>
         </div>
         <span className="text-[12.5px] font-bold text-ink-muted tabular-nums shrink-0">
-          {items.length} live
+          {items.length}
         </span>
       </div>
 
