@@ -262,350 +262,75 @@ const LandingPage: React.FC = () => {
           CS2 Marketplace — Buy and Sell CS2 Skins on Skinify
         </h1>
 
-        {/* ===== HERO — the first thing on the page: your profile
-            status when signed in, a welcome summary when not. ===== */}
-        <section className="mb-3">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ ...spring, delay: 0.12 }}
-            className="card p-6 sm:p-7 flex flex-col h-full relative overflow-hidden"
-          >
-            {user ? (
-              /* Signed-in header — redesigned: avatar with an accent ring,
-                 a prominent balance block on its own accent-tinted panel,
-                 and clear primary/secondary actions. A soft accent wash in
-                 the top-right gives the card depth without noise. */
-              <>
-                <div
-                  aria-hidden
-                  className="absolute -top-16 -right-16 w-56 h-56 rounded-full pointer-events-none"
-                  style={{ background: 'radial-gradient(circle, rgb(var(--accent) / 0.14), transparent 70%)' }}
-                />
-                <div className="relative flex flex-wrap items-center gap-x-6 gap-y-4 mb-5">
-                  <div className="flex items-center gap-3.5 flex-1 min-w-[200px]">
-                    {user.avatarUrl && (
-                      <div className="relative shrink-0">
-                        <img
-                          src={user.avatarUrl}
-                          alt=""
-                          className="w-16 h-16 rounded-2xl object-cover ring-2 ring-accent/30"
-                        />
-                        <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 ring-2 ring-surface" />
-                      </div>
-                    )}
-                    <div className="min-w-0">
-                      <span className="label-eyebrow">
-                        {t('landing.welcome.back', 'Welcome back')}
-                      </span>
-                      <div className="text-[22px] sm:text-[26px] font-bold tracking-tight leading-tight truncate">
-                        {user.displayName || 'Trader'}
-                      </div>
-                      <button
-                        onClick={() => navigate('/profile')}
-                        className="text-[12px] font-semibold text-accent hover:opacity-80 transition-opacity mt-0.5"
-                      >
-                        {t('landing.welcome.profile', 'Open profile')} →
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Balance panel */}
-                  <div className="rounded-2xl bg-accent/[0.07] px-5 py-3.5 flex items-center gap-5">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="label-meta">
-                          {t('landing.portfolio.balance', 'Available balance')}
-                        </span>
-                        <span className="pill bg-emerald-500/12 text-emerald-700 dark:text-emerald-400 text-[10px]">
-                          +2.4%
-                        </span>
-                      </div>
-                      <div className="text-[27px] sm:text-[32px] font-bold tracking-tight leading-none text-ink tabular-nums mt-1">
-                        {formatPrice(portfolio)}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => openDepositModal()}
-                      className="h-11 px-5 rounded-full bg-accent text-on-accent text-[13px] font-bold shrink-0"
-                      style={{ boxShadow: '0 8px 20px -10px rgb(var(--accent) / 0.6)' }}
-                    >
-                      {t('nav.refill', 'Refill')}
-                    </button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <span className="label-eyebrow">
-                  {t('landing.hero.eyebrow', 'CS2 marketplace · 0% buyer fees')}
-                </span>
-                <div className="mt-2 flex flex-wrap items-end justify-between gap-4 mb-4">
-                  <div className="max-w-[640px]">
-                    <h2 className="text-[24px] sm:text-[30px] font-bold tracking-tight leading-tight">
-                      {t('landing.hero.headline', 'Buy and sell CS2 skins with zero buyer fees')}
-                    </h2>
-                    <p className="text-[13.5px] text-ink-muted font-medium mt-2 leading-relaxed">
-                      {t(
-                        'landing.hero.lead',
-                        'Escrow-protected trades, sub-60-second Steam delivery, real-money payouts.',
-                      )}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => navigate('/marketplace')}
-                      className="h-11 px-5 rounded-full bg-accent text-on-accent text-[13px] font-bold"
-                    >
-                      {t('landing.hero.browseMarket', 'Browse the marketplace')}
-                    </button>
-                    <button
-                      onClick={() => navigate('/profile?tab=inventory')}
-                      className="h-11 px-5 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[13px] font-bold transition-colors"
-                    >
-                      {t('landing.hero.startSelling', 'Start selling')}
-                    </button>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="label-eyebrow">
-                    {t('landing.portfolio.eyebrow.signedOut', 'Marketplace volume')}
-                  </span>
-                  <span className="pill bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-                    +2.4%
-                  </span>
-                </div>
-                <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none text-ink tabular-nums break-words">
-                  {formatPrice(36714736)}
-                </div>
-                <div className="text-[13px] text-ink-muted font-medium mt-1.5 mb-4">
-                  {t('landing.portfolio.volume', 'Total volume traded')}
-                </div>
-              </>
-            )}
-
-            <div className="mb-4 mx-1 sm:mx-2 h-[100px] sm:h-[130px] rounded-2xl bg-subtle/60 overflow-hidden relative">
-              <svg
-                viewBox="0 0 200 60"
-                preserveAspectRatio="none"
-                className="w-full h-full"
-                aria-hidden
+        {/* ===== CATEGORY BAR — top-level nav into the grid below.
+            Mirrors the wireframe: Knife / Gloves / Rifles / AWP / Stickers
+            / Misc … with the category driving the skin grid. ===== */}
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide -mx-1 px-1 mb-5">
+          {categoryKeys.map((key) => {
+            const label =
+              key === 'featured'
+                ? t('landing.section.browse.featured', 'Featured')
+                : weaponCategories[key]?.name || key;
+            const active = activeCat === key;
+            return (
+              <motion.button
+                key={key}
+                whileTap={tap}
+                onClick={() => setActiveCat(key)}
+                className={`relative shrink-0 h-9 px-4 rounded-full text-[13px] font-bold whitespace-nowrap transition-colors ${
+                  active ? 'text-on-accent' : 'text-ink-muted hover:text-ink'
+                }`}
               >
-                <defs>
-                  <linearGradient id="spark-fill" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="rgb(var(--accent))" stopOpacity="0.32" />
-                    <stop offset="100%" stopColor="rgb(var(--accent))" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                <motion.path
-                  key={sparkPaths.line}
-                  initial={{ pathLength: 0 }}
-                  animate={{ pathLength: 1 }}
-                  transition={{ duration: 1.6, ease: 'easeOut', delay: 0.4 }}
-                  d={sparkPaths.line}
-                  fill="none"
-                  stroke="rgb(var(--accent))"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <motion.path
-                  key={sparkPaths.area}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 1.6 }}
-                  d={sparkPaths.area}
-                  fill="url(#spark-fill)"
-                />
-              </svg>
-            </div>
+                {active && (
+                  <motion.span
+                    layoutId="landing-cat-pill"
+                    className="absolute inset-0 rounded-full bg-accent"
+                    transition={spring}
+                  />
+                )}
+                {!active && <span className="absolute inset-0 rounded-full bg-subtle/70" aria-hidden />}
+                <span className="relative">{label}</span>
+              </motion.button>
+            );
+          })}
+          <div className="flex-1" />
+          <motion.button
+            whileTap={tap}
+            onClick={() => navigate('/marketplace')}
+            className="shrink-0 h-9 px-4 rounded-full bg-subtle/70 text-ink text-[13px] font-bold inline-flex items-center gap-1.5 hover:bg-subtle transition-colors"
+          >
+            {t('landing.openMarketplace', 'Filter')}
+            <ArrowRight size={13} strokeWidth={2.4} />
+          </motion.button>
+        </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div className="card-flat px-3 py-2">
-                <div className="label-meta">{t('landing.stat.fee', 'Fee')}</div>
-                <div className="text-[14px] font-bold text-ink mt-0.5 tabular-nums">0%</div>
-              </div>
-              <div className="card-flat px-3 py-2">
-                <div className="label-meta">{t('landing.stat.listings', 'Listings')}</div>
-                <div className="text-[14px] font-bold text-ink mt-0.5 tabular-nums">
-                  {(marketplaceItems?.length || 60794).toLocaleString()}
-                </div>
-              </div>
-              <div className="card-flat px-3 py-2">
-                <div className="label-meta">{t('landing.stat.escrow', 'Escrow')}</div>
-                <div className="text-[14px] font-bold text-ink mt-0.5 tabular-nums">8d</div>
-              </div>
-              <div className="card-flat px-3 py-2">
-                <div className="label-meta">{t('landing.stat.avgDelivery', 'Avg delivery')}</div>
-                <div className="text-[14px] font-bold text-ink mt-0.5 tabular-nums">{'<1m'}</div>
-              </div>
-            </div>
-          </motion.div>
+        {/* ===== HERO ===== signed-in → slim profile strip; signed-out →
+            featured-item showcase (weapon + seller trust + buy panel). */}
+        <section className="mb-6">
+          {user ? (
+            <SlimProfileHero
+              user={user}
+              balance={balance}
+              formatPrice={formatPrice}
+              onRefill={() => openDepositModal()}
+              onProfile={() => navigate('/profile')}
+            />
+          ) : promotedItems.length > 0 || (marketplaceItems && marketplaceItems.length > 0) ? (
+            <PromotedShowcase
+              promoted={promotedItems.length > 0 ? promotedItems : (marketplaceItems || []).slice(0, 6)}
+              formatPrice={formatPrice}
+              onView={(id) => navigate(`/item/${id}`)}
+            />
+          ) : (
+            <SignedOutValueHero navigate={navigate} t={t} />
+          )}
         </section>
 
-        {/* ===== PROMOTED — the very first items a visitor sees, right
-            under the welcome banner. Only paid promotions appear; when
-            none are active the row renders nothing. ===== */}
-        {promotedItems.length > 0 && (
-          <PromotedRow
-            items={promotedItems}
-            onView={(id) => navigate(`/item/${id}`)}
-            onAddCart={handleAddCart}
-            onToggleWish={handleWish}
-            isWished={(id) => isInWishlist(id)}
-            formatPrice={formatPrice}
-          />
-        )}
-
-        {/* The 15 newest marketplace listings, fading into translucency
-            with a button to the full marketplace underneath. */}
-        {(
-          <LatestListings
-            items={marketplaceItems || []}
-            onView={(id) => navigate(`/item/${id}`)}
-            onAddCart={handleAddCart}
-            onToggleWish={handleWish}
-            isWished={(id) => isInWishlist(id)}
-            formatPrice={formatPrice}
-            onOpenMarketplace={() => navigate('/marketplace')}
-          />
-        )}
-
-        <Reveal className="mb-6">
-          <LiveActivityFeed />
-        </Reveal>
-      <Reveal className="mb-10">
-          <div className="flex items-end justify-between mb-4 px-1">
-            <div>
-              <h2 className="text-[17px] font-bold text-ink tracking-tight">
-                {t('landing.section.trending.title', 'Trending now')}
-              </h2>
-              <p className="text-[12.5px] text-ink-muted mt-0.5 font-medium">
-                {t('landing.section.trending.lead', 'Most watched skins in the last 24h')}
-              </p>
-            </div>
-            <button
-              onClick={() => navigate('/marketplace')}
-              className="hidden sm:flex items-center gap-1 text-[13px] text-ink-muted hover:text-ink font-semibold transition-colors"
-            >
-              {t('landing.viewAll', 'View all')} <ArrowRight size={13} />
-            </button>
-          </div>
-
-          {(() => {
-            const trendingSource =
-              hotItems && hotItems.length > 0
-                ? hotItems
-                : [...(marketplaceItems || [])]
-                    .sort((a: any, b: any) => {
-                      const va = Number(a?.views || 0);
-                      const vb = Number(b?.views || 0);
-                      if (vb !== va) return vb - va;
-                      return (
-                        new Date(b?.listed_at || 0).getTime() -
-                        new Date(a?.listed_at || 0).getTime()
-                      );
-                    })
-                    .slice(0, 8);
-
-            const stillLoading =
-              hotItemsLoading && (!marketplaceItems || marketplaceItems.length === 0);
-
-            return (
-              <motion.div
-                variants={staggerParent}
-                initial="hidden"
-                whileInView="shown"
-                viewport={{ once: true, margin: '0px 0px -80px 0px' }}
-                className="flex gap-3 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-2 snap-x"
-              >
-                {stillLoading || !trendingSource.length
-                  ? Array.from({ length: 6 }).map((_, i) => (
-                      <div key={i} className="shrink-0 w-[240px] snap-start">
-                        <SkinCardSkeleton />
-                      </div>
-                    ))
-                  : trendingSource.slice(0, 8).map((it: any) => (
-                  <motion.div
-                    key={it.id}
-                    variants={staggerChild}
-                    transition={spring}
-                    className="shrink-0 w-[240px] snap-start"
-                  >
-                    {/* Same card variant as the marketplace grid so
-                        the Trending strip and the main listing wall
-                        look identical (no separate "trending" style). */}
-                    <SkinCard
-                      variant="tile"
-                      item={it}
-                      onView={() => navigate(`/item/${it.id}`)}
-                      onAddCart={() => handleAddCart(it)}
-                      onToggleWish={() => handleWish(it)}
-                      wished={isInWishlist(it.id)}
-                      formatPrice={formatPrice}
-                    />
-                  </motion.div>
-                ))}
-              </motion.div>
-            );
-          })()}
-        </Reveal>
-
-        {/* ===== CATEGORY FILTER + GRID ===== */}
-        <Reveal className="mb-12">
-          <div className="flex items-end justify-between mb-5 px-1 flex-wrap gap-3">
-            <div>
-              <h2 className="text-[17px] font-bold text-ink tracking-tight">
-                {t('landing.section.browse.title', 'Browse the market')}
-              </h2>
-              <p className="text-[12.5px] text-ink-muted mt-0.5 font-medium">
-                {t('landing.section.browse.lead', 'Curated listings across every category')}
-              </p>
-            </div>
-            <motion.button
-              whileTap={tap}
-              whileHover={{ scale: 1.02 }}
-              onClick={() => navigate('/marketplace')}
-              className="h-10 px-4 rounded-full bg-subtle text-ink text-[13px] font-semibold flex items-center gap-1.5 transition-colors"
-            >
-              {t('landing.openMarketplace', 'Open marketplace')} <ArrowRight size={13} strokeWidth={2.4} />
-            </motion.button>
-          </div>
-
-          {/* category pills with motion underline */}
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-3 mb-5 -mx-1 px-1">
-            {categoryKeys.map((key) => {
-              const label =
-                key === 'featured'
-                  ? t('landing.section.browse.featured', 'Featured')
-                  : weaponCategories[key]?.name || key;
-              const active = activeCat === key;
-              return (
-                <motion.button
-                  key={key}
-                  whileTap={tap}
-                  onClick={() => setActiveCat(key)}
-                  className={`relative h-10 px-4 rounded-full text-[13px] font-semibold whitespace-nowrap transition-colors ${
-                    active ? 'text-on-accent' : 'text-ink-muted hover:text-ink'
-                  }`}
-                >
-                  {active && (
-                    <motion.span
-                      layoutId="cat-pill-active"
-                      className="absolute inset-0 rounded-full bg-accent"
-                      transition={spring}
-                    />
-                  )}
-                  {!active && <span className="absolute inset-0 rounded-full bg-subtle" aria-hidden />}
-                  <span className="relative">{label}</span>
-                </motion.button>
-              );
-            })}
-          </div>
-
-          {/* grid */}
+        {/* ===== SKIN GRID — the main content, filtered by the category
+            bar above. ===== */}
+        <section className="mb-8">
           {itemsLoading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-0 isolate">
               {Array.from({ length: 10 }).map((_, i) => (
                 <SkinCardSkeleton key={i} />
               ))}
@@ -622,7 +347,7 @@ const LandingPage: React.FC = () => {
               initial="hidden"
               whileInView="shown"
               viewport={{ once: true, margin: '0px 0px -120px 0px' }}
-              key={activeCat /* restart stagger on category switch */}
+              key={activeCat}
               className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-0 isolate"
             >
               {visibleItems.map((item: any) => (
@@ -640,285 +365,148 @@ const LandingPage: React.FC = () => {
               ))}
             </motion.div>
           )}
-        </Reveal>
+        </section>
 
-        {/* ===== WELCOME PROMO HERO =====
-            The welcome banner (skins + smoke + skinify.gg tape with
-            the "+10% on your first top-up" copy) now lives here as a
-            full-width visual break before the SEO copy. */}
-        <Reveal>
-          <PromoBanner />
-        </Reveal>
+        {/* ===== SLIDER — promoted / recommended, horizontal & draggable
+            with dot pagination. ===== */}
+        {(promotedItems.length > 0 || (marketplaceItems && marketplaceItems.length > 4)) && (
+          <PromotedRow
+            items={promotedItems.length > 0 ? promotedItems : (marketplaceItems || []).slice(0, 16)}
+            onView={(id) => navigate(`/item/${id}`)}
+            onAddCart={handleAddCart}
+            onToggleWish={handleWish}
+            isWished={(id) => isInWishlist(id)}
+            formatPrice={formatPrice}
+          />
+        )}
 
-        {/*
-          Long-tail SEO copy block — visible to crawlers (and humans
-          scrolling to the very bottom). Targets head-term phrasing
-          ("CS2 marketplace", "buy CS2 skins"), high-volume entity names
-          (AK-47, AWP, Karambit), and competitor-alternative queries
-          ("0% buyer fees", "escrow protection"). Internal links push
-          PageRank into deep category and weapon pages.
-        */}
-        <Reveal className="mt-12">
-          <section className="card p-6 sm:p-10 grid lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-8 lg:gap-12">
-            <div className="min-w-0">
-            <h2 className="text-[20px] sm:text-[24px] font-bold text-ink tracking-tight">
-              {isCS
-                ? 'Tržiště CS2 postavené pro obchodníky, ne prostředníky'
-                : 'The CS2 marketplace built for traders, not middlemen'}
-            </h2>
-            <div className="mt-4 text-[14px] sm:text-[15px] text-ink-muted font-medium leading-relaxed space-y-4">
-              {isCS ? (
-                <>
-                  <p>
-                    Skinify je peer-to-peer{' '}
-                    <a href="/marketplace" className="text-accent hover:underline">
-                      tržiště CS2
-                    </a>
-                    , kde kupujete a prodáváte skiny do Counter-Strike 2 přímo
-                    s ostatními hráči. Každý obchod je chráněný escrowem,
-                    poplatky na straně kupujícího jsou nulové a položky se doručí
-                    do vašeho Steam inventáře v okamžiku, kdy přijmete trade offer
-                    — obvykle za méně než minutu.
-                  </p>
-                  <p>
-                    Hledáte konkrétní zbraň? Projděte si{' '}
-                    <a href="/weapons/Rifles/AK-47" className="text-accent hover:underline">
-                      AK-47 skiny
-                    </a>
-                    ,{' '}
-                    <a href="/weapons/Rifles/AWP" className="text-accent hover:underline">
-                      AWP skiny
-                    </a>
-                    ,{' '}
-                    <a href="/weapons/Rifles/M4A4" className="text-accent hover:underline">
-                      M4A4
-                    </a>{' '}
-                    a{' '}
-                    <a href="/weapons/Rifles/M4A1-S" className="text-accent hover:underline">
-                      M4A1-S
-                    </a>{' '}
-                    z kategorie pušek. Z pistolí patří mezi nejnabízenější{' '}
-                    <a href="/weapons/Pistols/Desert%20Eagle" className="text-accent hover:underline">
-                      Desert Eagle
-                    </a>
-                    ,{' '}
-                    <a href="/weapons/Pistols/USP-S" className="text-accent hover:underline">
-                      USP-S
-                    </a>{' '}
-                    a{' '}
-                    <a href="/weapons/Pistols/Glock-18" className="text-accent hover:underline">
-                      Glock-18
-                    </a>
-                    . Nože a rukavice —{' '}
-                    <a href="/weapons/Knives/Karambit" className="text-accent hover:underline">
-                      Karambit
-                    </a>
-                    ,{' '}
-                    <a href="/weapons/Knives/M9%20Bayonet" className="text-accent hover:underline">
-                      M9 Bayonet
-                    </a>
-                    ,{' '}
-                    <a href="/weapons/Knives/Butterfly%20Knife" className="text-accent hover:underline">
-                      Butterfly Knife
-                    </a>
-                    ,{' '}
-                    <a href="/weapons/Gloves/Sport%20Gloves" className="text-accent hover:underline">
-                      Sport Gloves
-                    </a>{' '}
-                    — mají vlastní kategorie s filtry na float, pattern a samolepky.
-                  </p>
-                  <p>
-                    Ve srovnání se Steam Marketem Skinify úplně odstraňuje 15% poplatek
-                    Valve pro kupující a prodávajícím vyplácí skutečné peníze místo
-                    Steam Wallet kreditu, který nemůžete vybrat. Ve srovnání s třetími
-                    stranami držíme nulové poplatky pro kupující a účtujeme jen 2%
-                    prodejcům, které se ještě snižují s{' '}
-                    <a href="/vip" className="text-accent hover:underline">
-                      VIP členstvím
-                    </a>
-                    . První vklad získá 10% bonus — podrobnosti najdete na stránce{' '}
-                    <a href="/bonuses" className="text-accent hover:underline">
-                      Bonusy
-                    </a>
-                    .
-                  </p>
-                  <p>
-                    Každý obchod je držen v escrowu 8 dní, aby pokryl 7denní Steam
-                    trade-back okno plus jednodenní bezpečnostní rezervu. Pokud
-                    prodávající nikdy neodešle, obdržíte automaticky vrácení peněz.
-                    Když se něco jiného pokazí, náš tým řeší spory do 24 hodin.
-                    Přečtěte si{' '}
-                    <a href="/trading-guide" className="text-accent hover:underline">
-                      kompletního průvodce obchodováním
-                    </a>{' '}
-                    nebo přejděte rovnou na{' '}
-                    <a href="/faq" className="text-accent hover:underline">
-                      časté dotazy
-                    </a>
-                    .
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p>
-                    Skinify is a peer-to-peer{' '}
-                    <a href="/marketplace" className="text-accent hover:underline">
-                      CS2 marketplace
-                    </a>{' '}
-                    where you buy and sell Counter-Strike 2 skins directly with other
-                    players. Every trade is escrow-protected, fees are zero on the
-                    buyer side, and items deliver to your Steam inventory the moment
-                    you accept the trade offer — typically in under a minute.
-                  </p>
-                  <p>
-                    Looking for a specific weapon? Browse{' '}
-                    <a href="/weapons/Rifles/AK-47" className="text-accent hover:underline">
-                      AK-47 skins
-                    </a>
-                    ,{' '}
-                    <a href="/weapons/Rifles/AWP" className="text-accent hover:underline">
-                      AWP skins
-                    </a>
-                    ,{' '}
-                    <a href="/weapons/Rifles/M4A4" className="text-accent hover:underline">
-                      M4A4
-                    </a>
-                    , and{' '}
-                    <a href="/weapons/Rifles/M4A1-S" className="text-accent hover:underline">
-                      M4A1-S
-                    </a>{' '}
-                    from the rifle category. For pistols, the{' '}
-                    <a href="/weapons/Pistols/Desert%20Eagle" className="text-accent hover:underline">
-                      Desert Eagle
-                    </a>
-                    ,{' '}
-                    <a href="/weapons/Pistols/USP-S" className="text-accent hover:underline">
-                      USP-S
-                    </a>{' '}
-                    and{' '}
-                    <a href="/weapons/Pistols/Glock-18" className="text-accent hover:underline">
-                      Glock-18
-                    </a>{' '}
-                    are the most-listed. Knives and gloves —{' '}
-                    <a href="/weapons/Knives/Karambit" className="text-accent hover:underline">
-                      Karambit
-                    </a>
-                    ,{' '}
-                    <a href="/weapons/Knives/M9%20Bayonet" className="text-accent hover:underline">
-                      M9 Bayonet
-                    </a>
-                    ,{' '}
-                    <a href="/weapons/Knives/Butterfly%20Knife" className="text-accent hover:underline">
-                      Butterfly Knife
-                    </a>
-                    ,{' '}
-                    <a href="/weapons/Gloves/Sport%20Gloves" className="text-accent hover:underline">
-                      Sport Gloves
-                    </a>{' '}
-                    — sit in their own categories with float, pattern and sticker
-                    filters built in.
-                  </p>
-                  <p>
-                    Compared to in-game Steam Market trading, Skinify cuts the 15% Valve
-                    fee entirely for buyers and pays sellers in real money instead of
-                    Steam Wallet credit you can&apos;t cash out. Compared to third-party
-                    marketplaces, we keep buyer fees at zero and run a smaller 2% seller
-                    fee that drops further with{' '}
-                    <a href="/vip" className="text-accent hover:underline">
-                      VIP membership
-                    </a>
-                    . First-time deposits get a 10% top-up bonus — see the{' '}
-                    <a href="/bonuses" className="text-accent hover:underline">
-                      Bonuses
-                    </a>{' '}
-                    page for details.
-                  </p>
-                  <p>
-                    Every trade is held in escrow for 8 days to cover Steam&apos;s 7-day
-                    trade-back window plus a one-day safety margin. If the seller never
-                    sends, you&apos;re refunded automatically. If something else goes
-                    wrong, our team resolves disputes in under 24 hours. Read the{' '}
-                    <a href="/trading-guide" className="text-accent hover:underline">
-                      full trading guide
-                    </a>{' '}
-                    or jump straight to the{' '}
-                    <a href="/faq" className="text-accent hover:underline">
-                      FAQ
-                    </a>
-                    .
-                  </p>
-                </>
-              )}
-            </div>
-            </div>
-
-            {/* Right rail — fills what used to be empty whitespace with
-                quick-look stats and one CTA. Sticks on tall viewports so
-                it stays in view while the user reads. */}
-            <aside className="lg:sticky lg:top-24 self-start space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <Stat
-                  label={isCS ? 'Poplatek kupujícího' : 'Buyer fees'}
-                  value="0%"
-                  sub={isCS ? 'Vždy' : 'Always'}
-                />
-                <Stat
-                  label={isCS ? 'Poplatek prodávajícího' : 'Seller fee'}
-                  value="2%"
-                  sub={isCS ? 'Klesá s VIP' : 'Drops with VIP'}
-                />
-                <Stat
-                  label={isCS ? 'Escrow' : 'Escrow window'}
-                  value={isCS ? '8 dní' : '8 days'}
-                  sub={isCS ? 'Bezpečné pro Steam' : 'Steam-safe'}
-                />
-                <Stat
-                  label={isCS ? 'Průměrné doručení' : 'Avg delivery'}
-                  value="<1 min"
-                  sub={isCS ? 'Trade offer' : 'Trade offer'}
-                />
-              </div>
-
-              <div className="card-flat p-5">
-                <div className="label-eyebrow">
-                  {isCS ? 'Jak kupující šetří' : 'How buyers save'}
-                </div>
-                <p className="text-[13px] text-ink-muted font-medium leading-relaxed mt-2">
-                  {isCS ? (
-                    <>
-                      Steam Market účtuje{' '}
-                      <strong className="text-ink">15% poplatek</strong> a
-                      vyplácí v nevybíratelném Wallet kreditu. Skinify účtuje{' '}
-                      <strong className="text-ink">0% kupujícím</strong> a
-                      prodávajícím vyplácí skutečné peníze.
-                    </>
-                  ) : (
-                    <>
-                      Steam Market charges a{' '}
-                      <strong className="text-ink">15% fee</strong> and pays in
-                      non-cashable Wallet credit. Skinify charges{' '}
-                      <strong className="text-ink">0% to buyers</strong> and pays
-                      sellers in real money.
-                    </>
-                  )}
-                </p>
-                <a
-                  href="/marketplace"
-                  className="mt-4 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-accent hover:opacity-80 transition-opacity"
-                >
-                  {isCS ? 'Procházet tržiště' : 'Browse the marketplace'}
-                  <ChevronRight size={13} strokeWidth={2.6} />
-                </a>
-              </div>
-            </aside>
-          </section>
-        </Reveal>
+        {/* ===== COMPACT SEO / FAQ — kept below the fold for search
+            ranking without cluttering the top. ===== */}
+        <LandingSeoBlock isCS={isCS} />
       </main>
 
       <Footer />
     </div>
   );
 };
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SlimProfileHero — the signed-in landing hero. A compact, single-row
+   account strip (avatar + name + balance + Refill) that replaces the old
+   chart-heavy welcome banner. No sparkline, no stat pills — just what a
+   returning trader needs above the grid.
+   ───────────────────────────────────────────────────────────────────────── */
+const SlimProfileHero: React.FC<{
+  user: any;
+  balance: number;
+  formatPrice: (n: number) => string;
+  onRefill: () => void;
+  onProfile: () => void;
+}> = ({ user, balance, formatPrice, onRefill, onProfile }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 12 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={spring}
+    className="card p-4 sm:p-5 flex items-center gap-4 relative overflow-hidden"
+  >
+    <div
+      aria-hidden
+      className="absolute -top-12 -right-12 w-48 h-48 rounded-full pointer-events-none"
+      style={{ background: 'radial-gradient(circle, rgb(var(--accent) / 0.12), transparent 70%)' }}
+    />
+    <button onClick={onProfile} className="relative shrink-0" aria-label="Open profile">
+      {user.avatarUrl ? (
+        <img src={user.avatarUrl} alt="" className="w-14 h-14 rounded-2xl object-cover ring-2 ring-accent/30" />
+      ) : (
+        <div className="w-14 h-14 rounded-2xl bg-subtle" />
+      )}
+      <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 ring-2 ring-surface" />
+    </button>
+    <div className="min-w-0 flex-1">
+      <span className="label-eyebrow">Welcome back</span>
+      <div className="text-[19px] sm:text-[22px] font-bold tracking-tight leading-tight truncate">
+        {user.displayName || 'Trader'}
+      </div>
+    </div>
+    <div className="relative flex items-center gap-3 sm:gap-4 shrink-0">
+      <div className="text-right">
+        <span className="label-meta">Balance</span>
+        <div className="text-[20px] sm:text-[24px] font-bold text-ink tracking-tight tabular-nums leading-none mt-0.5">
+          {formatPrice(balance || 0)}
+        </div>
+      </div>
+      <motion.button
+        whileTap={tap}
+        onClick={onRefill}
+        className="h-11 px-5 rounded-full bg-accent text-on-accent text-[13px] font-bold shrink-0"
+        style={{ boxShadow: '0 8px 20px -10px rgb(var(--accent) / 0.6)' }}
+      >
+        Refill
+      </motion.button>
+    </div>
+  </motion.div>
+);
+
+/* Fallback signed-out hero when there are no items to feature yet — a slim
+   value-prop banner instead of the featured showcase. */
+const SignedOutValueHero: React.FC<{ navigate: (to: string) => void; t: any }> = ({ navigate, t }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 12 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={spring}
+    className="card p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-5"
+  >
+    <div className="max-w-[560px]">
+      <span className="label-eyebrow">CS2 marketplace · 6% buyer fees</span>
+      <h2 className="text-[24px] sm:text-[30px] font-bold tracking-tight leading-tight mt-2">
+        {t('landing.hero.headline', 'Buy and sell CS2 skins, escrow-protected')}
+      </h2>
+      <p className="text-[13.5px] text-ink-muted font-medium mt-2 leading-relaxed">
+        {t('landing.hero.lead', 'Sub-60-second Steam delivery, real-money payouts.')}
+      </p>
+    </div>
+    <div className="flex gap-2 shrink-0">
+      <button
+        onClick={() => navigate('/marketplace')}
+        className="h-11 px-5 rounded-full bg-accent text-on-accent text-[13px] font-bold"
+      >
+        {t('landing.hero.browseMarket', 'Browse market')}
+      </button>
+      <button
+        onClick={() => navigate('/profile?tab=inventory')}
+        className="h-11 px-5 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[13px] font-bold transition-colors"
+      >
+        {t('landing.hero.startSelling', 'Start selling')}
+      </button>
+    </div>
+  </motion.div>
+);
+
+/* Compact SEO/FAQ block — kept below the fold so search ranking survives
+   the redesign without cluttering the top of the page. */
+const LandingSeoBlock: React.FC<{ isCS: boolean }> = ({ isCS }) => (
+  <section className="mt-4 card p-6 sm:p-8">
+    <h2 className="text-[17px] font-bold text-ink tracking-tight">
+      {isCS ? 'Tržiště CS2 skinů' : 'The CS2 skin marketplace'}
+    </h2>
+    <p className="text-[13.5px] text-ink-muted font-medium mt-2 leading-relaxed max-w-[820px]">
+      {isCS
+        ? 'Skinify je peer-to-peer tržiště pro nákup a prodej CS2 skinů — AK-47, AWP, Karambit, M9 Bayonet, rukavice a vzácné patterny od ověřených prodejců. Obchody chráněné escrowem, doručení přes Steam do 60 sekund a výplaty v reálných penězích s 6% poplatkem pro kupující.'
+        : 'Skinify is the peer-to-peer marketplace to buy and sell CS2 skins — AK-47, AWP, Karambit, M9 Bayonet, gloves and rare patterns from verified sellers. Escrow-protected trades, sub-60-second Steam delivery, and real-money payouts with 6% buyer fees.'}
+    </p>
+    <div className="mt-4 flex flex-wrap gap-2">
+      {['AK-47', 'AWP', 'Karambit', 'M9 Bayonet', 'Gloves', 'Stickers'].map((w) => (
+        <a
+          key={w}
+          href={`/marketplace?q=${encodeURIComponent(w)}`}
+          className="h-8 px-3 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[12.5px] font-semibold inline-flex items-center transition-colors"
+        >
+          {w}
+        </a>
+      ))}
+    </div>
+  </section>
+);
 
 /* ─────────────────────────────────────────────────────────────────────────
    PromotedRow — the first thing under the welcome banner: a horizontal,
@@ -936,6 +524,24 @@ const PromotedRow: React.FC<{
 }> = ({ items, onView, onAddCart, onToggleWish, isWished, formatPrice }) => {
   const ref = useRef<HTMLDivElement | null>(null);
   const drag = useRef({ active: false, startX: 0, startScroll: 0, moved: false });
+  /* Dot pagination — the slider is divided into `dotCount` pages; the
+     active dot follows the scroll position. Clicking a dot scrolls to it. */
+  const shown = items.slice(0, 20);
+  const dotCount = Math.min(6, Math.max(1, Math.ceil(shown.length / 4)));
+  const [activeDot, setActiveDot] = useState(0);
+  const onScroll = () => {
+    const node = ref.current;
+    if (!node) return;
+    const max = node.scrollWidth - node.clientWidth;
+    const frac = max > 0 ? node.scrollLeft / max : 0;
+    setActiveDot(Math.round(frac * (dotCount - 1)));
+  };
+  const goToDot = (i: number) => {
+    const node = ref.current;
+    if (!node) return;
+    const max = node.scrollWidth - node.clientWidth;
+    node.scrollTo({ left: (max * i) / Math.max(1, dotCount - 1), behavior: 'smooth' });
+  };
 
   const onPointerDown = (e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest('button, a')) return;
@@ -992,13 +598,14 @@ const PromotedRow: React.FC<{
 
       <div
         ref={ref}
+        onScroll={onScroll}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         className="flex gap-3 overflow-x-auto scrollbar-thin pt-6 pb-16 -my-4 cursor-grab active:cursor-grabbing select-none touch-pan-x"
       >
-        {items.slice(0, 20).map((it) => (
+        {shown.map((it) => (
           <div key={it.id} className="shrink-0 w-52">
             <SkinCard
               variant="tile"
@@ -1012,6 +619,22 @@ const PromotedRow: React.FC<{
           </div>
         ))}
       </div>
+
+      {/* Dot pagination — the wireframe's • • • • • row under the slider. */}
+      {dotCount > 1 && (
+        <div className="flex items-center justify-center gap-2 -mt-1">
+          {Array.from({ length: dotCount }).map((_, i) => (
+            <button
+              key={i}
+              onClick={() => goToDot(i)}
+              aria-label={`Go to page ${i + 1}`}
+              className={`h-2 rounded-full transition-all ${
+                i === activeDot ? 'w-5 bg-accent' : 'w-2 bg-ink/20 hover:bg-ink/35'
+              }`}
+            />
+          ))}
+        </div>
+      )}
     </motion.section>
   );
 };
