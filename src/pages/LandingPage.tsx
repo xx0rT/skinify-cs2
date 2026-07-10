@@ -300,11 +300,14 @@ const LandingPage: React.FC = () => {
           )}
         </section>
 
-        {/* ===== 2 · TRUST BAR + STAT COUNTERS ===== a thin, borderless row
+        {/* ===== 2 · PROMO BANNER — the purple Skinify welcome banner. ===== */}
+        <PromoBanner />
+
+        {/* ===== 3 · TRUST BAR + STAT COUNTERS ===== a thin, borderless row
             of value points + live-feeling counters. ===== */}
         <LandingTrustBar isCS={isCS} itemCount={marketplaceItems?.length || 0} />
 
-        {/* ===== 3 · BEST SKINS — tabbed price-bracket grid ===== */}
+        {/* ===== 4 · BEST SKINS — tabbed price-bracket grid ===== */}
         <BestSkinsGrid
           items={marketplaceItems || []}
           loading={itemsLoading}
