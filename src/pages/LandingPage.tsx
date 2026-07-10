@@ -62,27 +62,32 @@ const LANDING_FAQ = [
   {
     question: 'What is the cheapest way to buy CS2 skins?',
     answer:
-      'Skinify charges 0% buyer fees, so the price you see is the price you pay. Sellers list peer-to-peer at or near the live Steam market median, which usually undercuts third-party marketplaces that add 5–15% spreads.',
+      'Skinify keeps buyer fees low, so the price you see stays very close to the price you pay — no surprise spreads bolted on at checkout. Because listings are peer-to-peer, sellers price at or near the live Steam market median, which routinely undercuts third-party sites that add 5–15% on top. On popular items like the AK-47, AWP or a Karambit you can compare multiple listings side by side, sort by price or float, and grab the exact copy that fits your budget. Prices are shown in your local currency, so you always know what you are spending.',
   },
   {
-    question: 'Is Skinify safe for trading CS2 skins?',
+    question: 'Is Skinify safe for buying and selling CS2 skins?',
     answer:
-      'Every purchase is held in escrow until you confirm the Steam trade offer was received. If the seller fails to deliver within 60 minutes you are automatically refunded. Funds release to sellers 8 days after delivery to cover Steam\'s trade-back window.',
+      'Yes — safety is built into every step. Each purchase is held in escrow until the item is confirmed delivered to your Steam inventory. If a seller fails to deliver within the delivery window, you are automatically refunded, so your money is never at risk. Seller payouts are released after Steam’s trade-back window to protect buyers from reversed trades, and every account trades through our verified flow. For sellers, a one-time identity check (KYC) is required past a certain volume to keep the marketplace clean and compliant.',
   },
   {
     question: 'How long does a CS2 skin trade take on Skinify?',
     answer:
-      'Median delivery is under 60 seconds when the seller is online. After accepting the Steam trade offer in your mobile app the item lands in your inventory immediately.',
+      'When the seller is online, median delivery is under 60 seconds. After you buy, the seller sends a Steam trade offer; you accept it in your Steam mobile app and the skin lands in your inventory right away. If an item carries a Steam trade lock (0–8 days), it is stored safely in your Skinify inventory and sent to you automatically the moment the lock expires — you don’t have to babysit it.',
   },
   {
-    question: 'Do I need Steam Mobile Authenticator to trade?',
+    question: 'Do I need the Steam Mobile Authenticator to trade?',
     answer:
-      'Yes. Without it Steam itself holds every trade offer for 15 days regardless of which marketplace you use. Enable Steam Guard Mobile for instant trades.',
+      'Yes. Without Steam Guard Mobile enabled, Steam itself holds every trade offer for up to 15 days — that applies to any marketplace, not just Skinify. Enabling the mobile authenticator unlocks instant trades and is required to both send and receive items quickly. It only takes a couple of minutes to set up in the Steam app and it also protects your account from unauthorised trades.',
   },
   {
-    question: 'Can I sell my CS2 inventory on Skinify?',
+    question: 'How do I sell my CS2 inventory on Skinify?',
     answer:
-      'Yes. Connect your Steam account, open the Inventory tab, pick items, set a price (or use the recommended Steam median), and your listing goes live. Skinify charges a 2% seller fee — VIP members pay less.',
+      'Link your Steam account, open the Inventory tab, pick the items you want to sell, and set a price — we suggest a fair one based on recent sales, but you are always free to price it yourself. Your listings go live instantly, and you stay in control: change the price any time before it sells, or delist and keep the item. When a listing sells, a low selling fee is taken from the sale price and the rest is yours to withdraw to your bank or spend on the marketplace.',
+  },
+  {
+    question: 'Which skins can I trade — knives, gloves, stickers?',
+    answer:
+      'All of them. Skinify covers the full CS2 catalogue: rifles and pistols like the AK-47, M4A4 and Desert Eagle, sniper skins like the AWP, knives such as the Karambit, M9 Bayonet and Butterfly Knife, gloves, agents, cases, and rare stickers and patterns. Detailed filters let you search by float value, paint seed, pattern, StatTrak™ and more, so you can find the exact copy you want — including items that rarely appear on the Steam Community Market.',
   },
 ];
 
@@ -300,10 +305,7 @@ const LandingPage: React.FC = () => {
           )}
         </section>
 
-        {/* ===== 2 · PROMO BANNER — the purple Skinify welcome banner. ===== */}
-        <PromoBanner />
-
-        {/* ===== 3 · TRUST BAR + STAT COUNTERS ===== a thin, borderless row
+        {/* ===== 2 · TRUST BAR + STAT COUNTERS ===== a thin, borderless row
             of value points + live-feeling counters. ===== */}
         <LandingTrustBar isCS={isCS} itemCount={marketplaceItems?.length || 0} />
 
@@ -351,6 +353,12 @@ const LandingPage: React.FC = () => {
 
         {/* ===== 6 · SEO text + FAQ accordion ===== */}
         <LandingSeoBlock isCS={isCS} faq={LANDING_FAQ} />
+
+        {/* ===== 7 · PROMO BANNER — the purple Skinify banner, at the very
+            bottom as a closing call-to-action. ===== */}
+        <div className="mt-12">
+          <PromoBanner />
+        </div>
       </main>
 
       <Footer />
@@ -376,72 +384,80 @@ const AccountBanner: React.FC<{
     initial={{ opacity: 0, y: 14 }}
     animate={{ opacity: 1, y: 0 }}
     transition={spring}
-    className="relative overflow-hidden rounded-[28px] px-6 sm:px-8 py-7 sm:py-8"
+    className="relative overflow-hidden rounded-[28px] p-5 sm:p-6"
     style={{
       background:
-        'linear-gradient(115deg, rgb(var(--accent) / 0.10) 0%, rgb(var(--accent) / 0.03) 45%, transparent 80%)',
+        'radial-gradient(120% 140% at 100% 0%, rgb(var(--accent) / 0.14) 0%, rgb(var(--accent) / 0.04) 40%, rgb(var(--surface)) 75%)',
     }}
   >
-    {/* Smooth ambient balance chart on the right. `preserveAspectRatio`
-        default keeps the curve undistorted, and a non-scaling stroke keeps
-        the line crisp and uniform at any width. A single gentle fade-up on
-        the whole SVG — no jittery per-path draw animation. */}
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.6, ease: 'easeOut' }}
-      className="absolute inset-y-0 right-0 w-[58%] pointer-events-none"
-    >
-      <svg viewBox="0 0 200 60" className="w-full h-full" aria-hidden>
-        <defs>
-          <linearGradient id="acct-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgb(var(--accent))" stopOpacity="0.18" />
-            <stop offset="100%" stopColor="rgb(var(--accent))" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d={spark.area} fill="url(#acct-fill)" />
-        <path
-          d={spark.line}
-          fill="none"
-          stroke="rgb(var(--accent))"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-    </motion.div>
-
-    <div className="relative flex flex-wrap items-center gap-x-6 gap-y-5">
-      <button onClick={onProfile} className="flex items-center gap-4 min-w-0" aria-label="Open profile">
-        {user.avatarUrl ? (
-          <img src={user.avatarUrl} alt="" className="w-16 h-16 rounded-2xl object-cover ring-2 ring-accent/25" />
-        ) : (
-          <div className="w-16 h-16 rounded-2xl bg-subtle" />
-        )}
-        <div className="min-w-0 text-left">
-          <span className="label-eyebrow">Welcome back</span>
-          <div className="text-[22px] sm:text-[26px] font-bold tracking-tight leading-tight truncate">
-            {user.displayName || 'Trader'}
+    <div className="flex flex-col lg:flex-row items-stretch gap-5">
+      {/* Left — identity + balance + refill. Chart is NOT behind this, so
+          nothing slices through the number. */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center">
+        <button onClick={onProfile} className="flex items-center gap-4 min-w-0 text-left" aria-label="Open profile">
+          {user.avatarUrl ? (
+            <img src={user.avatarUrl} alt="" className="w-14 h-14 rounded-2xl object-cover ring-2 ring-accent/25 shrink-0" />
+          ) : (
+            <div className="w-14 h-14 rounded-2xl bg-subtle shrink-0" />
+          )}
+          <div className="min-w-0">
+            <span className="label-eyebrow">Welcome back</span>
+            <div className="text-[22px] sm:text-[26px] font-bold tracking-tight leading-tight truncate">
+              {user.displayName || 'Trader'}
+            </div>
           </div>
-        </div>
-      </button>
+        </button>
 
-      <div className="flex items-center gap-6 ml-auto">
-        <div>
-          <span className="label-meta">Available balance</span>
-          <div className="text-[28px] sm:text-[34px] font-bold text-ink tracking-tight tabular-nums leading-none mt-1">
-            {formatPrice(balance || 0)}
+        <div className="mt-5 flex flex-wrap items-end gap-x-6 gap-y-3">
+          <div>
+            <span className="label-meta">Available balance</span>
+            <div className="text-[30px] sm:text-[38px] font-bold text-ink tracking-tight tabular-nums leading-none mt-1.5">
+              {formatPrice(balance || 0)}
+            </div>
           </div>
+          <motion.button
+            whileTap={tap}
+            onClick={onRefill}
+            className="h-11 px-6 rounded-full bg-accent text-on-accent text-[14px] font-bold shrink-0"
+            style={{ boxShadow: '0 10px 24px -12px rgb(var(--accent) / 0.7)' }}
+          >
+            Refill
+          </motion.button>
         </div>
-        <motion.button
-          whileTap={tap}
-          onClick={onRefill}
-          className="h-12 px-6 rounded-full bg-accent text-on-accent text-[14px] font-bold shrink-0"
-          style={{ boxShadow: '0 10px 24px -12px rgb(var(--accent) / 0.7)' }}
-        >
-          Refill
-        </motion.button>
+      </div>
+
+      {/* Right — a contained, self-bounded balance chart panel. It lives in
+          its own box with a soft surface, so the curve never overlaps the
+          text. Grid baseline + smooth area + line + end marker dot. */}
+      <div className="lg:w-[360px] shrink-0 rounded-2xl bg-ink/[0.03] dark:bg-white/[0.03] p-4 flex flex-col">
+        <div className="flex items-center justify-between mb-2">
+          <span className="label-meta">Balance trend</span>
+          <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+            +2.4%
+          </span>
+        </div>
+        <div className="relative flex-1 min-h-[92px]">
+          <svg viewBox="0 0 200 60" preserveAspectRatio="none" className="absolute inset-0 w-full h-full" aria-hidden>
+            <defs>
+              <linearGradient id="acct-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="rgb(var(--accent))" stopOpacity="0.28" />
+                <stop offset="100%" stopColor="rgb(var(--accent))" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            {/* faint baseline */}
+            <line x1="8" y1="54" x2="192" y2="54" stroke="rgb(var(--line))" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+            <path d={spark.area} fill="url(#acct-fill)" />
+            <path
+              d={spark.line}
+              fill="none"
+              stroke="rgb(var(--accent))"
+              strokeWidth="2.25"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        </div>
       </div>
     </div>
   </motion.div>
@@ -728,8 +744,6 @@ const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer
   isCS,
   faq,
 }) => {
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const [expanded, setExpanded] = useState(false);
   const sections = isCS ? SEO_SECTIONS_CS : SEO_SECTIONS_EN;
 
   /* Game-market counter rows (the "SEE ALL X CS2 SKINS" strip). Static
@@ -741,17 +755,22 @@ const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer
     { name: isCS ? 'Trh Rust' : 'Rust market', count: '111.6K', to: '/marketplace?q=Rust' },
   ];
 
+  const keywords = [
+    'AK-47', 'AWP', 'M4A4', 'Desert Eagle', 'Karambit', 'M9 Bayonet',
+    'Butterfly Knife', 'Sport Gloves', 'Stickers', 'StatTrak',
+  ];
+
   return (
     <section className="mt-8">
-      {/* Market counters */}
-      <div className="grid sm:grid-cols-2 gap-x-10 gap-y-1 border-t border-line/60 pt-6">
+      {/* Market counter rows */}
+      <div className="grid sm:grid-cols-2 gap-x-12 gap-y-0 border-t border-line/60 pt-6">
         {markets.map((m) => (
           <a
             key={m.name}
             href={m.to}
-            className="flex items-center justify-between gap-4 py-3 border-b border-line/40 group"
+            className="flex items-center justify-between gap-4 py-3.5 border-b border-line/40 group"
           >
-            <span className="text-[15px] font-bold text-ink">{m.name}</span>
+            <span className="text-[15px] sm:text-[16px] font-bold text-ink">{m.name}</span>
             <span className="text-[12px] font-bold text-ink-muted group-hover:text-accent transition-colors whitespace-nowrap tabular-nums">
               {isCS ? 'ZOBRAZIT' : 'SEE ALL'} {m.count} {isCS ? 'SKINŮ' : 'SKINS'} →
             </span>
@@ -759,97 +778,61 @@ const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer
         ))}
       </div>
 
-      {/* Long-form SEO essay */}
-      <div className="mt-10">
-        <h2 className="text-[20px] sm:text-[24px] font-bold text-ink tracking-tight">
+      {/* Long-form SEO essay — always fully expanded (no read-more gate),
+          stretched across a wide two-column layout on desktop. */}
+      <div className="mt-12">
+        <h2 className="text-[22px] sm:text-[28px] font-bold text-ink tracking-tight max-w-[900px]">
           {sections[0].h}
         </h2>
         {sections[0].p.map((para, i) => (
-          <p key={i} className="text-[13.5px] text-ink-muted font-medium mt-3 leading-relaxed max-w-[860px]">
+          <p key={i} className="text-[14px] text-ink-muted font-medium mt-4 leading-[1.75] max-w-[900px]">
             {para}
           </p>
         ))}
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {['AK-47', 'AWP', 'Karambit', 'M9 Bayonet', 'Butterfly Knife', 'Sport Gloves', 'Stickers'].map((w) => (
+        {/* Keyword links — click through to marketplace searches. */}
+        <div className="mt-5 flex flex-wrap gap-2">
+          {keywords.map((w) => (
             <a
               key={w}
               href={`/marketplace?q=${encodeURIComponent(w)}`}
-              className="h-8 px-3 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[12.5px] font-semibold inline-flex items-center transition-colors"
+              className="h-8 px-3.5 rounded-full bg-subtle hover:bg-accent hover:text-on-accent text-ink text-[12.5px] font-semibold inline-flex items-center transition-colors"
             >
               {w}
             </a>
           ))}
         </div>
 
-        <AnimatePresence initial={false}>
-          {expanded && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.25 }}
-              className="overflow-hidden"
-            >
-              {sections.slice(1).map((sec) => (
-                <div key={sec.h} className="mt-8">
-                  <h3 className="text-[16px] font-bold text-ink tracking-tight">{sec.h}</h3>
-                  {sec.p.map((para, i) => (
-                    <p key={i} className="text-[13.5px] text-ink-muted font-medium mt-2.5 leading-relaxed max-w-[860px]">
-                      {para}
-                    </p>
-                  ))}
-                </div>
+        {/* Remaining sections — two-column on large screens so the essay
+            reads wide and stretched rather than a narrow strip. */}
+        <div className="mt-10 grid lg:grid-cols-2 gap-x-14 gap-y-10">
+          {sections.slice(1).map((sec) => (
+            <div key={sec.h}>
+              <h3 className="text-[17px] font-bold text-ink tracking-tight">{sec.h}</h3>
+              {sec.p.map((para, i) => (
+                <p key={i} className="text-[13.5px] text-ink-muted font-medium mt-3 leading-[1.75]">
+                  {para}
+                </p>
               ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          className="mt-5 text-[13px] font-bold text-accent hover:opacity-80 transition-opacity"
-        >
-          {expanded ? (isCS ? 'Zobrazit méně' : 'Show less') : isCS ? 'Číst více' : 'Read more'}
-        </button>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* FAQ accordion */}
-      <div className="mt-10">
-        <h3 className="text-[18px] font-bold text-ink tracking-tight mb-3">
+      {/* FAQ — always expanded, wide two-column layout. */}
+      <div className="mt-14">
+        <h3 className="text-[22px] sm:text-[26px] font-bold text-ink tracking-tight mb-6">
           {isCS ? 'Máte otázky?' : 'Have questions?'}
         </h3>
-        <div className="divide-y divide-line/60 border-t border-line/60">
-          {faq.map((f, i) => {
-            const isOpen = openFaq === i;
-            return (
-              <div key={i}>
-                <button
-                  onClick={() => setOpenFaq(isOpen ? null : i)}
-                  className="w-full flex items-center justify-between gap-4 py-4 text-left"
-                >
-                  <span className="text-[14px] font-bold text-ink">{f.question}</span>
-                  <span className={`text-ink-muted text-[18px] leading-none shrink-0 transition-transform ${isOpen ? 'rotate-45' : ''}`}>
-                    +
-                  </span>
-                </button>
-                <AnimatePresence initial={false}>
-                  {isOpen && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.22 }}
-                      className="overflow-hidden"
-                    >
-                      <p className="text-[13.5px] text-ink-muted font-medium leading-relaxed pb-4 max-w-[760px]">
-                        {f.answer}
-                      </p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            );
-          })}
+        <div className="grid lg:grid-cols-2 gap-x-14 gap-y-8">
+          {faq.map((f, i) => (
+            <div key={i}>
+              <h4 className="text-[15px] font-bold text-ink tracking-tight">{f.question}</h4>
+              <p className="text-[13.5px] text-ink-muted font-medium leading-[1.75] mt-2.5">
+                {f.answer}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
     </section>
