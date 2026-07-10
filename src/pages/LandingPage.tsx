@@ -3,7 +3,6 @@ import { motion, AnimatePresence, useReducedMotion, useScroll, useTransform } fr
 import {
   ArrowRight,
   ChevronRight,
-  Flame,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -229,13 +228,24 @@ const LandingPage: React.FC = () => {
     } else {
       ys = [0.1, 0.18, 0.3, 0.28, 0.45, 0.5, 0.62, 0.6, 0.72, 0.8, 0.86, 0.95];
     }
-    const coords = ys.map((v, i) => {
-      const x = 8 + (i / (N - 1)) * 184; // 8px side margin inside the viewBox
-      const y = 54 - v * 46; // keep 6px top/bottom padding
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    });
-    /* Map 0..1 (bottom→top) into the 0..60 viewBox (inverted Y). */
-    const line = 'M' + coords.join(' L');
+    const pts = ys.map((v, i) => ({
+      x: 8 + (i / (N - 1)) * 184, // 8px side margin inside the viewBox
+      y: 54 - v * 46, // 6px top/bottom padding, inverted Y
+    }));
+    /* Smooth the curve with a Catmull-Rom → cubic-bezier conversion so the
+       line reads as a flowing chart rather than jagged segments. */
+    let line = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[i + 2] || p2;
+      const c1x = p1.x + (p2.x - p0.x) / 6;
+      const c1y = p1.y + (p2.y - p0.y) / 6;
+      const c2x = p2.x - (p3.x - p1.x) / 6;
+      const c2y = p2.y - (p3.y - p1.y) / 6;
+      line += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+    }
     const area = `${line} L192,60 L8,60 Z`;
     return { line, area };
   }, [marketplaceItems]);
@@ -262,56 +272,29 @@ const LandingPage: React.FC = () => {
           CS2 Marketplace — Buy and Sell CS2 Skins on Skinify
         </h1>
 
-        {/* ===== CATEGORY BAR — top-level nav into the grid below.
-            Mirrors the wireframe: Knife / Gloves / Rifles / AWP / Stickers
-            / Misc … with the category driving the skin grid. ===== */}
-        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide -mx-1 px-1 mb-5">
-          {categoryKeys.map((key) => {
-            const label =
-              key === 'featured'
-                ? t('landing.section.browse.featured', 'Featured')
-                : weaponCategories[key]?.name || key;
-            const active = activeCat === key;
-            return (
-              <motion.button
-                key={key}
-                whileTap={tap}
-                onClick={() => setActiveCat(key)}
-                className={`relative shrink-0 h-9 px-4 rounded-full text-[13px] font-bold whitespace-nowrap transition-colors ${
-                  active ? 'text-on-accent' : 'text-ink-muted hover:text-ink'
-                }`}
-              >
-                {active && (
-                  <motion.span
-                    layoutId="landing-cat-pill"
-                    className="absolute inset-0 rounded-full bg-accent"
-                    transition={spring}
-                  />
-                )}
-                {!active && <span className="absolute inset-0 rounded-full bg-subtle/70" aria-hidden />}
-                <span className="relative">{label}</span>
-              </motion.button>
-            );
-          })}
-          <div className="flex-1" />
-          <motion.button
-            whileTap={tap}
-            onClick={() => navigate('/marketplace')}
-            className="shrink-0 h-9 px-4 rounded-full bg-subtle/70 text-ink text-[13px] font-bold inline-flex items-center gap-1.5 hover:bg-subtle transition-colors"
-          >
-            {t('landing.openMarketplace', 'Filter')}
-            <ArrowRight size={13} strokeWidth={2.4} />
-          </motion.button>
-        </div>
+        {/* ===== 1 · PROMOTED — the first thing shown: a horizontal,
+            draggable rail of promoted listings with dot pagination. No
+            boxed background — it reads as content, not a widget. ===== */}
+        {(promotedItems.length > 0 || (marketplaceItems && marketplaceItems.length > 4)) && (
+          <PromotedRow
+            items={promotedItems.length > 0 ? promotedItems : (marketplaceItems || []).slice(0, 16)}
+            onView={(id) => navigate(`/item/${id}`)}
+            onAddCart={handleAddCart}
+            onToggleWish={handleWish}
+            isWished={(id) => isInWishlist(id)}
+            formatPrice={formatPrice}
+          />
+        )}
 
-        {/* ===== HERO ===== signed-in → slim profile strip; signed-out →
-            featured-item showcase (weapon + seller trust + buy panel). */}
-        <section className="mb-6">
+        {/* ===== 2 · USER BANNER ===== signed-in → advanced account banner
+            with a smooth balance chart; signed-out → featured showcase. */}
+        <section className="mb-10 mt-2">
           {user ? (
-            <SlimProfileHero
+            <AccountBanner
               user={user}
               balance={balance}
               formatPrice={formatPrice}
+              spark={sparkPaths}
               onRefill={() => openDepositModal()}
               onProfile={() => navigate('/profile')}
             />
@@ -326,9 +309,55 @@ const LandingPage: React.FC = () => {
           )}
         </section>
 
-        {/* ===== SKIN GRID — the main content, filtered by the category
-            bar above. ===== */}
-        <section className="mb-8">
+        {/* ===== 3 · MARKETPLACE PEEK ===== a slice of the market with a
+            category selector. Header is plain type — no boxed card. ===== */}
+        <section className="mb-10">
+          <div className="flex items-end justify-between gap-4 mb-4">
+            <div>
+              <span className="label-eyebrow">Marketplace</span>
+              <h2 className="text-[19px] sm:text-[22px] font-bold text-ink tracking-tight leading-none mt-1">
+                {t('landing.section.browse.title', 'Fresh on the market')}
+              </h2>
+            </div>
+            <button
+              onClick={() => navigate('/marketplace')}
+              className="shrink-0 text-[13px] font-bold text-accent hover:opacity-80 transition-opacity"
+            >
+              {t('landing.openMarketplace', 'See all')} →
+            </button>
+          </div>
+
+          {/* Category selector — plain pills, sliding accent, no container. */}
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide -mx-1 px-1 mb-4">
+            {categoryKeys.map((key) => {
+              const label =
+                key === 'featured'
+                  ? t('landing.section.browse.featured', 'Featured')
+                  : weaponCategories[key]?.name || key;
+              const active = activeCat === key;
+              return (
+                <motion.button
+                  key={key}
+                  whileTap={tap}
+                  onClick={() => setActiveCat(key)}
+                  className={`relative shrink-0 h-9 px-4 rounded-full text-[13px] font-bold whitespace-nowrap transition-colors ${
+                    active ? 'text-on-accent' : 'text-ink-muted hover:text-ink'
+                  }`}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="landing-cat-pill"
+                      className="absolute inset-0 rounded-full bg-accent"
+                      transition={spring}
+                    />
+                  )}
+                  {!active && <span className="absolute inset-0 rounded-full bg-subtle/60" aria-hidden />}
+                  <span className="relative">{label}</span>
+                </motion.button>
+              );
+            })}
+          </div>
+
           {itemsLoading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-0 isolate">
               {Array.from({ length: 10 }).map((_, i) => (
@@ -336,11 +365,9 @@ const LandingPage: React.FC = () => {
               ))}
             </div>
           ) : visibleItems.length === 0 ? (
-            <div className="card p-12 text-center">
-              <p className="text-[14px] text-ink-muted font-medium">
-                {t('landing.empty.category', 'No listings in this category yet.')}
-              </p>
-            </div>
+            <p className="text-[14px] text-ink-muted font-medium py-12 text-center">
+              {t('landing.empty.category', 'No listings in this category yet.')}
+            </p>
           ) : (
             <motion.div
               variants={staggerParent}
@@ -367,21 +394,7 @@ const LandingPage: React.FC = () => {
           )}
         </section>
 
-        {/* ===== SLIDER — promoted / recommended, horizontal & draggable
-            with dot pagination. ===== */}
-        {(promotedItems.length > 0 || (marketplaceItems && marketplaceItems.length > 4)) && (
-          <PromotedRow
-            items={promotedItems.length > 0 ? promotedItems : (marketplaceItems || []).slice(0, 16)}
-            onView={(id) => navigate(`/item/${id}`)}
-            onAddCart={handleAddCart}
-            onToggleWish={handleWish}
-            isWished={(id) => isInWishlist(id)}
-            formatPrice={formatPrice}
-          />
-        )}
-
-        {/* ===== COMPACT SEO / FAQ — kept below the fold for search
-            ranking without cluttering the top. ===== */}
+        {/* ===== COMPACT SEO / FAQ — below the fold for search ranking. */}
         <LandingSeoBlock isCS={isCS} />
       </main>
 
@@ -391,58 +404,91 @@ const LandingPage: React.FC = () => {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────
-   SlimProfileHero — the signed-in landing hero. A compact, single-row
-   account strip (avatar + name + balance + Refill) that replaces the old
-   chart-heavy welcome banner. No sparkline, no stat pills — just what a
-   returning trader needs above the grid.
+   AccountBanner — the signed-in landing hero. A wide, borderless banner:
+   an ambient accent wash (no hard border/box), the avatar + name + a large
+   balance figure on the left, and a smooth animated balance chart flowing
+   across the right. No icons — type and the curve carry it.
    ───────────────────────────────────────────────────────────────────────── */
-const SlimProfileHero: React.FC<{
+const AccountBanner: React.FC<{
   user: any;
   balance: number;
   formatPrice: (n: number) => string;
+  spark: { line: string; area: string };
   onRefill: () => void;
   onProfile: () => void;
-}> = ({ user, balance, formatPrice, onRefill, onProfile }) => (
+}> = ({ user, balance, formatPrice, spark, onRefill, onProfile }) => (
   <motion.div
-    initial={{ opacity: 0, y: 12 }}
+    initial={{ opacity: 0, y: 14 }}
     animate={{ opacity: 1, y: 0 }}
     transition={spring}
-    className="card p-4 sm:p-5 flex items-center gap-4 relative overflow-hidden"
+    className="relative overflow-hidden rounded-[28px] px-6 sm:px-8 py-7 sm:py-8"
+    style={{
+      background:
+        'linear-gradient(115deg, rgb(var(--accent) / 0.10) 0%, rgb(var(--accent) / 0.03) 45%, transparent 80%)',
+    }}
   >
-    <div
-      aria-hidden
-      className="absolute -top-12 -right-12 w-48 h-48 rounded-full pointer-events-none"
-      style={{ background: 'radial-gradient(circle, rgb(var(--accent) / 0.12), transparent 70%)' }}
-    />
-    <button onClick={onProfile} className="relative shrink-0" aria-label="Open profile">
-      {user.avatarUrl ? (
-        <img src={user.avatarUrl} alt="" className="w-14 h-14 rounded-2xl object-cover ring-2 ring-accent/30" />
-      ) : (
-        <div className="w-14 h-14 rounded-2xl bg-subtle" />
-      )}
-      <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 ring-2 ring-surface" />
-    </button>
-    <div className="min-w-0 flex-1">
-      <span className="label-eyebrow">Welcome back</span>
-      <div className="text-[19px] sm:text-[22px] font-bold tracking-tight leading-tight truncate">
-        {user.displayName || 'Trader'}
-      </div>
+    {/* Smooth chart — fills the right half, sitting behind the content as
+        an ambient visual, drawn on load. */}
+    <div className="absolute inset-y-0 right-0 w-[62%] pointer-events-none opacity-[0.9]">
+      <svg viewBox="0 0 200 60" preserveAspectRatio="none" className="w-full h-full" aria-hidden>
+        <defs>
+          <linearGradient id="acct-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgb(var(--accent))" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="rgb(var(--accent))" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <motion.path
+          d={spark.area}
+          fill="url(#acct-fill)"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.8, delay: 0.5 }}
+        />
+        <motion.path
+          d={spark.line}
+          fill="none"
+          stroke="rgb(var(--accent))"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          initial={{ pathLength: 0 }}
+          animate={{ pathLength: 1 }}
+          transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
+        />
+      </svg>
     </div>
-    <div className="relative flex items-center gap-3 sm:gap-4 shrink-0">
-      <div className="text-right">
-        <span className="label-meta">Balance</span>
-        <div className="text-[20px] sm:text-[24px] font-bold text-ink tracking-tight tabular-nums leading-none mt-0.5">
-          {formatPrice(balance || 0)}
+
+    <div className="relative flex flex-wrap items-center gap-x-6 gap-y-5">
+      <button onClick={onProfile} className="flex items-center gap-4 min-w-0" aria-label="Open profile">
+        {user.avatarUrl ? (
+          <img src={user.avatarUrl} alt="" className="w-16 h-16 rounded-2xl object-cover ring-2 ring-accent/25" />
+        ) : (
+          <div className="w-16 h-16 rounded-2xl bg-subtle" />
+        )}
+        <div className="min-w-0 text-left">
+          <span className="label-eyebrow">Welcome back</span>
+          <div className="text-[22px] sm:text-[26px] font-bold tracking-tight leading-tight truncate">
+            {user.displayName || 'Trader'}
+          </div>
         </div>
+      </button>
+
+      <div className="flex items-center gap-6 ml-auto">
+        <div>
+          <span className="label-meta">Available balance</span>
+          <div className="text-[28px] sm:text-[34px] font-bold text-ink tracking-tight tabular-nums leading-none mt-1">
+            {formatPrice(balance || 0)}
+          </div>
+        </div>
+        <motion.button
+          whileTap={tap}
+          onClick={onRefill}
+          className="h-12 px-6 rounded-full bg-accent text-on-accent text-[14px] font-bold shrink-0"
+          style={{ boxShadow: '0 10px 24px -12px rgb(var(--accent) / 0.7)' }}
+        >
+          Refill
+        </motion.button>
       </div>
-      <motion.button
-        whileTap={tap}
-        onClick={onRefill}
-        className="h-11 px-5 rounded-full bg-accent text-on-accent text-[13px] font-bold shrink-0"
-        style={{ boxShadow: '0 8px 20px -10px rgb(var(--accent) / 0.6)' }}
-      >
-        Refill
-      </motion.button>
     </div>
   </motion.div>
 );
@@ -571,27 +617,18 @@ const PromotedRow: React.FC<{
     <motion.section
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ ...spring, delay: 0.16 }}
-      className="mb-6 rounded-3xl p-4 sm:p-5 relative overflow-hidden"
-      style={{
-        background:
-          'linear-gradient(120deg, rgb(var(--accent) / 0.10), rgb(var(--accent) / 0.02) 60%)',
-        boxShadow: 'inset 0 0 0 1px rgb(var(--accent) / 0.22)',
-      }}
+      transition={{ ...spring, delay: 0.05 }}
+      className="mb-8 relative"
     >
-      <div className="flex items-center justify-between mb-3.5">
-        <div className="flex items-center gap-2.5">
-          <span className="w-9 h-9 rounded-2xl grid place-items-center bg-accent/15 text-accent shrink-0">
-            <Flame size={17} strokeWidth={2.4} />
-          </span>
-          <div>
-            <div className="label-eyebrow text-accent">Featured</div>
-            <h2 className="text-[17px] font-bold text-ink tracking-tight leading-none mt-0.5">
-              Promoted right now
-            </h2>
-          </div>
+      {/* Plain type header — no boxed background, no icon. */}
+      <div className="flex items-end justify-between gap-4 mb-1">
+        <div>
+          <span className="label-eyebrow text-accent">Featured</span>
+          <h2 className="text-[19px] sm:text-[22px] font-bold text-ink tracking-tight leading-none mt-1">
+            Promoted right now
+          </h2>
         </div>
-        <span className="pill bg-accent/12 text-accent text-[11px] font-bold">
+        <span className="text-[12.5px] font-bold text-ink-muted tabular-nums shrink-0">
           {items.length} live
         </span>
       </div>
