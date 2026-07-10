@@ -299,6 +299,8 @@ const LandingPage: React.FC = () => {
               spark={sparkPaths}
               onRefill={() => openDepositModal()}
               onProfile={() => navigate('/profile')}
+              onBrowse={() => navigate('/marketplace')}
+              onSell={() => navigate('/profile?tab=inventory')}
             />
           ) : (
             <SignedOutValueHero navigate={navigate} t={t} />
@@ -307,58 +309,68 @@ const LandingPage: React.FC = () => {
 
         {/* ===== 2 · TRUST BAR + STAT COUNTERS ===== a thin, borderless row
             of value points + live-feeling counters. ===== */}
-        <LandingTrustBar isCS={isCS} itemCount={marketplaceItems?.length || 0} />
+        <Reveal>
+          <LandingTrustBar isCS={isCS} itemCount={marketplaceItems?.length || 0} />
+        </Reveal>
 
-        {/* ===== 4 · BEST SKINS — tabbed price-bracket grid ===== */}
-        <BestSkinsGrid
-          items={marketplaceItems || []}
-          loading={itemsLoading}
-          onView={(id) => navigate(`/item/${id}`)}
-          onAddCart={handleAddCart}
-          onToggleWish={handleWish}
-          isWished={(id) => isInWishlist(id)}
-          formatPrice={formatPrice}
-          onSeeAll={() => navigate('/marketplace')}
-          isCS={isCS}
-        />
-
-        {/* ===== 4 · PROMOTED slider ===== */}
-        {(promotedItems.length > 0 || (marketplaceItems && marketplaceItems.length > 4)) && (
-          <PromotedRow
-            title={isCS ? 'Promované' : 'Promoted right now'}
-            eyebrow={isCS ? 'Doporučené' : 'Featured'}
-            items={promotedItems.length > 0 ? promotedItems : (marketplaceItems || []).slice(0, 16)}
+        {/* ===== 3 · BEST SKINS — tabbed price-bracket grid ===== */}
+        <Reveal>
+          <BestSkinsGrid
+            items={marketplaceItems || []}
+            loading={itemsLoading}
             onView={(id) => navigate(`/item/${id}`)}
             onAddCart={handleAddCart}
             onToggleWish={handleWish}
             isWished={(id) => isInWishlist(id)}
             formatPrice={formatPrice}
+            onSeeAll={() => navigate('/marketplace')}
+            isCS={isCS}
           />
+        </Reveal>
+
+        {/* ===== 4 · PROMOTED slider ===== */}
+        {(promotedItems.length > 0 || (marketplaceItems && marketplaceItems.length > 4)) && (
+          <Reveal>
+            <PromotedRow
+              title={isCS ? 'Promované' : 'Promoted right now'}
+              eyebrow={isCS ? 'Doporučené' : 'Featured'}
+              items={promotedItems.length > 0 ? promotedItems : (marketplaceItems || []).slice(0, 16)}
+              onView={(id) => navigate(`/item/${id}`)}
+              onAddCart={handleAddCart}
+              onToggleWish={handleWish}
+              isWished={(id) => isInWishlist(id)}
+              formatPrice={formatPrice}
+            />
+          </Reveal>
         )}
 
         {/* ===== 5 · RECENTLY ADDED slider ===== newest listings, so the
             page always shows fresh inventory even without promotions. */}
         {marketplaceItems && marketplaceItems.length > 4 && (
-          <PromotedRow
-            title={isCS ? 'Nově přidané' : 'Recently added'}
-            eyebrow={isCS ? 'Čerstvé' : 'Fresh'}
-            items={recentItems}
-            onView={(id) => navigate(`/item/${id}`)}
-            onAddCart={handleAddCart}
-            onToggleWish={handleWish}
-            isWished={(id) => isInWishlist(id)}
-            formatPrice={formatPrice}
-          />
+          <Reveal>
+            <PromotedRow
+              title={isCS ? 'Nově přidané' : 'Recently added'}
+              eyebrow={isCS ? 'Čerstvé' : 'Fresh'}
+              items={recentItems}
+              onView={(id) => navigate(`/item/${id}`)}
+              onAddCart={handleAddCart}
+              onToggleWish={handleWish}
+              isWished={(id) => isInWishlist(id)}
+              formatPrice={formatPrice}
+            />
+          </Reveal>
         )}
 
         {/* ===== 6 · SEO text + FAQ accordion ===== */}
-        <LandingSeoBlock isCS={isCS} faq={LANDING_FAQ} />
+        <Reveal>
+          <LandingSeoBlock isCS={isCS} faq={LANDING_FAQ} />
+        </Reveal>
 
         {/* ===== 7 · PROMO BANNER — the purple Skinify banner, at the very
             bottom as a closing call-to-action. ===== */}
-        <div className="mt-12">
+        <Reveal className="mt-12">
           <PromoBanner />
-        </div>
+        </Reveal>
       </main>
 
       <Footer />
@@ -367,11 +379,20 @@ const LandingPage: React.FC = () => {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────
-   AccountBanner — the signed-in landing hero. A wide, borderless banner:
-   an ambient accent wash (no hard border/box), the avatar + name + a large
-   balance figure on the left, and a smooth animated balance chart flowing
-   across the right. No icons — type and the curve carry it.
+   AccountBanner — the signed-in landing hero. A bold, lively welcome banner
+   (no chart): a rich gradient with two slowly-drifting accent glows, the
+   avatar + name + big balance, a Refill CTA, and quick-jump chips. Content
+   reveals with a staggered on-load animation so it feels alive.
    ───────────────────────────────────────────────────────────────────────── */
+const bannerParent = {
+  hidden: {},
+  shown: { transition: { staggerChildren: 0.07, delayChildren: 0.05 } },
+};
+const bannerChild = {
+  hidden: { opacity: 0, y: 14 },
+  shown: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 320, damping: 26 } },
+};
+
 const AccountBanner: React.FC<{
   user: any;
   balance: number;
@@ -379,87 +400,93 @@ const AccountBanner: React.FC<{
   spark: { line: string; area: string };
   onRefill: () => void;
   onProfile: () => void;
-}> = ({ user, balance, formatPrice, spark, onRefill, onProfile }) => (
+  onBrowse?: () => void;
+  onSell?: () => void;
+}> = ({ user, balance, formatPrice, onRefill, onProfile, onBrowse, onSell }) => (
   <motion.div
-    initial={{ opacity: 0, y: 14 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={spring}
-    className="relative overflow-hidden rounded-[28px] p-5 sm:p-6"
+    initial={{ opacity: 0, scale: 0.985 }}
+    animate={{ opacity: 1, scale: 1 }}
+    transition={{ type: 'spring', stiffness: 220, damping: 26 }}
+    className="relative overflow-hidden rounded-[28px] px-6 sm:px-9 py-8 sm:py-10"
     style={{
       background:
-        'radial-gradient(120% 140% at 100% 0%, rgb(var(--accent) / 0.14) 0%, rgb(var(--accent) / 0.04) 40%, rgb(var(--surface)) 75%)',
+        'linear-gradient(120deg, rgb(var(--accent) / 0.18) 0%, rgb(var(--accent) / 0.06) 42%, rgb(var(--surface)) 78%)',
     }}
   >
-    <div className="flex flex-col lg:flex-row items-stretch gap-5">
-      {/* Left — identity + balance + refill. Chart is NOT behind this, so
-          nothing slices through the number. */}
-      <div className="flex-1 min-w-0 flex flex-col justify-center">
-        <button onClick={onProfile} className="flex items-center gap-4 min-w-0 text-left" aria-label="Open profile">
-          {user.avatarUrl ? (
-            <img src={user.avatarUrl} alt="" className="w-14 h-14 rounded-2xl object-cover ring-2 ring-accent/25 shrink-0" />
-          ) : (
-            <div className="w-14 h-14 rounded-2xl bg-subtle shrink-0" />
-          )}
-          <div className="min-w-0">
-            <span className="label-eyebrow">Welcome back</span>
-            <div className="text-[22px] sm:text-[26px] font-bold tracking-tight leading-tight truncate">
-              {user.displayName || 'Trader'}
-            </div>
-          </div>
-        </button>
+    {/* Two drifting accent glows — slow, ambient motion so the banner
+        feels alive without being distracting. */}
+    <motion.div
+      aria-hidden
+      className="absolute -top-24 -right-16 w-72 h-72 rounded-full pointer-events-none"
+      style={{ background: 'radial-gradient(circle, rgb(var(--accent) / 0.30), transparent 70%)' }}
+      animate={{ x: [0, 24, 0], y: [0, 16, 0] }}
+      transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+    />
+    <motion.div
+      aria-hidden
+      className="absolute -bottom-28 left-1/4 w-72 h-72 rounded-full pointer-events-none"
+      style={{ background: 'radial-gradient(circle, rgb(var(--accent) / 0.16), transparent 70%)' }}
+      animate={{ x: [0, -20, 0], y: [0, -12, 0] }}
+      transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
+    />
 
-        <div className="mt-5 flex flex-wrap items-end gap-x-6 gap-y-3">
-          <div>
-            <span className="label-meta">Available balance</span>
-            <div className="text-[30px] sm:text-[38px] font-bold text-ink tracking-tight tabular-nums leading-none mt-1.5">
-              {formatPrice(balance || 0)}
-            </div>
+    <motion.div variants={bannerParent} initial="hidden" animate="shown" className="relative">
+      {/* Identity */}
+      <motion.button
+        variants={bannerChild}
+        onClick={onProfile}
+        className="flex items-center gap-4 min-w-0 text-left"
+        aria-label="Open profile"
+      >
+        {user.avatarUrl ? (
+          <img src={user.avatarUrl} alt="" className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover ring-2 ring-accent/30 shrink-0" />
+        ) : (
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-subtle shrink-0" />
+        )}
+        <div className="min-w-0">
+          <span className="label-eyebrow">Welcome back</span>
+          <div className="text-[24px] sm:text-[30px] font-bold tracking-tight leading-tight truncate">
+            {user.displayName || 'Trader'} 👋
           </div>
-          <motion.button
-            whileTap={tap}
-            onClick={onRefill}
-            className="h-11 px-6 rounded-full bg-accent text-on-accent text-[14px] font-bold shrink-0"
-            style={{ boxShadow: '0 10px 24px -12px rgb(var(--accent) / 0.7)' }}
+        </div>
+      </motion.button>
+
+      {/* Balance + Refill */}
+      <motion.div variants={bannerChild} className="mt-6 flex flex-wrap items-end gap-x-8 gap-y-4">
+        <div>
+          <span className="label-meta">Available balance</span>
+          <div className="text-[36px] sm:text-[46px] font-bold text-ink tracking-tight tabular-nums leading-none mt-2">
+            {formatPrice(balance || 0)}
+          </div>
+        </div>
+        <motion.button
+          whileHover={{ scale: 1.03 }}
+          whileTap={tap}
+          onClick={onRefill}
+          className="h-12 px-7 rounded-full bg-accent text-on-accent text-[14px] font-bold shrink-0"
+          style={{ boxShadow: '0 12px 28px -12px rgb(var(--accent) / 0.75)' }}
+        >
+          + Refill balance
+        </motion.button>
+      </motion.div>
+
+      {/* Quick-jump chips */}
+      <motion.div variants={bannerChild} className="mt-6 flex flex-wrap gap-2">
+        {[
+          { label: 'Browse market', onClick: onBrowse },
+          { label: 'Sell skins', onClick: onSell },
+          { label: 'My profile', onClick: onProfile },
+        ].map((c) => (
+          <button
+            key={c.label}
+            onClick={c.onClick}
+            className="h-10 px-4 rounded-full bg-ink/[0.04] dark:bg-white/[0.06] hover:bg-accent hover:text-on-accent text-ink text-[13px] font-bold transition-colors"
           >
-            Refill
-          </motion.button>
-        </div>
-      </div>
-
-      {/* Right — a contained, self-bounded balance chart panel. It lives in
-          its own box with a soft surface, so the curve never overlaps the
-          text. Grid baseline + smooth area + line + end marker dot. */}
-      <div className="lg:w-[360px] shrink-0 rounded-2xl bg-ink/[0.03] dark:bg-white/[0.03] p-4 flex flex-col">
-        <div className="flex items-center justify-between mb-2">
-          <span className="label-meta">Balance trend</span>
-          <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-            +2.4%
-          </span>
-        </div>
-        <div className="relative flex-1 min-h-[92px]">
-          <svg viewBox="0 0 200 60" preserveAspectRatio="none" className="absolute inset-0 w-full h-full" aria-hidden>
-            <defs>
-              <linearGradient id="acct-fill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="rgb(var(--accent))" stopOpacity="0.28" />
-                <stop offset="100%" stopColor="rgb(var(--accent))" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            {/* faint baseline */}
-            <line x1="8" y1="54" x2="192" y2="54" stroke="rgb(var(--line))" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-            <path d={spark.area} fill="url(#acct-fill)" />
-            <path
-              d={spark.line}
-              fill="none"
-              stroke="rgb(var(--accent))"
-              strokeWidth="2.25"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
-        </div>
-      </div>
-    </div>
+            {c.label}
+          </button>
+        ))}
+      </motion.div>
+    </motion.div>
   </motion.div>
 );
 
@@ -514,25 +541,41 @@ const LandingTrustBar: React.FC<{ isCS: boolean; itemCount: number }> = ({ isCS,
   ];
   return (
     <div className="mb-10">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 py-3">
+      <motion.div
+        variants={staggerParent}
+        initial="hidden"
+        whileInView="shown"
+        viewport={{ once: true }}
+        className="flex flex-wrap items-center gap-x-6 gap-y-2 py-3"
+      >
         {points.map((p, i) => (
-          <span key={p} className="inline-flex items-center gap-2 text-[13px] font-semibold text-ink">
+          <motion.span
+            key={p}
+            variants={staggerChild}
+            className="inline-flex items-center gap-2 text-[13px] font-semibold text-ink"
+          >
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             {p}
             {i < points.length - 1 && <span className="hidden sm:inline text-ink-dim ml-4">·</span>}
-          </span>
+          </motion.span>
         ))}
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 border-t border-line/60 pt-5">
+      </motion.div>
+      <motion.div
+        variants={staggerParent}
+        initial="hidden"
+        whileInView="shown"
+        viewport={{ once: true }}
+        className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 border-t border-line/60 pt-5"
+      >
         {stats.map((s) => (
-          <div key={s.label}>
+          <motion.div key={s.label} variants={staggerChild}>
             <div className="text-[24px] sm:text-[28px] font-bold text-ink tracking-tight tabular-nums leading-none">
               {s.value}
             </div>
             <div className="text-[12px] text-ink-muted font-medium mt-1.5">{s.label}</div>
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
     </div>
   );
 };
