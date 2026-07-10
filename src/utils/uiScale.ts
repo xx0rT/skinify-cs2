@@ -39,33 +39,33 @@ export function applyUiScale(scale: UiScale): void {
   const clamped = clamp(scale);
   const z = clamped / 100;
 
-  /* Scale #root, not <html>, so zoomed content lives in a normal flow box.
+  /* Zoom the ROOT DOCUMENT ELEMENT (<html>), not #root.
 
-     The gap: `zoom: z` makes an element occupy z× its physical space. With
-     `#root { width: 100% }` the root computes 100% of the *unzoomed*
-     containing block and zoom then shrinks it to z×100%, so at z<1 a strip
-     on the right (where the body background shows through) is left
-     uncovered. We compensate by widening the root to `100% / z` *before*
-     zoom — at z=0.85 that is ~117.6%, which renders back to exactly 100%
-     of the viewport after zoom. At z=1 we clear the override entirely. */
+     Why: `zoom` on a normal flow box (#root) leaves that box's width
+     computed against the UNZOOMED containing block, so at any scale ≠ 1
+     the box no longer matches the viewport and a strip shows on the right.
+     Worse, `zoom` on #root does not scale `position: fixed` descendants
+     (the navbar), which are sized to the true viewport — so they drift out
+     of alignment when zoomed in.
+
+     Zooming <html> instead makes the viewport itself the zoomed containing
+     block: everything, including fixed elements, scales uniformly, the page
+     width always equals 100vw at every scale, and there is no gap on either
+     side — zoomed in OR out. No width compensation is needed. */
+  const html = document.documentElement as HTMLElement;
+  // Clear any legacy overrides we used to put on #root.
   const root = document.getElementById('root') as HTMLElement | null;
-  const target = root || (document.documentElement as HTMLElement);
+  if (root) {
+    root.style.removeProperty('zoom');
+    root.style.removeProperty('width');
+    root.style.removeProperty('max-width');
+  }
 
-  target.style.setProperty('transition', 'zoom 160ms ease-out');
+  html.style.setProperty('transition', 'zoom 160ms ease-out');
   if (clamped === 100) {
-    target.style.removeProperty('zoom');
-    target.style.removeProperty('width');
-    target.style.removeProperty('max-width');
+    html.style.removeProperty('zoom');
   } else {
-    target.style.setProperty('zoom', String(z));
-    /* Widen so the zoomed box refills the viewport (at z=0.85 → ~117.6%,
-       which renders back to 100vw after zoom). The global CSS rule
-       `#root { max-width: 100vw }` would otherwise CLAMP this widened
-       value straight back to 100vw — cancelling the compensation and
-       leaving the right-hand gap (most visible on mobile). Override
-       max-width here so the compensation actually takes effect. */
-    target.style.setProperty('width', `${100 / z}%`);
-    target.style.setProperty('max-width', `${100 / z}%`);
+    html.style.setProperty('zoom', String(z));
   }
 }
 
