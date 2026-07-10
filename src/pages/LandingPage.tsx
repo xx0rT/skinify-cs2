@@ -379,36 +379,35 @@ const AccountBanner: React.FC<{
         'linear-gradient(115deg, rgb(var(--accent) / 0.10) 0%, rgb(var(--accent) / 0.03) 45%, transparent 80%)',
     }}
   >
-    {/* Smooth chart — fills the right half, sitting behind the content as
-        an ambient visual, drawn on load. */}
-    <div className="absolute inset-y-0 right-0 w-[62%] pointer-events-none opacity-[0.9]">
-      <svg viewBox="0 0 200 60" preserveAspectRatio="none" className="w-full h-full" aria-hidden>
+    {/* Smooth ambient balance chart on the right. `preserveAspectRatio`
+        default keeps the curve undistorted, and a non-scaling stroke keeps
+        the line crisp and uniform at any width. A single gentle fade-up on
+        the whole SVG — no jittery per-path draw animation. */}
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.6, ease: 'easeOut' }}
+      className="absolute inset-y-0 right-0 w-[58%] pointer-events-none"
+    >
+      <svg viewBox="0 0 200 60" className="w-full h-full" aria-hidden>
         <defs>
           <linearGradient id="acct-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgb(var(--accent))" stopOpacity="0.22" />
+            <stop offset="0%" stopColor="rgb(var(--accent))" stopOpacity="0.18" />
             <stop offset="100%" stopColor="rgb(var(--accent))" stopOpacity="0" />
           </linearGradient>
         </defs>
-        <motion.path
-          d={spark.area}
-          fill="url(#acct-fill)"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8, delay: 0.5 }}
-        />
-        <motion.path
+        <path d={spark.area} fill="url(#acct-fill)" />
+        <path
           d={spark.line}
           fill="none"
           stroke="rgb(var(--accent))"
-          strokeWidth="1.6"
+          strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
+          vectorEffect="non-scaling-stroke"
         />
       </svg>
-    </div>
+    </motion.div>
 
     <div className="relative flex flex-wrap items-center gap-x-6 gap-y-5">
       <button onClick={onProfile} className="flex items-center gap-4 min-w-0" aria-label="Open profile">
@@ -631,45 +630,198 @@ const BestSkinsGrid: React.FC<{
    LandingSeoBlock — SEO copy + an expandable FAQ accordion (the "Have
    questions?" section on the references), kept below the fold.
    ───────────────────────────────────────────────────────────────────────── */
+/* Original long-form SEO copy — structured like the big marketplaces'
+   footer essay, but written fresh for Skinify (no copied text). Collapsed
+   behind a "read more" so it doesn't dominate the page while still being
+   fully in the DOM for crawlers. */
+const SEO_SECTIONS_EN: { h: string; p: string[] }[] = [
+  {
+    h: 'Buy & sell CS2 (CS:GO) skins the easy, secure way with Skinify',
+    p: [
+      'Skinify is a peer-to-peer marketplace built to make trading Counter-Strike 2 skins simple, fast and safe. Every purchase is protected by escrow, items are delivered to your Steam inventory in under a minute, and sellers cash out in real money — not locked Steam wallet funds. With low, transparent fees and a large, active community, you can buy the skin you want or sell the ones you don’t in just a few clicks.',
+    ],
+  },
+  {
+    h: 'A short introduction to CS2 skins',
+    p: [
+      'Since weapon finishes first arrived in Counter-Strike back in 2013, skins have become a core part of the game’s culture. They let you customise your rifles, pistols, knife and gloves without changing how anything plays. What makes them special is that they aren’t permanently bound to your account — they live in your Steam inventory and can be freely bought, sold and traded with other players.',
+      'You can obtain skins in several ways: by opening cases with keys for a random item from a collection, from occasional in-game drops and operations, or simply by buying exactly the one you want on a marketplace. Rarity ranges from common finishes worth a few cents to exceedingly rare knives and gloves worth thousands, and the CS2 economy has only kept growing year after year.',
+    ],
+  },
+  {
+    h: 'What is the Skinify marketplace?',
+    p: [
+      'Skinify is an easy-to-use marketplace for CS2 items that lets you buy and sell skins for real money. Whether you’re after a clean AK-47, an AWP with a rare pattern, or a knife to finish a loadout, you’ll find thousands of listings from verified sellers. Prices are shown in your local currency, and with our low buyer fee the price you see is very close to the price you pay.',
+      'Every item on the site is real and deliverable. When you buy, the seller sends the item straight to your Steam account through our escrow-protected flow, so your money is only released once the skin lands safely in your inventory.',
+    ],
+  },
+  {
+    h: 'How Skinify differs from the Steam Community Market',
+    p: [
+      'Unlike the Steam Market, Skinify lets you sell skins for cash you can actually withdraw. Steam wallet funds can only ever be spent on Steam, and Steam caps item prices and charges a large fee on every sale — which makes it a poor place to sell rare, expensive skins. On Skinify your proceeds are yours: withdraw them to your bank or keep buying, with full flexibility.',
+      'For buyers, our detailed filters make it easy to search by float value, paint seed, pattern, stickers and more, so you can find the exact copy of a skin you’re looking for — including items that never even appear on the Steam Market.',
+    ],
+  },
+  {
+    h: 'How to buy CS2 skins on Skinify',
+    p: [
+      'Buying is transparent and quick. Browse the marketplace, use the filters to narrow down by weapon, wear, rarity or price, and add the items you like to your cart. When you’re ready, check out and pay — no need to top up a balance first or wait around for a seller to come online.',
+      'After purchase, the item is delivered to your Steam account automatically. Some skins carry a Steam trade lock of up to 8 days; if you buy a locked item it is held safely in your Skinify inventory until the lock expires, then sent to you. Our escrow only releases the seller’s payment once you’ve received the skin, so both sides are protected.',
+    ],
+  },
+  {
+    h: 'Is selling CS2 skins just as easy?',
+    p: [
+      'Yes. Link your Steam account, open your inventory, pick the items you want to sell and set a price — we suggest a fair one based on recent sales, and you’re always free to price it yourself. You stay in control: change the price any time before it sells, or delist and keep the item.',
+      'When a listing sells, our low selling fee is taken from the sale price and the rest is yours to withdraw. Payment-processor rules mean sellers who reach a certain volume complete a one-time identity check (KYC) — we’ll let you know by email when it’s needed. Everything else is handled for you, so selling stays fast, straightforward and safe.',
+    ],
+  },
+];
+const SEO_SECTIONS_CS: { h: string; p: string[] }[] = [
+  {
+    h: 'Nakupujte a prodávejte CS2 (CS:GO) skiny snadno a bezpečně se Skinify',
+    p: [
+      'Skinify je peer-to-peer tržiště, které dělá obchodování se skiny do Counter-Strike 2 jednoduché, rychlé a bezpečné. Každý nákup je chráněný escrowem, položky jsou doručeny do vašeho Steam inventáře během minuty a prodejci si vybírají skutečné peníze — ne uzamčený zůstatek na Steamu. Díky nízkým a transparentním poplatkům a velké aktivní komunitě koupíte skin, který chcete, nebo prodáte ty, které nepotřebujete, na pár kliknutí.',
+    ],
+  },
+  {
+    h: 'Krátký úvod do CS2 skinů',
+    p: [
+      'Od chvíle, kdy se v roce 2013 v Counter-Strike objevily první vzhledy zbraní, se skiny staly nedílnou součástí kultury hry. Umožňují upravit pušky, pistole, nůž i rukavice, aniž by měnily hratelnost. Jsou výjimečné tím, že nejsou trvale svázané s vaším účtem — leží ve vašem Steam inventáři a lze je volně kupovat, prodávat a měnit s ostatními hráči.',
+      'Skiny získáte několika způsoby: otevíráním beden klíči pro náhodnou položku z kolekce, z občasných dropů a operací přímo ve hře, nebo prostě koupí přesně toho, co chcete, na tržišti. Vzácnost sahá od běžných vzhledů za pár korun po extrémně vzácné nože a rukavice za tisíce — a ekonomika CS2 rok co rok jen roste.',
+    ],
+  },
+  {
+    h: 'Co je tržiště Skinify?',
+    p: [
+      'Skinify je snadno použitelné tržiště pro CS2 položky, které vám umožní nakupovat a prodávat skiny za skutečné peníze. Ať už hledáte čistou AK-47, AWP se vzácným patternem nebo nůž do loadoutu, najdete tisíce nabídek od ověřených prodejců. Ceny se zobrazují v místní měně a díky nízkému poplatku pro kupující se cena, kterou vidíte, blíží ceně, kterou zaplatíte.',
+      'Každá položka na webu je skutečná a doručitelná. Při nákupu prodejce pošle položku přímo na váš Steam účet přes náš escrow, takže se peníze uvolní až ve chvíli, kdy skin bezpečně dorazí do vašeho inventáře.',
+    ],
+  },
+  {
+    h: 'Jak se Skinify liší od Steam tržiště',
+    p: [
+      'Na rozdíl od Steam tržiště vám Skinify umožní prodat skiny za peníze, které si skutečně vyberete. Zůstatek na Steamu lze utratit jen na Steamu, Steam navíc omezuje ceny položek a účtuje vysoký poplatek z každého prodeje — což z něj dělá špatné místo pro prodej vzácných a drahých skinů. Na Skinify jsou vaše výdělky vaše: vyberte si je na účet, nebo dál nakupujte.',
+      'Pro kupující usnadňují detailní filtry hledání podle float hodnoty, paint seedu, patternu, samolepek a dalšího, takže najdete přesně tu kopii skinu, kterou chcete — včetně položek, které se na Steam tržišti nikdy neobjeví.',
+    ],
+  },
+  {
+    h: 'Jak koupit CS2 skiny na Skinify',
+    p: [
+      'Nákup je transparentní a rychlý. Procházejte tržiště, filtry zúžíte výběr podle zbraně, opotřebení, vzácnosti nebo ceny a položky přidáte do košíku. Až budete připraveni, zaplaťte — není potřeba nejprve dobíjet zůstatek ani čekat, až se prodejce připojí.',
+      'Po nákupu je položka automaticky doručena na váš Steam účet. Některé skiny mají Steam trade lock až 8 dní; pokud koupíte uzamčenou položku, je bezpečně uložena ve vašem Skinify inventáři, dokud zámek nevyprší. Escrow uvolní platbu prodejci až poté, co skin obdržíte, takže jsou chráněné obě strany.',
+    ],
+  },
+  {
+    h: 'Je prodej CS2 skinů stejně snadný?',
+    p: [
+      'Ano. Propojte svůj Steam účet, otevřete inventář, vyberte položky k prodeji a nastavte cenu — doporučíme férovou na základě posledních prodejů, ale cenu si vždy určíte sami. Máte to pod kontrolou: cenu můžete kdykoli před prodejem změnit, nebo nabídku stáhnout.',
+      'Když se nabídka prodá, náš nízký prodejní poplatek se strhne z prodejní ceny a zbytek je váš k výběru. Pravidla platebních zprostředkovatelů vyžadují, aby prodejci po dosažení určitého objemu prošli jednorázovým ověřením totožnosti (KYC) — dáme vám vědět e-mailem, až bude potřeba.',
+    ],
+  },
+];
+
 const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer: string }[] }> = ({
   isCS,
   faq,
 }) => {
-  const [open, setOpen] = useState<number | null>(0);
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [expanded, setExpanded] = useState(false);
+  const sections = isCS ? SEO_SECTIONS_CS : SEO_SECTIONS_EN;
+
+  /* Game-market counter rows (the "SEE ALL X CS2 SKINS" strip). Static
+     head-line counts — links deep into the marketplace. */
+  const markets = [
+    { name: isCS ? 'Trh Counter-Strike 2' : 'Counter-Strike 2 market', count: '3.68M', to: '/marketplace' },
+    { name: isCS ? 'Trh Team Fortress 2' : 'Team Fortress 2 market', count: '482.5K', to: '/marketplace?q=TF2' },
+    { name: isCS ? 'Trh Dota 2' : 'Dota 2 market', count: '233.1K', to: '/marketplace?q=Dota' },
+    { name: isCS ? 'Trh Rust' : 'Rust market', count: '111.6K', to: '/marketplace?q=Rust' },
+  ];
+
   return (
-    <section className="mt-6">
-      <h2 className="text-[20px] sm:text-[24px] font-bold text-ink tracking-tight">
-        {isCS ? 'Nejsnadnější a nejbezpečnější způsob nákupu a prodeje CS2 skinů' : 'The easiest, safest way to buy and sell CS2 skins'}
-      </h2>
-      <p className="text-[13.5px] text-ink-muted font-medium mt-3 leading-relaxed max-w-[820px]">
-        {isCS
-          ? 'Skinify je peer-to-peer tržiště pro nákup a prodej CS2 skinů — AK-47, AWP, Karambit, M9 Bayonet, rukavice a vzácné patterny od ověřených prodejců. Obchody chráněné escrowem, doručení přes Steam do 60 sekund a výplaty v reálných penězích s nízkými poplatky.'
-          : 'Skinify is the peer-to-peer marketplace to buy and sell CS2 skins — AK-47, AWP, Karambit, M9 Bayonet, gloves and rare patterns from verified sellers. Escrow-protected trades, sub-60-second Steam delivery, and real-money payouts with low fees.'}
-      </p>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {['AK-47', 'AWP', 'Karambit', 'M9 Bayonet', 'Gloves', 'Stickers'].map((w) => (
+    <section className="mt-8">
+      {/* Market counters */}
+      <div className="grid sm:grid-cols-2 gap-x-10 gap-y-1 border-t border-line/60 pt-6">
+        {markets.map((m) => (
           <a
-            key={w}
-            href={`/marketplace?q=${encodeURIComponent(w)}`}
-            className="h-8 px-3 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[12.5px] font-semibold inline-flex items-center transition-colors"
+            key={m.name}
+            href={m.to}
+            className="flex items-center justify-between gap-4 py-3 border-b border-line/40 group"
           >
-            {w}
+            <span className="text-[15px] font-bold text-ink">{m.name}</span>
+            <span className="text-[12px] font-bold text-ink-muted group-hover:text-accent transition-colors whitespace-nowrap tabular-nums">
+              {isCS ? 'ZOBRAZIT' : 'SEE ALL'} {m.count} {isCS ? 'SKINŮ' : 'SKINS'} →
+            </span>
           </a>
         ))}
       </div>
 
+      {/* Long-form SEO essay */}
+      <div className="mt-10">
+        <h2 className="text-[20px] sm:text-[24px] font-bold text-ink tracking-tight">
+          {sections[0].h}
+        </h2>
+        {sections[0].p.map((para, i) => (
+          <p key={i} className="text-[13.5px] text-ink-muted font-medium mt-3 leading-relaxed max-w-[860px]">
+            {para}
+          </p>
+        ))}
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {['AK-47', 'AWP', 'Karambit', 'M9 Bayonet', 'Butterfly Knife', 'Sport Gloves', 'Stickers'].map((w) => (
+            <a
+              key={w}
+              href={`/marketplace?q=${encodeURIComponent(w)}`}
+              className="h-8 px-3 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[12.5px] font-semibold inline-flex items-center transition-colors"
+            >
+              {w}
+            </a>
+          ))}
+        </div>
+
+        <AnimatePresence initial={false}>
+          {expanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="overflow-hidden"
+            >
+              {sections.slice(1).map((sec) => (
+                <div key={sec.h} className="mt-8">
+                  <h3 className="text-[16px] font-bold text-ink tracking-tight">{sec.h}</h3>
+                  {sec.p.map((para, i) => (
+                    <p key={i} className="text-[13.5px] text-ink-muted font-medium mt-2.5 leading-relaxed max-w-[860px]">
+                      {para}
+                    </p>
+                  ))}
+                </div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-5 text-[13px] font-bold text-accent hover:opacity-80 transition-opacity"
+        >
+          {expanded ? (isCS ? 'Zobrazit méně' : 'Show less') : isCS ? 'Číst více' : 'Read more'}
+        </button>
+      </div>
+
       {/* FAQ accordion */}
-      <div className="mt-8">
-        <h3 className="text-[16px] font-bold text-ink tracking-tight mb-3">
-          {isCS ? 'Časté dotazy' : 'Frequently asked questions'}
+      <div className="mt-10">
+        <h3 className="text-[18px] font-bold text-ink tracking-tight mb-3">
+          {isCS ? 'Máte otázky?' : 'Have questions?'}
         </h3>
         <div className="divide-y divide-line/60 border-t border-line/60">
           {faq.map((f, i) => {
-            const isOpen = open === i;
+            const isOpen = openFaq === i;
             return (
               <div key={i}>
                 <button
-                  onClick={() => setOpen(isOpen ? null : i)}
+                  onClick={() => setOpenFaq(isOpen ? null : i)}
                   className="w-full flex items-center justify-between gap-4 py-4 text-left"
                 >
                   <span className="text-[14px] font-bold text-ink">{f.question}</span>
