@@ -331,6 +331,11 @@ const LandingPage: React.FC = () => {
           />
         </Reveal>
 
+        {/* ── Promo slot #1 — full-width campaign banner space ── */}
+        <Reveal className="mb-10">
+          <PromoSlot label="Promo plocha" sub="Kampaňový banner · 1200 × 280" ratio="1200 / 280" />
+        </Reveal>
+
         {/* ===== 4 · PROMOTED slider ===== */}
         {(promotedItems.length > 0 || (marketplaceItems && marketplaceItems.length > 4)) && (
           <Reveal>
@@ -363,6 +368,14 @@ const LandingPage: React.FC = () => {
             />
           </Reveal>
         )}
+
+        {/* ── Promo sloty #2+#3 — dvojice menších ploch ── */}
+        <Reveal className="mb-12">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <PromoSlot label="Promo plocha" sub="Grafika kampaně · 600 × 300" ratio="600 / 300" />
+            <PromoSlot label="Promo plocha" sub="Grafika kampaně · 600 × 300" ratio="600 / 300" />
+          </div>
+        </Reveal>
 
         {/* ===== 6 · SEO text + FAQ accordion ===== */}
         <Reveal>
@@ -413,18 +426,6 @@ const AccountBanner: React.FC<{
   onSell?: () => void;
   onView?: (id: string) => void;
 }> = ({ user, balance, formatPrice, items = [], onRefill, onProfile, onBrowse, onSell, onView }) => {
-  /* Three hero skins float on the right; the rest feed the ticker. */
-  const floats = items.filter((it) => it?.image).slice(0, 3);
-  const ticker = items.filter((it) => it?.image).slice(0, 12);
-
-  /* Per-skin float choreography — size, resting spot, tilt, and a slightly
-     different bob duration so the cluster never moves in lockstep. */
-  const FLOAT_POS = [
-    { className: 'right-[6%] top-6 w-44 sm:w-52', rotate: -10, dur: 5.5, delay: 0.15 },
-    { className: 'right-[26%] top-20 w-32 sm:w-40', rotate: 8, dur: 6.5, delay: 0.3 },
-    { className: 'right-[10%] bottom-10 w-28 sm:w-32', rotate: -5, dur: 7.5, delay: 0.45 },
-  ];
-
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.99 }}
@@ -436,41 +437,12 @@ const AccountBanner: React.FC<{
           'linear-gradient(115deg, rgb(var(--accent) / 0.17) 0%, rgb(var(--accent) / 0.05) 45%, rgb(var(--surface)) 85%)',
       }}
     >
-      {/* Floating skins — desktop only; on mobile the banner stays compact. */}
-      <div className="absolute inset-y-0 right-0 w-[55%] hidden lg:block pointer-events-none" aria-hidden={floats.length === 0}>
-        {floats.map((it, i) => {
-          const pos = FLOAT_POS[i];
-          return (
-            <motion.button
-              key={it.id}
-              onClick={() => onView?.(String(it.id))}
-              className={`absolute ${pos.className} pointer-events-auto cursor-pointer`}
-              initial={{ opacity: 0, y: 30, rotate: pos.rotate - 6 }}
-              animate={{ opacity: 1, y: 0, rotate: pos.rotate }}
-              transition={{ type: 'spring', stiffness: 180, damping: 20, delay: pos.delay }}
-              whileHover={{ scale: 1.1, rotate: 0, zIndex: 10 }}
-              aria-label={it.name || it.market_name}
-            >
-              <motion.img
-                src={it.image}
-                alt=""
-                className="w-full h-auto object-contain"
-                style={{ filter: 'drop-shadow(0 18px 28px rgb(0 0 0 / 0.35))' }}
-                animate={{ y: [0, -9, 0] }}
-                transition={{ duration: pos.dur, repeat: Infinity, ease: 'easeInOut' }}
-                draggable={false}
-              />
-            </motion.button>
-          );
-        })}
-      </div>
-
       {/* Content */}
       <motion.div
         variants={bannerParent}
         initial="hidden"
         animate="shown"
-        className="relative px-6 sm:px-9 pt-8 sm:pt-9 pb-6 lg:max-w-[55%]"
+        className="relative px-6 sm:px-9 py-8 sm:py-9"
       >
         <motion.button
           variants={bannerChild}
@@ -530,37 +502,47 @@ const AccountBanner: React.FC<{
         </motion.div>
       </motion.div>
 
-      {/* Live-price ticker — an endless marquee along the banner's bottom
-          edge. Duplicated content + translateX(-50%) loop = seamless. */}
-      {ticker.length > 3 && (
-        <div className="relative border-t border-line/40 overflow-hidden py-2.5">
-          <motion.div
-            className="flex items-center gap-8 w-max"
-            animate={{ x: ['0%', '-50%'] }}
-            transition={{ duration: Math.max(24, ticker.length * 3), repeat: Infinity, ease: 'linear' }}
-          >
-            {[...ticker, ...ticker].map((it, i) => (
-              <button
-                key={`${it.id}-${i}`}
-                onClick={() => onView?.(String(it.id))}
-                className="flex items-center gap-2.5 shrink-0 group"
-              >
-                <img src={it.image} alt="" className="w-9 h-7 object-contain" draggable={false} />
-                <span className="text-[12px] font-semibold text-ink-muted group-hover:text-ink transition-colors whitespace-nowrap max-w-[180px] truncate">
-                  {(it.name || it.market_name || '').split('(')[0].trim()}
-                </span>
-                <span className="text-[12px] font-bold text-ink tabular-nums whitespace-nowrap">
-                  {formatPrice(it.price || 0)}
-                </span>
-              </button>
-            ))}
-          </motion.div>
-          {/* Edge fades so the marquee melts in/out instead of hard-clipping */}
-          <div className="absolute inset-y-0 left-0 w-16 pointer-events-none" style={{ background: 'linear-gradient(90deg, rgb(var(--surface)), transparent)' }} />
-          <div className="absolute inset-y-0 right-0 w-16 pointer-events-none" style={{ background: 'linear-gradient(270deg, rgb(var(--surface)), transparent)' }} />
-        </div>
-      )}
     </motion.div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   PromoSlot — reserved space for promotional graphics. Renders a clean
+   gradient placeholder (with a dashed inner outline so it reads as a slot)
+   until real campaign artwork is dropped in via the `image` prop.
+   ───────────────────────────────────────────────────────────────────────── */
+const PromoSlot: React.FC<{
+  label?: string;
+  sub?: string;
+  ratio?: string;
+  image?: string;
+  href?: string;
+}> = ({ label = 'Promo plocha', sub = 'Místo pro vaši grafiku', ratio = '1200 / 280', image, href }) => {
+  const inner = image ? (
+    <img src={image} alt={label} className="absolute inset-0 w-full h-full object-cover" />
+  ) : (
+    <>
+      <div
+        aria-hidden
+        className="absolute inset-0"
+        style={{
+          background:
+            'linear-gradient(115deg, rgb(var(--accent) / 0.10) 0%, rgb(var(--accent) / 0.03) 50%, transparent 90%)',
+        }}
+      />
+      <div className="absolute inset-3 rounded-2xl border border-dashed border-line/70 grid place-items-center">
+        <div className="text-center px-6">
+          <div className="text-[15px] font-bold text-ink-muted">{label}</div>
+          <div className="text-[12px] text-ink-dim font-medium mt-1">{sub}</div>
+        </div>
+      </div>
+    </>
+  );
+  const cls = 'relative block w-full rounded-3xl overflow-hidden';
+  return href ? (
+    <a href={href} className={cls} style={{ aspectRatio: ratio }}>{inner}</a>
+  ) : (
+    <div className={cls} style={{ aspectRatio: ratio }}>{inner}</div>
   );
 };
 
@@ -896,52 +878,89 @@ const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer
         ))}
       </div>
 
-      {/* Long-form SEO essay — always expanded, wide two-column layout. The
-          intro reads as a lead paragraph; the rest is a clean two-column
-          knowledge base. */}
-      <div className="mt-14 max-w-[1000px]">
-        <span className="label-eyebrow text-accent">{isCS ? 'O Skinify' : 'About Skinify'}</span>
-        <h2 className="text-[24px] sm:text-[30px] font-bold text-ink tracking-tight mt-2 leading-tight">
-          {sections[0].h}
-        </h2>
-        {sections[0].p.map((para, i) => (
-          <p
-            key={i}
-            className={`text-ink-muted font-medium mt-4 leading-[1.8] ${
-              i === 0 ? 'text-[15px] sm:text-[16px] text-ink/90' : 'text-[14px]'
-            }`}
-          >
-            {para}
-          </p>
-        ))}
-
-        {/* Keyword links — click through to marketplace searches. */}
-        <div className="mt-5 flex flex-wrap gap-2">
-          {keywords.map((w) => (
-            <a
-              key={w}
-              href={`/marketplace?q=${encodeURIComponent(w)}`}
-              className="h-8 px-3.5 rounded-full bg-subtle hover:bg-accent hover:text-on-accent text-ink text-[12.5px] font-semibold inline-flex items-center transition-colors"
+      {/* Long-form SEO essay + blog column. The essay stretches across the
+          left; the right rail is filled with blog links so there's no dead
+          gap beside the text. Type sizes are a step up for readability. */}
+      <div className="mt-14 grid lg:grid-cols-[minmax(0,1fr)_340px] gap-x-14 gap-y-10">
+        <div className="min-w-0">
+          <span className="label-eyebrow text-accent">{isCS ? 'O Skinify' : 'About Skinify'}</span>
+          <h2 className="text-[26px] sm:text-[34px] font-bold text-ink tracking-tight mt-2 leading-tight">
+            {sections[0].h}
+          </h2>
+          {sections[0].p.map((para, i) => (
+            <p
+              key={i}
+              className={`text-ink-muted font-medium mt-4 leading-[1.85] ${
+                i === 0 ? 'text-[16px] sm:text-[17.5px] text-ink/90' : 'text-[15px]'
+              }`}
             >
-              {w}
-            </a>
+              {para}
+            </p>
           ))}
+
+          {/* Keyword links — click through to marketplace searches. */}
+          <div className="mt-6 flex flex-wrap gap-2">
+            {keywords.map((w) => (
+              <a
+                key={w}
+                href={`/marketplace?q=${encodeURIComponent(w)}`}
+                className="h-9 px-4 rounded-full bg-subtle hover:bg-accent hover:text-on-accent text-ink text-[13px] font-semibold inline-flex items-center transition-colors"
+              >
+                {w}
+              </a>
+            ))}
+          </div>
+
+          {/* Remaining sections — two columns inside the essay area. */}
+          <div className="mt-12 grid xl:grid-cols-2 gap-x-12 gap-y-10">
+            {sections.slice(1).map((sec) => (
+              <div key={sec.h}>
+                <h3 className="text-[19px] font-bold text-ink tracking-tight">{sec.h}</h3>
+                {sec.p.map((para, i) => (
+                  <p key={i} className="text-[15px] text-ink-muted font-medium mt-3 leading-[1.85]">
+                    {para}
+                  </p>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Remaining sections — two-column on large screens so the essay
-            reads wide and stretched rather than a narrow strip. */}
-        <div className="mt-10 grid lg:grid-cols-2 gap-x-14 gap-y-10">
-          {sections.slice(1).map((sec) => (
-            <div key={sec.h}>
-              <h3 className="text-[17px] font-bold text-ink tracking-tight">{sec.h}</h3>
-              {sec.p.map((para, i) => (
-                <p key={i} className="text-[13.5px] text-ink-muted font-medium mt-3 leading-[1.75]">
-                  {para}
-                </p>
-              ))}
-            </div>
-          ))}
-        </div>
+        {/* Blog rail — fills the right-hand gap beside the essay. */}
+        <aside className="lg:pt-10">
+          <span className="label-eyebrow">{isCS ? 'Z našeho blogu' : 'From the blog'}</span>
+          <div className="mt-3 space-y-2.5">
+            {(isCS
+              ? [
+                  { slug: 'cs2-skin-prices-explained', title: 'Jak vznikají ceny CS2 skinů — float, pattern a samolepky', cat: 'Průvodce' },
+                  { slug: 'avoiding-cs2-skin-scams', title: 'Jak se vyhnout podvodům se skiny — 8 vzorců, na které si dát pozor', cat: 'Bezpečnost' },
+                  { slug: 'p2p-vs-steam-market', title: 'P2P tržiště vs. Steam Market — kdy se vyplatí které', cat: 'Srovnání' },
+                ]
+              : [
+                  { slug: 'cs2-skin-prices-explained', title: 'How CS2 skin prices are set — float, pattern and stickers', cat: 'Guide' },
+                  { slug: 'avoiding-cs2-skin-scams', title: 'Avoiding CS2 skin scams — eight patterns to watch for', cat: 'Safety' },
+                  { slug: 'p2p-vs-steam-market', title: 'P2P marketplaces vs Steam Market — when each one wins', cat: 'Compare' },
+                ]
+            ).map((b) => (
+              <a
+                key={b.slug}
+                href={`/blog/${b.slug}`}
+                className="block rounded-2xl bg-ink/[0.03] dark:bg-white/[0.04] hover:bg-accent/[0.08] p-4 transition-colors group"
+              >
+                <span className="text-[10.5px] font-bold uppercase tracking-wider text-accent">{b.cat}</span>
+                <div className="text-[14.5px] font-bold text-ink leading-snug mt-1.5 group-hover:text-accent transition-colors">
+                  {b.title}
+                </div>
+              </a>
+            ))}
+          </div>
+          <a
+            href="/blog"
+            className="mt-4 inline-block text-[13.5px] font-bold text-accent hover:opacity-80 transition-opacity"
+          >
+            {isCS ? 'Všechny články' : 'All articles'} →
+          </a>
+        </aside>
       </div>
 
       {/* FAQ — always expanded, wide two-column layout. */}
@@ -952,8 +971,8 @@ const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer
         <div className="grid lg:grid-cols-2 gap-x-14 gap-y-8">
           {faq.map((f, i) => (
             <div key={i}>
-              <h4 className="text-[15px] font-bold text-ink tracking-tight">{f.question}</h4>
-              <p className="text-[13.5px] text-ink-muted font-medium leading-[1.75] mt-2.5">
+              <h4 className="text-[16.5px] font-bold text-ink tracking-tight">{f.question}</h4>
+              <p className="text-[14.5px] text-ink-muted font-medium leading-[1.85] mt-2.5">
                 {f.answer}
               </p>
             </div>
