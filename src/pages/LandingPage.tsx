@@ -899,6 +899,27 @@ const SEO_SECTIONS_CS: { h: string; p: string[] }[] = [
   },
 ];
 
+/* Inline clickthrough terms — known entities inside the SEO essay render
+   as accent links to the matching marketplace search (escrow → FAQ). */
+const SEO_TERM_SPLIT = /(AK-47|AWP|Karambit|M9 Bayonet|Butterfly Knife|StatTrak™?|[Ee]scrow\w*)/g;
+const isSeoTerm = (p: string) =>
+  /^(AK-47|AWP|Karambit|M9 Bayonet|Butterfly Knife|StatTrak™?|[Ee]scrow\w*)$/.test(p);
+const seoTermHref = (m: string) =>
+  m.toLowerCase().startsWith('escrow') ? '/faq' : `/marketplace?q=${encodeURIComponent(m.replace('™', ''))}`;
+const Linkified: React.FC<{ text: string }> = ({ text }) => (
+  <>
+    {text.split(SEO_TERM_SPLIT).map((part, i) =>
+      isSeoTerm(part) ? (
+        <a key={i} href={seoTermHref(part)} className="text-accent font-semibold hover:underline">
+          {part}
+        </a>
+      ) : (
+        <React.Fragment key={i}>{part}</React.Fragment>
+      ),
+    )}
+  </>
+);
+
 const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer: string }[] }> = ({
   isCS,
   faq,
@@ -954,7 +975,7 @@ const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer
                 i === 0 ? 'text-[16px] sm:text-[17.5px] text-ink/90' : 'text-[15px]'
               }`}
             >
-              {para}
+              <Linkified text={para} />
             </p>
           ))}
 
@@ -978,7 +999,7 @@ const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer
                 <h3 className="text-[19px] font-bold text-ink tracking-tight">{sec.h}</h3>
                 {sec.p.map((para, i) => (
                   <p key={i} className="text-[15px] text-ink-muted font-medium mt-3 leading-[1.85]">
-                    {para}
+                    <Linkified text={para} />
                   </p>
                 ))}
               </div>
@@ -986,30 +1007,42 @@ const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer
           </div>
         </div>
 
-        {/* Blog rail — fills the right-hand gap beside the essay. */}
-        <aside className="lg:pt-10">
+        {/* Blog rail — thumbnail cards stretched to the full height of the
+            essay column, so the gap is filled all the way down to the FAQ. */}
+        <aside className="flex flex-col lg:pt-10">
           <span className="label-eyebrow">{isCS ? 'Z našeho blogu' : 'From the blog'}</span>
-          <div className="mt-3 space-y-2.5">
+          <div className="mt-3 flex-1 flex flex-col gap-3">
             {(isCS
               ? [
-                  { slug: 'cs2-skin-prices-explained', title: 'Jak vznikají ceny CS2 skinů — float, pattern a samolepky', cat: 'Průvodce' },
-                  { slug: 'avoiding-cs2-skin-scams', title: 'Jak se vyhnout podvodům se skiny — 8 vzorců, na které si dát pozor', cat: 'Bezpečnost' },
-                  { slug: 'p2p-vs-steam-market', title: 'P2P tržiště vs. Steam Market — kdy se vyplatí které', cat: 'Srovnání' },
+                  { slug: 'cs2-skin-prices-explained', title: 'Jak vznikají ceny CS2 skinů — float, pattern a samolepky', cat: 'Průvodce', img: '/skinify_graphics/karambit.png' },
+                  { slug: 'avoiding-cs2-skin-scams', title: 'Jak se vyhnout podvodům se skiny — 8 vzorců, na které si dát pozor', cat: 'Bezpečnost', img: '/skinify_graphics/coins.png' },
+                  { slug: 'p2p-vs-steam-market', title: 'P2P tržiště vs. Steam Market — kdy se vyplatí které', cat: 'Srovnání', img: '/skinify_graphics/banner-trade.png' },
                 ]
               : [
-                  { slug: 'cs2-skin-prices-explained', title: 'How CS2 skin prices are set — float, pattern and stickers', cat: 'Guide' },
-                  { slug: 'avoiding-cs2-skin-scams', title: 'Avoiding CS2 skin scams — eight patterns to watch for', cat: 'Safety' },
-                  { slug: 'p2p-vs-steam-market', title: 'P2P marketplaces vs Steam Market — when each one wins', cat: 'Compare' },
+                  { slug: 'cs2-skin-prices-explained', title: 'How CS2 skin prices are set — float, pattern and stickers', cat: 'Guide', img: '/skinify_graphics/karambit.png' },
+                  { slug: 'avoiding-cs2-skin-scams', title: 'Avoiding CS2 skin scams — eight patterns to watch for', cat: 'Safety', img: '/skinify_graphics/coins.png' },
+                  { slug: 'p2p-vs-steam-market', title: 'P2P marketplaces vs Steam Market — when each one wins', cat: 'Compare', img: '/skinify_graphics/banner-trade.png' },
                 ]
             ).map((b) => (
               <a
                 key={b.slug}
                 href={`/blog/${b.slug}`}
-                className="block rounded-2xl bg-ink/[0.03] dark:bg-white/[0.04] hover:bg-accent/[0.08] p-4 transition-colors group"
+                className="flex-1 min-h-[180px] flex flex-col overflow-hidden rounded-2xl bg-ink/[0.03] dark:bg-white/[0.04] hover:bg-accent/[0.08] transition-colors group"
               >
-                <span className="text-[10.5px] font-bold uppercase tracking-wider text-accent">{b.cat}</span>
-                <div className="text-[14.5px] font-bold text-ink leading-snug mt-1.5 group-hover:text-accent transition-colors">
-                  {b.title}
+                <div className="relative flex-1 min-h-[110px] overflow-hidden" style={{ background: '#0b0714' }}>
+                  <img
+                    src={b.img}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
+                    loading="lazy"
+                    draggable={false}
+                  />
+                </div>
+                <div className="p-4">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-accent">{b.cat}</span>
+                  <div className="text-[14.5px] font-bold text-ink leading-snug mt-1.5 group-hover:text-accent transition-colors">
+                    {b.title}
+                  </div>
                 </div>
               </a>
             ))}
@@ -1019,8 +1052,7 @@ const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer
             className="mt-4 inline-block text-[13.5px] font-bold text-accent hover:opacity-80 transition-opacity"
           >
             {isCS ? 'Všechny články' : 'All articles'} →
-          </a>
-        </aside>
+          </a>        </aside>
       </div>
 
       {/* FAQ — always expanded, wide two-column layout. */}

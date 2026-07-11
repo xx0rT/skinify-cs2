@@ -464,7 +464,7 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
 
       {/* Grid */}
       {loading ? (
-        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="skel h-[280px]" />
           ))}
@@ -493,7 +493,7 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
           )}
         </div>
       ) : (
-        <motion.div layout className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <motion.div layout className="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <AnimatePresence mode="popLayout">
             {filtered.map((l, i) => (
               <ListingCard

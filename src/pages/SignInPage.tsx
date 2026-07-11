@@ -14,7 +14,7 @@ import {
 import SteamLogin from '../components/auth/SteamLogin';
 import { useToastStore } from '../store/toastStore';
 import { useAuthStore } from '../store/authStore';
-import { signInWithPassword, requestPasswordReset } from '../utils/credentialAuth';
+import { signInWithPassword, signUpWithPassword, requestPasswordReset } from '../utils/credentialAuth';
 import { checkDevice, recordLogin } from '../utils/twoFactor';
 import TwoFactorChallenge from '../components/auth/TwoFactorChallenge';
 import useDocumentMeta from '../hooks/useDocumentMeta';
@@ -31,7 +31,7 @@ import { spring, tap } from '../lib/motion';
    No LandingNav. The only nav is a small "Back to home" chip top-left
    over the artwork so the page stays a single-purpose surface.
    ───────────────────────────────────────────────────────────────────────── */
-const SignInPage: React.FC = () => {
+const SignInPage: React.FC<{ initialMode?: 'signin' | 'signup' }> = ({ initialMode = 'signin' }) => {
   useDocumentMeta({
     title: 'Sign in · Skinify',
     description: 'Sign in to your Skinify account to buy and sell CS2 skins.',
@@ -43,6 +43,11 @@ const SignInPage: React.FC = () => {
   const { addToast } = useToastStore();
   const setUser = useAuthStore((s) => s.setUser);
 
+  /* One window, two modes — the bottom link flips between sign-in and
+     sign-up in place instead of navigating to a separate page. */
+  const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
+  const [displayName, setDisplayName] = useState('');
+  const [agree, setAgree] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
@@ -82,6 +87,52 @@ const SignInPage: React.FC = () => {
       setError('Enter both an email address and a password.');
       return;
     }
+
+    /* ── Sign-up branch — same window, same form. ── */
+    if (mode === 'signup') {
+      if (!displayName.trim()) {
+        setError('Pick a display name.');
+        return;
+      }
+      if (password.length < 6) {
+        setError('Password must be at least 6 characters.');
+        return;
+      }
+      if (!agree) {
+        setError('You need to agree to the Terms of Service.');
+        return;
+      }
+      setSubmitting(true);
+      try {
+        const result = await signUpWithPassword(email.trim(), password, displayName.trim());
+        if (!result.ok) {
+          if ((result as any).needsConfirm) {
+            addToast({
+              type: 'info',
+              title: 'Confirm your email',
+              message: 'We sent you a confirmation link. Open it to finish creating your account.',
+              duration: 7000,
+            });
+            setMode('signin');
+            return;
+          }
+          setError(result.error || 'Sign up failed.');
+          return;
+        }
+        setUser(result.user);
+        addToast({
+          type: 'success',
+          title: 'Account created',
+          message: 'Link your Steam account from your profile to start listing items.',
+          duration: 6000,
+        });
+        navigate('/profile?tab=settings', { replace: true });
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     setSubmitting(true);
     try {
       const result = await signInWithPassword(email.trim(), password);
@@ -227,12 +278,14 @@ const SignInPage: React.FC = () => {
             Back to home
           </motion.button>
 
-          <span className="label-eyebrow">Sign in</span>
+          <span className="label-eyebrow">{mode === 'signin' ? 'Sign in' : 'Create account'}</span>
           <h1 className="text-[26px] sm:text-[30px] font-bold tracking-tight text-ink leading-tight mt-1.5">
-            Welcome back
+            {mode === 'signin' ? 'Welcome back' : 'Join Skinify'}
           </h1>
           <p className="text-[13.5px] text-ink-muted font-medium mt-2 leading-relaxed">
-            Use the email and password you signed up with, or continue with Steam.
+            {mode === 'signin'
+              ? 'Use the email and password you signed up with, or continue with Steam.'
+              : 'Create an account with email, or continue with Steam — it takes under a minute.'}
           </p>
 
           <form onSubmit={submit} className="mt-6 space-y-3">
@@ -243,6 +296,17 @@ const SignInPage: React.FC = () => {
               </div>
             )}
 
+            {mode === 'signup' && (
+              <Field
+                Icon={Sparkles}
+                type="text"
+                placeholder="Display name"
+                value={displayName}
+                onChange={setDisplayName}
+                autoComplete="nickname"
+                required
+              />
+            )}
             <Field
               Icon={Mail}
               type="email"
@@ -258,7 +322,7 @@ const SignInPage: React.FC = () => {
               placeholder="Password"
               value={password}
               onChange={setPassword}
-              autoComplete="current-password"
+              autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
               required
               trailing={
                 <button
@@ -272,15 +336,42 @@ const SignInPage: React.FC = () => {
               }
             />
 
-            <div className="flex justify-end -mt-1">
-              <button
-                type="button"
-                onClick={handleForgot}
-                className="text-[12px] font-semibold text-accent hover:opacity-80 transition-opacity"
-              >
-                Forgot password?
-              </button>
-            </div>
+            {mode === 'signin' ? (
+              <div className="flex justify-end -mt-1">
+                <button
+                  type="button"
+                  onClick={handleForgot}
+                  className="text-[12px] font-semibold text-accent hover:opacity-80 transition-opacity"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            ) : (
+              <label className="flex items-start gap-2.5 cursor-pointer select-none pt-1">
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={agree}
+                  onClick={() => setAgree((v) => !v)}
+                  className={`w-5 h-5 rounded-md grid place-items-center shrink-0 transition-colors ${
+                    agree ? 'bg-accent text-on-accent' : 'bg-subtle'
+                  }`}
+                >
+                  {agree && <Sparkles size={11} strokeWidth={3} />}
+                </button>
+                <span className="text-[12px] text-ink-muted font-medium leading-relaxed" onClick={() => setAgree((v) => !v)}>
+                  I agree to the{' '}
+                  <Link to="/terms" className="text-accent font-semibold" onClick={(e) => e.stopPropagation()}>
+                    Terms of Service
+                  </Link>{' '}
+                  and{' '}
+                  <Link to="/privacy" className="text-accent font-semibold" onClick={(e) => e.stopPropagation()}>
+                    Privacy Policy
+                  </Link>
+                  .
+                </span>
+              </label>
+            )}
 
             {/* Promo / referral expander — collapsed by default so the
                 primary form stays compact for returning users. */}
@@ -329,7 +420,7 @@ const SignInPage: React.FC = () => {
               className="w-full h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
               style={{ boxShadow: '0 12px 26px -12px rgb(var(--accent) / 0.55)' }}
             >
-              {submitting ? 'Signing in…' : 'Sign in'}
+              {submitting ? (mode === 'signin' ? 'Signing in…' : 'Creating account…') : mode === 'signin' ? 'Sign in' : 'Create account'}
             </motion.button>
           </form>
 
@@ -346,10 +437,17 @@ const SignInPage: React.FC = () => {
           </div>
 
           <p className="text-[12.5px] text-ink-muted font-medium mt-6 text-center">
-            New to Skinify?{' '}
-            <Link to="/auth/signup" className="text-accent font-bold hover:opacity-80">
-              Create an account
-            </Link>
+            {mode === 'signin' ? 'New to Skinify?' : 'Already have an account?'}{' '}
+            <button
+              type="button"
+              onClick={() => {
+                setMode((m) => (m === 'signin' ? 'signup' : 'signin'));
+                setError(null);
+              }}
+              className="text-accent font-bold hover:opacity-80"
+            >
+              {mode === 'signin' ? 'Create an account' : 'Sign in'}
+            </button>
           </p>
         </motion.div>
       </main>

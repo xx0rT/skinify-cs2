@@ -493,7 +493,7 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
       ) : (
         <motion.div
           layout
-          className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+          className="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
         >
           <AnimatePresence mode="popLayout">
             {filtered.map((item, i) => (
@@ -776,7 +776,7 @@ const SortPicker: React.FC<{ sort: Sort; onChange: (s: Sort) => void }> = ({ sor
 };
 
 const SkeletonGrid: React.FC = () => (
-  <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+  <div className="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
     {Array.from({ length: 10 }).map((_, i) => (
       <div key={i} className="skel" style={{ aspectRatio: '5 / 6.4' }} />
     ))}

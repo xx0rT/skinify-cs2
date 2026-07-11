@@ -296,12 +296,12 @@ export default function App() {
 
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/auth/signin" element={<SignInPage />} />
-            <Route path="/auth/signup" element={<SignUpPage />} />
+            <Route path="/auth/signup" element={<SignInPage initialMode="signup" />} />
             <Route path="/auth/confirm" element={<AuthActionPage mode="confirm" />} />
             <Route path="/auth/reset" element={<AuthActionPage mode="reset" />} />
             <Route path="/login" element={<SignInPage />} />
-            <Route path="/signup" element={<SignUpPage />} />
-            <Route path="/register" element={<SignUpPage />} />
+            <Route path="/signup" element={<SignInPage initialMode="signup" />} />
+            <Route path="/register" element={<SignInPage initialMode="signup" />} />
             <Route path="/messages" element={<MessagesPage />} />
             <Route path="/inbox" element={<MessagesPage />} />
             <Route path="/press" element={<PressPage />} />
