@@ -279,7 +279,7 @@ const SettingsTab: React.FC = () => {
 
   const handleConfirm2fa = async () => {
     if (!/^\d{6}$/.test(tfaCode.trim())) {
-      addToast({ type: 'warning', title: 'Enter the 6-digit code', message: 'From your authenticator app.' });
+      addToast({ type: 'warning', title: 'Zadejte 6místný kód', message: 'Z vaší autentizační aplikace.' });
       return;
     }
     setTfaBusy(true);
@@ -290,7 +290,7 @@ const SettingsTab: React.FC = () => {
       setTfaQr(null);
       setTfaCode('');
       setTfaStatus({ enabled: true, hasPending: false });
-      addToast({ type: 'success', title: 'Two-factor enabled', message: 'Your account is now protected.' });
+      addToast({ type: 'success', title: 'Dvoufázové ověření zapnuto', message: 'Váš účet je nyní chráněn.' });
     } catch (e: any) {
       addToast({ type: 'error', title: 'Verification failed', message: e?.message });
     } finally {
@@ -300,7 +300,7 @@ const SettingsTab: React.FC = () => {
 
   const handleDisable2fa = async () => {
     if (!tfaDisableCode.trim()) {
-      addToast({ type: 'warning', title: 'Enter a code', message: 'Authenticator or backup code.' });
+      addToast({ type: 'warning', title: 'Zadejte kód', message: 'Kód z autentizátoru nebo záložní kód.' });
       return;
     }
     setTfaBusy(true);
@@ -310,7 +310,7 @@ const SettingsTab: React.FC = () => {
       setShowDisable2fa(false);
       setTfaDisableCode('');
       setTfaBackup(null);
-      addToast({ type: 'info', title: 'Two-factor disabled' });
+      addToast({ type: 'info', title: 'Dvoufázové ověření vypnuto' });
     } catch (e: any) {
       addToast({ type: 'error', title: 'Could not disable', message: e?.message });
     } finally {
@@ -503,7 +503,7 @@ const SettingsTab: React.FC = () => {
     try {
       await navigator.clipboard.writeText(user.steamId);
       setCopiedId(true);
-      addToast({ type: 'success', title: 'Steam ID copied' });
+      addToast({ type: 'success', title: 'Steam ID zkopírováno' });
       setTimeout(() => setCopiedId(false), 1500);
     } catch {
       addToast({ type: 'error', title: 'Copy failed' });
@@ -513,7 +513,7 @@ const SettingsTab: React.FC = () => {
   const handleSaveTradeLink = async () => {
     const link = tradeLink.trim();
     if (!link) {
-      addToast({ type: 'warning', title: 'Empty link', message: 'Paste your Steam trade URL.' });
+      addToast({ type: 'warning', title: 'Prázdný odkaz', message: 'Vložte svou Steam trade URL.' });
       return;
     }
     // Sanity: Steam trade URLs look like
@@ -545,8 +545,8 @@ const SettingsTab: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* ───── Identity ──────────────────────────────────────── */}
-      <Section title="Steam identity" subtitle="Your Skinify account is tied to this Steam profile.">
-        <Row label="Display name" value={user.displayName} />
+      <Section title="Steam identita" subtitle="Váš účet Skinify je propojen s tímto Steam profilem.">
+        <Row label="Zobrazované jméno" value={user.displayName} />
         <Row
           label="Steam ID"
           value={
@@ -567,7 +567,7 @@ const SettingsTab: React.FC = () => {
           }
         />
         <Row
-          label="Profile"
+          label="Profil"
           value={
             <a
               href={`https://steamcommunity.com/profiles/${user.steamId}`}
@@ -575,7 +575,7 @@ const SettingsTab: React.FC = () => {
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:opacity-80 transition-opacity"
             >
-              Open on Steam
+              Otevřít na Steamu
               <ExternalLink size={12} strokeWidth={2.2} />
             </a>
           }
@@ -585,7 +585,7 @@ const SettingsTab: React.FC = () => {
       {/* ───── Trade URL ─────────────────────────────────────── */}
       <Section
         title="Steam trade URL"
-        subtitle="We need this to send you skins after a successful trade."
+        subtitle="Potřebujeme ji k odeslání skinů po úspěšném obchodu."
       >
         <div>
           <input
@@ -596,14 +596,14 @@ const SettingsTab: React.FC = () => {
             className="w-full h-12 px-4 rounded-2xl bg-subtle text-ink text-[13.5px] font-medium outline-none focus:bg-bg focus:ring-2 focus:ring-accent/30 transition-all placeholder:text-ink-dim"
           />
           <p className="text-[11.5px] text-ink-dim font-medium mt-2">
-            Find your URL at{' '}
+            Svoji URL najdete v{' '}
             <a
               href="https://steamcommunity.com/my/tradeoffers/privacy"
               target="_blank"
               rel="noreferrer"
               className="text-accent hover:opacity-80 transition-opacity font-semibold"
             >
-              Steam → Inventory Privacy
+              Steam → Soukromí inventáře
             </a>
             .
           </p>
@@ -618,15 +618,15 @@ const SettingsTab: React.FC = () => {
             style={{ boxShadow: '0 8px 20px -10px rgb(var(--accent) / 0.6)' }}
           >
             <Save size={14} strokeWidth={2.4} />
-            {savingTrade ? 'Saving…' : 'Save trade URL'}
+            {savingTrade ? 'Ukládám…' : 'Uložit trade URL'}
           </motion.button>
         </div>
       </Section>
 
       {/* ───── Two-factor authentication ─────────────────────── */}
       <Section
-        title="Two-factor authentication"
-        subtitle="Protect your account with a code from Google Authenticator, Authy, or any TOTP app."
+        title="Dvoufázové ověření"
+        subtitle="Chraňte svůj účet kódem z Google Authenticatoru, Authy nebo jiné TOTP aplikace."
       >
         {/* Enabled state */}
         {tfaStatus?.enabled && !tfaBackup && (
@@ -638,10 +638,10 @@ const SettingsTab: React.FC = () => {
               <ShieldCheck size={18} strokeWidth={2.4} className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
               <div className="min-w-0 flex-1">
                 <div className="text-[13.5px] font-bold text-ink leading-tight">
-                  Two-factor is on
+                  Dvoufázové ověření je zapnuté
                 </div>
                 <p className="text-[12px] text-ink-muted font-medium mt-1 leading-relaxed">
-                  You'll be asked for a 6-digit code from your authenticator app on sensitive actions.
+                  Při citlivých akcích budete požádáni o 6místný kód z vaší autentizační aplikace.
                 </p>
               </div>
             </div>
@@ -651,13 +651,13 @@ const SettingsTab: React.FC = () => {
                   onClick={() => setShowDisable2fa(true)}
                   className="h-10 px-4 rounded-full bg-rose-500/10 hover:bg-rose-500/15 text-rose-700 dark:text-rose-300 font-semibold text-[13px] transition-colors"
                 >
-                  Turn off 2FA
+                  Vypnout 2FA
                 </button>
               </div>
             ) : (
               <div className="mt-3 rounded-2xl bg-subtle/60 p-4">
                 <div className="text-[12.5px] font-semibold text-ink mb-2">
-                  Enter an authenticator or backup code to confirm.
+                  Pro potvrzení zadejte kód z autentizátoru nebo záložní kód.
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input
@@ -665,7 +665,7 @@ const SettingsTab: React.FC = () => {
                     autoComplete="one-time-code"
                     value={tfaDisableCode}
                     onChange={(e) => setTfaDisableCode(e.target.value)}
-                    placeholder="123456 or backup code"
+                    placeholder="123456 nebo záložní kód"
                     className="flex-1 h-11 px-4 rounded-full bg-bg text-ink text-[14px] font-medium outline-none focus:ring-2 ring-accent/30"
                   />
                   <div className="flex gap-2">
@@ -674,13 +674,13 @@ const SettingsTab: React.FC = () => {
                       disabled={tfaBusy}
                       className="h-11 px-4 rounded-full bg-rose-500 text-white font-bold text-[13px] disabled:opacity-60"
                     >
-                      {tfaBusy ? 'Working…' : 'Disable'}
+                      {tfaBusy ? 'Pracuji…' : 'Vypnout'}
                     </button>
                     <button
                       onClick={() => { setShowDisable2fa(false); setTfaDisableCode(''); }}
                       className="h-11 px-4 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[13px] transition-colors"
                     >
-                      Cancel
+                      Zrušit
                     </button>
                   </div>
                 </div>
@@ -698,10 +698,10 @@ const SettingsTab: React.FC = () => {
             style={{ background: 'rgb(var(--accent) / 0.08)', boxShadow: 'inset 0 0 0 1px rgb(var(--accent) / 0.35)' }}
           >
             <div className="text-[11px] font-bold uppercase tracking-wider text-accent mb-1.5">
-              Save your backup codes — you won't see them again
+              Uložte si záložní kódy — už je znovu neuvidíte
             </div>
             <p className="text-[12px] text-ink-muted font-medium mb-3">
-              Each code works once if you lose access to your authenticator app.
+              Každý kód funguje jednou, pokud ztratíte přístup k autentizační aplikaci.
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {tfaBackup.map((c) => (
@@ -715,13 +715,13 @@ const SettingsTab: React.FC = () => {
                 onClick={() => navigator.clipboard?.writeText(tfaBackup.join('\n')).catch(() => {})}
                 className="h-10 px-4 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[13px] transition-colors inline-flex items-center gap-1.5"
               >
-                <Copy size={13} strokeWidth={2.2} /> Copy all
+                <Copy size={13} strokeWidth={2.2} /> Kopírovat vše
               </button>
               <button
                 onClick={() => setTfaBackup(null)}
                 className="h-10 px-4 rounded-full bg-accent text-on-accent font-bold text-[13px]"
               >
-                Done
+                Hotovo
               </button>
             </div>
           </motion.div>
@@ -737,10 +737,10 @@ const SettingsTab: React.FC = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-[13.5px] font-bold text-ink leading-tight">
-                    Add an authenticator app
+                    Přidat autentizační aplikaci
                   </div>
                   <p className="text-[12px] text-ink-muted font-medium mt-0.5 leading-relaxed">
-                    Scan a QR code with Google Authenticator to secure your account with time-based codes.
+                    Naskenujte QR kód v Google Authenticatoru a zabezpečte účet časově založenými kódy.
                   </p>
                 </div>
                 <motion.button
@@ -751,7 +751,7 @@ const SettingsTab: React.FC = () => {
                   style={{ boxShadow: '0 8px 20px -10px rgb(var(--accent) / 0.6)' }}
                 >
                   <Shield size={14} strokeWidth={2.4} />
-                  {tfaBusy ? 'Preparing…' : 'Set up 2FA'}
+                  {tfaBusy ? 'Připravuji…' : 'Nastavit 2FA'}
                 </motion.button>
               </div>
             ) : (
@@ -776,12 +776,12 @@ const SettingsTab: React.FC = () => {
                     <ol className="space-y-2.5 text-[13px] text-ink font-medium">
                       <li className="flex gap-2.5">
                         <span className="w-5 h-5 rounded-full bg-accent/15 text-accent text-[11px] font-bold grid place-items-center shrink-0 mt-0.5">1</span>
-                        <span>Open Google Authenticator (or any TOTP app) and scan the QR code.</span>
+                        <span>Otevřete Google Authenticator (nebo jinou TOTP aplikaci) a naskenujte QR kód.</span>
                       </li>
                       <li className="flex gap-2.5">
                         <span className="w-5 h-5 rounded-full bg-accent/15 text-accent text-[11px] font-bold grid place-items-center shrink-0 mt-0.5">2</span>
                         <span>
-                          Can't scan? Enter this key manually:
+                          Nejde naskenovat? Zadejte tento klíč ručně:
                           <span className="mt-1.5 flex items-center gap-2">
                             <code className="text-[12.5px] font-mono font-semibold text-ink bg-bg rounded-lg px-2.5 py-1.5 select-all break-all">
                               {tfaSetup.secret}
@@ -802,7 +802,7 @@ const SettingsTab: React.FC = () => {
                       </li>
                       <li className="flex gap-2.5">
                         <span className="w-5 h-5 rounded-full bg-accent/15 text-accent text-[11px] font-bold grid place-items-center shrink-0 mt-0.5">3</span>
-                        <span>Enter the 6-digit code the app shows to finish.</span>
+                        <span>Zadejte 6místný kód z aplikace pro dokončení.</span>
                       </li>
                     </ol>
 
@@ -824,13 +824,13 @@ const SettingsTab: React.FC = () => {
                           disabled={tfaBusy}
                           className="h-11 px-5 rounded-full bg-accent text-on-accent font-bold text-[13.5px] disabled:opacity-60"
                         >
-                          {tfaBusy ? 'Verifying…' : 'Verify & enable'}
+                          {tfaBusy ? 'Ověřuji…' : 'Ověřit a zapnout'}
                         </motion.button>
                         <button
                           onClick={() => { setTfaSetup(null); setTfaQr(null); setTfaCode(''); }}
                           className="h-11 px-4 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[13px] transition-colors"
                         >
-                          Cancel
+                          Zrušit
                         </button>
                       </div>
                     </div>
@@ -844,7 +844,7 @@ const SettingsTab: React.FC = () => {
         {/* Loading placeholder before status resolves */}
         {!tfaStatus && (
           <div className="rounded-2xl bg-subtle/30 p-6 text-center">
-            <p className="text-[12.5px] text-ink-muted font-medium">Loading security settings…</p>
+            <p className="text-[12.5px] text-ink-muted font-medium">Načítám nastavení zabezpečení…</p>
           </div>
         )}
       </Section>
@@ -854,17 +854,17 @@ const SettingsTab: React.FC = () => {
 
       {/* ───── Sessions / devices ─────────────────────────────── */}
       <Section
-        title="Devices & sessions"
-        subtitle="Places you're signed in. Revoke any you don't recognise."
+        title="Zařízení a relace"
+        subtitle="Místa, kde jste přihlášeni. Odeberte ta, která nepoznáváte."
       >
         {devicesLoading ? (
           <div className="rounded-2xl bg-subtle/30 p-6 text-center">
-            <p className="text-[12.5px] text-ink-muted font-medium">Loading sessions…</p>
+            <p className="text-[12.5px] text-ink-muted font-medium">Načítám relace…</p>
           </div>
         ) : devices.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-line p-6 text-center">
             <p className="text-[13px] text-ink-muted font-medium">
-              No recorded sessions yet. They'll appear here after your next sign-in.
+              Zatím žádné relace. Objeví se zde po vašem příštím přihlášení.
             </p>
           </div>
         ) : (
@@ -886,12 +886,12 @@ const SettingsTab: React.FC = () => {
                       </span>
                       {current && (
                         <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-                          This device
+                          Toto zařízení
                         </span>
                       )}
                       {d.trusted && (
                         <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-accent/12 text-accent">
-                          Trusted
+                          Důvěryhodné
                         </span>
                       )}
                     </div>
@@ -899,7 +899,7 @@ const SettingsTab: React.FC = () => {
                       <MapPin size={11} strokeWidth={2} className="shrink-0" />
                       <span className="font-mono">{d.ip || 'unknown IP'}</span>
                       <span className="text-ink-dim">·</span>
-                      <span>Last seen {new Date(d.last_seen_at).toLocaleString()}</span>
+                      <span>Naposledy {new Date(d.last_seen_at).toLocaleString()}</span>
                     </div>
                   </div>
                   {!current && (
@@ -909,7 +909,7 @@ const SettingsTab: React.FC = () => {
                       className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-[12px] font-bold transition-colors disabled:opacity-50 shrink-0"
                     >
                       <Trash2 size={12} strokeWidth={2.4} />
-                      {revokingDevice === d.id ? '…' : 'Sign out'}
+                      {revokingDevice === d.id ? '…' : 'Odhlásit'}
                     </button>
                   )}
                 </li>
@@ -918,21 +918,21 @@ const SettingsTab: React.FC = () => {
           </ul>
         )}
         <p className="text-[11.5px] text-ink-dim font-medium mt-3 leading-relaxed">
-          A “trusted” device won't be asked for a two-factor code at sign-in. Revoking a device
-          also removes its trust — it'll need a fresh code next time.
+          „Důvěryhodné“ zařízení nebude při přihlášení žádáno o dvoufázový kód. Odebrání zařízení
+          také zruší jeho důvěru — příště bude potřebovat nový kód.
         </p>
       </Section>
 
       {/* ───── Appearance ────────────────────────────────────── */}
-      <Section title="Appearance" subtitle="How Skinify looks on your devices.">
+      <Section title="Vzhled" subtitle="Jak Skinify vypadá na vašich zařízeních.">
         <div>
-          <div className="label-eyebrow mb-2.5">Theme</div>
+          <div className="label-eyebrow mb-2.5">Motiv</div>
           <div className="grid grid-cols-3 gap-2">
             {(
               [
-                { id: 'light', label: 'Light', Icon: Sun },
-                { id: 'dark',  label: 'Dark',  Icon: Moon },
-                { id: 'auto',  label: 'System', Icon: Monitor },
+                { id: 'light', label: 'Světlý', Icon: Sun },
+                { id: 'dark',  label: 'Tmavý',  Icon: Moon },
+                { id: 'auto',  label: 'Systém', Icon: Monitor },
               ] as const
             ).map(({ id, label, Icon }) => {
               const active = mode === id;
@@ -954,12 +954,12 @@ const SettingsTab: React.FC = () => {
             })}
           </div>
           <p className="text-[11.5px] text-ink-dim font-medium mt-2">
-            Currently displaying: <span className="font-bold text-ink">{resolvedMode}</span>
+            Aktuálně zobrazeno: <span className="font-bold text-ink">{resolvedMode}</span>
           </p>
         </div>
 
         <div className="mt-5">
-          <div className="label-eyebrow mb-2.5">Accent color</div>
+          <div className="label-eyebrow mb-2.5">Barva zvýraznění</div>
           <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
             {palettes.map((p) => {
               const active = palette === p.id;
@@ -997,7 +997,7 @@ const SettingsTab: React.FC = () => {
             the pointer, which made dragging feel jumpy. */}
         <div className="mt-5">
           <div className="flex items-center justify-between mb-3">
-            <div className="label-eyebrow">Font size</div>
+            <div className="label-eyebrow">Velikost písma</div>
             <motion.span
               key={uiScale}
               initial={{ scale: 1.3, opacity: 0.6 }}
@@ -1055,23 +1055,23 @@ const SettingsTab: React.FC = () => {
               }}
               className="hover:text-ink transition-colors font-bold"
             >
-              Reset to 100%
+              Obnovit na 100%
             </button>
             <span>{UI_SCALE_MAX}%</span>
           </div>
           <p className="text-[11.5px] text-ink-dim font-medium mt-2">
-            Scales the whole interface — like changing your display DPI.
+            Škáluje celé rozhraní — jako změna DPI displeje.
           </p>
         </div>
       </Section>
 
       {/* ───── Currency ──────────────────────────────────────── */}
       <Section
-        title="Currency"
-        subtitle="All prices on Skinify will display in your selected currency."
+        title="Měna"
+        subtitle="Všechny ceny na Skinify se zobrazí ve vybrané měně."
       >
         <div>
-          <div className="label-eyebrow mb-3">Display currency</div>
+          <div className="label-eyebrow mb-3">Zobrazovaná měna</div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {currencies.map((c) => {
               const active = selectedCurrency.code === c.code;
@@ -1124,36 +1124,36 @@ const SettingsTab: React.FC = () => {
       </Section>
 
       {/* ───── Notifications ─────────────────────────────────── */}
-      <Section title="Notifications" subtitle="Choose what we ping you about.">
+      <Section title="Oznámení" subtitle="Vyberte, na co vás máme upozornit.">
         <div className="space-y-1">
           <Toggle
-            label="Item sold"
-            sub="A buyer purchased one of your listings"
+            label="Položka prodána"
+            sub="Kupující zakoupil jednu z vašich nabídek"
             checked={notif.saleAlert}
             onChange={(v) => setNotif((s) => ({ ...s, saleAlert: v }))}
           />
           <Toggle
-            label="Price drop on wishlist"
-            sub="Something you're watching dropped 10%+"
+            label="Pokles ceny v seznamu přání"
+            sub="Něco, co sledujete, kleslo o 10 %+"
             checked={notif.priceDrop}
             onChange={(v) => setNotif((s) => ({ ...s, priceDrop: v }))}
           />
           <Toggle
-            label="Trade offer received"
-            sub="A buyer accepted a trade you need to send"
+            label="Přijata nabídka obchodu"
+            sub="Kupující přijal obchod, který musíte odeslat"
             checked={notif.tradeOffer}
             onChange={(v) => setNotif((s) => ({ ...s, tradeOffer: v }))}
           />
           <Toggle
-            label="Weekly summary"
-            sub="Earnings, listings, and market trends digest"
+            label="Týdenní souhrn"
+            sub="Přehled výdělků, nabídek a tržních trendů"
             checked={notif.weeklyDigest}
             onChange={(v) => setNotif((s) => ({ ...s, weeklyDigest: v }))}
           />
         </div>
         <p className="text-[11.5px] text-ink-dim font-medium mt-3">
-          Notification preferences are stored locally for now — server sync is coming with the
-          push-notifications backend.
+          Předvolby oznámení jsou zatím uloženy lokálně — synchronizace se serverem přijde s
+          backendem push oznámení.
         </p>
       </Section>
 
@@ -1272,7 +1272,7 @@ const SettingsTab: React.FC = () => {
                   onClick={() => setJustCreated(null)}
                   className="text-[11px] font-bold text-ink-muted hover:text-ink transition-colors shrink-0 px-2"
                 >
-                  Done
+                  Hotovo
                 </button>
               </div>
             </motion.div>
@@ -1281,7 +1281,7 @@ const SettingsTab: React.FC = () => {
           {/* Existing keys list */}
           {apiKeysLoading ? (
             <div className="rounded-2xl bg-subtle/30 p-6 text-center">
-              <p className="text-[12.5px] text-ink-muted font-medium">Loading your keys…</p>
+              <p className="text-[12.5px] text-ink-muted font-medium">Načítám vaše klíče…</p>
             </div>
           ) : apiKeysError ? (
             <div className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4 text-center">
@@ -1345,16 +1345,16 @@ const SettingsTab: React.FC = () => {
       </div>
 
       {/* ───── Danger zone ───────────────────────────────────── */}
-      <Section title="Account" titleTone="danger">
+      <Section title="Účet" titleTone="danger">
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => {
               logout();
-              addToast({ type: 'info', title: 'Signed out' });
+              addToast({ type: 'info', title: 'Odhlášeno' });
             }}
             className="h-11 px-5 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[13px] transition-colors"
           >
-            Sign out
+            Odhlásit se
           </button>
           <button
             onClick={() =>
@@ -1367,7 +1367,7 @@ const SettingsTab: React.FC = () => {
             }
             className="h-11 px-5 rounded-full bg-rose-500/10 hover:bg-rose-500/15 text-rose-700 dark:text-rose-300 font-semibold text-[13px] transition-colors"
           >
-            Delete account
+            Smazat účet
           </button>
         </div>
       </Section>

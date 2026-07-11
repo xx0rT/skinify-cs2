@@ -74,7 +74,7 @@ const KycVerification: React.FC = () => {
       setAccessToken(res.token);
       setOpen(true);
     } catch (e: any) {
-      addToast({ type: 'error', title: 'Could not start verification', message: e?.message });
+      addToast({ type: 'error', title: 'Ověření se nepodařilo spustit', message: e?.message });
     } finally {
       setLaunching(false);
     }
@@ -117,16 +117,16 @@ const KycVerification: React.FC = () => {
     <div ref={sectionRef} className="card p-5 md:p-6 scroll-mt-24">
       <div className="mb-4">
         <h2 className="text-[17px] font-bold tracking-tight leading-none text-ink">
-          Identity verification
+          Ověření totožnosti
         </h2>
         <p className="text-[12.5px] text-ink-muted font-medium mt-1.5">
-          A one-time KYC check, required before your first purchase.
+          Jednorázová KYC kontrola, vyžadovaná před prvním nákupem.
         </p>
       </div>
 
       {statusLoading ? (
         <div className="rounded-2xl bg-subtle/30 p-6 text-center">
-          <p className="text-[12.5px] text-ink-muted font-medium">Checking status…</p>
+          <p className="text-[12.5px] text-ink-muted font-medium">Kontroluji stav…</p>
         </div>
       ) : verified ? (
         <div
@@ -135,9 +135,9 @@ const KycVerification: React.FC = () => {
         >
           <BadgeCheck size={20} strokeWidth={2.4} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
           <div>
-            <div className="text-[13.5px] font-bold text-ink">You're verified</div>
+            <div className="text-[13.5px] font-bold text-ink">Jste ověřeni</div>
             <p className="text-[12px] text-ink-muted font-medium mt-0.5">
-              Your identity check passed — you can buy without restrictions.
+              Vaše ověření totožnosti proběhlo — můžete nakupovat bez omezení.
             </p>
           </div>
         </div>
@@ -147,9 +147,9 @@ const KycVerification: React.FC = () => {
             <ShieldCheck size={18} strokeWidth={2.2} className="text-accent" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[13.5px] font-bold text-ink leading-tight">Verify your identity</div>
+            <div className="text-[13.5px] font-bold text-ink leading-tight">Ověřte svou totožnost</div>
             <p className="text-[12px] text-ink-muted font-medium mt-0.5 leading-relaxed">
-              Takes ~2 minutes with a photo ID. Powered by Sumsub — your documents are handled by them, not stored on Skinify.
+              Trvá ~2 minuty s dokladem s fotkou. Zajišťuje Sumsub — vaše dokumenty zpracovává on, Skinify je neukládá.
             </p>
           </div>
           <motion.button
@@ -159,7 +159,7 @@ const KycVerification: React.FC = () => {
             className="h-11 px-5 rounded-full bg-accent text-on-accent font-bold text-[13.5px] inline-flex items-center justify-center gap-2 disabled:opacity-60 shrink-0"
           >
             {launching ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} strokeWidth={2.4} />}
-            {launching ? 'Starting…' : 'Start verification'}
+            {launching ? 'Spouštím…' : 'Spustit ověření'}
           </motion.button>
         </div>
       )}
@@ -180,7 +180,7 @@ const KycVerification: React.FC = () => {
               className="w-full sm:max-w-lg h-full sm:h-auto sm:max-h-[90vh] bg-surface sm:rounded-3xl overflow-hidden flex flex-col"
             >
               <div className="flex items-center justify-between px-5 py-4 border-b border-line shrink-0">
-                <h3 className="text-[16px] font-bold text-ink">Verify your identity</h3>
+                <h3 className="text-[16px] font-bold text-ink">Ověřte svou totožnost</h3>
                 <button
                   onClick={() => { setOpen(false); refreshStatus(); }}
                   className="icon-chip-sm hover:bg-subtle"
@@ -196,7 +196,7 @@ const KycVerification: React.FC = () => {
                   config={{ lang: 'en' }}
                   options={{ addViewportTag: false, adaptIframeHeight: true }}
                   onMessage={onSdkMessage}
-                  onError={(e: any) => addToast({ type: 'error', title: 'Verification error', message: String(e?.message || e) })}
+                  onError={(e: any) => addToast({ type: 'error', title: 'Chyba ověření', message: String(e?.message || e) })}
                 />
               </div>
             </motion.div>
