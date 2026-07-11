@@ -374,21 +374,26 @@ const LandingPage: React.FC = () => {
           </Reveal>
         )}
 
-        {/* ── Promo #2 — „Trade Smarter" kampaň (1916×821) ── */}
-        <Reveal className="mb-10">
-          <PromoSlot
-            image="/skinify_graphics/banner-trade.png"
-            href="/profile?tab=balance"
-            label="Trade Smarter"
-            ratio="1916 / 821"
-          />
-        </Reveal>
-
-        {/* ── Promo #3+#4 — čtvercové grafiky (1254×1254, ořez na 4:3) ── */}
+        {/* ── Promo dvojice — komponované karty: text vlevo, celá grafika
+            (bez ořezu) vpravo, na tmavém podkladu ladícím s artworkem. ── */}
         <Reveal className="mb-12">
-          <div className="grid sm:grid-cols-2 gap-4">
-            <PromoSlot image="/skinify_graphics/coins.png" href="/bonuses" label="Bonusy" ratio="4 / 3" />
-            <PromoSlot image="/skinify_graphics/karambit.png" href="/marketplace?q=Karambit" label="Nože" ratio="4 / 3" />
+          <div className="grid lg:grid-cols-2 gap-4">
+            <PromoCard
+              image="/skinify_graphics/coins.png"
+              href="/bonuses"
+              eyebrow="Odměny"
+              title="Bonusy každý den"
+              sub="Denní odměny, vklady s bonusem a věrnostní akce pro aktivní obchodníky."
+              cta="Prohlédnout bonusy"
+            />
+            <PromoCard
+              image="/skinify_graphics/karambit.png"
+              href="/marketplace?q=Karambit"
+              eyebrow="Prémiové kusy"
+              title="Nože & vzácné skiny"
+              sub="Karambit, M9 Bayonet a další vzácné kusy od ověřených prodejců."
+              cta="Prohlédnout nože"
+            />
           </div>
         </Reveal>
 
@@ -560,6 +565,46 @@ const PromoSlot: React.FC<{
     <div className={cls} style={{ aspectRatio: ratio }}>{inner}</div>
   );
 };
+
+/* ─────────────────────────────────────────────────────────────────────────
+   PromoCard — composed promo tile for square artwork: copy + CTA on the
+   left, the FULL graphic (object-contain, no crop) on the right, over a
+   near-black gradient that matches the artwork's background so the image
+   melts into the card in both themes.
+   ───────────────────────────────────────────────────────────────────────── */
+const PromoCard: React.FC<{
+  image: string;
+  href: string;
+  eyebrow: string;
+  title: string;
+  sub: string;
+  cta: string;
+}> = ({ image, href, eyebrow, title, sub, cta }) => (
+  <a
+    href={href}
+    className="group relative flex items-stretch overflow-hidden rounded-3xl min-h-[220px]"
+    style={{ background: 'linear-gradient(115deg, #0b0714 0%, #150b26 60%, #0b0714 100%)' }}
+  >
+    <div className="flex-1 min-w-0 flex flex-col justify-center p-6 sm:p-8 relative z-10">
+      <span className="text-[10.5px] font-bold uppercase tracking-[0.2em] text-purple-300/90">{eyebrow}</span>
+      <h3 className="text-[22px] sm:text-[26px] font-bold text-white tracking-tight leading-tight mt-2">
+        {title}
+      </h3>
+      <p className="text-[13px] text-zinc-300/85 font-medium mt-2 leading-relaxed max-w-[300px]">{sub}</p>
+      <span className="mt-4 inline-flex items-center gap-1.5 self-start h-10 px-4 rounded-full bg-white text-[#0f1018] text-[12.5px] font-bold transition-transform group-hover:scale-[1.04]">
+        {cta} →
+      </span>
+    </div>
+    <div className="relative w-[45%] shrink-0">
+      <img
+        src={image}
+        alt=""
+        className="absolute inset-y-0 right-0 h-full w-auto max-w-none object-contain transition-transform duration-500 group-hover:scale-[1.05]"
+        draggable={false}
+      />
+    </div>
+  </a>
+);
 
 /* Fallback signed-out hero when there are no items to feature yet — a slim
    value-prop banner instead of the featured showcase. */
