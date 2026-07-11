@@ -458,25 +458,11 @@ const AccountBanner: React.FC<{
       }}
     >
       {/* Content */}
-      {/* Hero artwork — karambit + coins with a baked-in right→left alpha
-          fade, anchored to the banner's right edge so it melts into the
-          gradient. Desktop only; phones keep the compact banner. */}
-      <motion.img
-        src="/skinify_graphics/hero-fade.png"
-        alt=""
-        aria-hidden
-        draggable={false}
-        initial={{ opacity: 0, x: 40 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
-        className="absolute inset-y-0 right-0 h-full w-auto max-w-none object-cover object-right hidden lg:block pointer-events-none select-none"
-      />
-
       <motion.div
         variants={bannerParent}
         initial="hidden"
         animate="shown"
-        className="relative px-6 sm:px-9 py-8 sm:py-9 lg:max-w-[58%]"
+        className="relative px-6 sm:px-9 py-8 sm:py-9"
       >
         <motion.button
           variants={bannerChild}
@@ -940,15 +926,6 @@ const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer
 }) => {
   const sections = isCS ? SEO_SECTIONS_CS : SEO_SECTIONS_EN;
 
-  /* Game-market counter rows (the "SEE ALL X CS2 SKINS" strip). Static
-     head-line counts — links deep into the marketplace. */
-  const markets = [
-    { name: isCS ? 'Trh Counter-Strike 2' : 'Counter-Strike 2 market', count: '3.68M', to: '/marketplace' },
-    { name: isCS ? 'Trh Team Fortress 2' : 'Team Fortress 2 market', count: '482.5K', to: '/marketplace?q=TF2' },
-    { name: isCS ? 'Trh Dota 2' : 'Dota 2 market', count: '233.1K', to: '/marketplace?q=Dota' },
-    { name: isCS ? 'Trh Rust' : 'Rust market', count: '111.6K', to: '/marketplace?q=Rust' },
-  ];
-
   const keywords = [
     'AK-47', 'AWP', 'M4A4', 'Desert Eagle', 'Karambit', 'M9 Bayonet',
     'Butterfly Knife', 'Sport Gloves', 'Stickers', 'StatTrak',
@@ -956,27 +933,10 @@ const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer
 
   return (
     <section className="mt-10">
-      {/* Game markets — quick-jump cards to each game's inventory. */}
-      <span className="label-eyebrow">{isCS ? 'Trhy' : 'Markets'}</span>
-      <div className="mt-3 grid sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-        {markets.map((m) => (
-          <a
-            key={m.name}
-            href={m.to}
-            className="group rounded-2xl bg-ink/[0.03] dark:bg-white/[0.04] hover:bg-accent/[0.08] p-4 transition-colors"
-          >
-            <div className="text-[15px] font-bold text-ink leading-tight">{m.name}</div>
-            <div className="mt-3 text-[12px] font-bold text-ink-muted group-hover:text-accent transition-colors tabular-nums">
-              {isCS ? 'ZOBRAZIT' : 'SEE ALL'} {m.count} →
-            </div>
-          </a>
-        ))}
-      </div>
-
       {/* Long-form SEO essay + blog column. The essay stretches across the
           left; the right rail is filled with blog links so there's no dead
           gap beside the text. Type sizes are a step up for readability. */}
-      <div className="mt-14 grid lg:grid-cols-[minmax(0,1fr)_340px] gap-x-14 gap-y-10">
+      <div className="mt-4 grid lg:grid-cols-[minmax(0,1fr)_340px] gap-x-14 gap-y-10">
         <div className="min-w-0">
           <span className="label-eyebrow text-accent">{isCS ? 'O Skinify' : 'About Skinify'}</span>
           <h2 className="text-[26px] sm:text-[34px] font-bold text-ink tracking-tight mt-2 leading-tight">
