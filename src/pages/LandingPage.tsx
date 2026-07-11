@@ -458,11 +458,25 @@ const AccountBanner: React.FC<{
       }}
     >
       {/* Content */}
+      {/* Hero artwork — karambit + coins with a baked-in right→left alpha
+          fade, anchored to the banner's right edge so it melts into the
+          gradient. Desktop only; phones keep the compact banner. */}
+      <motion.img
+        src="/skinify_graphics/hero-fade.png"
+        alt=""
+        aria-hidden
+        draggable={false}
+        initial={{ opacity: 0, x: 40 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
+        className="absolute inset-y-0 right-0 h-full w-auto max-w-none object-cover object-right hidden lg:block pointer-events-none select-none"
+      />
+
       <motion.div
         variants={bannerParent}
         initial="hidden"
         animate="shown"
-        className="relative px-6 sm:px-9 py-8 sm:py-9"
+        className="relative px-6 sm:px-9 py-8 sm:py-9 lg:max-w-[58%]"
       >
         <motion.button
           variants={bannerChild}
