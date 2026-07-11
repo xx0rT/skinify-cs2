@@ -79,11 +79,44 @@ function emailShell(opts: {
   </table></body></html>`;
 }
 
-async function sendViaBrevo(to: string, subject: string, html: string): Promise<{ ok: boolean; error?: string }> {
-  const apiKey = Deno.env.get('BREVO_API_KEY');
-  if (!apiKey) return { ok: false, error: 'BREVO_API_KEY is not configured' };
-  const senderEmail = Deno.env.get('BREVO_SENDER_EMAIL') || 'noreply@skinify.gg';
-  const senderName = Deno.env.get('BREVO_SENDER_NAME') || 'Skinify';
+interface BrevoConfig {
+  apiKey: string | null;
+  senderEmail: string;
+  senderName: string;
+}
+
+/* Resolve Brevo credentials. The DB override (system_settings key "brevo",
+   value: { "api_key": "...", "sender_email": "...", "sender_name": "..." })
+   takes precedence so the key can be fixed from Admin → Settings without
+   CLI access to `supabase secrets`. Env vars remain the fallback. */
+async function resolveBrevoConfig(supabase: any): Promise<BrevoConfig> {
+  let db: any = {};
+  try {
+    const { data } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'brevo')
+      .maybeSingle();
+    db = data?.value || {};
+  } catch {
+    /* table missing / row missing — fall through to env */
+  }
+  const clean = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+  return {
+    apiKey: clean(db.api_key) || clean(Deno.env.get('BREVO_API_KEY')) || null,
+    senderEmail: clean(db.sender_email) || clean(Deno.env.get('BREVO_SENDER_EMAIL')) || 'noreply@skinify.gg',
+    senderName: clean(db.sender_name) || clean(Deno.env.get('BREVO_SENDER_NAME')) || 'Skinify',
+  };
+}
+
+async function sendViaBrevo(cfg: BrevoConfig, to: string, subject: string, html: string): Promise<{ ok: boolean; error?: string }> {
+  const { apiKey, senderEmail, senderName } = cfg;
+  if (!apiKey) {
+    return {
+      ok: false,
+      error: 'Brevo API key is not configured. Set it in Admin → Settings (key "brevo") or via BREVO_API_KEY.',
+    };
+  }
   let res: Response;
   try {
     res = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -106,7 +139,7 @@ async function sendViaBrevo(to: string, subject: string, html: string): Promise<
     //   400 + sender error    → BREVO_SENDER_EMAIL not verified in Brevo
     const code = body?.code || '';
     let hint = body?.message || `Brevo error ${res.status}`;
-    if (res.status === 401) hint = 'Brevo rejected the API key (BREVO_API_KEY missing or wrong).';
+    if (res.status === 401) hint = 'Brevo rejected the API key — paste a fresh one in Admin → Settings (key "brevo") or update BREVO_API_KEY.';
     else if (/sender/i.test(hint) || code === 'invalid_parameter')
       hint = `Brevo rejected the sender "${senderEmail}" — verify it in Brevo → Senders. (${hint})`;
     return { ok: false, error: hint };
@@ -122,6 +155,7 @@ Deno.serve(async (req) => {
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !serviceKey) return json(500, { error: 'Server misconfigured.' });
   const supabase = createClient(supabaseUrl, serviceKey);
+  const brevoCfg = await resolveBrevoConfig(supabase);
 
   const body = await req.json().catch(() => ({}));
   const action = body?.action as string;
@@ -149,7 +183,7 @@ Deno.serve(async (req) => {
         ctaUrl: url,
         footnote: 'This link expires in 24 hours. If you didn’t create a Skinify account, you can ignore this email.',
       });
-      const sent = await sendViaBrevo(email, 'Confirm your Skinify email', html);
+      const sent = await sendViaBrevo(brevoCfg, email, 'Confirm your Skinify email', html);
       if (!sent.ok) return json(502, { error: sent.error });
       return json(200, { ok: true });
     }
@@ -204,7 +238,7 @@ Deno.serve(async (req) => {
           ctaUrl: url,
           footnote: 'This link expires in 1 hour. If you didn’t request this, you can safely ignore this email — your password stays the same.',
         });
-        await sendViaBrevo(email, 'Reset your Skinify password', html);
+        await sendViaBrevo(brevoCfg, email, 'Reset your Skinify password', html);
       }
       return json(200, { ok: true });
     }

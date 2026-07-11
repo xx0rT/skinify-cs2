@@ -1,3 +1,5 @@
+import { createClient } from 'npm:@supabase/supabase-js@2.39.0';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
@@ -29,10 +31,27 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get('BREVO_API_KEY');
+    /* Key resolution: system_settings row "brevo" (settable from Admin →
+       Settings, no CLI needed) takes precedence over the env secret. */
+    let apiKey = '';
+    let dbSender = '';
+    let dbSenderName = '';
+    try {
+      const su = Deno.env.get('SUPABASE_URL');
+      const sk = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      if (su && sk) {
+        const sb = createClient(su, sk);
+        const { data } = await sb.from('system_settings').select('value').eq('key', 'brevo').maybeSingle();
+        const v = (data?.value || {}) as any;
+        if (typeof v.api_key === 'string') apiKey = v.api_key.trim();
+        if (typeof v.sender_email === 'string') dbSender = v.sender_email.trim();
+        if (typeof v.sender_name === 'string') dbSenderName = v.sender_name.trim();
+      }
+    } catch { /* fall back to env */ }
+    if (!apiKey) apiKey = (Deno.env.get('BREVO_API_KEY') || '').trim();
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: 'BREVO_API_KEY is not configured' }),
+        JSON.stringify({ error: 'Brevo API key is not configured (Admin → Settings key "brevo", or BREVO_API_KEY).' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -55,8 +74,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const senderEmail = Deno.env.get('BREVO_SENDER_EMAIL') || 'noreply@skinify.gg';
-    const senderName = Deno.env.get('BREVO_SENDER_NAME') || 'Skinify';
+    const senderEmail = dbSender || Deno.env.get('BREVO_SENDER_EMAIL') || 'noreply@skinify.gg';
+    const senderName = dbSenderName || Deno.env.get('BREVO_SENDER_NAME') || 'Skinify';
 
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
