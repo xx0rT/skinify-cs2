@@ -331,9 +331,14 @@ const LandingPage: React.FC = () => {
           />
         </Reveal>
 
-        {/* ── Promo slot #1 — full-width campaign banner space ── */}
+        {/* ── Promo #1 — „Upgrade Your Inventory" kampaň (1916×821) ── */}
         <Reveal className="mb-10">
-          <PromoSlot label="Promo plocha" sub="Kampaňový banner · 1200 × 280" ratio="1200 / 280" />
+          <PromoSlot
+            image="/skinify_graphics/banner-upgrade.png"
+            href="/marketplace"
+            label="Upgrade Your Inventory"
+            ratio="1916 / 821"
+          />
         </Reveal>
 
         {/* ===== 4 · PROMOTED slider ===== */}
@@ -369,11 +374,21 @@ const LandingPage: React.FC = () => {
           </Reveal>
         )}
 
-        {/* ── Promo sloty #2+#3 — dvojice menších ploch ── */}
+        {/* ── Promo #2 — „Trade Smarter" kampaň (1916×821) ── */}
+        <Reveal className="mb-10">
+          <PromoSlot
+            image="/skinify_graphics/banner-trade.png"
+            href="/profile?tab=balance"
+            label="Trade Smarter"
+            ratio="1916 / 821"
+          />
+        </Reveal>
+
+        {/* ── Promo #3+#4 — čtvercové grafiky (1254×1254, ořez na 4:3) ── */}
         <Reveal className="mb-12">
           <div className="grid sm:grid-cols-2 gap-4">
-            <PromoSlot label="Promo plocha" sub="Grafika kampaně · 600 × 300" ratio="600 / 300" />
-            <PromoSlot label="Promo plocha" sub="Grafika kampaně · 600 × 300" ratio="600 / 300" />
+            <PromoSlot image="/skinify_graphics/coins.png" href="/bonuses" label="Bonusy" ratio="4 / 3" />
+            <PromoSlot image="/skinify_graphics/karambit.png" href="/marketplace?q=Karambit" label="Nože" ratio="4 / 3" />
           </div>
         </Reveal>
 
