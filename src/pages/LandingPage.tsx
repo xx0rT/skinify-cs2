@@ -296,11 +296,14 @@ const LandingPage: React.FC = () => {
               user={user}
               balance={balance}
               formatPrice={formatPrice}
-              spark={sparkPaths}
+              items={
+                (promotedItems.length > 0 ? promotedItems : marketplaceItems || []).slice(0, 14)
+              }
               onRefill={() => openDepositModal()}
               onProfile={() => navigate('/profile')}
               onBrowse={() => navigate('/marketplace')}
               onSell={() => navigate('/profile?tab=inventory')}
+              onView={(id) => navigate(`/item/${id}`)}
             />
           ) : (
             <SignedOutValueHero navigate={navigate} t={t} />
@@ -379,10 +382,16 @@ const LandingPage: React.FC = () => {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────
-   AccountBanner — the signed-in landing hero. Two columns: left = identity,
-   balance, Refill CTA and quick-jump chips (staggered on-load reveal);
-   right = a proper balance-history chart that DRAWS its full line on load,
-   then fades in the gradient fill. No glow orbs.
+   AccountBanner — the signed-in landing hero, redesigned around the thing
+   that actually makes a skin marketplace exciting: the skins. No chart.
+
+   Left  — staggered greeting, a big balance figure, Refill CTA and
+           quick-jump chips.
+   Right — a floating cluster of real listing art (top promoted items),
+           each gently bobbing on its own rhythm, clickable through to the
+           item. Pure product, pure motion.
+   Bottom — a live price ticker marquee (name · price) drifting across the
+           banner edge like an exchange board.
    ───────────────────────────────────────────────────────────────────────── */
 const bannerParent = {
   hidden: {},
@@ -393,162 +402,164 @@ const bannerChild = {
   shown: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 320, damping: 26 } },
 };
 
-/* Build a longer, smooth balance-history path (30 points) in a fixed
-   0..300 × 0..100 viewBox. Deterministic per-balance so it's stable across
-   reloads but still looks like a real, rising history with wiggle. */
-function buildHistoryPath(seed: number): { line: string; area: string } {
-  const N = 30;
-  let s = (seed % 100000) + 1;
-  const rand = () => {
-    s = (s * 1103515245 + 12345) & 0x7fffffff;
-    return s / 0x7fffffff;
-  };
-  const ys: number[] = [];
-  let v = 0.35;
-  for (let i = 0; i < N; i++) {
-    // gentle upward drift + noise, clamped
-    v += (rand() - 0.42) * 0.14;
-    v = Math.max(0.08, Math.min(0.92, v));
-    ys.push(v);
-  }
-  // force a rising end so it reads as growth
-  ys[N - 1] = Math.max(ys[N - 1], 0.86);
-  const pts = ys.map((y, i) => ({ x: (i / (N - 1)) * 300, y: 96 - y * 88 }));
-  let line = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[i - 1] || pts[i];
-    const p1 = pts[i];
-    const p2 = pts[i + 1];
-    const p3 = pts[i + 2] || p2;
-    const c1x = p1.x + (p2.x - p0.x) / 6;
-    const c1y = p1.y + (p2.y - p0.y) / 6;
-    const c2x = p2.x - (p3.x - p1.x) / 6;
-    const c2y = p2.y - (p3.y - p1.y) / 6;
-    line += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
-  }
-  const area = `${line} L300,100 L0,100 Z`;
-  return { line, area };
-}
-
 const AccountBanner: React.FC<{
   user: any;
   balance: number;
   formatPrice: (n: number) => string;
-  spark?: { line: string; area: string };
+  items?: any[];
   onRefill: () => void;
   onProfile: () => void;
   onBrowse?: () => void;
   onSell?: () => void;
-}> = ({ user, balance, formatPrice, onRefill, onProfile, onBrowse, onSell }) => {
-  const hist = useMemo(() => buildHistoryPath(Math.round(balance || 1000)), [balance]);
+  onView?: (id: string) => void;
+}> = ({ user, balance, formatPrice, items = [], onRefill, onProfile, onBrowse, onSell, onView }) => {
+  /* Three hero skins float on the right; the rest feed the ticker. */
+  const floats = items.filter((it) => it?.image).slice(0, 3);
+  const ticker = items.filter((it) => it?.image).slice(0, 12);
+
+  /* Per-skin float choreography — size, resting spot, tilt, and a slightly
+     different bob duration so the cluster never moves in lockstep. */
+  const FLOAT_POS = [
+    { className: 'right-[6%] top-6 w-44 sm:w-52', rotate: -10, dur: 5.5, delay: 0.15 },
+    { className: 'right-[26%] top-20 w-32 sm:w-40', rotate: 8, dur: 6.5, delay: 0.3 },
+    { className: 'right-[10%] bottom-10 w-28 sm:w-32', rotate: -5, dur: 7.5, delay: 0.45 },
+  ];
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.99 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ type: 'spring', stiffness: 220, damping: 26 }}
-      className="relative overflow-hidden rounded-[28px] px-6 sm:px-9 py-8 sm:py-9"
+      className="relative overflow-hidden rounded-[28px]"
       style={{
         background:
-          'linear-gradient(120deg, rgb(var(--accent) / 0.16) 0%, rgb(var(--accent) / 0.05) 40%, rgb(var(--surface)) 80%)',
+          'linear-gradient(115deg, rgb(var(--accent) / 0.17) 0%, rgb(var(--accent) / 0.05) 45%, rgb(var(--surface)) 85%)',
       }}
     >
-      <div className="relative flex flex-col lg:flex-row gap-6">
-        {/* Left — content */}
-        <motion.div variants={bannerParent} initial="hidden" animate="shown" className="flex-1 min-w-0">
-          <motion.button
-            variants={bannerChild}
-            onClick={onProfile}
-            className="flex items-center gap-4 min-w-0 text-left"
-            aria-label="Open profile"
-          >
-            {user.avatarUrl ? (
-              <img src={user.avatarUrl} alt="" className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover ring-2 ring-accent/30 shrink-0" />
-            ) : (
-              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-subtle shrink-0" />
-            )}
-            <div className="min-w-0">
-              <span className="label-eyebrow">Welcome back</span>
-              <div className="text-[24px] sm:text-[30px] font-bold tracking-tight leading-tight truncate">
-                {user.displayName || 'Trader'} 👋
-              </div>
-            </div>
-          </motion.button>
-
-          <motion.div variants={bannerChild} className="mt-6 flex flex-wrap items-end gap-x-8 gap-y-4">
-            <div>
-              <span className="label-meta">Available balance</span>
-              <div className="text-[36px] sm:text-[46px] font-bold text-ink tracking-tight tabular-nums leading-none mt-2">
-                {formatPrice(balance || 0)}
-              </div>
-            </div>
+      {/* Floating skins — desktop only; on mobile the banner stays compact. */}
+      <div className="absolute inset-y-0 right-0 w-[55%] hidden lg:block pointer-events-none" aria-hidden={floats.length === 0}>
+        {floats.map((it, i) => {
+          const pos = FLOAT_POS[i];
+          return (
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={tap}
-              onClick={onRefill}
-              className="h-12 px-7 rounded-full bg-accent text-on-accent text-[14px] font-bold shrink-0"
-              style={{ boxShadow: '0 12px 28px -12px rgb(var(--accent) / 0.75)' }}
+              key={it.id}
+              onClick={() => onView?.(String(it.id))}
+              className={`absolute ${pos.className} pointer-events-auto cursor-pointer`}
+              initial={{ opacity: 0, y: 30, rotate: pos.rotate - 6 }}
+              animate={{ opacity: 1, y: 0, rotate: pos.rotate }}
+              transition={{ type: 'spring', stiffness: 180, damping: 20, delay: pos.delay }}
+              whileHover={{ scale: 1.1, rotate: 0, zIndex: 10 }}
+              aria-label={it.name || it.market_name}
             >
-              + Refill balance
+              <motion.img
+                src={it.image}
+                alt=""
+                className="w-full h-auto object-contain"
+                style={{ filter: 'drop-shadow(0 18px 28px rgb(0 0 0 / 0.35))' }}
+                animate={{ y: [0, -9, 0] }}
+                transition={{ duration: pos.dur, repeat: Infinity, ease: 'easeInOut' }}
+                draggable={false}
+              />
             </motion.button>
-          </motion.div>
+          );
+        })}
+      </div>
 
-          <motion.div variants={bannerChild} className="mt-6 flex flex-wrap gap-2">
-            {[
-              { label: 'Browse market', onClick: onBrowse },
-              { label: 'Sell skins', onClick: onSell },
-              { label: 'My profile', onClick: onProfile },
-            ].map((c) => (
+      {/* Content */}
+      <motion.div
+        variants={bannerParent}
+        initial="hidden"
+        animate="shown"
+        className="relative px-6 sm:px-9 pt-8 sm:pt-9 pb-6 lg:max-w-[55%]"
+      >
+        <motion.button
+          variants={bannerChild}
+          onClick={onProfile}
+          className="flex items-center gap-4 min-w-0 text-left"
+          aria-label="Otevřít profil"
+        >
+          {user.avatarUrl ? (
+            <img
+              src={user.avatarUrl}
+              alt=""
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover ring-2 ring-accent/30 shrink-0"
+            />
+          ) : (
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-subtle shrink-0" />
+          )}
+          <div className="min-w-0">
+            <span className="label-eyebrow">Vítejte zpět</span>
+            <div className="text-[24px] sm:text-[30px] font-bold tracking-tight leading-tight truncate">
+              {user.displayName || 'Trader'} 👋
+            </div>
+          </div>
+        </motion.button>
+
+        <motion.div variants={bannerChild} className="mt-6 flex flex-wrap items-end gap-x-8 gap-y-4">
+          <div>
+            <span className="label-meta">Dostupný zůstatek</span>
+            <div className="text-[36px] sm:text-[46px] font-bold text-ink tracking-tight tabular-nums leading-none mt-2">
+              {formatPrice(balance || 0)}
+            </div>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={tap}
+            onClick={onRefill}
+            className="h-12 px-7 rounded-full bg-accent text-on-accent text-[14px] font-bold shrink-0"
+            style={{ boxShadow: '0 12px 28px -12px rgb(var(--accent) / 0.75)' }}
+          >
+            + Dobít zůstatek
+          </motion.button>
+        </motion.div>
+
+        <motion.div variants={bannerChild} className="mt-6 flex flex-wrap gap-2">
+          {[
+            { label: 'Procházet trh', onClick: onBrowse },
+            { label: 'Prodat skiny', onClick: onSell },
+            { label: 'Můj profil', onClick: onProfile },
+          ].map((c) => (
+            <button
+              key={c.label}
+              onClick={c.onClick}
+              className="h-10 px-4 rounded-full bg-ink/[0.04] dark:bg-white/[0.06] hover:bg-accent hover:text-on-accent text-ink text-[13px] font-bold transition-colors"
+            >
+              {c.label}
+            </button>
+          ))}
+        </motion.div>
+      </motion.div>
+
+      {/* Live-price ticker — an endless marquee along the banner's bottom
+          edge. Duplicated content + translateX(-50%) loop = seamless. */}
+      {ticker.length > 3 && (
+        <div className="relative border-t border-line/40 overflow-hidden py-2.5">
+          <motion.div
+            className="flex items-center gap-8 w-max"
+            animate={{ x: ['0%', '-50%'] }}
+            transition={{ duration: Math.max(24, ticker.length * 3), repeat: Infinity, ease: 'linear' }}
+          >
+            {[...ticker, ...ticker].map((it, i) => (
               <button
-                key={c.label}
-                onClick={c.onClick}
-                className="h-10 px-4 rounded-full bg-ink/[0.04] dark:bg-white/[0.06] hover:bg-accent hover:text-on-accent text-ink text-[13px] font-bold transition-colors"
+                key={`${it.id}-${i}`}
+                onClick={() => onView?.(String(it.id))}
+                className="flex items-center gap-2.5 shrink-0 group"
               >
-                {c.label}
+                <img src={it.image} alt="" className="w-9 h-7 object-contain" draggable={false} />
+                <span className="text-[12px] font-semibold text-ink-muted group-hover:text-ink transition-colors whitespace-nowrap max-w-[180px] truncate">
+                  {(it.name || it.market_name || '').split('(')[0].trim()}
+                </span>
+                <span className="text-[12px] font-bold text-ink tabular-nums whitespace-nowrap">
+                  {formatPrice(it.price || 0)}
+                </span>
               </button>
             ))}
           </motion.div>
-        </motion.div>
-
-        {/* Right — balance-history chart that draws on load, then the fill
-            fades up after the line finishes. */}
-        <div className="lg:w-[420px] shrink-0 flex flex-col justify-end">
-          <div className="flex items-center justify-between mb-2 px-1">
-            <span className="label-meta">Balance history</span>
-            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">+2.4% · 30d</span>
-          </div>
-          <div className="relative h-[120px] sm:h-[140px]">
-            <svg viewBox="0 0 300 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full" aria-hidden>
-              <defs>
-                <linearGradient id="acct-fill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="rgb(var(--accent))" stopOpacity="0.35" />
-                  <stop offset="100%" stopColor="rgb(var(--accent))" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              {/* Fill fades in AFTER the line draw (delay ≈ draw duration). */}
-              <motion.path
-                d={hist.area}
-                fill="url(#acct-fill)"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.7, delay: 1.5 }}
-              />
-              {/* Line draws its full history left → right. */}
-              <motion.path
-                d={hist.line}
-                fill="none"
-                stroke="rgb(var(--accent))"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                vectorEffect="non-scaling-stroke"
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ duration: 1.6, ease: [0.4, 0, 0.2, 1] }}
-              />
-            </svg>
-          </div>
+          {/* Edge fades so the marquee melts in/out instead of hard-clipping */}
+          <div className="absolute inset-y-0 left-0 w-16 pointer-events-none" style={{ background: 'linear-gradient(90deg, rgb(var(--surface)), transparent)' }} />
+          <div className="absolute inset-y-0 right-0 w-16 pointer-events-none" style={{ background: 'linear-gradient(270deg, rgb(var(--surface)), transparent)' }} />
         </div>
-      </div>
+      )}
     </motion.div>
   );
 };
