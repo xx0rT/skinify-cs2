@@ -161,6 +161,56 @@ Deno.serve(async (req) => {
   const action = body?.action as string;
 
   try {
+    if (action === 'signup') {
+      /* Full server-side signup. We create the auth user via the ADMIN API
+         with email_confirm:false — unlike client-side auth.signUp() this
+         sends NO Supabase email, so the only mail the user receives is our
+         branded Brevo confirmation below. GoTrue blocks password sign-in
+         until email_confirmed_at is set (our `confirm` action sets it). */
+      const email = String(body.email || '').trim().toLowerCase();
+      const password = String(body.password || '');
+      const displayName = String(body.displayName || '').trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, { error: 'Invalid email.' });
+      if (password.length < 6) return json(400, { error: 'Password must be at least 6 characters.' });
+
+      const { data: created, error: createErr } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: false,
+        user_metadata: { display_name: displayName },
+      });
+      if (createErr) {
+        if (/already|registered|exists/i.test(createErr.message || '')) {
+          return json(409, { error: 'Účet s tímto e-mailem už existuje — přihlaste se, nebo použijte „Zapomenuté heslo".' });
+        }
+        return json(500, { error: createErr.message });
+      }
+
+      const token = randomToken();
+      const expires = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+      const { error: tokErr } = await supabase.from('email_tokens').insert({
+        email,
+        auth_user_id: created.user?.id || null,
+        kind: 'confirm',
+        token,
+        expires_at: expires,
+      });
+      if (tokErr) return json(500, { error: tokErr.message });
+
+      const url = `${APP_ORIGIN}/auth/confirm?token=${token}`;
+      const html = emailShell({
+        heading: 'Potvrďte svůj e-mail',
+        body: `Vítejte na Skinify${displayName ? `, ${displayName}` : ''}! Potvrďte prosím svou e-mailovou adresu a aktivujte účet.`,
+        ctaLabel: 'Potvrdit e-mail',
+        ctaUrl: url,
+        footnote: 'Odkaz vyprší za 24 hodin. Pokud jste si účet na Skinify nezakládali, tento e-mail ignorujte.',
+      });
+      const sent = await sendViaBrevo(brevoCfg, email, 'Potvrďte svůj e-mail na Skinify', html);
+      /* The account exists either way; a failed send is surfaced so the
+         waiting screen's "resend" button can retry with a clear error. */
+      return json(200, { ok: true, needsConfirm: true, emailSent: sent.ok, emailError: sent.ok ? undefined : sent.error });
+    }
+
     if (action === 'send_confirmation') {
       const email = String(body.email || '').trim().toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, { error: 'Invalid email.' });

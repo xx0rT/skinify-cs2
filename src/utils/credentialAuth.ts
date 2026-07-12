@@ -52,67 +52,26 @@ export async function signUpWithPassword(
   password: string,
   displayName: string,
 ): Promise<AuthResult & { needsConfirm?: boolean }> {
-  try {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          display_name: displayName,
-        },
-      },
-    });
-
-    if (error) {
-      return { ok: false, error: humanError(error.message) };
-    }
-    if (!data.user) {
-      return { ok: false, error: 'Sign up did not return a user.' };
-    }
-
-    /* Supabase obfuscates "email already registered": it returns a fake
-       user with an EMPTY identities array and no session. Without this
-       check we'd treat it as "needs confirmation", show the waiting
-       screen, and the confirm-poll would resolve instantly (the address
-       is already confirmed) — the screen flashed open and closed. */
-    if (Array.isArray((data.user as any).identities) && (data.user as any).identities.length === 0) {
-      return {
-        ok: false,
-        error: 'Účet s tímto e-mailem už existuje — přihlaste se, nebo použijte „Zapomenuté heslo".',
-      };
-    }
-
-    /* Some Supabase projects require email confirmation. In that case
-       data.session is null. Send our own branded confirmation email via
-       Brevo (account-email edge function) so the mail comes from our
-       transactional sender rather than Supabase's built-in SMTP. */
-    if (!data.session) {
-      await accountEmail({
-        action: 'send_confirmation',
-        email: data.user.email || email,
-        authUserId: data.user.id,
-        displayName,
-      });
-      return {
-        ok: false,
-        error: 'Check your inbox to confirm your email address before signing in.',
-        needsConfirm: true,
-      };
-    }
-
-    await upsertPublicUser({
-      authUserId: data.user.id,
-      email: data.user.email || email,
-      displayName,
-    });
-
-    const user = await hydrateAuthUser(data.user.id);
-    return user
-      ? { ok: true, user }
-      : { ok: false, error: 'Failed to hydrate user profile.' };
-  } catch (e: any) {
-    return { ok: false, error: e?.message || 'Unexpected error during sign up.' };
+  /* Signup runs SERVER-SIDE (account-email fn, admin createUser with
+     email_confirm:false). Client-side auth.signUp() would make Supabase
+     send its own confirmation email — we want Brevo to be the only
+     sender, and GoTrue still blocks sign-in until our link confirms the
+     address. */
+  const res = await accountEmail({ action: 'signup', email: email.trim(), password, displayName });
+  if (!res.ok) {
+    return { ok: false, error: res.error || 'Sign up failed.' };
   }
+  if ((res as any).emailSent === false) {
+    /* Account created but the confirmation mail bounced (e.g. Brevo key
+       missing). Land on the waiting screen anyway — its resend button
+       surfaces the exact error. */
+    console.warn('[signup] confirmation email failed:', (res as any).emailError);
+  }
+  return {
+    ok: false,
+    error: 'Check your inbox to confirm your email address before signing in.',
+    needsConfirm: true,
+  };
 }
 
 /** Sign in with email + password. */
@@ -127,6 +86,15 @@ export async function signInWithPassword(
     });
     if (error) return { ok: false, error: humanError(error.message) };
     if (!data.user) return { ok: false, error: 'Sign in did not return a user.' };
+
+    /* Signup now happens server-side (admin API) which doesn't create the
+       public.users row — ensure it exists on first successful sign-in.
+       Idempotent, so repeat logins are a no-op. */
+    await upsertPublicUser({
+      authUserId: data.user.id,
+      email: data.user.email || email,
+      displayName: (data.user.user_metadata as any)?.display_name || email.split('@')[0],
+    });
 
     const user = await hydrateAuthUser(data.user.id);
     return user
