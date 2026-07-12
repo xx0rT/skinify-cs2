@@ -333,6 +333,33 @@ const SignInPage: React.FC<{ initialMode?: 'signin' | 'signup' }> = ({ initialMo
               <div className="mt-7 space-y-2">
                 <motion.button
                   whileTap={tap}
+                  onClick={async () => {
+                    /* Manual fallback if the 4s poll misses — force an
+                       immediate check + sign-in attempt. */
+                    const confirmed = await checkEmailConfirmed(awaiting.email);
+                    if (!confirmed) {
+                      addToast({ type: 'info', title: 'Zatím nepotvrzeno', message: 'Klikněte na odkaz v e-mailu a zkuste to znovu.' });
+                      return;
+                    }
+                    const result = await signInWithPassword(awaiting.email, awaiting.password);
+                    if (result.ok) {
+                      setAwaiting(null);
+                      addToast({ type: 'success', title: 'E-mail potvrzen', message: 'Účet je aktivní — vítejte!' });
+                      setUser(result.user);
+                      recordLogin();
+                      navigate('/', { replace: true });
+                    } else {
+                      setAwaiting(null);
+                      setMode('signin');
+                      addToast({ type: 'success', title: 'E-mail potvrzen', message: 'Přihlaste se svými údaji.' });
+                    }
+                  }}
+                  className="w-full h-11 rounded-full bg-accent text-on-accent text-[13px] font-bold"
+                >
+                  Už jsem potvrdil — pokračovat
+                </motion.button>
+                <motion.button
+                  whileTap={tap}
                   disabled={resending}
                   onClick={async () => {
                     setResending(true);

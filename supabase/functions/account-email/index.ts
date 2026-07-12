@@ -272,8 +272,18 @@ Deno.serve(async (req) => {
       if (!authUserId) {
         authUserId = (await findAuthUserByEmail(supabase, row.email))?.id || null;
       }
-      if (authUserId) {
-        await supabase.auth.admin.updateUserById(authUserId, { email_confirm: true });
+      if (!authUserId) {
+        return json(500, { error: 'Účet pro tento odkaz nebyl nalezen. Zkuste e-mail poslat znovu.' });
+      }
+      /* Fail LOUDLY — the old code ignored this error, so the page could
+         show "confirmed" while the account stayed unverified and the
+         waiting tab polled forever. */
+      const { error: upErr } = await supabase.auth.admin.updateUserById(authUserId, { email_confirm: true });
+      if (upErr) return json(500, { error: `Potvrzení selhalo: ${upErr.message}` });
+      /* Verify it actually took. */
+      const { data: after } = await supabase.auth.admin.getUserById(authUserId);
+      if (!after?.user?.email_confirmed_at) {
+        return json(500, { error: 'Potvrzení se nepropsalo — zkuste odkaz otevřít znovu.' });
       }
       await supabase.from('email_tokens').update({ used_at: new Date().toISOString() }).eq('id', row.id);
       return json(200, { ok: true });
