@@ -170,7 +170,7 @@ const SignInPage: React.FC<{ initialMode?: 'signin' | 'signup' }> = ({ initialMo
         addToast({ type: 'success', title: 'E-mail potvrzen', message: 'Účet je aktivní — vítejte!' });
         setUser(result.user);
         recordLogin();
-        navigate('/profile?tab=settings', { replace: true });
+        navigate('/', { replace: true });
       } else {
         setAwaiting(null);
         setMode('signin');

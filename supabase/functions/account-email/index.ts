@@ -148,6 +148,22 @@ async function sendViaBrevo(cfg: BrevoConfig, to: string, subject: string, html:
   return { ok: true };
 }
 
+/* admin.listUsers() returns ONE page (50 by default) — on projects with
+   more users a fresh signup is never on page one and email lookups
+   silently miss. Walk pages at 1000/user chunks until found. */
+async function findAuthUserByEmail(supabase: any, email: string): Promise<any | null> {
+  const needle = email.trim().toLowerCase();
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) return null;
+    const users = data?.users || [];
+    const match = users.find((u: any) => (u.email || '').toLowerCase() === needle);
+    if (match) return match;
+    if (users.length < 1000) return null; // last page reached
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 200, headers: corsHeaders });
   if (req.method !== 'POST') return json(405, { error: 'Use POST.' });
@@ -254,8 +270,7 @@ Deno.serve(async (req) => {
       // Resolve the auth user by id or email and mark confirmed.
       let authUserId = row.auth_user_id as string | null;
       if (!authUserId) {
-        const { data: listed } = await supabase.auth.admin.listUsers();
-        authUserId = listed?.users?.find((u: any) => u.email === row.email)?.id || null;
+        authUserId = (await findAuthUserByEmail(supabase, row.email))?.id || null;
       }
       if (authUserId) {
         await supabase.auth.admin.updateUserById(authUserId, { email_confirm: true });
@@ -271,8 +286,7 @@ Deno.serve(async (req) => {
          enumeration beyond what signup already reveals). */
       const email = String(body.email || '').trim().toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, { error: 'Invalid email.' });
-      const { data: listed } = await supabase.auth.admin.listUsers();
-      const match = listed?.users?.find((u: any) => (u.email || '').toLowerCase() === email);
+      const match = await findAuthUserByEmail(supabase, email);
       return json(200, { confirmed: !!match?.email_confirmed_at });
     }
 
@@ -281,8 +295,7 @@ Deno.serve(async (req) => {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, { error: 'Invalid email.' });
       // Don't leak whether the account exists — always return ok, but only
       // send if there's a matching auth user.
-      const { data: listed } = await supabase.auth.admin.listUsers();
-      const match = listed?.users?.find((u: any) => u.email === email);
+      const match = await findAuthUserByEmail(supabase, email);
       if (match) {
         const token = randomToken();
         const expires = new Date(Date.now() + 3600 * 1000).toISOString();
