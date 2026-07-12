@@ -259,7 +259,7 @@ const LandingPage: React.FC = () => {
     if (live.length === 0) return [] as any[];
     /* ONLY paid promotions (49 Kč fee) appear here — no filler. When
        nobody is paying, the wall simply doesn't render. */
-    return live.filter((it: any) => it?.promoted === true).slice(0, 100);
+    return live.filter((it: any) => it?.promoted === true);
   }, [marketplaceItems]);
 
   /* Newest listings for the "Recently added" slider — sort by listed_at
@@ -794,12 +794,23 @@ const BestSkinsGrid: React.FC<{
   const [tab, setTab] = useState('best');
   const active = BRACKETS.find((b) => b.id === tab) || BRACKETS[0];
 
-  const shown = useMemo(() => {
+  /* Every promoted listing is shown — paginated 25 per page so the section
+     stays scannable when many sellers are promoting at once. */
+  const PAGE_SIZE = 25;
+  const [page, setPage] = useState(0);
+  const sorted = useMemo(() => {
     const arr = (items || []).filter((it) => (it?.price || 0) <= active.max);
-    // Show EVERY promoted listing — sellers pay for the slot, so nothing
-    // gets cut off by an arbitrary cap.
     return [...arr].sort((a, b) => (a?.price || 0) - (b?.price || 0));
   }, [items, active.max]);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const shown = useMemo(
+    () => sorted.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE),
+    [sorted, page],
+  );
+  /* Tab switch or a shrinking list → snap back into range. */
+  useEffect(() => {
+    if (page > totalPages - 1) setPage(0);
+  }, [totalPages, page]);
 
   return (
     <section className="mb-12">
@@ -825,7 +836,7 @@ const BestSkinsGrid: React.FC<{
           return (
             <button
               key={b.id}
-              onClick={() => setTab(b.id)}
+              onClick={() => { setTab(b.id); setPage(0); }}
               className={`relative shrink-0 h-9 px-4 rounded-full text-[13px] font-bold whitespace-nowrap transition-colors ${
                 isActive ? 'text-on-accent' : 'text-ink-muted hover:text-ink'
               }`}
@@ -872,6 +883,26 @@ const BestSkinsGrid: React.FC<{
             </motion.div>
           ))}
         </motion.div>
+      )}
+
+      {/* Page switcher — appears once promotions overflow a single page. */}
+      {totalPages > 1 && (
+        <div className="mt-5 flex items-center justify-center gap-1.5">
+          {Array.from({ length: totalPages }).map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setPage(i)}
+              aria-label={`${isCS ? 'Strana' : 'Page'} ${i + 1}`}
+              className={`min-w-9 h-9 px-3 rounded-full text-[13px] font-bold tabular-nums transition-colors ${
+                i === page
+                  ? 'bg-accent text-on-accent'
+                  : 'bg-subtle/60 text-ink-muted hover:text-ink hover:bg-subtle'
+              }`}
+            >
+              {i + 1}
+            </button>
+          ))}
+        </div>
       )}
     </section>
   );
