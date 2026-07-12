@@ -139,7 +139,8 @@ async function sendViaBrevo(cfg: BrevoConfig, to: string, subject: string, html:
     //   400 + sender error    → BREVO_SENDER_EMAIL not verified in Brevo
     const code = body?.code || '';
     let hint = body?.message || `Brevo error ${res.status}`;
-    if (res.status === 401) hint = 'Brevo rejected the API key — paste a fresh one in Admin → Settings (key "brevo") or update BREVO_API_KEY.';
+    if (res.status === 401)
+      hint = `Brevo 401: ${body?.message || 'unauthorized'}. Zkontrolujte: (1) jde o API v3 klíč (xkeysib-…), ne SMTP klíč, (2) povolené IP adresy na https://app.brevo.com/security/authorised_ips, (3) klíč v Admin → Settings (key "brevo") nebo BREVO_API_KEY.`;
     else if (/sender/i.test(hint) || code === 'invalid_parameter')
       hint = `Brevo rejected the sender "${senderEmail}" — verify it in Brevo → Senders. (${hint})`;
     return { ok: false, error: hint };
