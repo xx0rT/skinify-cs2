@@ -316,10 +316,12 @@ const LandingPage: React.FC = () => {
           <LandingTrustBar isCS={isCS} itemCount={marketplaceItems?.length || 0} />
         </Reveal>
 
-        {/* ===== 3 · BEST SKINS — tabbed price-bracket grid ===== */}
+        {/* ===== 3 · PROMOTED ITEMS — tabbed price-bracket grid showing only
+            paid promotions; hidden entirely when nobody is promoting. ===== */}
+        {promotedItems.length > 0 && (
         <Reveal>
           <BestSkinsGrid
-            items={marketplaceItems || []}
+            items={promotedItems}
             loading={itemsLoading}
             onView={(id) => navigate(`/item/${id}`)}
             onAddCart={handleAddCart}
@@ -330,6 +332,7 @@ const LandingPage: React.FC = () => {
             isCS={isCS}
           />
         </Reveal>
+        )}
 
         {/* ── Promo #1 — „Upgrade Your Inventory" kampaň (1916×821) ── */}
         <Reveal className="mb-10">
@@ -340,22 +343,6 @@ const LandingPage: React.FC = () => {
             ratio="1916 / 821"
           />
         </Reveal>
-
-        {/* ===== 4 · PROMOTED slider ===== */}
-        {(promotedItems.length > 0 || (marketplaceItems && marketplaceItems.length > 4)) && (
-          <Reveal>
-            <PromotedRow
-              title={isCS ? 'Promované' : 'Promoted right now'}
-              eyebrow={isCS ? 'Doporučené' : 'Featured'}
-              items={promotedItems.length > 0 ? promotedItems : (marketplaceItems || []).slice(0, 16)}
-              onView={(id) => navigate(`/item/${id}`)}
-              onAddCart={handleAddCart}
-              onToggleWish={handleWish}
-              isWished={(id) => isInWishlist(id)}
-              formatPrice={formatPrice}
-            />
-          </Reveal>
-        )}
 
         {/* ===== 5 · RECENTLY ADDED slider ===== newest listings, so the
             page always shows fresh inventory even without promotions. */}
@@ -454,7 +441,7 @@ const AccountBanner: React.FC<{
       className="relative overflow-hidden rounded-[28px]"
       style={{
         background:
-          'linear-gradient(115deg, rgb(var(--accent) / 0.17) 0%, rgb(var(--accent) / 0.05) 45%, rgb(var(--surface)) 85%)',
+          'linear-gradient(115deg, rgb(var(--accent) / 0.16) 0%, rgb(var(--accent) / 0.05) 45%, rgb(var(--bg)) 82%)',
       }}
     >
       {/* Content */}
@@ -732,9 +719,9 @@ const BestSkinsGrid: React.FC<{
     <section className="mb-12">
       <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
         <div>
-          <span className="label-eyebrow">{isCS ? 'Doporučené' : 'Best skins'}</span>
+          <span className="label-eyebrow">{isCS ? 'Doporučené' : 'Featured'}</span>
           <h2 className="text-[20px] sm:text-[24px] font-bold text-ink tracking-tight leading-none mt-1">
-            {isCS ? 'Nejlepší ceny pro vás' : 'Best prices for you'}
+            {isCS ? 'Promované položky' : 'Promoted items'}
           </h2>
         </div>
         <button
