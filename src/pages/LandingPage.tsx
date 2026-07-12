@@ -361,6 +361,24 @@ const LandingPage: React.FC = () => {
           </Reveal>
         )}
 
+        {/* ===== 5b · MARKETPLACE PREVIEW ===== 5×5 grid of live listings;
+            the last row dissolves into the page with a centered CTA into
+            the full marketplace. ===== */}
+        {marketplaceItems && marketplaceItems.length > 9 && (
+          <Reveal className="mb-12">
+            <MarketPreviewGrid
+              items={marketplaceItems}
+              isCS={isCS}
+              onView={(id) => navigate(`/item/${id}`)}
+              onAddCart={handleAddCart}
+              onToggleWish={handleWish}
+              isWished={(id) => isInWishlist(id)}
+              formatPrice={formatPrice}
+              onOpen={() => navigate('/marketplace')}
+            />
+          </Reveal>
+        )}
+
         {/* ── Promo dvojice — komponované karty: text vlevo, celá grafika
             (bez ořezu) vpravo, na tmavém podkladu ladícím s artworkem. ── */}
         <Reveal className="mb-12">
@@ -554,6 +572,72 @@ const PromoSlot: React.FC<{
 };
 
 /* ─────────────────────────────────────────────────────────────────────────
+   MarketPreviewGrid — a 5×5 slice of the live marketplace under the
+   sliders. The bottom row dissolves into the page background via a CSS
+   mask, and a centered CTA floats over the fade to open the full
+   marketplace.
+   ───────────────────────────────────────────────────────────────────────── */
+const MarketPreviewGrid: React.FC<{
+  items: any[];
+  isCS: boolean;
+  onView: (id: string) => void;
+  onAddCart: (item: any) => void;
+  onToggleWish: (item: any) => void;
+  isWished: (id: string) => boolean;
+  formatPrice: (n: number) => string;
+  onOpen: () => void;
+}> = ({ items, isCS, onView, onAddCart, onToggleWish, isWished, formatPrice, onOpen }) => {
+  const shown = items.slice(0, 25);
+  return (
+    <section>
+      <div className="mb-4">
+        <span className="label-eyebrow">{isCS ? 'Tržiště' : 'Marketplace'}</span>
+        <h2 className="text-[19px] sm:text-[22px] font-bold text-ink tracking-tight leading-none mt-1">
+          {isCS ? 'Náhled tržiště' : 'Marketplace preview'}
+        </h2>
+      </div>
+
+      <div className="relative">
+        {/* The grid — masked so the last row melts into the page. */}
+        <div
+          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-0 isolate"
+          style={{
+            maskImage: 'linear-gradient(to bottom, black 62%, rgb(0 0 0 / 0.35) 82%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to bottom, black 62%, rgb(0 0 0 / 0.35) 82%, transparent 100%)',
+          }}
+        >
+          {shown.map((item: any) => (
+            <SkinCard
+              key={item.id}
+              variant="tile"
+              item={item}
+              onView={() => onView(String(item.id))}
+              onAddCart={() => onAddCart(item)}
+              onToggleWish={() => onToggleWish(item)}
+              wished={isWished(String(item.id))}
+              formatPrice={formatPrice}
+            />
+          ))}
+        </div>
+
+        {/* CTA floating in the middle of the dissolving last row. */}
+        <div className="absolute inset-x-0 bottom-6 flex justify-center">
+          <motion.button
+            whileTap={tap}
+            whileHover={{ scale: 1.04 }}
+            onClick={onOpen}
+            className="h-12 px-8 rounded-full bg-accent text-on-accent text-[14px] font-bold"
+            style={{ boxShadow: '0 14px 32px -12px rgb(var(--accent) / 0.7)' }}
+          >
+            {isCS ? 'Otevřít tržiště' : 'Open the marketplace'} →
+          </motion.button>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
    PromoCard — composed promo tile for square artwork: copy + CTA on the
    left, the FULL graphic (object-contain, no crop) on the right, over a
    near-black gradient that matches the artwork's background so the image
@@ -712,7 +796,9 @@ const BestSkinsGrid: React.FC<{
 
   const shown = useMemo(() => {
     const arr = (items || []).filter((it) => (it?.price || 0) <= active.max);
-    return [...arr].sort((a, b) => (a?.price || 0) - (b?.price || 0)).slice(0, 15);
+    // Show EVERY promoted listing — sellers pay for the slot, so nothing
+    // gets cut off by an arbitrary cap.
+    return [...arr].sort((a, b) => (a?.price || 0) - (b?.price || 0));
   }, [items, active.max]);
 
   return (
