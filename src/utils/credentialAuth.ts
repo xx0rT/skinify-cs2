@@ -70,6 +70,18 @@ export async function signUpWithPassword(
       return { ok: false, error: 'Sign up did not return a user.' };
     }
 
+    /* Supabase obfuscates "email already registered": it returns a fake
+       user with an EMPTY identities array and no session. Without this
+       check we'd treat it as "needs confirmation", show the waiting
+       screen, and the confirm-poll would resolve instantly (the address
+       is already confirmed) — the screen flashed open and closed. */
+    if (Array.isArray((data.user as any).identities) && (data.user as any).identities.length === 0) {
+      return {
+        ok: false,
+        error: 'Účet s tímto e-mailem už existuje — přihlaste se, nebo použijte „Zapomenuté heslo".',
+      };
+    }
+
     /* Some Supabase projects require email confirmation. In that case
        data.session is null. Send our own branded confirmation email via
        Brevo (account-email edge function) so the mail comes from our
