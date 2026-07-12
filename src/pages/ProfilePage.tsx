@@ -193,7 +193,17 @@ const LEGACY_TAB_MAP: Record<string, { tab: TabId; sub?: SubId }> = {
   reviews:       { tab: 'trades',    sub: 'reviews' },
   performance:   { tab: 'trades',    sub: 'performance' },
   notifications: { tab: 'settings',  sub: 'notifications' },
+  /* Notification deep-links (edge functions write these URLs). Without a
+     mapping an unknown tab matched NO content block and the page rendered
+     an empty column — the "blank screen" when opening a notification. */
+  orders:        { tab: 'trades' },
+  purchases:     { tab: 'trades' },
+  sales:         { tab: 'trades' },
 };
+
+/* Every valid tab id — anything else falls back to overview instead of
+   rendering an empty content area. */
+const VALID_TABS: TabId[] = ['overview', 'inventory', 'listings', 'trades', 'balance', 'messages', 'referral', 'settings'];
 
 import useDocumentMeta from '../hooks/useDocumentMeta';
 
@@ -236,7 +246,8 @@ const ProfilePage: React.FC = () => {
   const rawTab = searchParams.get('tab') || 'overview';
   const rawSub = searchParams.get('sub') || undefined;
   const remapped = LEGACY_TAB_MAP[rawTab];
-  const activeTab: TabId = (remapped ? remapped.tab : (rawTab as TabId)) || 'overview';
+  const candidate: TabId = (remapped ? remapped.tab : (rawTab as TabId)) || 'overview';
+  const activeTab: TabId = VALID_TABS.includes(candidate) ? candidate : 'overview';
   const activeSub: SubId | undefined = (() => {
     /* Legacy redirect wins over an explicit sub. */
     if (remapped?.sub) return remapped.sub;

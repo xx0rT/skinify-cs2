@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Activity,
@@ -118,7 +118,14 @@ const AdminPanelNew: React.FC = () => {
   const { user } = useAuthStore();
   const { isAdmin, loading: adminLoading } = useAdminAuth();
   const { addToast } = useToastStore();
-  const [activeTab, setActiveTab] = useState<TabId>('dashboard');
+  /* Deep-links like /admin?tab=withdrawals (used by notification "Open"
+     buttons) land on the matching tab instead of always Dashboard. */
+  const [adminParams] = useSearchParams();
+  const ADMIN_TABS: TabId[] = ['dashboard', 'users', 'finance', 'withdrawals', 'inventory', 'blogs', 'notifications', 'analytics', 'monitoring', 'support', 'settings', 'developer'];
+  const paramTab = adminParams.get('tab') as TabId | null;
+  const [activeTab, setActiveTab] = useState<TabId>(
+    paramTab && ADMIN_TABS.includes(paramTab) ? paramTab : 'dashboard',
+  );
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
   const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';

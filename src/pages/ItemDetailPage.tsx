@@ -1422,17 +1422,22 @@ const DetailsPanel: React.FC<{ item: any }> = ({ item }) => {
      18-tile dump (def index, asset id, marketable flags…) read as
      noise. Tiles with no value are dropped entirely instead of
      rendering a dash. */
+  /* Core Steam attributes ALWAYS render — asset id, float, paint seed,
+     pattern, paint/def index, exterior… — with an em-dash when a value is
+     genuinely unavailable, so the buyer sees the full technical sheet. */
+  const assetId = (item as any).asset_id ?? (item as any).assetId ?? null;
   const tiles: Array<[string, string]> = (
     [
-      ['Float', floatNum != null && Number.isFinite(floatNum) ? floatNum.toFixed(8) : null],
-      ['Paint seed', item.paintSeed != null ? `#${String(item.paintSeed)}` : null],
-      ['Pattern', item.patternTemplate != null ? String(item.patternTemplate) : null],
-      ['Exterior', item.condition || null],
-      ['Rarity', item.rarity || null],
-      ['Type', item.type || null],
+      ['Float', floatNum != null && Number.isFinite(floatNum) ? floatNum.toFixed(8) : '—'],
+      ['Paint seed', item.paintSeed != null ? `#${String(item.paintSeed)}` : '—'],
+      ['Pattern', item.patternTemplate != null ? String(item.patternTemplate) : '—'],
+      ['Paint index', item.paintIndex != null ? String(item.paintIndex) : '—'],
+      ['Def index', item.defIndex != null ? String(item.defIndex) : '—'],
+      ['Asset ID', assetId != null ? String(assetId) : '—'],
+      ['Exterior', item.condition || '—'],
+      ['Rarity', item.rarity || '—'],
+      ['Type', item.type || '—'],
       ['Collection', item.collection || null],
-      ['Paint index', item.paintIndex != null ? String(item.paintIndex) : null],
-      ['Def index', item.defIndex != null ? String(item.defIndex) : null],
       ['Finish', item.finish || null],
       [
         'Quality',
