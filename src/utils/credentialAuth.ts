@@ -5,7 +5,7 @@ import { getSupabaseCredentials } from './supabaseHelpers';
 /* Fire a request at the account-email edge function (Brevo-backed
    confirmation / password-reset emails). Best-effort — returns the
    outcome, never throws. */
-async function accountEmail(payload: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+async function accountEmail(payload: Record<string, unknown>): Promise<{ ok: boolean; error?: string; [k: string]: unknown }> {
   try {
     const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
     const res = await fetch(`${supabaseUrl}/functions/v1/account-email`, {
@@ -14,7 +14,9 @@ async function accountEmail(payload: Record<string, unknown>): Promise<{ ok: boo
       body: JSON.stringify(payload),
     });
     const body = await res.json().catch(() => ({}));
-    return res.ok ? { ok: true } : { ok: false, error: body?.error };
+    /* Pass the response payload through (e.g. `confirmed` for the
+       check_confirmed poll) alongside the ok flag. */
+    return res.ok ? { ok: true, ...body } : { ok: false, error: body?.error };
   } catch (e: any) {
     return { ok: false, error: e?.message };
   }
@@ -135,6 +137,21 @@ export async function requestPasswordReset(email: string): Promise<AuthResult> {
   const res = await accountEmail({ action: 'send_reset', email: email.trim().toLowerCase() });
   if (!res.ok) return { ok: false, error: res.error || 'Could not send reset email.' };
   return { ok: true, user: undefined as unknown as AuthUser };
+}
+
+/** Poll whether the address has been confirmed (post-signup waiting screen). */
+export async function checkEmailConfirmed(email: string): Promise<boolean> {
+  const res = await accountEmail({ action: 'check_confirmed', email: email.trim().toLowerCase() });
+  return res.ok ? !!(res as any).confirmed || false : false;
+}
+
+/** Re-send the confirmation email; surfaces the server's error so delivery
+ *  problems (e.g. a bad Brevo key) are visible instead of silent. */
+export async function resendConfirmation(
+  email: string,
+  displayName?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  return accountEmail({ action: 'send_confirmation', email: email.trim().toLowerCase(), displayName });
 }
 
 /** Complete a password reset with the token from the emailed link. */

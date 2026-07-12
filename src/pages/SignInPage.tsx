@@ -14,7 +14,7 @@ import {
 import SteamLogin from '../components/auth/SteamLogin';
 import { useToastStore } from '../store/toastStore';
 import { useAuthStore } from '../store/authStore';
-import { signInWithPassword, signUpWithPassword, requestPasswordReset } from '../utils/credentialAuth';
+import { signInWithPassword, signUpWithPassword, requestPasswordReset, checkEmailConfirmed, resendConfirmation } from '../utils/credentialAuth';
 import { checkDevice, recordLogin } from '../utils/twoFactor';
 import TwoFactorChallenge from '../components/auth/TwoFactorChallenge';
 import useDocumentMeta from '../hooks/useDocumentMeta';
@@ -46,6 +46,11 @@ const SignInPage: React.FC<{ initialMode?: 'signin' | 'signup' }> = ({ initialMo
   /* One window, two modes — the bottom link flips between sign-in and
      sign-up in place instead of navigating to a separate page. */
   const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
+  /* Post-signup verification hold: instead of bouncing back to the login
+     form, we park here, poll for the email being confirmed, and finish the
+     login automatically the moment the user clicks the link. */
+  const [awaiting, setAwaiting] = useState<{ email: string; password: string; name: string } | null>(null);
+  const [resending, setResending] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [agree, setAgree] = useState(false);
   const [email, setEmail] = useState('');
@@ -107,13 +112,7 @@ const SignInPage: React.FC<{ initialMode?: 'signin' | 'signup' }> = ({ initialMo
         const result = await signUpWithPassword(email.trim(), password, displayName.trim());
         if (!result.ok) {
           if ((result as any).needsConfirm) {
-            addToast({
-              type: 'info',
-              title: 'Confirm your email',
-              message: 'We sent you a confirmation link. Open it to finish creating your account.',
-              duration: 7000,
-            });
-            setMode('signin');
+            setAwaiting({ email: email.trim(), password, name: displayName.trim() });
             return;
           }
           setError(result.error || 'Sign up failed.');
@@ -154,6 +153,37 @@ const SignInPage: React.FC<{ initialMode?: 'signin' | 'signup' }> = ({ initialMo
       setSubmitting(false);
     }
   };
+
+  /* While the verification hold is up, poll every 4s. The moment the
+     address is confirmed we sign the user in with the credentials they
+     just typed and continue — no manual re-login. */
+  useEffect(() => {
+    if (!awaiting) return;
+    let stopped = false;
+    const tick = async () => {
+      const confirmed = await checkEmailConfirmed(awaiting.email);
+      if (stopped || !confirmed) return;
+      const result = await signInWithPassword(awaiting.email, awaiting.password);
+      if (stopped) return;
+      if (result.ok) {
+        setAwaiting(null);
+        addToast({ type: 'success', title: 'E-mail potvrzen', message: 'Účet je aktivní — vítejte!' });
+        setUser(result.user);
+        recordLogin();
+        navigate('/profile?tab=settings', { replace: true });
+      } else {
+        setAwaiting(null);
+        setMode('signin');
+        addToast({ type: 'success', title: 'E-mail potvrzen', message: 'Přihlaste se svými údaji.' });
+      }
+    };
+    const id = window.setInterval(tick, 4000);
+    tick();
+    return () => {
+      stopped = true;
+      window.clearInterval(id);
+    };
+  }, [awaiting]);
 
   /* Password reset — sends a Brevo email via the account-email function.
      We never reveal whether the address exists. */
@@ -278,6 +308,59 @@ const SignInPage: React.FC<{ initialMode?: 'signin' | 'signup' }> = ({ initialMo
             Back to home
           </motion.button>
 
+          {awaiting ? (
+            /* ── Verification hold — parked here until the email link is
+                  clicked; the poll above finishes the login automatically. ── */
+            <div className="text-center py-6">
+              <div className="w-16 h-16 rounded-3xl bg-accent/12 grid place-items-center mx-auto mb-5">
+                <Mail size={26} strokeWidth={2} className="text-accent" />
+              </div>
+              <span className="label-eyebrow">Ověření e-mailu</span>
+              <h1 className="text-[24px] font-bold tracking-tight text-ink leading-tight mt-1.5">
+                Potvrďte svůj e-mail
+              </h1>
+              <p className="text-[13.5px] text-ink-muted font-medium mt-3 leading-relaxed">
+                Poslali jsme odkaz na{' '}
+                <span className="font-bold text-ink">{awaiting.email}</span>.
+                Otevřete ho — jakmile adresu potvrdíte, přihlášení tady proběhne automaticky.
+              </p>
+
+              <div className="mt-6 flex items-center justify-center gap-2.5 text-[13px] font-semibold text-ink-muted">
+                <span className="w-4 h-4 rounded-full border-2 border-line border-t-accent animate-spin" />
+                Čekáme na potvrzení…
+              </div>
+
+              <div className="mt-7 space-y-2">
+                <motion.button
+                  whileTap={tap}
+                  disabled={resending}
+                  onClick={async () => {
+                    setResending(true);
+                    const res = await resendConfirmation(awaiting.email, awaiting.name);
+                    setResending(false);
+                    addToast(
+                      res.ok
+                        ? { type: 'success', title: 'E-mail odeslán znovu', message: `Zkontrolujte ${awaiting.email}.` }
+                        : { type: 'error', title: 'E-mail se nepodařilo odeslat', message: res.error, duration: 8000 },
+                    );
+                  }}
+                  className="w-full h-11 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[13px] font-bold transition-colors disabled:opacity-60"
+                >
+                  {resending ? 'Odesílám…' : 'Znovu odeslat e-mail'}
+                </motion.button>
+                <button
+                  onClick={() => {
+                    setAwaiting(null);
+                    setMode('signin');
+                  }}
+                  className="w-full text-[12.5px] font-semibold text-ink-muted hover:text-ink transition-colors py-2"
+                >
+                  Zpět na přihlášení
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
           <span className="label-eyebrow">{mode === 'signin' ? 'Sign in' : 'Create account'}</span>
           <h1 className="text-[26px] sm:text-[30px] font-bold tracking-tight text-ink leading-tight mt-1.5">
             {mode === 'signin' ? 'Welcome back' : 'Join Skinify'}
@@ -449,6 +532,8 @@ const SignInPage: React.FC<{ initialMode?: 'signin' | 'signup' }> = ({ initialMo
               {mode === 'signin' ? 'Create an account' : 'Sign in'}
             </button>
           </p>
+            </>
+          )}
         </motion.div>
       </main>
 

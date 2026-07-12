@@ -213,6 +213,18 @@ Deno.serve(async (req) => {
       return json(200, { ok: true });
     }
 
+    if (action === 'check_confirmed') {
+      /* Polled by the post-signup "waiting for verification" screen so the
+         original tab can auto-continue the moment the email link is
+         clicked. Returns confirmed:false for unknown emails (no account
+         enumeration beyond what signup already reveals). */
+      const email = String(body.email || '').trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, { error: 'Invalid email.' });
+      const { data: listed } = await supabase.auth.admin.listUsers();
+      const match = listed?.users?.find((u: any) => (u.email || '').toLowerCase() === email);
+      return json(200, { confirmed: !!match?.email_confirmed_at });
+    }
+
     if (action === 'send_reset') {
       const email = String(body.email || '').trim().toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, { error: 'Invalid email.' });

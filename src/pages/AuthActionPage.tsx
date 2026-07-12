@@ -93,14 +93,14 @@ const AuthActionPage: React.FC<{ mode: 'confirm' | 'reset' }> = ({ mode }) => {
                 <Centered
                   Icon={CheckCircle2}
                   tone="success"
-                  title="Email confirmed"
-                  sub="Your account is now active. You can sign in."
+                  title="E-mail potvrzen"
+                  sub="Vraťte se do původního okna — přihlášení tam proběhne automaticky. Toto okno můžete zavřít."
                   action={
                     <Link
                       to="/auth/signin"
-                      className="h-11 px-6 rounded-full bg-accent text-on-accent font-bold text-[14px] inline-flex items-center"
+                      className="h-11 px-6 rounded-full bg-subtle hover:bg-accent-soft text-ink font-bold text-[14px] inline-flex items-center transition-colors"
                     >
-                      Sign in
+                      Nebo se přihlaste zde
                     </Link>
                   }
                 />
