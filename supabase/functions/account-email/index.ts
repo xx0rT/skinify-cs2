@@ -119,14 +119,26 @@ async function sendViaBrevo(cfg: BrevoConfig, to: string, subject: string, html:
   }
   let res: Response;
   try {
+    /* Deliverability: always ship a text/plain part alongside the HTML
+       (HTML-only mail scores as spam), set a real reply-to, and a
+       List-Unsubscribe header — Gmail weighs all three. */
+    const textContent = html
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, '$2: $1 ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
     res = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: { 'api-key': apiKey, 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({
         sender: { email: senderEmail, name: senderName },
+        replyTo: { email: senderEmail.replace(/^noreply@/, 'support@'), name: senderName },
         to: [{ email: to }],
         subject,
         htmlContent: html,
+        textContent,
+        headers: { 'List-Unsubscribe': `<mailto:${senderEmail.replace(/^noreply@/, 'support@')}>` },
       }),
     });
   } catch (e) {
