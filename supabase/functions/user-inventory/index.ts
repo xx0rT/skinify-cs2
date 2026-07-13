@@ -169,6 +169,51 @@ function getTypeFromTags(tags?: any[]): string {
 }
 
 /**
+ * Build a 200 response from cached user_inventories rows. Used for both
+ * fresh cache hits and the stale-cache fallback when Steam rate-limits.
+ */
+function cachedRowsResponse(
+  rows: any[],
+  steamId64: string,
+  originalSteamId: string,
+  stale = false,
+): Response {
+  const items: ProcessedItem[] = rows.map((row: any) => ({
+    id: row.asset_id,
+    name: row.item_name || row.market_name || '',
+    market_name: row.market_name || '',
+    type: row.item_type || 'Unknown',
+    rarity: row.rarity || 'Consumer Grade',
+    condition: row.condition || 'Not Painted',
+    price_estimate: Number(row.price_estimate || 0),
+    image: row.image_url || '',
+    tradable: !!row.tradable,
+    marketable: !!row.marketable,
+    float: row.float_value ?? undefined,
+    stickers: row.stickers ?? undefined,
+    assetid: row.asset_id,
+    classid: row.class_id,
+    instanceid: row.instance_id,
+  }));
+  const totalValue = items.reduce((s, it) => s + it.price_estimate, 0);
+  return new Response(
+    JSON.stringify({
+      steam_id: steamId64,
+      original_steam_id: originalSteamId,
+      items,
+      total: items.length,
+      total_value: totalValue,
+      currency: 'CZK',
+      last_updated: rows[0].last_updated,
+      cached: true,
+      stale,
+      cache_ttl_seconds: Math.floor(CACHE_TTL_MS / 1000),
+    }),
+    { headers: { 'Content-Type': 'application/json', ...corsHeaders }, status: 200 },
+  );
+}
+
+/**
  * Extract float value from descriptions
  * @param descriptions - Array of item descriptions
  * @returns Float value as string or undefined
@@ -684,38 +729,7 @@ Deno.serve(async (req) => {
         .order('last_updated', { ascending: false });
 
       if (cached && cached.length > 0) {
-        const items: ProcessedItem[] = cached.map((row: any) => ({
-          id: row.asset_id,
-          name: row.item_name || row.market_name || '',
-          market_name: row.market_name || '',
-          type: row.item_type || 'Unknown',
-          rarity: row.rarity || 'Consumer Grade',
-          condition: row.condition || 'Not Painted',
-          price_estimate: Number(row.price_estimate || 0),
-          image: row.image_url || '',
-          tradable: !!row.tradable,
-          marketable: !!row.marketable,
-          float: row.float_value ?? undefined,
-          stickers: row.stickers ?? undefined,
-          assetid: row.asset_id,
-          classid: row.class_id,
-          instanceid: row.instance_id,
-        }));
-        const totalValue = items.reduce((s, it) => s + it.price_estimate, 0);
-        return new Response(
-          JSON.stringify({
-            steam_id: steamId64,
-            original_steam_id: steamId,
-            items,
-            total: items.length,
-            total_value: totalValue,
-            currency: 'CZK',
-            last_updated: cached[0].last_updated,
-            cached: true,
-            cache_ttl_seconds: Math.floor(CACHE_TTL_MS / 1000),
-          }),
-          { headers: { 'Content-Type': 'application/json', ...corsHeaders }, status: 200 },
-        );
+        return cachedRowsResponse(cached, steamId64, steamId);
       }
     }
 
@@ -742,33 +756,58 @@ Deno.serve(async (req) => {
     });
 
     if (!response.ok) {
+      /* Steam's inventory endpoint rate-limits datacenter IPs hard (429,
+         sometimes bare 400s). Before failing, serve whatever we have in
+         the DB cache regardless of age — a stale inventory beats an error
+         screen, and the next request after the limit lifts refreshes it. */
+      const transient = response.status === 429 || response.status === 400 || response.status >= 500;
+      if (db && !debugMode && transient) {
+        const { data: stale } = await db
+          .from('user_inventories')
+          .select('*')
+          .eq('steam_id', steamId64)
+          .order('last_updated', { ascending: false });
+        if (stale && stale.length > 0) {
+          console.log(`Steam ${response.status} — serving stale cache (${stale.length} items)`);
+          return cachedRowsResponse(stale, steamId64, steamId, true);
+        }
+      }
+
       let errorMessage = '';
+      let privacyHint = false;
       if (response.status === 403) {
         errorMessage = 'Steam inventory is private. Please set your Steam inventory to Public in your Steam Profile Privacy Settings.';
+        privacyHint = true;
       } else if (response.status === 404) {
         errorMessage = 'Steam profile not found. The Steam ID may be invalid.';
-      } else if (response.status === 500) {
+      } else if (response.status === 429 || response.status === 400) {
+        errorMessage = 'Steam is rate-limiting inventory requests right now. Please try again in a few minutes.';
+      } else if (response.status >= 500) {
         errorMessage = 'Steam server error. Steam\'s servers may be temporarily unavailable.';
       } else {
         errorMessage = `Steam API error: ${response.status} ${response.statusText}`;
       }
 
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: errorMessage,
           status: response.status,
           steam_id: steamId64,
           inventory_url: inventoryUrl,
-          instructions: [
-            'Go to Steam Profile Privacy Settings',
-            'Set Profile to Public',
-            'Set Game Details to Public', 
-            'Set Inventory to Public',
-            'Wait 15-30 minutes for changes to take effect'
-          ],
+          ...(privacyHint
+            ? {
+                instructions: [
+                  'Go to Steam Profile Privacy Settings',
+                  'Set Profile to Public',
+                  'Set Game Details to Public',
+                  'Set Inventory to Public',
+                  'Wait 15-30 minutes for changes to take effect',
+                ],
+              }
+            : {}),
           timestamp: new Date().toISOString()
         }),
-        { 
+        {
           status: 400,
           headers: { 'Content-Type': 'application/json', ...corsHeaders }
         }
