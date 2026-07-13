@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft,
   Check,
   ChevronDown,
   Globe,
@@ -21,6 +21,10 @@ import { useAuthStore } from '../../store/authStore';
 import { initializeWebPush, checkPushSubscription } from '../../utils/webPushNotifications';
 import { spring, tap } from '../../lib/motion';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { rarityColor } from '../ui/SkinCard';
+
+/* Czech pluralization: 1 položka · 2–4 položky · 5+ položek */
+const polozek = (n: number) => (n === 1 ? 'položka' : n >= 2 && n <= 4 ? 'položky' : 'položek');
 
 /* ─────────────────────────────────────────────────────────────────────────
    ListItemModal — clean rewrite
@@ -126,6 +130,16 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
     }
   }, [isOpen]);
 
+  /* Escape closes the modal (unless a submit is in flight). */
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isSubmitting && !showConfirmation) onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, isSubmitting, showConfirmation, onClose]);
+
   /* Group items by name+wear, fetch Steam median, seed price=market. */
   useEffect(() => {
     if (!isOpen || items.length === 0) return;
@@ -212,12 +226,12 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
   /* ─── Submit ──────────────────────────────────────────────────── */
   const handleSubmit = async () => {
     if (groupedItems.length === 0) {
-      addToast({ type: 'error', title: 'Nothing to list' });
+      addToast({ type: 'error', title: 'Není co vystavit' });
       return;
     }
     const { user } = useAuthStore.getState();
     if (!user?.steamId) {
-      addToast({ type: 'error', title: 'Sign in first' });
+      addToast({ type: 'error', title: 'Nejprve se přihlaste' });
       return;
     }
     checkPushSubscription()
@@ -244,11 +258,11 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
       await onConfirmListing(payload);
       addToast({
         type: 'success',
-        title: `${payload.length} item${payload.length === 1 ? '' : 's'} listed`,
+        title: `Vystaveno: ${payload.length} ${polozek(payload.length)}`,
       });
       onClose();
     } catch (e: any) {
-      addToast({ type: 'error', title: 'Listing failed', message: e?.message || 'Try again.' });
+      addToast({ type: 'error', title: 'Vystavení selhalo', message: e?.message || 'Zkuste to znovu.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -256,14 +270,18 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  /* Rendered through a portal — the modal used to mount inside the
+     profile tab tree where framer-motion transforms create a containing
+     block, so `fixed inset-0` didn't cover the viewport and the top of
+     the page stayed unblurred. document.body has no transforms. */
+  return createPortal(
     <AnimatePresence>
       <motion.div
         key="backdrop"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[80] grid place-items-center bg-ink/40 dark:bg-black/70 backdrop-blur-md p-4"
+        className="fixed inset-0 z-[80] grid place-items-center bg-ink/50 dark:bg-black/70 backdrop-blur-lg p-4"
         onClick={onClose}
       >
         <motion.div
@@ -280,9 +298,6 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
               '0 32px 64px -24px rgba(20,16,40,0.55), 0 12px 28px -10px rgba(20,16,40,0.35)',
           }}
         >
-          {/* (Removed the top accent stripe — was reading as a "white
-              flash" on the modal header in dark mode.) */}
-
           {/* ─── Header ─── */}
           <div className="shrink-0 px-5 sm:px-6 pt-5 pb-4 border-b border-line/70 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
@@ -290,15 +305,15 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
                 <Tag size={17} strokeWidth={2.4} className="text-accent" />
               </div>
               <div className="min-w-0">
-                <span className="label-eyebrow">Sell on Skinify</span>
+                <span className="label-eyebrow">Prodej na Skinify</span>
                 <h2 className="text-[19px] sm:text-[21px] font-bold text-ink tracking-tight mt-1 leading-none truncate">
-                  {totals.count} {totals.count === 1 ? 'item' : 'items'} ready to list
+                  {totals.count} {polozek(totals.count)} k vystavení
                 </h2>
               </div>
             </div>
             <button
               onClick={onClose}
-              aria-label="Close"
+              aria-label="Zavřít"
               className="h-10 w-10 shrink-0 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors"
             >
               <X size={16} strokeWidth={2.4} />
@@ -309,7 +324,7 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
           <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-3">
             {groupedItems.length === 0 ? (
               <div className="py-16 text-center text-ink-muted text-[13.5px] font-medium">
-                No items left to list. Add items to your cart from Inventory and try again.
+                Žádné položky k vystavení. Vyberte skiny v inventáři a zkuste to znovu.
               </div>
             ) : (
               groupedItems.map((g, i) => (
@@ -334,13 +349,13 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
           {/* ─── Footer ─── */}
           <div className="shrink-0 px-5 sm:px-6 py-5 border-t border-line bg-surface/40">
             <div className="grid grid-cols-3 gap-3 mb-4">
-              <Stat label="Subtotal" value={formatPrice(totals.subtotal)} />
+              <Stat label="Mezisoučet" value={formatPrice(totals.subtotal)} />
               <Stat
-                label={`Fee · ${SALE_FEE_PERCENTAGE}%`}
+                label={`Poplatek · ${SALE_FEE_PERCENTAGE} %`}
                 value={`− ${formatPrice(totals.fee)}`}
                 tone="rose"
               />
-              <Stat label="Earnings" value={formatPrice(totals.earnings)} tone="accent" />
+              <Stat label="Vyděláte" value={formatPrice(totals.earnings)} tone="accent" />
             </div>
             <motion.button
               whileTap={{ scale: 0.98 }}
@@ -348,10 +363,11 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
               onClick={() => setShowConfirmation(true)}
               disabled={isSubmitting || groupedItems.length === 0}
               className="w-full h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity hover:opacity-95"
+              style={{ boxShadow: '0 12px 26px -12px rgb(var(--accent) / 0.55)' }}
             >
               {isSubmitting
-                ? 'Listing items…'
-                : `List ${totals.count} ${totals.count === 1 ? 'item' : 'items'}`}
+                ? 'Vystavuji…'
+                : `Vystavit ${totals.count} ${polozek(totals.count)}`}
             </motion.button>
           </div>
         </motion.div>
@@ -367,7 +383,8 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
         feePct={SALE_FEE_PERCENTAGE}
         formatPrice={formatPrice}
       />
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 };
 
@@ -438,14 +455,14 @@ const ConfirmListingDialog: React.FC<{
           {/* Header */}
           <div className="flex items-start justify-between gap-3 mb-5">
             <div className="min-w-0">
-              <span className="label-eyebrow">Confirm listing</span>
+              <span className="label-eyebrow">Potvrzení</span>
               <h2 className="text-[20px] font-bold text-ink tracking-tight leading-tight mt-1">
-                Publish {totals.count} {totals.count === 1 ? 'item' : 'items'} to the marketplace?
+                Vystavit {totals.count} {polozek(totals.count)} na tržiště?
               </h2>
             </div>
             <button
               onClick={() => !isProcessing && onClose()}
-              aria-label="Close"
+              aria-label="Zavřít"
               className="h-9 w-9 shrink-0 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors"
             >
               <X size={15} strokeWidth={2.4} />
@@ -481,22 +498,22 @@ const ConfirmListingDialog: React.FC<{
 
           {/* Money breakdown */}
           <div className="rounded-3xl bg-subtle p-4 space-y-2">
-            <Row label="Subtotal" value={formatPrice(totals.subtotal)} />
+            <Row label="Mezisoučet" value={formatPrice(totals.subtotal)} />
             <Row
-              label={`Skinify fee · ${feePct}%`}
+              label={`Poplatek Skinify · ${feePct} %`}
               value={`− ${formatPrice(totals.fee)}`}
               tone="muted"
             />
             <div className="h-px bg-line my-1" />
-            <Row label="You receive" value={formatPrice(totals.earnings)} tone="accent" bold />
+            <Row label="Obdržíte" value={formatPrice(totals.earnings)} tone="accent" bold />
           </div>
 
           {/* Reassurance bullets */}
           <ul className="mt-5 space-y-2">
             {[
-              'Items stay in your Steam inventory until they sell',
-              'Escrow-protected — funds release 8 days after delivery',
-              'Cancel any listing anytime from the Listings tab',
+              'Skiny zůstávají ve vašem Steam inventáři, dokud se neprodají',
+              'Chráněno escrow — peníze se uvolní 8 dní po doručení',
+              'Nabídku můžete kdykoli zrušit v záložce Nabídky',
             ].map((line) => (
               <li
                 key={line}
@@ -520,7 +537,7 @@ const ConfirmListingDialog: React.FC<{
               disabled={isProcessing}
               className="sm:flex-1 h-12 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[13.5px] transition-colors disabled:opacity-50"
             >
-              Cancel
+              Zpět
             </motion.button>
             <motion.button
               whileTap={tap}
@@ -531,8 +548,8 @@ const ConfirmListingDialog: React.FC<{
               style={{ boxShadow: '0 12px 26px -12px rgb(var(--accent) / 0.55)' }}
             >
               {isProcessing
-                ? 'Listing…'
-                : `Publish ${totals.count} ${totals.count === 1 ? 'item' : 'items'}`}
+                ? 'Vystavuji…'
+                : `Vystavit ${totals.count} ${polozek(totals.count)}`}
             </motion.button>
           </div>
         </div>
@@ -600,10 +617,11 @@ const ItemCard: React.FC<{
   const pct = calcPctFromPrice(group.marketPrice, group.price);
   const tone =
     pct < -5
-      ? { label: 'Below market', class: 'text-emerald-700 dark:text-emerald-400' }
+      ? { label: 'Pod trhem', class: 'text-emerald-700 dark:text-emerald-400' }
       : pct > 5
-      ? { label: 'Above market', class: 'text-rose-700 dark:text-rose-400' }
-      : { label: 'Recommended', class: 'text-accent' };
+      ? { label: 'Nad trhem', class: 'text-rose-700 dark:text-rose-400' }
+      : { label: 'Doporučeno', class: 'text-accent' };
+  const rc = rarityColor(group.rarity);
 
   return (
     <motion.div
@@ -615,23 +633,40 @@ const ItemCard: React.FC<{
     >
       {/* Header row */}
       <div className="flex items-start gap-4">
-        <div className="w-16 h-16 rounded-2xl bg-subtle/60 shrink-0 grid place-items-center overflow-hidden">
+        <div
+          className="w-16 h-16 rounded-2xl shrink-0 grid place-items-center overflow-hidden"
+          style={{
+            background: `radial-gradient(ellipse at 50% 100%, ${rc}26 0%, rgb(var(--subtle) / 0.6) 70%)`,
+          }}
+        >
           <img src={group.image} alt={group.name} className="w-[85%] h-[85%] object-contain" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[11px] text-ink-dim font-semibold uppercase tracking-wider">
-            {group.type || 'Item'}
+            {group.type || 'Položka'}
           </div>
           <div className="text-[15px] font-bold text-ink tracking-tight leading-tight truncate mt-0.5">
             {group.name}
           </div>
-          {group.wear && (
-            <div className="text-[12px] text-ink-muted font-medium mt-0.5">{group.wear}</div>
-          )}
+          <div className="mt-1 flex items-center gap-1.5">
+            {group.rarity && (
+              <span
+                className="inline-flex items-center gap-1 text-[11px] font-bold"
+                style={{ color: rc }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: rc }} />
+                {group.rarity}
+              </span>
+            )}
+            {group.wear && group.rarity && <span className="text-ink-dim text-[11px]">·</span>}
+            {group.wear && (
+              <span className="text-[11.5px] text-ink-muted font-medium">{group.wear}</span>
+            )}
+          </div>
         </div>
         <button
           onClick={remove}
-          aria-label="Remove"
+          aria-label="Odebrat"
           className="h-9 w-9 shrink-0 rounded-full bg-subtle hover:bg-rose-500/15 text-ink-muted hover:text-rose-500 grid place-items-center transition-colors"
         >
           <Trash2 size={14} strokeWidth={2.2} />
@@ -641,10 +676,10 @@ const ItemCard: React.FC<{
       {/* PRICE — the centrepiece */}
       <div className="mt-4 card-flat p-3.5 rounded-2xl bg-subtle/40">
         <div className="flex items-baseline justify-between gap-3 mb-2.5">
-          <div className="label-meta">Your price tag</div>
+          <div className="label-meta">Vaše cena</div>
           {!group.isLoadingPrice && (
             <div className="text-[11.5px] text-ink-muted font-medium">
-              Steam median ·{' '}
+              Steam medián ·{' '}
               <span className="text-ink font-bold tabular-nums">
                 {formatPrice(group.marketPrice)}
               </span>
@@ -695,9 +730,35 @@ const ItemCard: React.FC<{
               }}
             />
             <div className="flex items-center justify-between mt-1.5 text-[10.5px] font-bold uppercase tracking-wider text-ink-dim tabular-nums">
-              <span>−20%</span>
-              <span>Market</span>
-              <span>+50%</span>
+              <span>−20 %</span>
+              <span>Trh</span>
+              <span>+50 %</span>
+            </div>
+
+            {/* Quick presets — one tap to undercut / match / overshoot. */}
+            <div className="mt-2.5 grid grid-cols-3 gap-1.5">
+              {(
+                [
+                  { pct: -10, label: '−10 %' },
+                  { pct: 0, label: 'Tržní cena' },
+                  { pct: 10, label: '+10 %' },
+                ] as const
+              ).map((p) => {
+                const active = Math.round(pct) === p.pct;
+                return (
+                  <button
+                    key={p.pct}
+                    onClick={() => setPriceFromSlider(p.pct)}
+                    className={`h-9 rounded-full text-[11.5px] font-bold tabular-nums transition-colors ${
+                      active
+                        ? 'bg-accent text-on-accent'
+                        : 'bg-surface ring-1 ring-line text-ink-muted hover:text-ink hover:bg-bg'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -708,10 +769,10 @@ const ItemCard: React.FC<{
         <div className="mt-3 flex items-center justify-between">
           <div>
             <div className="text-[11px] font-bold uppercase tracking-wider text-ink-dim">
-              Quantity
+              Množství
             </div>
             <div className="text-[12px] text-ink-muted font-medium mt-0.5">
-              You own {group.quantity}
+              Vlastníte {group.quantity} ks
             </div>
           </div>
           <div className="flex items-center gap-1.5">
@@ -742,13 +803,13 @@ const ItemCard: React.FC<{
         className="w-full mt-3 h-10 px-3 rounded-2xl bg-subtle hover:bg-bg text-[12px] font-bold text-ink-muted hover:text-ink inline-flex items-center justify-between transition-colors"
       >
         <span className="inline-flex items-center gap-2">
-          {expanded ? 'Hide options' : 'More options'}
+          {expanded ? 'Skrýt možnosti' : 'Další možnosti'}
         </span>
         <span className="inline-flex items-center gap-1.5 text-[11px] text-ink-dim font-semibold">
-          {group.visibility === 'private' ? 'Private' : 'Public'} ·{' '}
+          {group.visibility === 'private' ? 'Soukromé' : 'Veřejné'} ·{' '}
           {group.listingType === 'auction'
-            ? `Auction ${group.auctionDuration ?? 3}d`
-            : 'Buy now'}
+            ? `Aukce ${group.auctionDuration ?? 3} d`
+            : 'Koupit hned'}
           <ChevronDown
             size={12}
             strokeWidth={2.4}
@@ -770,20 +831,20 @@ const ItemCard: React.FC<{
               {/* Visibility */}
               <div>
                 <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim mb-1.5">
-                  Who can buy this
+                  Kdo může koupit
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
                   <Pill
                     Icon={Globe}
-                    label="Public"
-                    sub="Show on marketplace"
+                    label="Veřejné"
+                    sub="Zobrazí se na tržišti"
                     active={group.visibility === 'public'}
                     onClick={() => patchGroup({ visibility: 'public' })}
                   />
                   <Pill
                     Icon={LinkIcon}
-                    label="Private link"
-                    sub="Share via URL"
+                    label="Soukromý odkaz"
+                    sub="Sdílení přes URL"
                     active={group.visibility === 'private'}
                     onClick={() => patchGroup({ visibility: 'private' })}
                   />
@@ -793,20 +854,20 @@ const ItemCard: React.FC<{
               {/* Listing type */}
               <div>
                 <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim mb-1.5">
-                  How it sells
+                  Způsob prodeje
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
                   <Pill
                     Icon={Zap}
-                    label="Buy now"
-                    sub="Fixed price"
+                    label="Koupit hned"
+                    sub="Pevná cena"
                     active={group.listingType === 'buy_now'}
                     onClick={() => patchGroup({ listingType: 'buy_now', auctionDuration: undefined })}
                   />
                   <Pill
                     Icon={Timer}
-                    label="Auction"
-                    sub="Highest bid wins"
+                    label="Aukce"
+                    sub="Vyhrává nejvyšší nabídka"
                     active={group.listingType === 'auction'}
                     onClick={() => patchGroup({ listingType: 'auction', auctionDuration: 3 })}
                   />
@@ -834,7 +895,7 @@ const ItemCard: React.FC<{
               <div>
                 <div className="flex items-baseline justify-between mb-1.5">
                   <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
-                    Note for buyers
+                    Poznámka pro kupující
                   </div>
                   <span className="text-[10.5px] font-bold text-ink-dim tabular-nums">
                     {(group.description || '').length} / 32
@@ -845,7 +906,7 @@ const ItemCard: React.FC<{
                   onChange={(e) =>
                     patchGroup({ description: e.target.value.slice(0, 32) })
                   }
-                  placeholder="e.g. low float, rare pattern…"
+                  placeholder="např. nízký float, vzácný pattern…"
                   className="w-full h-10 px-3.5 rounded-full bg-subtle outline-none text-ink placeholder:text-ink-dim text-[12.5px] font-medium focus:ring-2 focus:ring-accent transition-all"
                 />
               </div>
