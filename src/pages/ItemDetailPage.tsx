@@ -769,6 +769,19 @@ const ItemDetailPage: React.FC = () => {
               </div>
             )}
 
+            {/* Buy-by-exterior table — every listing of this skin grouped
+                by wear, with a "starts from" price per exterior. Sits in
+                the main column right above the similar-items slider (also
+                the only place it renders on mobile, where the right rail
+                is hidden). */}
+            <ExteriorListingsTable
+              item={item}
+              allItems={browseSource}
+              formatPrice={formatPrice}
+              onBuy={(it) => handleAddCart(it)}
+              onView={(it) => navigate(`/item/${it.id}`)}
+            />
+
             {/* Similar items slider — uses the actual marketplace tile */}
             {related.length > 0 && (
               <SimilarItemsRow
@@ -880,16 +893,6 @@ const ItemDetailPage: React.FC = () => {
             </section>
             )}
             </div>
-
-            {/* Buy-by-exterior table — every listing of this skin grouped by
-                wear, with a "starts from" price per exterior. */}
-            <ExteriorListingsTable
-              item={item}
-              allItems={browseSource}
-              formatPrice={formatPrice}
-              onBuy={(it) => handleAddCart(it)}
-              onView={(it) => navigate(`/item/${it.id}`)}
-            />
 
             {/* Seller */}
             {item.seller?.name && (

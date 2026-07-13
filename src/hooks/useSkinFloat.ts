@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getSupabaseCredentials } from '../utils/supabaseHelpers';
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -159,6 +159,43 @@ export function useSkinFloat({
     return null;
   });
   const [loading, setLoading] = useState(false);
+
+  /* Baseline (re)resolution — the useState initializer above only runs on
+     the FIRST mount, which on the item detail page happens while the item
+     is still loading (no fallbackKey, no initial float). Once the item
+     arrives the initializer never re-runs, so without this effect `data`
+     stays null whenever the Steam lookup can't resolve (private inventory,
+     transferred asset, missing steamId) — every attribute renders "—" and
+     the wear bar never fills. Re-derive the baseline whenever the inputs
+     actually change, and reset it when navigating between items (the page
+     component is reused across /item/:id routes). */
+  const lastKeyRef = useRef<string | null | undefined>(fallbackKey);
+  useEffect(() => {
+    const keyChanged = lastKeyRef.current !== fallbackKey;
+    lastKeyRef.current = fallbackKey;
+
+    const hasInitialFloat =
+      initialFloat != null && initialFloat !== '' && Number.isFinite(Number(initialFloat));
+    const hasInitialSeed =
+      initialPaintSeed != null && initialPaintSeed !== '' && Number.isFinite(Number(initialPaintSeed));
+    if (!hasInitialFloat && !hasInitialSeed && !fallbackKey) return;
+
+    const synth = fallbackKey
+      ? syntheticFloat(fallbackKey)
+      : { float: 0, paint_seed: 0, paint_index: 0, def_index: 0 };
+    const baseline: SkinFloatData = {
+      float: hasInitialFloat ? Number(initialFloat) : synth.float,
+      paint_seed: hasInitialSeed ? Number(initialPaintSeed) : synth.paint_seed,
+      paint_index: synth.paint_index,
+      def_index: synth.def_index,
+      rarity: null,
+      preview_image: null,
+      stickers: [],
+    };
+    /* Keep existing (possibly Steam-enriched) data for the SAME item;
+       replace it when the item changed or nothing resolved yet. */
+    setData((prev) => (!keyChanged && prev ? prev : baseline));
+  }, [initialFloat, initialPaintSeed, fallbackKey]);
 
   /* Steam-direct enrichment. When we have a seller steamId + (assetId or
      market_hash_name), fetch full item details (stickers, exterior, and
