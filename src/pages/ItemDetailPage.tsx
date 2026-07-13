@@ -32,7 +32,7 @@ import Footer from '../components/Footer';
 import { CachedImage } from '../components/ui/CachedImage';
 import BuyConfirmModal from '../components/marketplace/BuyConfirmModal';
 import { rarityColor } from '../components/ui/SkinCard';
-import { useSkinFloat } from '../hooks/useSkinFloat';
+import { useSkinFloat, itemHasWear } from '../hooks/useSkinFloat';
 import { spring, tap } from '../lib/motion';
 import { openDepositModal } from '../components/DepositModal';
 import {
@@ -123,6 +123,10 @@ const ItemDetailPage: React.FC = () => {
      `enrichedItem` overlays the real values onto the listing so every
      downstream block (Summary, DetailsPanel, Stickers tab) sees the
      same data. */
+  /* Cases, stickers, graffiti, pins… have no wear/float/paint seed —
+     don't fabricate them and don't render the wear UI at all. */
+  const wearable = item ? itemHasWear(item) : true;
+
   const skinFloat = useSkinFloat({
     enabled: !!item,
     initialFloat: item?.float as any,
@@ -132,6 +136,8 @@ const ItemDetailPage: React.FC = () => {
     assetId: (item as any)?.asset_id ?? (item as any)?.assetId ?? null,
     marketHashName: (item as any)?.market_hash_name ?? item?.market_name ?? item?.name ?? null,
     fallbackKey: String(item?.id || item?.market_name || item?.name || ''),
+    wearable,
+    condition: item?.condition ?? null,
   });
 
   const enrichedItem = useMemo(() => {
@@ -163,18 +169,18 @@ const ItemDetailPage: React.FC = () => {
       /* Preserve the Steam image too for the gallery strip / fallback. */
       steam_image: item.image,
       preview_image: fd?.preview_image || null,
-      float: hasItemFloat ? Number(item.float) : fd?.float ?? null,
-      paintSeed: seed,
+      float: !wearable ? null : hasItemFloat ? Number(item.float) : fd?.float ?? null,
+      paintSeed: wearable ? seed : null,
       patternTemplate: item.patternTemplate ?? item.pattern ?? seed,
       paintIndex: (item as any).paintIndex ?? (item as any).paint_index ?? fd?.paint_index ?? null,
       defIndex: (item as any).defIndex ?? (item as any).def_index ?? fd?.def_index ?? null,
-      finish: (item as any).finish ?? inferCategory(item.type) ?? null,
-      collection: item.collection ?? deriveCollection(item),
+      finish: (item as any).finish ?? null,
+      collection: item.collection ?? fd?.collection ?? deriveCollection(item),
       tradable: item.tradable !== false,
       marketable: item.marketable !== false,
       stickers: existingStickers.length > 0 ? existingStickers : fetchedStickers,
     } as any;
-  }, [item, skinFloat.data]);
+  }, [item, skinFloat.data, wearable]);
 
   /* When the live list is empty, fall back to the mock dataset for the
      "similar items" panel too. */
@@ -740,7 +746,7 @@ const ItemDetailPage: React.FC = () => {
                 className="space-y-4"
               >
                 {tab === 'details' && (
-                  <DetailsPanel item={enrichedItem} />
+                  <DetailsPanel item={enrichedItem} wearable={wearable} />
                 )}
 
                 {tab === 'stickers' && (
@@ -1341,16 +1347,15 @@ function inferBaseName(name: string): string | null {
 function deriveCollection(item: any): string | null {
   if (item?.collection) return item.collection;
   const t = (item?.type || '').toLowerCase();
-  const name = item?.name || item?.market_name || '';
   if (t.includes('graffiti')) return 'Graffiti Box';
   if (t.includes('case')) return 'Weapon Case';
   if (t.includes('sticker')) return 'Sticker Capsule';
   if (t.includes('music')) return 'Music Kit Box';
   if (t.includes('agent')) return 'Operation Agents';
   if (t.includes('patch')) return 'Patch Pack';
-  /* As a last resort use the weapon family so users still see grouping. */
-  const weapon = inferWeapon(name);
-  return weapon ? `${weapon} Collection` : null;
+  /* No invented "<weapon> Collection" fallback — the real collection comes
+     from Steam's tags (steam-item); when unknown the row is simply hidden. */
+  return null;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -1415,29 +1420,33 @@ const HeroImage: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
    float bar on top). Replaces the old Summary card so power users have
    one place to scan everything.
    ───────────────────────────────────────────────────────────────────────── */
-const DetailsPanel: React.FC<{ item: any }> = ({ item }) => {
-  const floatNum = item.float != null ? Number(item.float) : null;
+const DetailsPanel: React.FC<{ item: any; wearable?: boolean }> = ({
+  item,
+  wearable = true,
+}) => {
+  const floatNum = wearable && item.float != null ? Number(item.float) : null;
   const floatPct =
     floatNum != null && Number.isFinite(floatNum)
       ? Math.max(0, Math.min(1, floatNum)) * 100
       : null;
-  /* Only the attributes buyers actually check — the exhaustive
-     18-tile dump (def index, asset id, marketable flags…) read as
-     noise. Tiles with no value are dropped entirely instead of
-     rendering a dash. */
-  /* Core Steam attributes ALWAYS render — asset id, float, paint seed,
-     pattern, paint/def index, exterior… — with an em-dash when a value is
-     genuinely unavailable, so the buyer sees the full technical sheet. */
+  /* Core Steam attributes for wearable items render with an em-dash when
+     a value is genuinely unavailable; wear-specific rows are dropped
+     entirely on consumables (cases, stickers, graffiti…). Paint / def
+     index only render when Steam shipped a REAL value — never invented. */
   const assetId = (item as any).asset_id ?? (item as any).assetId ?? null;
   const tiles: Array<[string, string]> = (
     [
-      ['Float', floatNum != null && Number.isFinite(floatNum) ? floatNum.toFixed(8) : '—'],
-      ['Paint seed', item.paintSeed != null ? `#${String(item.paintSeed)}` : '—'],
-      ['Pattern', item.patternTemplate != null ? String(item.patternTemplate) : '—'],
-      ['Paint index', item.paintIndex != null ? String(item.paintIndex) : '—'],
-      ['Def index', item.defIndex != null ? String(item.defIndex) : '—'],
+      ...(wearable
+        ? ([
+            ['Float', floatNum != null && Number.isFinite(floatNum) ? floatNum.toFixed(8) : '—'],
+            ['Paint seed', item.paintSeed != null ? `#${String(item.paintSeed)}` : '—'],
+            ['Pattern', item.patternTemplate != null ? String(item.patternTemplate) : '—'],
+            ['Paint index', item.paintIndex != null ? String(item.paintIndex) : null],
+            ['Def index', item.defIndex != null ? String(item.defIndex) : null],
+            ['Exterior', item.condition || '—'],
+          ] as Array<[string, string | null]>)
+        : []),
       ['Asset ID', assetId != null ? String(assetId) : '—'],
-      ['Exterior', item.condition || '—'],
       ['Rarity', item.rarity || '—'],
       ['Type', item.type || '—'],
       ['Collection', item.collection || null],
@@ -1472,7 +1481,8 @@ const DetailsPanel: React.FC<{ item: any }> = ({ item }) => {
 
   return (
     <section className="panel p-5 md:p-6 space-y-5">
-      {/* Float visualization */}
+      {/* Float visualization — wearable items only */}
+      {wearable && (
       <div>
         <div className="flex items-center justify-between mb-2">
           <span className="label-eyebrow">Wear</span>
@@ -1529,6 +1539,7 @@ const DetailsPanel: React.FC<{ item: any }> = ({ item }) => {
           <span>BS</span>
         </div>
       </div>
+      )}
 
       {/* Attributes — flat key-value rows, no tile boxes. */}
       <div>

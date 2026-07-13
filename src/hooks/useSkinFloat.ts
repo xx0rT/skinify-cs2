@@ -27,6 +27,8 @@ export interface SkinFloatData {
   paint_index: number | null;
   def_index: number | null;
   rarity: number | null;
+  /** Real collection tag from Steam (e.g. "The Italy Collection"). */
+  collection: string | null;
   /** CSFloat's rendered preview of this exact float+seed combination.
       Differs from the Steam thumbnail in that it shows the real pattern
       and wear on this specific listing. Null when the edge function
@@ -64,6 +66,45 @@ interface Args {
       paint seed when nothing better is available (so the UI never shows
       "—"). Real Steam values override as soon as they resolve. */
   fallbackKey?: string | null;
+  /** Whether this item type actually has wear (weapons, knives, gloves).
+      When false the hook never fabricates float / paint seed — consumables
+      (cases, stickers, graffiti, pins…) simply have none. Defaults true. */
+  wearable?: boolean;
+  /** Exterior label ("Field-Tested"…). Constrains the fallback float to
+      the exterior's real range so it can't contradict the listing. */
+  condition?: string | null;
+}
+
+/* Shared wearability check — cases, graffiti, capsules, coins, patches,
+   music kits, agents, stickers, pins etc. have no float / paint seed. */
+export function itemHasWear(item: any): boolean {
+  const t = String(item?.type || '').toLowerCase();
+  const cond = String(item?.condition || '').toLowerCase();
+  const NON_WEAR = [
+    'container', 'case', 'capsule', 'graffiti', 'collectible', 'coin',
+    'music', 'patch', 'agent', 'sticker', 'pin', 'gift', 'tool', 'tag',
+    'pass', 'key', 'charm',
+  ];
+  if (NON_WEAR.some((k) => t.includes(k))) return false;
+  if (cond === 'not painted') return false;
+  return true;
+}
+
+/* Real float boundaries per exterior — a fallback float for a
+   Field-Tested listing must land in 0.15–0.38, not anywhere in 0–1. */
+const EXTERIOR_RANGES: Record<string, [number, number]> = {
+  'factory new': [0.0, 0.07],
+  'minimal wear': [0.07, 0.15],
+  'field-tested': [0.15, 0.38],
+  'well-worn': [0.38, 0.45],
+  'battle-scarred': [0.45, 1.0],
+};
+
+function clampToExterior(f: number, condition?: string | null): number {
+  const range = condition ? EXTERIOR_RANGES[condition.trim().toLowerCase()] : null;
+  if (!range) return f;
+  const [lo, hi] = range;
+  return Number((lo + f * (hi - lo)).toFixed(6));
 }
 
 /* Deterministic per-id pseudo-random — keeps the placeholder values
@@ -123,8 +164,14 @@ export function useSkinFloat({
   assetId,
   marketHashName,
   fallbackKey,
+  wearable = true,
+  condition,
 }: Args) {
-  const [data, setData] = useState<SkinFloatData | null>(() => {
+  /* Deterministic float + paint-seed fallback — WEARABLE items only, and
+     the float is clamped into the exterior's real range. Paint index /
+     def index are never fabricated: they're either real (from Steam) or
+     absent. */
+  const makeBaseline = (): SkinFloatData | null => {
     /* Treat empty strings and NaN as "no value" — some listings ship
        float_value: '' from older inserts and that used to pass the
        != null check, leaving the panel stuck on a non-numeric value. */
@@ -137,27 +184,25 @@ export function useSkinFloat({
       initialPaintSeed !== '' &&
       Number.isFinite(Number(initialPaintSeed));
 
-    /* Always synthesize first so we have a full attribute set to merge
-       any real values into. Even when initialFloat is present we still
-       want a synthetic paint_index / def_index / paint_seed so the
-       details grid never renders empty rows. */
-    const synth = fallbackKey
-      ? syntheticFloat(fallbackKey)
-      : { float: 0, paint_seed: 0, paint_index: 0, def_index: 0 };
+    const synth = wearable && fallbackKey ? syntheticFloat(fallbackKey) : null;
+    if (!hasInitialFloat && !hasInitialSeed && !synth) return null;
+    return {
+      float: hasInitialFloat
+        ? Number(initialFloat)
+        : synth
+        ? clampToExterior(synth.float, condition)
+        : null,
+      paint_seed: hasInitialSeed ? Number(initialPaintSeed) : synth?.paint_seed ?? null,
+      paint_index: null,
+      def_index: null,
+      rarity: null,
+      collection: null,
+      preview_image: null,
+      stickers: [],
+    };
+  };
 
-    if (hasInitialFloat || hasInitialSeed || fallbackKey) {
-      return {
-        float: hasInitialFloat ? Number(initialFloat) : synth.float,
-        paint_seed: hasInitialSeed ? Number(initialPaintSeed) : synth.paint_seed,
-        paint_index: synth.paint_index,
-        def_index: synth.def_index,
-        rarity: null,
-        preview_image: null,
-        stickers: [],
-      };
-    }
-    return null;
-  });
+  const [data, setData] = useState<SkinFloatData | null>(makeBaseline);
   const [loading, setLoading] = useState(false);
 
   /* Baseline (re)resolution — the useState initializer above only runs on
@@ -173,29 +218,12 @@ export function useSkinFloat({
   useEffect(() => {
     const keyChanged = lastKeyRef.current !== fallbackKey;
     lastKeyRef.current = fallbackKey;
-
-    const hasInitialFloat =
-      initialFloat != null && initialFloat !== '' && Number.isFinite(Number(initialFloat));
-    const hasInitialSeed =
-      initialPaintSeed != null && initialPaintSeed !== '' && Number.isFinite(Number(initialPaintSeed));
-    if (!hasInitialFloat && !hasInitialSeed && !fallbackKey) return;
-
-    const synth = fallbackKey
-      ? syntheticFloat(fallbackKey)
-      : { float: 0, paint_seed: 0, paint_index: 0, def_index: 0 };
-    const baseline: SkinFloatData = {
-      float: hasInitialFloat ? Number(initialFloat) : synth.float,
-      paint_seed: hasInitialSeed ? Number(initialPaintSeed) : synth.paint_seed,
-      paint_index: synth.paint_index,
-      def_index: synth.def_index,
-      rarity: null,
-      preview_image: null,
-      stickers: [],
-    };
+    const baseline = makeBaseline();
     /* Keep existing (possibly Steam-enriched) data for the SAME item;
        replace it when the item changed or nothing resolved yet. */
     setData((prev) => (!keyChanged && prev ? prev : baseline));
-  }, [initialFloat, initialPaintSeed, fallbackKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFloat, initialPaintSeed, fallbackKey, wearable, condition]);
 
   /* Steam-direct enrichment. When we have a seller steamId + (assetId or
      market_hash_name), fetch full item details (stickers, exterior, and
@@ -216,7 +244,7 @@ export function useSkinFloat({
 
     const key = `${steamId}:${assetId || marketHashName}`;
     if (steamMemo.has(key)) {
-      setData((prev) => mergeSteam(prev, steamMemo.get(key)!, fallbackKey));
+      setData((prev) => mergeSteam(prev, steamMemo.get(key)!, fallbackKey, wearable, condition));
       return;
     }
 
@@ -243,6 +271,7 @@ export function useSkinFloat({
             paint_index: body.paint_index ?? null,
             def_index: null,
             rarity: body.rarity ?? null,
+            collection: body.collection ?? null,
             preview_image: null,
             stickers: Array.isArray(body.stickers)
               ? body.stickers.map((st: any, i: number) => ({
@@ -267,7 +296,7 @@ export function useSkinFloat({
     run.then((result) => {
       if (cancelled) return;
       setLoading(false);
-      if (result) setData((prev) => mergeSteam(prev, result, fallbackKey));
+      if (result) setData((prev) => mergeSteam(prev, result, fallbackKey, wearable, condition));
     });
 
     return () => {
@@ -279,22 +308,25 @@ export function useSkinFloat({
   return { data, loading };
 }
 
-/* Merge a Steam result over the current data, preferring real values and
-   falling back to synthetic only for what Steam didn't provide. */
+/* Merge a Steam result over the current data. Real values always win;
+   the synthetic fallback only covers float / paint seed on wearable
+   items. Paint index / def index are real-or-absent, never invented. */
 function mergeSteam(
   prev: SkinFloatData | null,
   steam: SkinFloatData,
   fallbackKey?: string | null,
+  wearable = true,
+  condition?: string | null,
 ): SkinFloatData {
-  const synth = fallbackKey
-    ? syntheticFloat(fallbackKey)
-    : { float: 0, paint_seed: 0, paint_index: 0, def_index: 0 };
+  const synth = wearable && fallbackKey ? syntheticFloat(fallbackKey) : null;
   return {
-    float: steam.float ?? prev?.float ?? synth.float,
-    paint_seed: steam.paint_seed ?? prev?.paint_seed ?? synth.paint_seed,
-    paint_index: steam.paint_index ?? prev?.paint_index ?? synth.paint_index,
-    def_index: prev?.def_index ?? synth.def_index,
+    float:
+      steam.float ?? prev?.float ?? (synth ? clampToExterior(synth.float, condition) : null),
+    paint_seed: steam.paint_seed ?? prev?.paint_seed ?? synth?.paint_seed ?? null,
+    paint_index: steam.paint_index ?? prev?.paint_index ?? null,
+    def_index: prev?.def_index ?? null,
     rarity: steam.rarity ?? prev?.rarity ?? null,
+    collection: steam.collection ?? prev?.collection ?? null,
     preview_image: prev?.preview_image ?? null,
     // Prefer Steam's real stickers; keep any we already had otherwise.
     stickers: steam.stickers?.length ? steam.stickers : prev?.stickers ?? [],

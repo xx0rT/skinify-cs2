@@ -77,7 +77,8 @@ function extractNumber(descriptions: any[], label: RegExp): number | null {
     const v = typeof d?.value === 'string' ? d.value : '';
     const m = v.match(label);
     if (m) {
-      const n = Number(m[1]);
+      // Steam localizes decimals as commas in some locales ("0,19855608").
+      const n = Number(m[1].replace(',', '.'));
       if (Number.isFinite(n)) return n;
     }
   }
@@ -152,6 +153,28 @@ Deno.serve(async (req) => {
     const descriptions = desc.descriptions || [];
     const stickers = parseStickers(descriptions);
 
+    // Structured per-asset properties — Steam's modern inventory payload
+    // ships wear/pattern here (top-level `asset_properties`, keyed by
+    // assetid): propertyid 2 / "Wear Rating" and 1 / "Pattern Template".
+    // This is the authoritative source; description text is the fallback.
+    let propFloat: number | null = null;
+    let propSeed: number | null = null;
+    if (Array.isArray(inv.asset_properties)) {
+      const entry = inv.asset_properties.find(
+        (p: any) => String(p?.assetid) === String(resolvedAsset),
+      );
+      for (const prop of entry?.asset_properties || []) {
+        if (prop?.propertyid === 2 || prop?.name === 'Wear Rating') {
+          const n = Number(prop.float_value ?? prop.int_value);
+          if (Number.isFinite(n)) propFloat = n;
+        }
+        if (prop?.propertyid === 1 || prop?.name === 'Pattern Template') {
+          const n = Number(prop.int_value ?? prop.float_value);
+          if (Number.isFinite(n)) propSeed = n;
+        }
+      }
+    }
+
     // Wear text like "Exterior: Minimal Wear".
     const wearDesc = descriptions.find((d: any) => d?.name === 'exterior_wear');
     let exterior: string | null = null;
@@ -161,9 +184,14 @@ Deno.serve(async (req) => {
     }
     if (!exterior) exterior = tag(desc.tags, 'Exterior');
 
-    // Float / paint seed only if Steam put them in the description text.
-    const floatValue = extractNumber(descriptions, /Float Value:\s*([0-9.]+)/i);
-    const paintSeed = extractNumber(descriptions, /Paint Seed:\s*([0-9]+)/i);
+    // Float / paint seed from the description text. CS2 ships these as
+    // "Wear Rating: 0.19855608" and "Pattern Template: 275" (older items /
+    // third-party tooling used "Float Value:" / "Paint Seed:" — accept both).
+    const floatValue =
+      propFloat ??
+      extractNumber(descriptions, /(?:Wear Rating|Float Value):\s*([0-9]+[.,][0-9]+|[0-9]+)/i);
+    const paintSeed =
+      propSeed ?? extractNumber(descriptions, /(?:Pattern Template|Paint Seed):\s*([0-9]+)/i);
     const paintIndex = extractNumber(descriptions, /Paint Index:\s*([0-9]+)/i);
 
     return json(
