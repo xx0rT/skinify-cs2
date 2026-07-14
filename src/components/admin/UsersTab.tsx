@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Search, Filter, Ban, AlertTriangle, Shield, CheckCircle, Eye, Mail, Calendar } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { motion } from 'framer-motion';
+import { useAuthStore } from '../../store/authStore';
+import { useToastStore } from '../../store/toastStore';
 
 interface User {
   id: string;
@@ -19,6 +21,8 @@ interface User {
 }
 
 const UsersTab: React.FC = () => {
+  const adminSteamId = useAuthStore((s) => s.user?.steamId);
+  const { addToast } = useToastStore();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -89,26 +93,41 @@ const UsersTab: React.FC = () => {
   };
 
   const handleWarnUser = async (userId: string) => {
-    if (!supabase) return;
-
+    /* Warnings go through the admin-settings edge function (service
+       role): it inserts the user_notifications row the user actually
+       sees + audit rows. Direct anon writes were RLS-blocked, so this
+       button silently did nothing. */
+    const target = selectedUser;
+    if (!target?.steam_id) {
+      addToast({ type: 'error', title: 'Missing Steam ID', message: 'This user has no Steam ID to notify.' });
+      return;
+    }
     try {
-      await supabase.from('user_warnings').insert({
-        user_id: userId,
-        reason: actionReason || 'No reason provided',
-        issued_by: (await supabase.auth.getUser()).data.user?.id
+      const res = await fetch(`${supabaseUrl}/functions/v1/admin-settings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${supabaseKey}`,
+          'X-Steam-Id': adminSteamId || '',
+        },
+        body: JSON.stringify({
+          action: 'warn_user',
+          userSteamId: target.steam_id,
+          userId,
+          message: actionReason || 'Porušení pravidel Skinify. Při opakování může být účet zablokován.',
+        }),
       });
-
-      await supabase.from('admin_logs').insert({
-        admin_id: (await supabase.auth.getUser()).data.user?.id,
-        action: 'warn_user',
-        target_id: userId,
-        details: { reason: actionReason }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `Server error (${res.status})`);
+      addToast({
+        type: 'success',
+        title: 'Warning sent',
+        message: `${target.display_name || target.steam_id} will see it in their notifications.`,
       });
-
       fetchUsers();
       closeModal();
-    } catch (error) {
-      console.error('Error warning user:', error);
+    } catch (error: any) {
+      addToast({ type: 'error', title: 'Warning failed', message: error?.message });
     }
   };
 

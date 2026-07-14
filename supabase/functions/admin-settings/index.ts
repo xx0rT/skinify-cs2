@@ -134,6 +134,84 @@ Deno.serve(async (req) => {
         });
       }
 
+      case 'admin_listings': {
+        /* Inventory tab — full listing table with the real seller join
+           (anon reads can't see the users join → "Unknown" sellers). */
+        const { data, error } = await supabase
+          .from('marketplace_listings')
+          .select(
+            'id, item_name, item_type, image_url, price, is_active, listing_type, views, created_at, steam_id, share_token, users:user_id (display_name, avatar_url, steam_id)',
+          )
+          .order('created_at', { ascending: false })
+          .limit(200);
+        if (error) return json(500, { error: error.message });
+        return json(200, { listings: data || [] });
+      }
+
+      case 'listing_set_active': {
+        const { id, isActive } = body;
+        if (!id) return json(400, { error: 'Missing id.' });
+        const { error } = await supabase
+          .from('marketplace_listings')
+          .update({ is_active: !!isActive })
+          .eq('id', id);
+        if (error) return json(500, { error: error.message });
+        return json(200, { ok: true });
+      }
+
+      case 'listing_update_price': {
+        const { id, price } = body;
+        if (!id || !Number.isFinite(Number(price)) || Number(price) < 0) {
+          return json(400, { error: 'Missing id or invalid price.' });
+        }
+        const { error } = await supabase
+          .from('marketplace_listings')
+          .update({ price: Number(price) })
+          .eq('id', id);
+        if (error) return json(500, { error: error.message });
+        return json(200, { ok: true });
+      }
+
+      case 'listing_delete': {
+        const { id } = body;
+        if (!id) return json(400, { error: 'Missing id.' });
+        const { error } = await supabase.from('marketplace_listings').delete().eq('id', id);
+        if (error) return json(500, { error: error.message });
+        return json(200, { ok: true });
+      }
+
+      case 'warn_user': {
+        /* Users tab — sends a formal warning: an in-app notification row
+           the user sees in their notification center, plus best-effort
+           audit rows in user_warnings / admin_logs. */
+        const { userSteamId, userId, message } = body;
+        if (!userSteamId || !message?.trim()) {
+          return json(400, { error: 'Missing userSteamId or message.' });
+        }
+        const reason = String(message).trim();
+        const { error } = await supabase.from('user_notifications').insert({
+          user_steam_id: String(userSteamId),
+          type: 'warning',
+          title: 'Varování od administrátora',
+          message: reason,
+          read: false,
+        });
+        if (error) return json(500, { error: error.message });
+
+        /* Audit trail — non-fatal if these tables are missing. */
+        if (userId) {
+          await supabase
+            .from('user_warnings')
+            .insert({ user_id: userId, reason, issued_by: null })
+            .then(() => {}, () => {});
+        }
+        await supabase
+          .from('admin_logs')
+          .insert({ action: 'warn_user', target_id: userId || userSteamId, details: { reason, admin_steam_id: steamId } })
+          .then(() => {}, () => {});
+        return json(200, { ok: true });
+      }
+
       case 'list_blogs': {
         const { data, error } = await supabase
           .from('blog_posts')

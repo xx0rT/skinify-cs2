@@ -518,12 +518,25 @@ export const useDMStore = create<DMState>()(
             },
           },
         });
-        /* Server-side read-tracking is currently disabled while the
-           auth JWT plumbing is fixed. The local cache above marks the
-           thread read for this session, which is what drives the
-           unread badge. Once dm-mark-read / dm-delete edge functions
-           ship, wire them here the same way sendMessage uses
-           dmSendEdge. */
+        /* Persist server-side (dm-list POST mark_read) so the unread
+           badge stays cleared after a refetch — the local flags used to
+           be overwritten by read_at=null rows on the next dm-list. */
+        if (!mySteamId) return;
+        try {
+          const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+          await fetch(`${supabaseUrl}/functions/v1/dm-list`, {
+            method: 'POST',
+            headers: {
+              'x-steam-id': mySteamId,
+              Authorization: `Bearer ${supabaseKey}`,
+              apikey: supabaseKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ action: 'mark_read', peer: peerSteamId }),
+          });
+        } catch {
+          /* best-effort — local cache already reflects the read */
+        }
       },
 
       deleteThread: async (peerSteamId) => {

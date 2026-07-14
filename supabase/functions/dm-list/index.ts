@@ -18,7 +18,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
     'authorization, x-client-info, apikey, content-type, x-steam-id',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Max-Age': '3600',
 };
 
@@ -33,9 +33,9 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
-  if (req.method !== 'GET') {
+  if (req.method !== 'GET' && req.method !== 'POST') {
     return json(405, {
-      error: { code: 'method_not_allowed', message: 'Use GET.' },
+      error: { code: 'method_not_allowed', message: 'Use GET or POST.' },
     });
   }
 
@@ -60,6 +60,34 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const peer = url.searchParams.get('peer');
+
+  /* POST { action: 'mark_read', peer } — persist read state so the
+     unread badge doesn't come back on the next fetch. Scoped: only
+     messages SENT TO the caller can be marked. */
+  if (req.method === 'POST') {
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      return json(400, { error: { code: 'bad_json', message: 'Invalid JSON body.' } });
+    }
+    const markPeer = String(body?.peer || peer || '');
+    if (body?.action !== 'mark_read' || !/^\d{17}$/.test(markPeer)) {
+      return json(400, {
+        error: { code: 'bad_request', message: "POST supports { action: 'mark_read', peer }." },
+      });
+    }
+    const { error } = await supabase
+      .from('direct_messages')
+      .update({ read_at: new Date().toISOString() })
+      .eq('to_steam_id', mySteamId)
+      .eq('from_steam_id', markPeer)
+      .is('read_at', null);
+    if (error) {
+      return json(500, { error: { code: 'db_error', message: error.message } });
+    }
+    return json(200, { ok: true });
+  }
 
   /* Both modes return the same shape — the client already parses this
      into DMMessage[] via the "srv_<id>" convention. */

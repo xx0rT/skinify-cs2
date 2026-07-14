@@ -151,22 +151,50 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     };
   }),
   
-  markAsRead: (notificationId) => set((state) => {
-    if (isGlobalId(notificationId)) {
-      const gs = readGlobalState();
-      if (!gs.read.includes(notificationId)) {
-        writeGlobalState({ read: [...gs.read, notificationId] });
+  markAsRead: (notificationId) => {
+    set((state) => {
+      const target = state.notifications.find((n) => n.id === notificationId);
+      if (!target || target.read) return state;
+      if (isGlobalId(notificationId)) {
+        const gs = readGlobalState();
+        if (!gs.read.includes(notificationId)) {
+          writeGlobalState({ read: [...gs.read, notificationId] });
+        }
+      }
+      return {
+        notifications: state.notifications.map(notification =>
+          notification.id === notificationId
+            ? { ...notification, read: true }
+            : notification
+        ),
+        unreadCount: Math.max(0, state.unreadCount - 1)
+      };
+    });
+
+    /* Persist personal notifications server-side — without this the
+       badge count came back on the next fetch even after reading. */
+    if (!isGlobalId(notificationId)) {
+      try {
+        const steamId = localStorage.getItem('auth-storage')
+          ? JSON.parse(localStorage.getItem('auth-storage')!).state?.user?.steamId
+          : null;
+        if (!steamId) return;
+        const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+        fetch(
+          `${supabaseUrl}/functions/v1/notifications?id=${encodeURIComponent(notificationId)}&steam_id=${encodeURIComponent(steamId)}`,
+          {
+            method: 'PUT',
+            headers: {
+              Authorization: `Bearer ${supabaseKey}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        ).catch(() => {});
+      } catch {
+        /* best-effort */
       }
     }
-    return {
-      notifications: state.notifications.map(notification =>
-        notification.id === notificationId
-          ? { ...notification, read: true }
-          : notification
-      ),
-      unreadCount: Math.max(0, state.unreadCount - 1)
-    };
-  }),
+  },
   
   markAllAsRead: () => set((state) => ({
     notifications: state.notifications.map(notification => ({

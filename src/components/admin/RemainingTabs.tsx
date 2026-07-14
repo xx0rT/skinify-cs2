@@ -33,109 +33,271 @@ async function fetchTodayStats(steamId: string | undefined): Promise<any | null>
   }
 }
 
+/* adminSettingsPost — service-role caller shared by the admin tabs in
+   this file. Anon reads miss the users join (RLS) and every write is
+   blocked, so all inventory operations go through admin-settings. */
+async function adminSettingsPost(adminSteamId: string | undefined, payload: Record<string, unknown>) {
+  const res = await fetch(`${supabaseUrl}/functions/v1/admin-settings`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${supabaseKey}`,
+      'X-Steam-Id': adminSteamId || '',
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || `Server error (${res.status})`);
+  return data;
+}
+
 export const InventoryTab: React.FC<{ addToast: any }> = ({ addToast }) => {
+  const adminSteamId = useAuthStore((s) => s.user?.steamId);
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState('');
+  const [editPriceId, setEditPriceId] = useState<string | number | null>(null);
+  const [editPrice, setEditPrice] = useState('');
 
   useEffect(() => {
     fetchListings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchListings = async () => {
     setLoading(true);
     try {
-      if (supabase) {
-        const { data, error } = await supabase
-          .from('marketplace_listings')
-          .select('*, users(display_name)')
-          .order('created_at', { ascending: false })
-          .limit(50);
-
-        if (error) throw error;
-        setListings(data || []);
-      }
-    } catch (error) {
-      console.error('Error:', error);
+      const { listings: data } = await adminSettingsPost(adminSteamId, { action: 'admin_listings' });
+      setListings(data || []);
+    } catch (error: any) {
+      addToast({ type: 'error', title: 'Load failed', message: error.message });
     } finally {
       setLoading(false);
     }
   };
 
+  const setActive = async (l: any, isActive: boolean) => {
+    setListings((prev) => prev.map((x) => (x.id === l.id ? { ...x, is_active: isActive } : x)));
+    try {
+      await adminSettingsPost(adminSteamId, { action: 'listing_set_active', id: l.id, isActive });
+      addToast({ type: 'success', title: isActive ? 'Listing activated' : 'Listing paused', message: l.item_name });
+    } catch (error: any) {
+      setListings((prev) => prev.map((x) => (x.id === l.id ? { ...x, is_active: !isActive } : x)));
+      addToast({ type: 'error', title: 'Update failed', message: error.message });
+    }
+  };
+
+  const removeListing = async (l: any) => {
+    if (!confirm(`Delete listing "${l.item_name}"? This cannot be undone.`)) return;
+    try {
+      await adminSettingsPost(adminSteamId, { action: 'listing_delete', id: l.id });
+      setListings((prev) => prev.filter((x) => x.id !== l.id));
+      addToast({ type: 'success', title: 'Listing deleted', message: l.item_name });
+    } catch (error: any) {
+      addToast({ type: 'error', title: 'Delete failed', message: error.message });
+    }
+  };
+
+  const savePrice = async (l: any) => {
+    const price = Number(editPrice.replace(',', '.'));
+    if (!Number.isFinite(price) || price < 0) {
+      addToast({ type: 'warning', title: 'Invalid price' });
+      return;
+    }
+    try {
+      await adminSettingsPost(adminSteamId, { action: 'listing_update_price', id: l.id, price });
+      setListings((prev) => prev.map((x) => (x.id === l.id ? { ...x, price } : x)));
+      setEditPriceId(null);
+      addToast({ type: 'success', title: 'Price updated', message: `${l.item_name} → ${price.toLocaleString('cs-CZ')} Kč` });
+    } catch (error: any) {
+      addToast({ type: 'error', title: 'Update failed', message: error.message });
+    }
+  };
+
+  const filtered = listings.filter((l) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      String(l.item_name || '').toLowerCase().includes(q) ||
+      String(l.users?.display_name || '').toLowerCase().includes(q) ||
+      String(l.steam_id || '').includes(q)
+    );
+  });
+
+  const kpis = [
+    { label: 'Total listings', value: listings.length },
+    { label: 'Active', value: listings.filter((l) => l.is_active !== false).length, tone: 'text-emerald-600 dark:text-emerald-400' },
+    { label: 'Paused', value: listings.filter((l) => l.is_active === false).length, tone: 'text-amber-600 dark:text-amber-400' },
+    { label: 'High value (5 000+ Kč)', value: listings.filter((l) => Number(l.price || 0) >= 5000).length, tone: 'text-accent' },
+  ];
+
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="flex justify-between items-center">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-ink">Inventory & Listings</h2>
-          <p className="text-ink-muted text-sm">Manage marketplace listings</p>
+          <span className="label-eyebrow">Marketplace</span>
+          <h2 className="text-[20px] font-bold text-ink tracking-tight mt-1 leading-none">
+            Inventory & listings
+          </h2>
         </div>
-        <button onClick={fetchListings} className="bg-subtle hover:bg-bg px-4 py-2 rounded-lg text-ink flex items-center gap-2">
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          Refresh
-        </button>
-      </div>
-
-      <div className="grid grid-cols-4 gap-4">
-        <div className="panel p-5">
-          <div className="text-2xl font-bold text-ink">{listings.length}</div>
-          <div className="text-ink-muted text-sm">Total Listings</div>
-        </div>
-        <div className="panel p-5">
-          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{listings.filter(l => l.status === 'active').length}</div>
-          <div className="text-ink-muted text-sm">Active</div>
-        </div>
-        <div className="panel p-5">
-          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{listings.filter(l => l.status === 'pending').length}</div>
-          <div className="text-ink-muted text-sm">Pending Review</div>
-        </div>
-        <div className="panel p-5">
-          <div className="text-2xl font-bold text-accent">{listings.filter(l => (l.price || 0) > 50000).length}</div>
-          <div className="text-ink-muted text-sm">High Value</div>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-dim" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search item, seller, Steam ID…"
+              className="h-10 w-64 pl-9 pr-3 rounded-full bg-subtle ring-1 ring-line outline-none text-ink text-[12.5px] font-medium focus:ring-2 focus:ring-accent transition-all"
+            />
+          </div>
+          <button
+            onClick={fetchListings}
+            className="h-10 w-10 rounded-full bg-subtle ring-1 ring-line hover:bg-bg grid place-items-center text-ink-muted hover:text-ink transition-colors"
+            aria-label="Refresh"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
         </div>
       </div>
 
-      <div className="panel p-6">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-line">
-                <th className="text-left py-3 px-4 text-ink-muted">Item</th>
-                <th className="text-left py-3 px-4 text-ink-muted">Seller</th>
-                <th className="text-left py-3 px-4 text-ink-muted">Price</th>
-                <th className="text-left py-3 px-4 text-ink-muted">Status</th>
-                <th className="text-right py-3 px-4 text-ink-muted">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {listings.length === 0 ? (
-                <tr><td colSpan={5} className="text-center py-8 text-ink-muted">No listings found</td></tr>
-              ) : (
-                listings.map((listing) => (
-                  <tr key={listing.id} className="border-b border-line/50 hover:bg-subtle/30">
-                    <td className="py-3 px-4 text-ink">{listing.item_name || 'Unknown Item'}</td>
-                    <td className="py-3 px-4 text-ink-muted">{listing.users?.username || 'Unknown'}</td>
-                    <td className="py-3 px-4 text-ink font-semibold">{(listing.price || 0).toLocaleString('cs-CZ')} Kč</td>
-                    <td className="py-3 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        listing.status === 'active' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
-                        listing.status === 'pending' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' :
-                        'bg-gray-500/20 text-ink-muted'
-                      }`}>
-                        {listing.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button className="text-accent hover:text-blue-300 p-2"><Eye size={16} /></button>
-                        <button className="text-amber-600 dark:text-amber-400 hover:text-yellow-300 p-2"><Edit size={16} /></button>
-                        <button className="text-rose-600 dark:text-rose-400 hover:text-red-300 p-2"><Trash2 size={16} /></button>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {kpis.map((k) => (
+          <div key={k.label} className="rounded-3xl ring-1 ring-line bg-surface p-5">
+            <div className={`text-[22px] font-bold tabular-nums leading-none ${k.tone || 'text-ink'}`}>
+              {k.value}
+            </div>
+            <div className="text-[11px] font-bold uppercase tracking-wider text-ink-dim mt-2">
+              {k.label}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-3xl ring-1 ring-line bg-surface overflow-hidden">
+        {loading && listings.length === 0 ? (
+          <div className="p-10 text-center text-[13px] text-ink-muted font-medium">Loading listings…</div>
+        ) : filtered.length === 0 ? (
+          <div className="p-10 text-center text-[13px] text-ink-muted font-medium">No listings found.</div>
+        ) : (
+          <div className="divide-y divide-line">
+            {filtered.map((l) => {
+              const active = l.is_active !== false;
+              const sellerName = l.users?.display_name || l.steam_id || 'Unknown';
+              const editing = editPriceId === l.id;
+              return (
+                <div key={l.id} className="flex items-center gap-3 px-4 py-3 hover:bg-subtle/40 transition-colors">
+                  {/* Item */}
+                  <div className="w-12 h-12 rounded-xl bg-subtle ring-1 ring-line grid place-items-center overflow-hidden shrink-0">
+                    {l.image_url ? (
+                      <img src={l.image_url} alt="" className="w-[86%] h-[86%] object-contain" loading="lazy" />
+                    ) : (
+                      <Package size={16} className="text-ink-dim" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13.5px] font-bold text-ink tracking-tight truncate">
+                      {l.item_name || 'Unknown item'}
+                    </div>
+                    <div className="text-[11px] text-ink-muted font-medium truncate mt-0.5">
+                      {l.item_type || '—'} · {new Date(l.created_at).toLocaleDateString('cs-CZ')} ·{' '}
+                      <span className="tabular-nums">{Number(l.views || 0)} views</span>
+                    </div>
+                  </div>
+
+                  {/* Seller — real display name from the users join */}
+                  <div className="hidden md:flex items-center gap-2 w-44 shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-subtle ring-1 ring-line overflow-hidden grid place-items-center shrink-0">
+                      {l.users?.avatar_url ? (
+                        <img src={l.users.avatar_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-[10px] font-bold text-ink-muted">
+                          {String(sellerName).charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[12px] font-semibold text-ink truncate">{sellerName}</span>
+                  </div>
+
+                  {/* Price — click to edit */}
+                  <div className="w-32 text-right shrink-0">
+                    {editing ? (
+                      <div className="flex items-center gap-1 justify-end">
+                        <input
+                          autoFocus
+                          value={editPrice}
+                          onChange={(e) => setEditPrice(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') savePrice(l);
+                            if (e.key === 'Escape') setEditPriceId(null);
+                          }}
+                          className="w-20 h-8 px-2 rounded-lg bg-subtle ring-1 ring-line outline-none text-ink text-[12px] font-bold tabular-nums focus:ring-2 focus:ring-accent"
+                        />
+                        <button
+                          onClick={() => savePrice(l)}
+                          className="h-8 w-8 rounded-lg bg-accent text-on-accent grid place-items-center"
+                          aria-label="Save price"
+                        >
+                          <CheckCircle size={12} strokeWidth={2.6} />
+                        </button>
                       </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setEditPriceId(l.id);
+                          setEditPrice(String(l.price ?? ''));
+                        }}
+                        className="text-[13.5px] font-bold text-ink tabular-nums hover:text-accent transition-colors"
+                        title="Click to edit price"
+                      >
+                        {Number(l.price || 0).toLocaleString('cs-CZ')} Kč
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Status */}
+                  <span
+                    className={`hidden sm:inline-flex w-16 justify-center px-2 py-1 rounded-full text-[10.5px] font-bold uppercase tracking-wider shrink-0 ${
+                      active
+                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                        : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                    }`}
+                  >
+                    {active ? 'Active' : 'Paused'}
+                  </span>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => window.open(`/item/${l.id}`, '_blank')}
+                      className="h-8 px-3 rounded-full bg-subtle ring-1 ring-line hover:bg-accent-soft text-ink text-[11.5px] font-bold inline-flex items-center gap-1 transition-colors"
+                      title="Open the listing page"
+                    >
+                      <Eye size={11} strokeWidth={2.4} />
+                      Open
+                    </button>
+                    <button
+                      onClick={() => setActive(l, !active)}
+                      className={`h-8 px-3 rounded-full ring-1 ring-line text-[11.5px] font-bold transition-colors ${
+                        active
+                          ? 'bg-subtle hover:bg-amber-500/15 text-ink hover:text-amber-600 dark:hover:text-amber-400'
+                          : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
+                      }`}
+                    >
+                      {active ? 'Pause' : 'Activate'}
+                    </button>
+                    <button
+                      onClick={() => removeListing(l)}
+                      className="h-8 w-8 rounded-full ring-1 ring-line bg-subtle hover:bg-rose-500/15 grid place-items-center text-ink-muted hover:text-rose-500 transition-colors"
+                      aria-label="Delete listing"
+                    >
+                      <Trash2 size={12} strokeWidth={2.4} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </motion.div>
   );
