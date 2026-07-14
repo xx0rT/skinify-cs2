@@ -14,7 +14,9 @@ import {
   Instagram,
   List as ListIcon,
   Mail,
+  Maximize2,
   MessageCircle,
+  Minimize2,
   Move,
   Palette,
   Pause,
@@ -79,6 +81,18 @@ interface Shop {
   detail_modal?: Record<string, any> | null;
   /* Freeform drag & edit transforms (migration 20260714100000). */
   element_layout?: Record<string, ElTransform> | null;
+  /* Owner-created blocks (migration 20260714120000). */
+  custom_components?: CustomBlock[] | null;
+}
+
+/* A block the owner added via the designer's "Custom components". */
+interface CustomBlock {
+  id: string;
+  kind: 'text' | 'image' | 'button' | 'divider';
+  text?: string;
+  url?: string;
+  label?: string;
+  size?: number;
 }
 
 /* Per-element transform stored by the drag & edit designer. */
@@ -99,6 +113,15 @@ const EL_LABELS: Record<string, string> = {
   stats: 'Stats',
   socials: 'Socials & share',
   items: 'Items grid',
+};
+
+const labelFor = (id: string): string => {
+  if (EL_LABELS[id]) return EL_LABELS[id];
+  if (id.startsWith('block:')) {
+    const kind = id.slice(6).split('-')[0];
+    return `Component · ${kind}`;
+  }
+  return id;
 };
 
 /* Font choices offered in the editor. Values are safe web/system fonts. */
@@ -231,6 +254,8 @@ const UserShopPage: React.FC = () => {
      the draft until Save. */
   const [designMode, setDesignMode] = useState(false);
   const [selectedEl, setSelectedEl] = useState<string | null>(null);
+  /* Full-screen editor drawer toggle. */
+  const [drawerWide, setDrawerWide] = useState(false);
 
   useEffect(() => {
     if (!editMode) {
@@ -258,6 +283,46 @@ const UserShopPage: React.FC = () => {
     setDraft((d) =>
       d ? { ...d, element_layout: { ...(d.element_layout || {}), [id]: t } } : d,
     );
+
+  /* ─── Custom components (owner-created blocks) ─────────────────── */
+  const addBlock = (kind: CustomBlock['kind']) => {
+    const block: CustomBlock = {
+      id: `${kind}-${Date.now().toString(36)}`,
+      kind,
+      ...(kind === 'text' ? { text: 'Nový textový blok — dvojklikem upravte', size: 16 } : {}),
+      ...(kind === 'button' ? { label: 'Tlačítko', url: '' } : {}),
+      ...(kind === 'image' ? { url: '' } : {}),
+    };
+    setDraft((d) =>
+      d ? { ...d, custom_components: [...(d.custom_components || []), block] } : d,
+    );
+    setSelectedEl(`block:${block.id}`);
+    if (!designMode) setDesignMode(true);
+  };
+
+  const patchBlock = (id: string, patch: Partial<CustomBlock>) =>
+    setDraft((d) =>
+      d
+        ? {
+            ...d,
+            custom_components: (d.custom_components || []).map((b) =>
+              b.id === id ? { ...b, ...patch } : b,
+            ),
+          }
+        : d,
+    );
+
+  const removeBlock = (id: string) => {
+    setDraft((d) =>
+      d
+        ? {
+            ...d,
+            custom_components: (d.custom_components || []).filter((b) => b.id !== id),
+          }
+        : d,
+    );
+    setSelectedEl((sel) => (sel === `block:${id}` ? null : sel));
+  };
 
   useDocumentMeta({
     title: shop ? `${shop.shop_name} · Shop` : 'Shop',
@@ -391,6 +456,7 @@ const UserShopPage: React.FC = () => {
       show_stats: draft.show_stats,
       detail_modal: draft.detail_modal,
       element_layout: draft.element_layout ?? null,
+      custom_components: draft.custom_components ?? null,
     };
 
     const { error } = await supabase.from('user_shops').update(base).eq('id', draft.id);
@@ -599,7 +665,9 @@ const UserShopPage: React.FC = () => {
                sits beside the rail as a live preview (a real two-pane
                workspace, not a floating dialog). On mobile it covers the
                screen. */
-            className="fixed left-0 top-0 bottom-0 z-50 w-full lg:w-[440px] bg-[rgb(16,16,20)] text-white overflow-hidden flex flex-col"
+            className={`fixed left-0 top-0 bottom-0 z-50 w-full bg-[rgb(16,16,20)] text-white overflow-hidden flex flex-col transition-[width] duration-300 ${
+              drawerWide ? 'lg:w-full' : 'lg:w-[440px]'
+            }`}
             style={{ boxShadow: '24px 0 60px -24px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)' }}
           >
             {/* Header — eyebrow + close. Preview-as-visitor toggle is
@@ -620,13 +688,27 @@ const UserShopPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                <button
-                  onClick={exitEdit}
-                  className="h-9 w-9 rounded-full bg-white/8 hover:bg-white/14 grid place-items-center transition-colors"
-                  aria-label="Close editor"
-                >
-                  <X size={15} strokeWidth={2.4} />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setDrawerWide((v) => !v)}
+                    className="hidden lg:grid h-9 w-9 rounded-full bg-white/8 hover:bg-white/14 place-items-center transition-colors"
+                    aria-label={drawerWide ? 'Shrink editor' : 'Expand editor to full screen'}
+                    title={drawerWide ? 'Shrink editor' : 'Full screen'}
+                  >
+                    {drawerWide ? (
+                      <Minimize2 size={14} strokeWidth={2.4} />
+                    ) : (
+                      <Maximize2 size={14} strokeWidth={2.4} />
+                    )}
+                  </button>
+                  <button
+                    onClick={exitEdit}
+                    className="h-9 w-9 rounded-full bg-white/8 hover:bg-white/14 grid place-items-center transition-colors"
+                    aria-label="Close editor"
+                  >
+                    <X size={15} strokeWidth={2.4} />
+                  </button>
+                </div>
               </div>
 
               {/* Tab strip — jump between scopes. The body is still one
@@ -656,7 +738,11 @@ const UserShopPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-6 scrollbar-thin">
+            <div
+              className={`flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-6 scrollbar-thin ${
+                drawerWide ? 'w-full max-w-3xl mx-auto' : ''
+              }`}
+            >
               {/* Identity */}
               <div id="editor-group-identity" />
               <Group title="Identity">
@@ -793,6 +879,92 @@ const UserShopPage: React.FC = () => {
                   <RotateCcw size={11} strokeWidth={2.4} />
                   Reset all positions
                 </button>
+              </Group>
+
+              {/* Custom components — owner-created blocks */}
+              <Group title="Custom components">
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(
+                    [
+                      { kind: 'text', label: '+ Text' },
+                      { kind: 'image', label: '+ Image' },
+                      { kind: 'button', label: '+ Button' },
+                      { kind: 'divider', label: '+ Divider' },
+                    ] as const
+                  ).map((b) => (
+                    <button
+                      key={b.kind}
+                      onClick={() => addBlock(b.kind)}
+                      className="h-10 rounded-2xl bg-white/8 hover:bg-white/14 text-[12px] font-bold transition-colors"
+                    >
+                      {b.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10.5px] text-white/45 leading-relaxed">
+                  New blocks appear under the shop header. Drag & scale them like any element;
+                  double-click text blocks to edit inline. Fill in URLs below.
+                </p>
+                {(draft.custom_components || []).length > 0 && (
+                  <div className="space-y-2 mt-1">
+                    {(draft.custom_components || []).map((b) => (
+                      <div
+                        key={b.id}
+                        className={`rounded-2xl p-2.5 space-y-1.5 transition-colors ${
+                          selectedEl === `block:${b.id}` ? 'bg-fuchsia-500/15 ring-1 ring-fuchsia-400/40' : 'bg-white/5'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            onClick={() => setSelectedEl(`block:${b.id}`)}
+                            className="text-[11px] font-bold uppercase tracking-wider text-white/70 hover:text-white"
+                          >
+                            {b.kind}
+                          </button>
+                          <button
+                            onClick={() => removeBlock(b.id)}
+                            className="h-6 w-6 rounded-md bg-white/8 hover:bg-rose-500/30 grid place-items-center transition-colors"
+                            aria-label="Remove component"
+                          >
+                            <Trash2 size={10} strokeWidth={2.4} />
+                          </button>
+                        </div>
+                        {b.kind === 'text' && (
+                          <input
+                            value={b.text || ''}
+                            onChange={(e) => patchBlock(b.id, { text: e.target.value })}
+                            placeholder="Text…"
+                            className="editor-input !py-1.5 text-[12px]"
+                          />
+                        )}
+                        {b.kind === 'button' && (
+                          <>
+                            <input
+                              value={b.label || ''}
+                              onChange={(e) => patchBlock(b.id, { label: e.target.value })}
+                              placeholder="Button label"
+                              className="editor-input !py-1.5 text-[12px]"
+                            />
+                            <input
+                              value={b.url || ''}
+                              onChange={(e) => patchBlock(b.id, { url: e.target.value })}
+                              placeholder="https:// link"
+                              className="editor-input !py-1.5 text-[12px] font-mono"
+                            />
+                          </>
+                        )}
+                        {b.kind === 'image' && (
+                          <input
+                            value={b.url || ''}
+                            onChange={(e) => patchBlock(b.id, { url: e.target.value })}
+                            placeholder="https:// image URL"
+                            className="editor-input !py-1.5 text-[12px] font-mono"
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </Group>
 
               {/* Typography + card design */}
@@ -1061,6 +1233,11 @@ const UserShopPage: React.FC = () => {
             onChange={patchEl}
             onReset={(id) => patchEl(id, { ...DEFAULT_T })}
             onDone={() => setSelectedEl(null)}
+            onDelete={
+              selectedEl.startsWith('block:')
+                ? () => removeBlock(selectedEl.slice(6))
+                : undefined
+            }
           />
         )}
       </AnimatePresence>
@@ -1142,12 +1319,14 @@ const UserShopPage: React.FC = () => {
                   contentEditable={design}
                   suppressContentEditableWarning
                   spellCheck={false}
-                  onBlur={(e) =>
-                    design &&
-                    setDraft((d) =>
-                      d ? { ...d, shop_name: e.currentTarget.textContent?.trim() || d.shop_name } : d,
-                    )
-                  }
+                  onBlur={(e) => {
+                    if (!design) return;
+                    /* Capture BEFORE setDraft — React nulls currentTarget
+                       once the handler returns, so reading it inside the
+                       updater threw "null is not an object". */
+                    const text = e.currentTarget?.textContent?.trim() || '';
+                    setDraft((d) => (d ? { ...d, shop_name: text || d.shop_name } : d));
+                  }}
                 >
                   {view.shop_name || 'Untitled shop'}
                 </h1>
@@ -1162,12 +1341,11 @@ const UserShopPage: React.FC = () => {
                     contentEditable={design}
                     suppressContentEditableWarning
                     spellCheck={false}
-                    onBlur={(e) =>
-                      design &&
-                      setDraft((d) =>
-                        d ? { ...d, description: e.currentTarget.textContent ?? d.description } : d,
-                      )
-                    }
+                    onBlur={(e) => {
+                      if (!design) return;
+                      const text = e.currentTarget?.textContent ?? null;
+                      setDraft((d) => (d ? { ...d, description: text ?? d.description } : d));
+                    }}
                   >
                     {view.description || (design ? 'Click to write a description…' : '')}
                   </p>
@@ -1232,6 +1410,29 @@ const UserShopPage: React.FC = () => {
           </div>
           </Editable>
         </header>
+
+        {/* Custom components — owner-created blocks (designer → "Custom
+            components"). Draggable/scalable like every other element. */}
+        {(view.custom_components || []).length > 0 && (
+          <div className="mb-8 space-y-4">
+            {(view.custom_components || []).map((b: CustomBlock) => (
+              <Editable
+                key={b.id}
+                {...elProps(`block:${b.id}`)}
+                lockChildren={b.kind !== 'text'}
+              >
+                <CustomBlockView
+                  block={b}
+                  design={design}
+                  accent={view.accent_color}
+                  surface={view.secondary_color}
+                  textMuted={textMuted}
+                  onTextCommit={(text) => patchBlock(b.id, { text })}
+                />
+              </Editable>
+            ))}
+          </div>
+        )}
 
         {/* Items */}
         {items.length === 0 ? (
@@ -1522,12 +1723,84 @@ const Editable: React.FC<{
           className="absolute -top-7 left-0 z-40 inline-flex items-center gap-1 px-2 h-5 rounded-md bg-fuchsia-500 text-white text-[10px] font-bold whitespace-nowrap pointer-events-none select-none"
         >
           <Move size={9} strokeWidth={2.6} />
-          {EL_LABELS[id] || id}
+          {labelFor(id)}
         </span>
       )}
       {children}
     </div>
   );
+};
+
+/* CustomBlockView — renders one owner-created block (text / image /
+   button / divider) with the shop's theme tokens. Text blocks are
+   inline-editable in design mode. */
+const CustomBlockView: React.FC<{
+  block: CustomBlock;
+  design: boolean;
+  accent: string;
+  surface: string;
+  textMuted: string;
+  onTextCommit: (text: string) => void;
+}> = ({ block, design, accent, surface, textMuted, onTextCommit }) => {
+  switch (block.kind) {
+    case 'text':
+      return (
+        <p
+          className={`leading-relaxed max-w-[720px] ${design ? 'outline-none' : ''}`}
+          style={{ fontSize: block.size || 16 }}
+          contentEditable={design}
+          suppressContentEditableWarning
+          spellCheck={false}
+          onBlur={(e) => {
+            if (!design) return;
+            /* Capture before any state update — currentTarget is nulled
+               once the handler returns. */
+            const text = e.currentTarget?.textContent ?? '';
+            onTextCommit(text);
+          }}
+        >
+          {block.text || ''}
+        </p>
+      );
+    case 'image':
+      return block.url ? (
+        <img
+          src={block.url}
+          alt=""
+          className="max-w-full h-auto"
+          style={{ borderRadius: 'var(--shop-radius)', maxHeight: 420 }}
+          onError={(e) => ((e.currentTarget as HTMLImageElement).style.opacity = '0.25')}
+        />
+      ) : (
+        <div
+          className="h-28 max-w-md grid place-items-center text-[12px] font-semibold"
+          style={{ background: surface, color: textMuted, borderRadius: 'var(--shop-radius)' }}
+        >
+          Add an image URL in the editor panel
+        </div>
+      );
+    case 'button': {
+      const inner = (
+        <span
+          className="h-11 px-5 rounded-full text-[13px] font-bold inline-flex items-center transition-opacity hover:opacity-90"
+          style={{ background: accent, color: isDark(accent) ? '#fff' : '#0b0d17' }}
+        >
+          {block.label || 'Button'}
+        </span>
+      );
+      return block.url && !design ? (
+        <a href={block.url} target="_blank" rel="noreferrer" className="inline-block">
+          {inner}
+        </a>
+      ) : (
+        <span className="inline-block">{inner}</span>
+      );
+    }
+    case 'divider':
+      return <div className="h-px w-full" style={{ background: 'var(--shop-line)' }} />;
+    default:
+      return null;
+  }
 };
 
 /* Floating toolbar for the selected element — scale slider + reset. */
@@ -1537,7 +1810,8 @@ const DesignToolbar: React.FC<{
   onChange: (id: string, t: ElTransform) => void;
   onReset: (id: string) => void;
   onDone: () => void;
-}> = ({ id, t, onChange, onReset, onDone }) => (
+  onDelete?: () => void;
+}> = ({ id, t, onChange, onReset, onDone, onDelete }) => (
   <motion.div
     initial={{ opacity: 0, y: 24 }}
     animate={{ opacity: 1, y: 0 }}
@@ -1547,7 +1821,7 @@ const DesignToolbar: React.FC<{
     style={{ boxShadow: '0 22px 50px -18px rgba(0,0,0,0.7)' }}
   >
     <span className="text-[11px] font-bold uppercase tracking-wider text-fuchsia-300 whitespace-nowrap">
-      {EL_LABELS[id] || id}
+      {labelFor(id)}
     </span>
     <div className="flex items-center gap-2">
       <span className="text-[10.5px] font-bold text-white/50 uppercase tracking-wider">Scale</span>
@@ -1572,6 +1846,16 @@ const DesignToolbar: React.FC<{
       <RotateCcw size={11} strokeWidth={2.4} />
       Reset
     </button>
+    {onDelete && (
+      <button
+        onClick={onDelete}
+        className="h-8 px-2.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/35 text-rose-300 text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
+        title="Delete this component"
+      >
+        <Trash2 size={11} strokeWidth={2.4} />
+        Delete
+      </button>
+    )}
     <button
       onClick={onDone}
       className="h-8 px-3 rounded-lg bg-fuchsia-500 hover:bg-fuchsia-400 text-white text-[11px] font-bold transition-colors"
