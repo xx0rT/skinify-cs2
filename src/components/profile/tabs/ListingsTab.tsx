@@ -6,6 +6,7 @@ import {
   Search,
   Trash2,
   Edit3,
+  Copy,
   Eye,
   Tag,
   Check,
@@ -47,6 +48,9 @@ interface Listing {
   views: number;
   created_at: string;
   listing_type?: 'standard' | 'auction' | 'private';
+  /** Share token — every listing gets one (DB trigger); for private
+      listings it forms the only URL the item is reachable at. */
+  share_token?: string;
   /** Optional float value (0.0–1.0). May be a string (some endpoints
       ship it that way) or null. The card parses it defensively. */
   float?: number | string | null;
@@ -112,6 +116,7 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
         views: Number(l.views || 0),
         created_at: l.created_at || l.listed_at || new Date().toISOString(),
         listing_type: l.listing_type || 'standard',
+        share_token: l.share_token || undefined,
         is_promoted: l.is_promoted === true,
         promoted_until: l.promoted_until || null,
       }));
@@ -906,6 +911,12 @@ const ListingCard: React.FC<{
                 </motion.button>
               </div>
 
+              {/* Private share link — the only way buyers reach a
+                  private listing. Truncated URL + one-tap copy. */}
+              {listing.listing_type === 'private' && listing.share_token && (
+                <PrivateLinkRow token={String(listing.share_token)} />
+              )}
+
               {/* Promote — accent pill; flips to a green "Promoted"
                   state INSTANTLY on click (optimistic, no spinner). */}
               {promoted ? (
@@ -941,6 +952,48 @@ const ListingCard: React.FC<{
         </div>
       </div>
     </motion.article>
+  );
+};
+
+/* PrivateLinkRow — truncated share URL + copy button on private listing
+   cards. The link opens the item detail page via the share-token lookup
+   (private listings never appear in public browse). */
+const PrivateLinkRow: React.FC<{ token: string }> = ({ token }) => {
+  const [copied, setCopied] = useState(false);
+  const url = `${window.location.origin}/item/${token}`;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* clipboard unavailable — nothing to do */
+    }
+  };
+  return (
+    <div className="flex items-stretch gap-1">
+      <div
+        className="flex-1 min-w-0 h-8 px-2.5 rounded-sm bg-subtle flex items-center"
+        title={url}
+      >
+        <span className="text-[10.5px] font-semibold text-ink-muted truncate">
+          {url.replace(/^https?:\/\//, '')}
+        </span>
+      </div>
+      <motion.button
+        whileTap={tap}
+        onClick={copy}
+        className={`h-8 px-2.5 shrink-0 rounded-sm text-[11px] font-bold inline-flex items-center gap-1 transition-colors ${
+          copied
+            ? 'bg-emerald-500 text-white'
+            : 'bg-subtle hover:bg-bg text-ink'
+        }`}
+        title="Zkopírovat soukromý odkaz"
+      >
+        {copied ? <Check size={11} strokeWidth={2.8} /> : <Copy size={11} strokeWidth={2.4} />}
+        {copied ? 'Zkopírováno' : 'Kopírovat'}
+      </motion.button>
+    </div>
   );
 };
 

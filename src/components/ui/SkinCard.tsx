@@ -210,7 +210,7 @@ const SkinCardImpl: React.FC<SkinCardProps> = ({
       : null;
   const seed = !hasWear
     ? null
-    : skinFloat.data?.paint_seed ?? item.paintSeed ?? item.patternTemplate;
+    : skinFloat.data?.paint_seed ?? item.paintSeed ?? item.patternTemplate ?? (item as any).pattern;
   const online = item.seller?.online ?? false;
   const stickers = Array.isArray(item.stickers)
     ? item.stickers

@@ -33,6 +33,7 @@ import { CachedImage } from '../components/ui/CachedImage';
 import BuyConfirmModal from '../components/marketplace/BuyConfirmModal';
 import { rarityColor } from '../components/ui/SkinCard';
 import { useSkinFloat, itemHasWear } from '../hooks/useSkinFloat';
+import { getSupabaseCredentials } from '../utils/supabaseHelpers';
 import { spring, tap } from '../lib/motion';
 import { openDepositModal } from '../components/DepositModal';
 import {
@@ -84,13 +85,48 @@ const ItemDetailPage: React.FC = () => {
   }, [user?.steamId]);
 
 
-  /* Live items first, then mock fallback. Lets `/item/mock-1` deep-link
-     work when the marketplace is showing the demo dataset. */
+  /* Private listings are excluded from the public browse list — their
+     share links (/item/<share_token>) resolve via the token endpoint. */
+  const [tokenItem, setTokenItem] = useState<any | null>(null);
+  const [tokenChecked, setTokenChecked] = useState(false);
+  useEffect(() => {
+    setTokenItem(null);
+    setTokenChecked(false);
+  }, [itemId]);
+
+  /* Live items first, then mock fallback, then the share-token lookup.
+     Lets `/item/mock-1` deep-link work when the marketplace is showing
+     the demo dataset. */
   const item = useMemo(() => {
     const live = (items || []).find((i: any) => String(i.id) === String(itemId));
     if (live) return live;
-    return findMockItem(itemId);
-  }, [items, itemId]);
+    return findMockItem(itemId) ?? tokenItem;
+  }, [items, itemId, tokenItem]);
+
+  useEffect(() => {
+    if (loading || item || !itemId || tokenChecked) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+        const res = await fetch(
+          `${supabaseUrl}/functions/v1/marketplace-listings?token=${encodeURIComponent(itemId)}`,
+          { headers: { Authorization: `Bearer ${supabaseKey}` } },
+        );
+        if (res.ok) {
+          const body = await res.json().catch(() => null);
+          if (!cancelled && body?.item) setTokenItem(body.item);
+        }
+      } catch {
+        /* network — falls through to "Listing not found" */
+      } finally {
+        if (!cancelled) setTokenChecked(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, item, itemId, tokenChecked]);
 
   /* Observers wired AFTER `item` is declared. Each watches the buy
      panel rendered at its breakpoint; a hidden one always reports
@@ -130,7 +166,7 @@ const ItemDetailPage: React.FC = () => {
   const skinFloat = useSkinFloat({
     enabled: !!item,
     initialFloat: item?.float as any,
-    initialPaintSeed: (item?.paintSeed ?? item?.patternTemplate ?? item?.paint_seed) as any,
+    initialPaintSeed: (item?.paintSeed ?? item?.patternTemplate ?? item?.paint_seed ?? item?.pattern) as any,
     inspectLink: (item as any)?.inspect_link ?? (item as any)?.inspectLink ?? null,
     steamId: (item as any)?.seller?.steamId ?? (item as any)?.seller_steam_id ?? null,
     assetId: (item as any)?.asset_id ?? (item as any)?.assetId ?? null,
@@ -335,7 +371,7 @@ const ItemDetailPage: React.FC = () => {
   });
 
   /* ───── Not-found / loading ───── */
-  if (!loading && !item) {
+  if (!loading && !item && tokenChecked) {
     return (
       <div className="min-h-screen bg-bg text-ink">
         <LandingNav />

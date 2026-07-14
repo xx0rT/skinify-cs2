@@ -190,6 +190,7 @@ function cachedRowsResponse(
     tradable: !!row.tradable,
     marketable: !!row.marketable,
     float: row.float_value ?? undefined,
+    pattern: row.pattern ?? undefined,
     stickers: row.stickers ?? undefined,
     assetid: row.asset_id,
     classid: row.class_id,
@@ -981,6 +982,7 @@ Deno.serve(async (req) => {
             tradable: it.tradable,
             marketable: it.marketable,
             float_value: it.float ?? null,
+            pattern: (it as any).pattern ?? null,
             stickers: it.stickers ?? null,
             last_updated: new Date().toISOString(),
           }));
