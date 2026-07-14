@@ -9,6 +9,7 @@ import {
   BookOpen,
   Calendar,
   DollarSign,
+  Edit3,
   Eye,
   LayoutGrid,
   MessageSquare,
@@ -20,6 +21,7 @@ import {
   Users,
   Wallet,
   Wrench,
+  X,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
@@ -334,18 +336,64 @@ const AdminPanelNew: React.FC = () => {
 };
 
 /* ── Blogs tab — flat list styled with theme tokens. ── */
-const BlogsTab: React.FC<{ addToast: any; supabase: any }> = ({ addToast, supabase }) => {
+/* adminPost — shared caller for the admin-settings edge function. Blog
+   reads/writes must run as service_role: anon can only SELECT published
+   posts (drafts invisible) and every write is RLS-blocked. */
+const useAdminPost = () => {
+  const adminSteamId = useAuthStore((s) => s.user?.steamId);
+  return async (payload: Record<string, unknown>): Promise<any> => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+    const res = await fetch(`${supabaseUrl}/functions/v1/admin-settings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${supabaseKey}`,
+        'X-Steam-Id': adminSteamId || '',
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error || `Server error (${res.status})`);
+    return data;
+  };
+};
+
+interface BlogDraft {
+  id?: number;
+  title: string;
+  slug: string;
+  excerpt: string;
+  content: string;
+  cover_image_url: string;
+  category: string;
+  tags: string;
+  is_published: boolean;
+  is_featured: boolean;
+}
+
+const EMPTY_BLOG: BlogDraft = {
+  title: '',
+  slug: '',
+  excerpt: '',
+  content: '',
+  cover_image_url: '',
+  category: 'News',
+  tags: '',
+  is_published: false,
+  is_featured: false,
+};
+
+const BlogsTab: React.FC<{ addToast: any; supabase: any }> = ({ addToast }) => {
+  const adminPost = useAdminPost();
   const [blogs, setBlogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<BlogDraft | null>(null);
+  const [savingBlog, setSavingBlog] = useState(false);
 
   const fetchBlogs = async () => {
     try {
-      const { data, error } = await supabase
-        .from('blog_posts')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      const { blogs: data } = await adminPost({ action: 'list_blogs' });
       setBlogs(data || []);
     } catch (error: any) {
       addToast({ type: 'error', title: 'Error', message: error.message });
@@ -355,14 +403,14 @@ const BlogsTab: React.FC<{ addToast: any; supabase: any }> = ({ addToast, supaba
   };
 
   useEffect(() => {
-    if (supabase) fetchBlogs();
-  }, [supabase]);
+    fetchBlogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const deleteBlog = async (id: number) => {
     if (!confirm('Are you sure you want to delete this blog post?')) return;
     try {
-      const { error } = await supabase.from('blog_posts').delete().eq('id', id);
-      if (error) throw error;
+      await adminPost({ action: 'delete_blog', id });
       addToast({ type: 'success', title: 'Success', message: 'Blog post deleted' });
       fetchBlogs();
     } catch (error: any) {
@@ -372,15 +420,65 @@ const BlogsTab: React.FC<{ addToast: any; supabase: any }> = ({ addToast, supaba
 
   const togglePublished = async (blog: any) => {
     try {
-      const { error } = await supabase
-        .from('blog_posts')
-        .update({ is_published: !blog.is_published })
-        .eq('id', blog.id);
-      if (error) throw error;
+      await adminPost({
+        action: 'save_blog',
+        blog: { ...blog, is_published: !blog.is_published },
+      });
       addToast({ type: 'success', title: 'Success', message: 'Blog status updated' });
       fetchBlogs();
     } catch (error: any) {
       addToast({ type: 'error', title: 'Error', message: error.message });
+    }
+  };
+
+  const openEditor = (blog?: any) => {
+    if (!blog) {
+      setEditing({ ...EMPTY_BLOG });
+      return;
+    }
+    setEditing({
+      id: blog.id,
+      title: blog.title || '',
+      slug: blog.slug || '',
+      excerpt: blog.excerpt || '',
+      content: blog.content || '',
+      cover_image_url: blog.cover_image_url || '',
+      category: blog.category || 'News',
+      tags: Array.isArray(blog.tags) ? blog.tags.join(', ') : '',
+      is_published: !!blog.is_published,
+      is_featured: !!blog.is_featured,
+    });
+  };
+
+  const saveBlog = async () => {
+    if (!editing) return;
+    if (!editing.title.trim() || !editing.content.trim()) {
+      addToast({ type: 'warning', title: 'Missing fields', message: 'Title and content are required.' });
+      return;
+    }
+    setSavingBlog(true);
+    try {
+      await adminPost({
+        action: 'save_blog',
+        blog: {
+          ...editing,
+          tags: editing.tags
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean),
+        },
+      });
+      addToast({
+        type: 'success',
+        title: editing.id ? 'Post updated' : 'Post created',
+        message: editing.title,
+      });
+      setEditing(null);
+      fetchBlogs();
+    } catch (error: any) {
+      addToast({ type: 'error', title: 'Save failed', message: error.message });
+    } finally {
+      setSavingBlog(false);
     }
   };
 
@@ -392,15 +490,159 @@ const BlogsTab: React.FC<{ addToast: any; supabase: any }> = ({ addToast, supaba
         </p>
         <motion.button
           whileTap={tap}
-          onClick={() =>
-            addToast({ type: 'info', title: 'Coming soon', message: 'Post editor is on the way.' })
-          }
+          onClick={() => openEditor()}
           className="h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold inline-flex items-center gap-1.5"
         >
           <Plus size={14} strokeWidth={2.6} />
           New post
         </motion.button>
       </div>
+
+      {/* Editor modal */}
+      <AnimatePresence>
+        {editing && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[90] grid place-items-center bg-black/60 backdrop-blur-md p-4"
+            onClick={() => !savingBlog && setEditing(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.96, y: 12, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.96, y: 8, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+              onClick={(e) => e.stopPropagation()}
+              className="card-elevated w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+            >
+              <div className="shrink-0 px-6 pt-5 pb-4 border-b border-line flex items-center justify-between gap-3">
+                <div>
+                  <span className="label-eyebrow">Blog</span>
+                  <h2 className="text-[19px] font-bold text-ink tracking-tight mt-1 leading-none">
+                    {editing.id ? 'Edit post' : 'New post'}
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setEditing(null)}
+                  className="h-9 w-9 rounded-full bg-subtle hover:bg-bg grid place-items-center text-ink-muted hover:text-ink transition-colors"
+                  aria-label="Close"
+                >
+                  <X size={15} strokeWidth={2.4} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+                <BlogField label="Title *">
+                  <input
+                    value={editing.title}
+                    onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                    placeholder="How to spot undervalued skins"
+                    className="blog-input"
+                  />
+                </BlogField>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <BlogField label="Slug (auto from title if empty)">
+                    <input
+                      value={editing.slug}
+                      onChange={(e) => setEditing({ ...editing, slug: e.target.value })}
+                      placeholder="how-to-spot-undervalued-skins"
+                      className="blog-input font-mono text-[12px]"
+                    />
+                  </BlogField>
+                  <BlogField label="Category">
+                    <input
+                      value={editing.category}
+                      onChange={(e) => setEditing({ ...editing, category: e.target.value })}
+                      placeholder="News"
+                      className="blog-input"
+                    />
+                  </BlogField>
+                </div>
+                <BlogField label="Excerpt — short teaser shown on cards">
+                  <textarea
+                    rows={2}
+                    value={editing.excerpt}
+                    onChange={(e) => setEditing({ ...editing, excerpt: e.target.value })}
+                    className="blog-input resize-none"
+                  />
+                </BlogField>
+                <BlogField label="Content * (markdown)">
+                  <textarea
+                    rows={10}
+                    value={editing.content}
+                    onChange={(e) => setEditing({ ...editing, content: e.target.value })}
+                    className="blog-input font-mono text-[12.5px] resize-y"
+                  />
+                </BlogField>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <BlogField label="Cover image URL">
+                    <input
+                      value={editing.cover_image_url}
+                      onChange={(e) => setEditing({ ...editing, cover_image_url: e.target.value })}
+                      placeholder="https://…"
+                      className="blog-input"
+                    />
+                  </BlogField>
+                  <BlogField label="Tags (comma separated)">
+                    <input
+                      value={editing.tags}
+                      onChange={(e) => setEditing({ ...editing, tags: e.target.value })}
+                      placeholder="skins, trading, guide"
+                      className="blog-input"
+                    />
+                  </BlogField>
+                </div>
+                {editing.cover_image_url && (
+                  <img
+                    src={editing.cover_image_url}
+                    alt=""
+                    className="h-32 rounded-2xl object-cover ring-1 ring-line"
+                    onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
+                  />
+                )}
+                <div className="flex items-center gap-5">
+                  <label className="inline-flex items-center gap-2 text-[13px] font-semibold text-ink cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editing.is_published}
+                      onChange={(e) => setEditing({ ...editing, is_published: e.target.checked })}
+                      className="accent-[rgb(var(--accent))] w-4 h-4"
+                    />
+                    Published
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-[13px] font-semibold text-ink cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editing.is_featured}
+                      onChange={(e) => setEditing({ ...editing, is_featured: e.target.checked })}
+                      className="accent-[rgb(var(--accent))] w-4 h-4"
+                    />
+                    Featured
+                  </label>
+                </div>
+              </div>
+
+              <div className="shrink-0 px-6 py-4 border-t border-line flex gap-2">
+                <button
+                  onClick={() => setEditing(null)}
+                  disabled={savingBlog}
+                  className="h-11 px-5 rounded-full bg-subtle hover:bg-bg text-ink text-[13px] font-semibold transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveBlog}
+                  disabled={savingBlog}
+                  className="flex-1 h-11 rounded-full bg-accent text-on-accent text-[13.5px] font-bold disabled:opacity-60"
+                >
+                  {savingBlog ? 'Saving…' : editing.id ? 'Save changes' : 'Create post'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {loading ? (
         <div className="panel p-10 text-center text-[13.5px] text-ink-muted font-medium">
@@ -451,6 +693,13 @@ const BlogsTab: React.FC<{ addToast: any; supabase: any }> = ({ addToast, supaba
                   {blog.is_published ? 'Published' : 'Draft'}
                 </button>
                 <button
+                  onClick={() => openEditor(blog)}
+                  className="h-8 px-3 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[11.5px] font-bold inline-flex items-center gap-1 transition-colors"
+                >
+                  <Edit3 size={12} strokeWidth={2.4} />
+                  Edit
+                </button>
+                <button
                   onClick={() => deleteBlog(blog.id)}
                   className="w-8 h-8 rounded-full grid place-items-center text-ink-muted hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                   aria-label="Delete post"
@@ -465,5 +714,12 @@ const BlogsTab: React.FC<{ addToast: any; supabase: any }> = ({ addToast, supaba
     </div>
   );
 };
+
+const BlogField: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div>
+    <div className="text-[11px] font-bold uppercase tracking-wider text-ink-dim mb-1.5">{label}</div>
+    {children}
+  </div>
+);
 
 export default AdminPanelNew;

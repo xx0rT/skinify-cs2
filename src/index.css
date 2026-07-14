@@ -540,6 +540,25 @@ html[hidden] .skel::after { animation-play-state: paused; }
 }
 .editor-input:focus { border-color: rgba(255, 255, 255, 0.4); }
 
+/* Admin blog editor inputs — themed (light/dark aware) counterpart of
+   .editor-input for forms inside the admin panel. */
+.blog-input {
+  width: 100%;
+  background: rgb(var(--subtle));
+  border: 1px solid rgb(var(--line));
+  border-radius: 14px;
+  padding: 10px 14px;
+  color: rgb(var(--ink));
+  font-size: 13.5px;
+  font-weight: 500;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.blog-input:focus {
+  border-color: rgb(var(--accent));
+  box-shadow: 0 0 0 2px rgb(var(--accent) / 0.25);
+}
+
 /* On-load fade-up — used for hero + first sections */
 @keyframes rise-in {
   0%   { opacity: 0; transform: translateY(8px); }

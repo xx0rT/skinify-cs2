@@ -134,6 +134,71 @@ Deno.serve(async (req) => {
         });
       }
 
+      case 'list_blogs': {
+        const { data, error } = await supabase
+          .from('blog_posts')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (error) return json(500, { error: error.message });
+        return json(200, { blogs: data || [] });
+      }
+
+      case 'save_blog': {
+        /* Insert (no id) or update (id) a blog post. Anon writes are
+           RLS-blocked, so the whole editor goes through here. */
+        const b = body.blog || {};
+        if (!b.title?.trim() || !b.content?.trim()) {
+          return json(400, { error: 'Title and content are required.' });
+        }
+        const slug =
+          String(b.slug || b.title)
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .slice(0, 80) || `post-${Date.now()}`;
+        const row: Record<string, unknown> = {
+          title: b.title.trim(),
+          slug,
+          excerpt: b.excerpt?.trim() || null,
+          content: b.content,
+          cover_image_url: b.cover_image_url?.trim() || null,
+          author_name: b.author_name?.trim() || 'Admin',
+          category: b.category?.trim() || 'News',
+          tags: Array.isArray(b.tags) ? b.tags : [],
+          is_published: !!b.is_published,
+          is_featured: !!b.is_featured,
+          published_at: b.is_published ? b.published_at || new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        };
+        if (b.id) {
+          const { data, error } = await supabase
+            .from('blog_posts')
+            .update(row)
+            .eq('id', b.id)
+            .select()
+            .single();
+          if (error) return json(500, { error: error.message });
+          return json(200, { ok: true, post: data });
+        }
+        const { data, error } = await supabase
+          .from('blog_posts')
+          .insert(row)
+          .select()
+          .single();
+        if (error) return json(500, { error: error.message });
+        return json(200, { ok: true, post: data });
+      }
+
+      case 'delete_blog': {
+        const { id } = body;
+        if (!id) return json(400, { error: 'Missing id.' });
+        const { error } = await supabase.from('blog_posts').delete().eq('id', id);
+        if (error) return json(500, { error: error.message });
+        return json(200, { ok: true });
+      }
+
       case 'list_settings': {
         const { data, error } = await supabase
           .from('system_settings')
