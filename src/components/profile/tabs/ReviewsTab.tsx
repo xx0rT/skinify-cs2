@@ -118,7 +118,7 @@ const ReviewsTab: React.FC = () => {
         />
         <div className="relative grid md:grid-cols-[auto_1fr] gap-6 md:gap-10 items-center">
           <div className="text-center md:text-left">
-            <span className="label-eyebrow">Average rating</span>
+            <span className="label-eyebrow">Průměrné hodnocení</span>
             <div className="flex items-end gap-2 mt-1.5 justify-center md:justify-start">
               <div className="text-[44px] sm:text-[52px] font-bold tracking-tight leading-none tabular-nums text-ink">
                 {stats.n ? stats.avg.toFixed(1) : '—'}
@@ -213,7 +213,7 @@ const ReviewsTab: React.FC = () => {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search reviews…"
+            placeholder="Hledat v recenzích…"
             className="flex-1 bg-transparent outline-none text-ink placeholder:text-ink-dim text-[12.5px] font-medium"
           />
         </div>
@@ -228,12 +228,12 @@ const ReviewsTab: React.FC = () => {
         <div className="card p-12 text-center">
           <MessageSquare size={26} className="mx-auto text-ink-muted mb-3" />
           <p className="text-[15px] font-bold text-ink tracking-tight">
-            {reviews.length === 0 ? 'No reviews yet' : 'No reviews match this filter'}
+            {reviews.length === 0 ? 'Zatím žádné recenze' : 'Filtru neodpovídá žádná recenze'}
           </p>
           <p className="text-[13px] text-ink-muted font-medium mt-1">
             {reviews.length === 0
-              ? 'Reviews from buyers and sellers will appear here after each completed trade.'
-              : 'Try a different rating or clear your search.'}
+              ? 'Recenze od kupujících a prodejců se zde objeví po každém dokončeném obchodu.'
+              : 'Zkuste jiné hodnocení nebo vymažte hledání.'}
           </p>
         </div>
       ) : (
@@ -261,7 +261,7 @@ const ReviewsTab: React.FC = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-[14px] font-bold text-ink tracking-tight truncate">
-                        {r.reviewer?.display_name || 'Anonymous trader'}
+                        {r.reviewer?.display_name || 'Anonymní obchodník'}
                       </span>
                       {r.is_verified_purchase && (
                         <span className="pill bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1">

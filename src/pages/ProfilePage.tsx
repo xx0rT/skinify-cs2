@@ -151,14 +151,14 @@ interface TabDef {
    `messages` keeps its `navigate` field — clicking it routes to the
    standalone /messages page rather than swapping in-page content. */
 const TABS: TabDef[] = [
-  { id: 'overview',  label: 'Overview',  icon: LayoutGrid },
-  { id: 'inventory', label: 'Inventory', icon: Package },
-  { id: 'listings',  label: 'Listings',  icon: ShoppingBag },
-  { id: 'trades',    label: 'Trades',    icon: TrendingUp },
-  { id: 'balance',   label: 'Balance',   icon: Wallet },
-  { id: 'messages', label: 'Messages', icon: MessageCircle, navigate: '/messages', badge: 'messages' },
-  { id: 'referral',  label: 'Referral',  icon: Gift },
-  { id: 'settings',  label: 'Settings',  icon: Settings },
+  { id: 'overview',  label: 'Přehled',    icon: LayoutGrid },
+  { id: 'inventory', label: 'Inventář',   icon: Package },
+  { id: 'listings',  label: 'Nabídky',    icon: ShoppingBag },
+  { id: 'trades',    label: 'Obchody',    icon: TrendingUp },
+  { id: 'balance',   label: 'Zůstatek',   icon: Wallet },
+  { id: 'messages',  label: 'Zprávy',     icon: MessageCircle, navigate: '/messages', badge: 'messages' },
+  { id: 'referral',  label: 'Doporučení', icon: Gift },
+  { id: 'settings',  label: 'Nastavení',  icon: Settings },
 ];
 
 /* Sub-tabs for each parent. Empty list means no sub-tabs (e.g. Overview,
@@ -167,21 +167,21 @@ type SubId = string;
 interface SubTab { id: SubId; label: string }
 const SUB_TABS: Partial<Record<TabId, SubTab[]>> = {
   inventory: [
-    { id: 'steam',    label: 'Steam items' },
-    { id: 'wishlist', label: 'Wishlist' },
+    { id: 'steam',    label: 'Steam předměty' },
+    { id: 'wishlist', label: 'Oblíbené' },
   ],
   listings: [
-    { id: 'active', label: 'Active' },
-    { id: 'shop',   label: 'My shop' },
+    { id: 'active', label: 'Aktivní' },
+    { id: 'shop',   label: 'Můj obchod' },
   ],
   trades: [
-    { id: 'history',     label: 'History' },
-    { id: 'reviews',     label: 'Reviews' },
-    { id: 'performance', label: 'Performance' },
+    { id: 'history',     label: 'Historie' },
+    { id: 'reviews',     label: 'Recenze' },
+    { id: 'performance', label: 'Výkon' },
   ],
   settings: [
-    { id: 'profile',       label: 'Account' },
-    { id: 'notifications', label: 'Notifications' },
+    { id: 'profile',       label: 'Účet' },
+    { id: 'notifications', label: 'Oznámení' },
   ],
 };
 
@@ -471,7 +471,7 @@ const ProfilePage: React.FC = () => {
                 )}
 
                 {activeTab === 'balance' && (
-                  <SubFrame title={tr('profile.tab.balance', 'Balance')} subtitle="Funds, lifetime totals, and transaction history">
+                  <SubFrame title={tr('profile.tab.balance', 'Balance')} subtitle="Prostředky, celkové součty a historie transakcí">
                     <Suspense fallback={<TabSkeleton />}>
                       <BalanceTab />
                     </Suspense>
@@ -483,8 +483,8 @@ const ProfilePage: React.FC = () => {
                     title={tr('profile.tab.inventory', 'Inventory')}
                     subtitle={
                       activeSub === 'wishlist'
-                        ? "Skins you're watching"
-                        : 'Items you own on Steam'
+                        ? 'Skiny, které sledujete'
+                        : 'Předměty, které vlastníte na Steamu'
                     }
                     subTabs={SUB_TABS.inventory || []}
                     activeSub={activeSub}
@@ -505,8 +505,8 @@ const ProfilePage: React.FC = () => {
                     title={tr('profile.tab.listings', 'Listings')}
                     subtitle={
                       activeSub === 'shop'
-                        ? 'Public storefront for your listings'
-                        : "Skins you've put up for sale"
+                        ? 'Veřejná výloha vašich nabídek'
+                        : 'Skiny vystavené k prodeji'
                     }
                     subTabs={SUB_TABS.listings || []}
                     activeSub={activeSub}
@@ -527,10 +527,10 @@ const ProfilePage: React.FC = () => {
                     title={tr('profile.tab.trades', 'Trades')}
                     subtitle={
                       activeSub === 'reviews'
-                        ? "Feedback from people you've traded with"
+                        ? 'Hodnocení od lidí, se kterými jste obchodovali'
                         : activeSub === 'performance'
-                        ? 'Profit, volume, and trade activity over time'
-                        : 'Purchases, sales, and items in escrow'
+                        ? 'Zisk, objem a aktivita obchodů v čase'
+                        : 'Nákupy, prodeje a položky v úschově (escrow)'
                     }
                     subTabs={SUB_TABS.trades || []}
                     activeSub={activeSub}
@@ -551,7 +551,7 @@ const ProfilePage: React.FC = () => {
                 {activeTab === 'referral' && (
                   <GroupedTab
                     title={tr('profile.tab.referral', 'Referral')}
-                    subtitle="Share your link, earn a cut of every friend's fees for life."
+                    subtitle="Sdílejte svůj odkaz a získejte podíl z poplatků každého pozvaného kamaráda — napořád."
                     subTabs={[]}
                     activeSub={activeSub}
                     onSubChange={setActiveSub}
@@ -567,8 +567,8 @@ const ProfilePage: React.FC = () => {
                     title={tr('profile.tab.settings', 'Settings')}
                     subtitle={
                       activeSub === 'notifications'
-                        ? 'Recent activity on your account'
-                        : 'Account, trade link, appearance, and preferences'
+                        ? 'Nedávná aktivita na vašem účtu'
+                        : 'Účet, trade odkaz, vzhled a předvolby'
                     }
                     subTabs={SUB_TABS.settings || []}
                     activeSub={activeSub}
@@ -635,7 +635,7 @@ const NotificationsPanel: React.FC = () => {
     >
       {notifications.map((n) => {
         const linkUrl = n.metadata?.link_url || n.metadata?.action_url;
-        const linkLabel = n.metadata?.link_label || 'Open';
+        const linkLabel = n.metadata?.link_label || 'Otevřít';
         return (
           <motion.div
             key={n.id}
@@ -769,7 +769,7 @@ const OverviewTab: React.FC<{
         </div>
         <div className="relative flex-1 min-w-0">
           <div className="text-[17px] font-bold text-ink tracking-tight truncate">
-            {user.displayName || 'Trader'}
+            {user.displayName || 'Obchodník'}
           </div>
           <div className="text-[12.5px] text-ink-muted font-medium mt-0.5">
             {joinedAt
@@ -778,7 +778,7 @@ const OverviewTab: React.FC<{
                   day: 'numeric',
                   year: 'numeric',
                 })}`
-              : 'Skinify trader'}
+              : 'Obchodník Skinify'}
           </div>
         </div>
         <motion.button
@@ -946,8 +946,8 @@ const OverviewTab: React.FC<{
         label="Trade URL"
         text={
           user.tradeLink
-            ? 'Your Steam trade URL is set — you can receive items.'
-            : 'Add your Steam trade URL to receive purchased items.'
+            ? 'Váš Steam trade URL je nastavený — můžete přijímat předměty.'
+            : 'Přidejte svůj Steam trade URL, abyste mohli přijímat zakoupené předměty.'
         }
         action={
           <motion.button
@@ -955,7 +955,7 @@ const OverviewTab: React.FC<{
             onClick={() => onGoTo('settings')}
             className="h-10 px-4 rounded-full bg-subtle hover:bg-bg text-ink text-[13px] font-bold transition-colors"
           >
-            {user.tradeLink ? 'Edit' : 'Add'}
+            {user.tradeLink ? 'Upravit' : 'Přidat'}
           </motion.button>
         }
       />
@@ -968,8 +968,8 @@ const OverviewTab: React.FC<{
       <OverviewRow
         variants={overviewChild}
         Icon={Bell}
-        label="Trade notifications"
-        text="Choose how you want to be notified about your trades and market updates."
+        label="Oznámení o obchodech"
+        text="Zvolte, jak chcete být informováni o svých obchodech a novinkách na trhu."
         action={
           <motion.button
             whileTap={tap}

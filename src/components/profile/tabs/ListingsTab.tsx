@@ -159,7 +159,7 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
      `alreadyAdded: true` on the unique-constraint hit). */
   const handleAddToShop = async (l: Listing) => {
     if (!steamId) {
-      addToast({ type: 'warning', title: 'Sign in first' });
+      addToast({ type: 'warning', title: 'Nejprve se přihlaste' });
       return;
     }
     /* Optimistic — flip the button green immediately; roll back only
@@ -191,7 +191,7 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
         });
         addToast({
           type: 'error',
-          title: 'Could not add to shop',
+          title: 'Do obchodu se nepodařilo přidat',
           message: data?.error || `HTTP ${res.status}`,
         });
         return;
@@ -200,13 +200,13 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
       if (data?.alreadyAdded) {
         addToast({
           type: 'info',
-          title: 'Already in your shop',
+          title: 'Už je ve vašem obchodě',
           message: shopUrl ? `${l.item_name} · /shop/${shopUrl}` : l.item_name,
         });
       } else {
         addToast({
           type: 'success',
-          title: 'Added to your shop',
+          title: 'Přidáno do vašeho obchodu',
           message: shopUrl
             ? `${l.item_name} now appears on /shop/${shopUrl}`
             : l.item_name,
@@ -220,8 +220,8 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
       });
       addToast({
         type: 'error',
-        title: 'Could not add to shop',
-        message: err?.message || 'Network error.',
+        title: 'Do obchodu se nepodařilo přidat',
+        message: err?.message || 'Chyba sítě.',
       });
     }
   };
@@ -239,7 +239,7 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
     if (Number(balance || 0) < PROMOTE_FEE_CZK) {
       addToast({
         type: 'warning',
-        title: 'Insufficient balance',
+        title: 'Nedostatečný zůstatek',
         message: `You need ${formatFee(PROMOTE_FEE_CZK)} to promote a listing — top up first.`,
       });
       return;
@@ -267,7 +267,7 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
     if (Number(balance || 0) < PROMOTE_FEE_CZK) {
       addToast({
         type: 'warning',
-        title: 'Insufficient balance',
+        title: 'Nedostatečný zůstatek',
         message: `You need ${formatFee(PROMOTE_FEE_CZK)} to promote a listing.`,
       });
       return;
@@ -311,7 +311,7 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
         /* Already promoted server-side — keep the flag, no new charge. */
         addToast({
           type: 'info',
-          title: 'Already promoted',
+          title: 'Už je promované',
           message: `${l.item_name} is already featured${
             data?.expires_at ? ` until ${new Date(data.expires_at).toLocaleDateString()}` : ''
           }.`,
@@ -322,7 +322,7 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
         rollback();
         addToast({
           type: 'error',
-          title: 'Promotion failed',
+          title: 'Propagace selhala',
           message: data?.error || `Could not charge the ${PROMOTE_FEE_CZK} Kč fee.`,
         });
         return;
@@ -338,14 +338,14 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
       fetchBalance(steamId);
       addToast({
         type: 'success',
-        title: 'Listing promoted',
+        title: 'Nabídka promována',
         message: `${l.item_name} · featured for 7 days (−${PROMOTE_FEE_CZK} Kč)`,
       });
     } catch (err: any) {
       rollback();
       addToast({
         type: 'error',
-        title: 'Promotion failed',
+        title: 'Propagace selhala',
         message: err?.message || 'Network error',
       });
     } finally {
@@ -420,9 +420,9 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
         transition={spring}
         className="grid grid-cols-3 gap-3"
       >
-        <KpiTile label="Active listings" value={String(kpis.count)} Icon={ShoppingBag} />
-        <KpiTile label="Listed value" value={formatPrice(kpis.totalValue)} Icon={TrendingUp} />
-        <KpiTile label="Total views" value={kpis.totalViews.toLocaleString()} Icon={Eye} />
+        <KpiTile label="Aktivní nabídky" value={String(kpis.count)} Icon={ShoppingBag} />
+        <KpiTile label="Hodnota nabídek" value={formatPrice(kpis.totalValue)} Icon={TrendingUp} />
+        <KpiTile label="Zobrazení celkem" value={kpis.totalViews.toLocaleString()} Icon={Eye} />
       </motion.div>
 
       {/* Toolbar */}
@@ -437,7 +437,7 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search listings…"
+            placeholder="Hledat v nabídkách…"
             className="flex-1 bg-transparent outline-none text-ink placeholder:text-ink-dim text-[13px] font-medium"
           />
         </div>
@@ -447,7 +447,7 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
           onClick={fetchListings}
           disabled={loading}
           className="h-10 w-10 rounded-full bg-subtle hover:bg-bg grid place-items-center disabled:opacity-50 transition-colors"
-          title="Refresh"
+          title="Obnovit"
         >
           <RefreshCw
             size={14}
@@ -478,12 +478,12 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
         <div className="card p-12 text-center">
           <Tag size={26} className="mx-auto text-ink-muted mb-3" />
           <p className="text-[15px] font-bold text-ink tracking-tight">
-            {listings.length === 0 ? 'No listings yet' : 'No listings match this search'}
+            {listings.length === 0 ? 'Zatím žádné nabídky' : 'Hledání neodpovídá žádná nabídka'}
           </p>
           <p className="text-[13px] text-ink-muted font-medium mt-1.5 max-w-md mx-auto">
             {listings.length === 0
-              ? 'Pick items from your inventory to put them on the marketplace.'
-              : 'Try a different search.'}
+              ? 'Vyberte položky z inventáře a vystavte je na tržiště.'
+              : 'Zkuste jiné hledání.'}
           </p>
           {listings.length === 0 && (
             <motion.button
@@ -597,7 +597,7 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
                   }}
                   className="h-11 rounded-full bg-accent text-on-accent text-[13px] font-bold"
                 >
-                  Promote · {formatFee(PROMOTE_FEE_CZK)}
+                  Propagovat · {formatFee(PROMOTE_FEE_CZK)}
                 </motion.button>
               </div>
             </motion.div>
@@ -858,7 +858,7 @@ const ListingCard: React.FC<{
                 whileTap={tap}
                 onClick={onSaveEdit}
                 className="h-8 w-8 shrink-0 rounded-sm bg-accent text-on-accent grid place-items-center"
-                title="Save"
+                title="Uložit"
               >
                 <Check size={12} strokeWidth={2.6} />
               </motion.button>
@@ -866,7 +866,7 @@ const ListingCard: React.FC<{
                 whileTap={tap}
                 onClick={onCancelEdit}
                 className="h-8 w-8 shrink-0 rounded-sm bg-subtle text-ink grid place-items-center"
-                title="Cancel"
+                title="Zrušit"
               >
                 <X size={12} strokeWidth={2.4} />
               </motion.button>
@@ -882,7 +882,7 @@ const ListingCard: React.FC<{
                   className="flex-1 h-8 rounded-sm bg-subtle hover:bg-bg text-ink text-[11.5px] font-bold inline-flex items-center justify-center gap-1 transition-colors"
                 >
                   <Edit3 size={11} strokeWidth={2.4} />
-                  Edit
+                  Upravit
                 </motion.button>
                 <motion.button
                   whileTap={tap}
@@ -892,16 +892,16 @@ const ListingCard: React.FC<{
                       ? 'bg-emerald-500 text-white cursor-default'
                       : 'bg-subtle hover:bg-bg text-ink'
                   }`}
-                  title={inShop ? 'In your shop' : 'Add to your shop'}
+                  title={inShop ? 'Ve vašem obchodě' : 'Přidat do vašeho obchodu'}
                 >
                   {inShop ? <Check size={11} strokeWidth={2.8} /> : <Store size={11} strokeWidth={2.4} />}
-                  {inShop ? 'In shop' : 'Shop'}
+                  {inShop ? 'V obchodě' : 'Obchod'}
                 </motion.button>
                 <motion.button
                   whileTap={tap}
                   onClick={onRemove}
                   className="h-8 w-8 shrink-0 rounded-sm bg-subtle hover:bg-rose-500/15 grid place-items-center transition-colors group/del"
-                  title="Remove listing"
+                  title="Odebrat nabídku"
                 >
                   <Trash2
                     size={12}
@@ -928,12 +928,12 @@ const ListingCard: React.FC<{
                 >
                   <Check size={12} strokeWidth={2.8} />
                   {(() => {
-                    if (!promotedUntil) return 'Promoted';
+                    if (!promotedUntil) return 'Promováno';
                     const days = Math.max(
                       0,
                       Math.ceil((new Date(promotedUntil).getTime() - Date.now()) / 86_400_000),
                     );
-                    return `Promoted · ${days}d left`;
+                    return `Promováno · zbývá ${days} d`;
                   })()}
                 </motion.div>
               ) : (
@@ -1000,10 +1000,10 @@ const PrivateLinkRow: React.FC<{ token: string }> = ({ token }) => {
 const SortPicker: React.FC<{ sort: Sort; onChange: (s: Sort) => void }> = ({ sort, onChange }) => {
   const [open, setOpen] = useState(false);
   const labels: Record<Sort, string> = {
-    'newest': 'Newest first',
-    'price-desc': 'Price ↓',
-    'price-asc': 'Price ↑',
-    'views': 'Most viewed',
+    'newest': 'Nejnovější',
+    'price-desc': 'Cena ↓',
+    'price-asc': 'Cena ↑',
+    'views': 'Nejvíce zobrazené',
   };
   return (
     <div className="relative">

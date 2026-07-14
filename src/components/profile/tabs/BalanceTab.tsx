@@ -97,11 +97,11 @@ const BalanceTab: React.FC = () => {
           />
           <div className="relative">
             <div className="flex items-center justify-between mb-2">
-              <span className="label-eyebrow">Available balance</span>
+              <span className="label-eyebrow">Dostupný zůstatek</span>
               <button
                 onClick={() => user?.steamId && fetchBalance(user.steamId)}
                 className="icon-chip-sm hover:bg-bg transition-colors"
-                title="Refresh"
+                title="Obnovit"
               >
                 <RefreshCw size={13} strokeWidth={2.2} className="text-ink-muted" />
               </button>
@@ -111,8 +111,8 @@ const BalanceTab: React.FC = () => {
             </div>
             <div className="text-[13px] text-ink-muted font-medium mt-1.5">
               {Number(pendingBalance || 0) > 0
-                ? `+ ${formatPrice(Number(pendingBalance || 0))} pending release`
-                : 'No funds in escrow'}
+                ? `+ ${formatPrice(Number(pendingBalance || 0))} čeká na uvolnění`
+                : 'Žádné prostředky v úschově'}
             </div>
             <div className="mt-6 flex flex-wrap gap-2">
               <motion.button
@@ -123,7 +123,7 @@ const BalanceTab: React.FC = () => {
                 style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.6)' }}
               >
                 <Plus size={15} strokeWidth={2.6} />
-                Add funds
+                Dobít zůstatek
               </motion.button>
               <motion.button
                 whileTap={tap}
@@ -132,7 +132,7 @@ const BalanceTab: React.FC = () => {
                 className="h-12 px-6 rounded-full bg-subtle hover:bg-bg text-ink font-semibold text-[14px] flex items-center gap-2 transition-colors"
               >
                 <ArrowUpFromLine size={15} strokeWidth={2.2} />
-                Withdraw
+                Vybrat
               </motion.button>
             </div>
           </div>
@@ -144,15 +144,15 @@ const BalanceTab: React.FC = () => {
           transition={{ ...spring, delay: 0.05 }}
           className="card p-6 flex flex-col"
         >
-          <span className="label-eyebrow mb-3">Lifetime</span>
+          <span className="label-eyebrow mb-3">Celkem za dobu účtu</span>
           <div className="space-y-3 flex-1">
-            <SummaryRow label="Deposited" value={formatPrice(Number(totalDeposited || 0))} />
-            <SummaryRow label="Spent"     value={formatPrice(Number(totalSpent || 0))} />
-            <SummaryRow label="Earned"    value={formatPrice(totalEarned)} positive />
+            <SummaryRow label="Vloženo" value={formatPrice(Number(totalDeposited || 0))} />
+            <SummaryRow label="Utraceno" value={formatPrice(Number(totalSpent || 0))} />
+            <SummaryRow label="Vyděláno" value={formatPrice(totalEarned)} positive />
             <SummaryRow
-              label="Pending"
+              label="Čekající"
               value={formatPrice(Number(pendingBalance || 0))}
-              note="Released 8 days after each sale"
+              note="Uvolní se 8 dní po každém prodeji"
             />
           </div>
         </motion.div>
@@ -167,9 +167,9 @@ const BalanceTab: React.FC = () => {
       >
         <div className="flex items-end justify-between mb-4 flex-wrap gap-3">
           <div>
-            <span className="label-eyebrow">History</span>
+            <span className="label-eyebrow">Historie</span>
             <h2 className="text-[17px] font-bold tracking-tight mt-1.5 leading-none">
-              Recent transactions
+              Poslední transakce
             </h2>
           </div>
         </div>
@@ -179,10 +179,10 @@ const BalanceTab: React.FC = () => {
           <div className="flex items-center gap-1">
             {(
               [
-                { id: 'all',       label: 'All' },
-                { id: 'deposits',  label: 'Deposits' },
-                { id: 'received',  label: 'Received' },
-                { id: 'spent',     label: 'Spent' },
+                { id: 'all',       label: 'Vše' },
+                { id: 'deposits',  label: 'Vklady' },
+                { id: 'received',  label: 'Přijaté' },
+                { id: 'spent',     label: 'Utracené' },
               ] as const
             ).map((f) => {
               const active = filter === f.id;
@@ -212,7 +212,7 @@ const BalanceTab: React.FC = () => {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search transactions…"
+              placeholder="Hledat transakce…"
               className="flex-1 bg-transparent outline-none text-ink placeholder:text-ink-dim text-[12.5px] font-medium"
             />
           </div>
@@ -222,7 +222,7 @@ const BalanceTab: React.FC = () => {
           <div className="py-12 text-center">
             <Coins size={26} className="mx-auto text-ink-muted mb-3" />
             <p className="text-[14px] text-ink-muted font-medium">
-              No transactions match this filter.
+              Žádné transakce neodpovídají filtru.
             </p>
           </div>
         ) : (

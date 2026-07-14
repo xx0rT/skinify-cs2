@@ -92,6 +92,41 @@ const LANDING_FAQ = [
   },
 ];
 
+/* Czech FAQ — shown when the site language is CS (the heading "Máte
+   otázky?" was already Czech while the answers stayed English). */
+const LANDING_FAQ_CS = [
+  {
+    question: 'Jak koupit CS2 skiny nejlevněji?',
+    answer:
+      'Skinify drží poplatky pro kupující nízko, takže cena, kterou vidíte, je téměř přesně cena, kterou zaplatíte — žádné skryté přirážky u pokladny. Nabídky jsou peer-to-peer, prodejci proto cenu nastavují na úrovni aktuálního mediánu Steam trhu nebo pod ním, což pravidelně poráží weby třetích stran s přirážkou 5–15 %. U populárních položek jako AK-47, AWP nebo Karambit můžete porovnat více nabídek vedle sebe, seřadit je podle ceny či floatu a vybrat přesně ten kus, který sedí vašemu rozpočtu. Ceny se zobrazují ve vaší měně, takže vždy víte, kolik utrácíte.',
+  },
+  {
+    question: 'Je Skinify bezpečný pro nákup a prodej CS2 skinů?',
+    answer:
+      'Ano — bezpečnost je součástí každého kroku. Každý nákup je držen v escrow úschově, dokud není položka prokazatelně doručena do vašeho Steam inventáře. Pokud prodejce nedodá ve stanoveném okně, peníze se vám automaticky vrátí — vaše prostředky tedy nikdy nejsou v ohrožení. Výplaty prodejcům se uvolňují až po uplynutí Steam okna pro vrácení obchodů, aby byli kupující chráněni před stornovanými trady, a každý účet obchoduje přes náš ověřený proces. U prodejců je od určitého objemu vyžadováno jednorázové ověření totožnosti (KYC), aby tržiště zůstalo čisté a v souladu s pravidly.',
+  },
+  {
+    question: 'Jak dlouho trvá obchod se skinem na Skinify?',
+    answer:
+      'Když je prodejce online, medián doručení je pod 60 sekund. Po nákupu vám prodejce pošle Steam trade nabídku; potvrdíte ji v mobilní aplikaci Steam a skin máte okamžitě v inventáři. Pokud má položka Steam trade lock (0–8 dní), je bezpečně uložena ve vašem Skinify inventáři a odešle se vám automaticky v okamžiku, kdy zámek vyprší — nemusíte nic hlídat.',
+  },
+  {
+    question: 'Potřebuji k obchodování Steam Mobile Authenticator?',
+    answer:
+      'Ano. Bez zapnutého Steam Guard Mobile drží samotný Steam každou trade nabídku až 15 dní — to platí pro jakékoli tržiště, nejen pro Skinify. Zapnutí mobilního authenticatoru odemyká okamžité obchody a je nutné pro rychlé odesílání i přijímání položek. Nastavení v aplikaci Steam zabere jen pár minut a zároveň chrání váš účet před neautorizovanými obchody.',
+  },
+  {
+    question: 'Jak prodám svůj CS2 inventář na Skinify?',
+    answer:
+      'Propojte svůj Steam účet, otevřete záložku Inventář, vyberte položky, které chcete prodat, a nastavte cenu — férovou vám navrhneme podle posledních prodejů, ale vždy si můžete určit vlastní. Nabídky jdou živě okamžitě a vy máte plnou kontrolu: cenu můžete kdykoli před prodejem změnit, nebo nabídku stáhnout a skin si nechat. Když se nabídka prodá, ze sumy se strhne nízký prodejní poplatek a zbytek si můžete vybrat na účet nebo utratit na tržišti.',
+  },
+  {
+    question: 'Které skiny mohu obchodovat — nože, rukavice, samolepky?',
+    answer:
+      'Všechny. Skinify pokrývá celý katalog CS2: pušky a pistole jako AK-47, M4A4 nebo Desert Eagle, sniperky jako AWP, nože včetně Karambitu, M9 Bayonetu a Butterfly Knife, rukavice, agenty, bedny i vzácné samolepky a patterny. Detailní filtry umožňují hledat podle floatu, paint seedu, patternu, StatTrak™ a dalších parametrů, takže najdete přesně ten kus, který chcete — včetně položek, které se na Steam Community Marketu objevují jen zřídka.',
+  },
+];
+
 const LandingPage: React.FC = () => {
   const langCode = useTranslationStore((s) => s.currentLanguage.code);
   const isCS = langCode === 'cs';
@@ -108,7 +143,7 @@ const LandingPage: React.FC = () => {
     langAlternates: ['cs', 'de', 'ru'],
     keywords:
       'cs2 marketplace, cs2 skins, buy cs2 skins, sell cs2 skins, instant sell cs2 skins, cs2 skins to cash, cs2 skins to money, skins to cash, cash out cs2 skins, sell skins for real money, counter-strike 2 marketplace, ak-47 redline, awp dragon lore, karambit doppler, m9 bayonet fade, sport gloves, butterfly knife, p2p cs2 trading, 0 fee cs2 marketplace, escrow cs2, instant steam delivery, cs2 skin prices, skinport alternative, skinport fees, steam market alternative, skinify cs2, skinyfi, skinyfy, skinifi, скинифай, скины кс2 продать, cs2 tržiště, cs2 skiny koupit, prodat cs2 skiny, cs2 obchod, cs2 nůž koupit',
-    jsonLd: faqJsonLd(LANDING_FAQ),
+    jsonLd: faqJsonLd(isCS ? LANDING_FAQ_CS : LANDING_FAQ),
   });
 
   const navigate = useNavigate();
@@ -406,7 +441,7 @@ const LandingPage: React.FC = () => {
 
         {/* ===== 6 · SEO text + FAQ accordion ===== */}
         <Reveal>
-          <LandingSeoBlock isCS={isCS} faq={LANDING_FAQ} />
+          <LandingSeoBlock isCS={isCS} faq={isCS ? LANDING_FAQ_CS : LANDING_FAQ} />
         </Reveal>
 
         {/* ===== 7 · PROMO BANNER — the purple Skinify banner, at the very

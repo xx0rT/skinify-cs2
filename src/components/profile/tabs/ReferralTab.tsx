@@ -35,17 +35,17 @@ const ReferralTab: React.FC = () => {
     try {
       await navigator.clipboard.writeText(referralLink);
       setCopied(true);
-      addToast({ type: 'success', title: 'Referral link copied' });
+      addToast({ type: 'success', title: 'Odkaz zkopírován' });
       setTimeout(() => setCopied(false), 1600);
     } catch {
-      addToast({ type: 'error', title: 'Copy failed' });
+      addToast({ type: 'error', title: 'Kopírování selhalo' });
     }
   };
 
   const kpis = [
-    { label: 'Friends invited', value: '0', Icon: Users, sub: 'Sign-ups via your link' },
-    { label: 'Commission earned', value: '0 Kč', Icon: TrendingUp, sub: '25 % of their seller fees' },
-    { label: 'Active referrals', value: '0', Icon: Gift, sub: 'Currently trading' },
+    { label: 'Pozvaní kamarádi', value: '0', Icon: Users, sub: 'Registrace přes váš odkaz' },
+    { label: 'Vydělaná provize', value: '0 Kč', Icon: TrendingUp, sub: '25 % z jejich prodejních poplatků' },
+    { label: 'Aktivní doporučení', value: '0', Icon: Gift, sub: 'Právě obchodují' },
   ];
 
   return (
@@ -66,15 +66,15 @@ const ReferralTab: React.FC = () => {
           }}
         />
         <div className="relative">
-          <div className="label-eyebrow mb-2">Your referral link</div>
+          <div className="label-eyebrow mb-2">Váš doporučovací odkaz</div>
           <h2 className="text-[20px] sm:text-[22px] font-bold tracking-tight text-ink leading-tight">
-            Earn <span className="text-accent">25 %</span> of every friend&apos;s
-            seller fee, forever
+            Získejte <span className="text-accent">25 %</span> z každého
+            prodejního poplatku vašich kamarádů — napořád
           </h2>
           <p className="text-[13px] text-ink-muted font-medium mt-2 leading-relaxed">
-            Share the link below. When a friend signs up, sells a skin, or
-            deposits, you earn a cut of the fee automatically. Payouts land in
-            your Skinify balance.
+            Sdílejte odkaz níže. Když se kamarád zaregistruje, prodá skin nebo
+            vloží peníze, automaticky získáte podíl z poplatku. Výplaty chodí
+            na váš Skinify zůstatek.
           </p>
 
           {/* Link + copy */}
@@ -93,19 +93,19 @@ const ReferralTab: React.FC = () => {
               {copied ? (
                 <>
                   <Check size={13} strokeWidth={2.6} />
-                  Copied
+                  Zkopírováno
                 </>
               ) : (
                 <>
                   <Copy size={13} strokeWidth={2.4} />
-                  Copy
+                  Kopírovat
                 </>
               )}
             </motion.button>
           </div>
 
           <div className="mt-3 text-[11.5px] text-ink-dim font-medium">
-            Code: <code className="font-mono text-ink">{referralCode}</code>
+            Kód: <code className="font-mono text-ink">{referralCode}</code>
           </div>
         </div>
       </motion.div>
@@ -143,23 +143,23 @@ const ReferralTab: React.FC = () => {
         transition={{ ...spring, delay: 0.15 }}
         className="card p-5 sm:p-6"
       >
-        <div className="label-eyebrow mb-3">How it works</div>
+        <div className="label-eyebrow mb-3">Jak to funguje</div>
         <ol className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
             {
               n: '01',
-              t: 'Share your link',
-              s: 'Send your referral link to friends or post it on socials.',
+              t: 'Sdílejte svůj odkaz',
+              s: 'Pošlete odkaz kamarádům nebo ho sdílejte na sítích.',
             },
             {
               n: '02',
-              t: 'Friend signs up',
-              s: 'They register and start trading. Your commission auto-applies.',
+              t: 'Kamarád se zaregistruje',
+              s: 'Zaregistruje se a začne obchodovat. Provize se přiřadí automaticky.',
             },
             {
               n: '03',
-              t: 'You earn forever',
-              s: '25 % of every seller fee they pay, credited to your balance.',
+              t: 'Vyděláváte napořád',
+              s: '25 % z každého jejich prodejního poplatku, připsáno na váš zůstatek.',
             },
           ].map((step) => (
             <li key={step.n} className="card-flat p-4">

@@ -120,7 +120,7 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
 
       setItems(mapped);
     } catch (e: any) {
-      setError(e?.message || 'Failed to load inventory');
+      setError(e?.message || 'Inventář se nepodařilo načíst');
     } finally {
       setLoading(false);
     }
@@ -159,9 +159,9 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
     if (!user?.steamId) {
       addToast({
         type: 'warning',
-        title: 'Link your Steam account first',
+        title: 'Nejprve propojte Steam účet',
         message:
-          'Listings deliver via Steam trade offers. Open Settings → Linked accounts to connect Steam.',
+          'Nabídky se doručují přes Steam trade. Otevřete Nastavení → Propojené účty a připojte Steam.',
         duration: 6000,
       });
       return;
@@ -280,11 +280,11 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
     if (ok > 0) {
       addToast({
         type: 'success',
-        title: ok === 1 ? 'Listed' : 'Listed items',
+        title: ok === 1 ? 'Vystaveno' : 'Vystavené položky',
         message: `${ok} item${ok === 1 ? '' : 's'} listed${fail ? `, ${fail} failed` : ''}`,
       });
     } else if (fail > 0) {
-      addToast({ type: 'error', title: 'Failed to list', message: `${fail} item${fail === 1 ? '' : 's'} failed` });
+      addToast({ type: 'error', title: 'Vystavení selhalo', message: `Nepodařilo se vystavit: ${fail}` });
     }
     setShowListModal(false);
     setSelected(new Set());
@@ -299,16 +299,16 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
     if (!item.tradable) {
       addToast({
         type: 'warning',
-        title: 'Untradable',
-        message: 'This item can\'t be traded on Steam, so it can\'t be listed for sale.',
+        title: 'Neobchodovatelné',
+        message: 'Tento předmět nelze na Steamu obchodovat, proto ho nejde vystavit k prodeji.',
       });
       return;
     }
     if (item.listed_for_sale) {
       addToast({
         type: 'info',
-        title: 'Already listed',
-        message: 'Remove the existing listing first from the Listings tab.',
+        title: 'Už je vystaveno',
+        message: 'Nejprve odeberte stávající nabídku v záložce Nabídky.',
       });
       return;
     }
@@ -334,9 +334,9 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
         transition={spring}
         className="grid grid-cols-3 gap-3"
       >
-        <KpiTile label="Items" value={String(kpis.total)} Icon={Package} sub={`${kpis.listed} listed`} />
-        <KpiTile label="Listed for sale" value={String(kpis.listed)} Icon={Tag} sub={`${kpis.total - kpis.listed} available`} />
-        <KpiTile label="Est. value" value={formatPrice(kpis.value)} Icon={TrendingUp} sub="Across all items" />
+        <KpiTile label="Položky" value={String(kpis.total)} Icon={Package} sub={`${kpis.listed} vystaveno`} />
+        <KpiTile label="Vystaveno k prodeji" value={String(kpis.listed)} Icon={Tag} sub={`${kpis.total - kpis.listed} k dispozici`} />
+        <KpiTile label="Odhadovaná hodnota" value={formatPrice(kpis.value)} Icon={TrendingUp} sub="Napříč všemi položkami" />
       </motion.div>
 
       {/* Toolbar */}
@@ -353,7 +353,7 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search items by name, type, condition…"
+              placeholder="Hledat podle názvu, typu, stavu…"
               className="flex-1 bg-transparent outline-none text-ink placeholder:text-ink-dim text-[13px] font-medium"
             />
           </div>
@@ -363,7 +363,7 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
             onClick={fetchInv}
             disabled={loading}
             className="h-10 w-10 rounded-full bg-subtle hover:bg-bg grid place-items-center disabled:opacity-50 transition-colors"
-            title="Refresh"
+            title="Obnovit"
           >
             <RefreshCw
               size={14}
@@ -375,7 +375,7 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
             whileTap={tap}
             onClick={() => window.open(`https://steamcommunity.com/profiles/${steamId}/inventory/`, '_blank')}
             className="h-10 px-3.5 rounded-full bg-subtle hover:bg-bg flex items-center gap-1.5 text-[12.5px] font-semibold text-ink transition-colors"
-            title="Open Steam inventory"
+            title="Otevřít Steam inventář"
           >
             <ExternalLink size={13} strokeWidth={2.2} />
             <span className="hidden sm:inline">Steam</span>
@@ -419,27 +419,27 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
             >
               <div className="flex items-center justify-between p-2.5 rounded-2xl bg-accent-soft">
                 <div className="text-[12.5px] font-semibold text-ink">
-                  {selected.size} selected
+                  Vybráno: {selected.size}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setSelected(new Set())}
                     className="text-[12px] font-semibold text-ink-muted hover:text-ink px-2"
                   >
-                    Clear
+                    Zrušit výběr
                   </button>
                   <button
                     onClick={() => {
                       const picked = items.filter((it) => selected.has(it.id) && !it.listed_for_sale && it.tradable);
                       if (picked.length === 0) {
-                        addToast({ type: 'warning', title: 'Nothing to list', message: 'Selected items are already listed or untradable.' });
+                        addToast({ type: 'warning', title: 'Není co vystavit', message: 'Vybrané položky už jsou vystavené nebo neobchodovatelné.' });
                         return;
                       }
                       openListModal(...picked);
                     }}
                     className="h-8 px-3 rounded-full bg-accent text-on-accent text-[12px] font-bold"
                   >
-                    List selected
+                    Vystavit vybrané
                   </button>
                 </div>
               </div>
@@ -466,12 +466,12 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
         <div className="card p-12 text-center">
           <Sparkles size={26} className="mx-auto text-ink-muted mb-3" />
           <p className="text-[15px] font-bold text-ink tracking-tight">
-            {items.length === 0 ? 'Your inventory is empty' : 'No items match this filter'}
+            {items.length === 0 ? 'Váš inventář je prázdný' : 'Žádné položky neodpovídají filtru'}
           </p>
           <p className="text-[13px] text-ink-muted font-medium mt-1.5 max-w-md mx-auto">
             {items.length === 0
-              ? 'Make sure your Steam inventory is set to public, then refresh.'
-              : 'Try a different rarity or clear your search.'}
+              ? 'Zkontrolujte, že máte Steam inventář veřejný, a obnovte stránku.'
+              : 'Zkuste jinou vzácnost nebo vymažte hledání.'}
           </p>
           <div className="mt-5 flex items-center justify-center gap-2 flex-wrap">
             <button
@@ -728,9 +728,9 @@ const ItemCard: React.FC<{
 const SortPicker: React.FC<{ sort: Sort; onChange: (s: Sort) => void }> = ({ sort, onChange }) => {
   const [open, setOpen] = useState(false);
   const labels: Record<Sort, string> = {
-    'value-desc': 'High to low',
-    'value-asc': 'Low to high',
-    'name': 'Name (A-Z)',
+    'value-desc': 'Od nejdražších',
+    'value-asc': 'Od nejlevnějších',
+    'name': 'Název (A–Z)',
   };
   return (
     <div className="relative">

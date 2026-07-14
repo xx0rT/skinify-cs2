@@ -175,14 +175,14 @@ const WishlistTab: React.FC = () => {
       {/* Summary strip */}
       <div className="card p-5 md:p-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <span className="label-eyebrow">Watching</span>
+          <span className="label-eyebrow">Sledované</span>
           <h3 className="text-[22px] sm:text-[26px] font-bold tracking-tight text-ink mt-2 leading-none">
-            {loading ? '—' : `${filtered.length} ${filtered.length === 1 ? 'item' : 'items'}`}
+            {loading ? '—' : `${filtered.length} ${filtered.length === 1 ? 'položka' : filtered.length <= 4 ? 'položky' : 'položek'}`}
           </h3>
           <p className="text-[12.5px] text-ink-muted font-medium mt-1.5">
             {filtered.length > 0
-              ? `Total value · ${formatPrice(totalValue)}`
-              : 'Skins you flag are tracked here'}
+              ? `Celková hodnota · ${formatPrice(totalValue)}`
+              : 'Označené skiny se sledují tady'}
           </p>
         </div>
         <motion.button
@@ -204,7 +204,7 @@ const WishlistTab: React.FC = () => {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search your wishlist…"
+            placeholder="Hledat v oblíbených…"
             className="flex-1 bg-transparent outline-none text-ink placeholder:text-ink-dim text-[13.5px] font-medium"
           />
         </div>
@@ -222,12 +222,12 @@ const WishlistTab: React.FC = () => {
         <div className="card p-12 text-center">
           <Heart size={28} strokeWidth={2} className="mx-auto text-ink-muted mb-3" />
           <p className="text-[15px] font-bold text-ink tracking-tight">
-            {query ? 'No matches' : 'Your wishlist is empty'}
+            {query ? 'Nic nenalezeno' : 'Váš seznam oblíbených je prázdný'}
           </p>
           <p className="text-[13px] text-ink-muted font-medium mt-1">
             {query
-              ? 'Try a different search term.'
-              : 'Browse the marketplace and tap the heart on skins you want to watch.'}
+              ? 'Zkuste jiný výraz.'
+              : 'Projděte tržiště a klepněte na srdíčko u skinů, které chcete sledovat.'}
           </p>
         </div>
       ) : (
@@ -339,9 +339,9 @@ const WishRow: React.FC<{
 const SortPicker: React.FC<{ value: Sort; onChange: (s: Sort) => void }> = ({ value, onChange }) => {
   const [open, setOpen] = useState(false);
   const OPTS: { id: Sort; label: string }[] = [
-    { id: 'newest', label: 'Newest' },
-    { id: 'price-desc', label: 'Price · high to low' },
-    { id: 'price-asc', label: 'Price · low to high' },
+    { id: 'newest', label: 'Nejnovější' },
+    { id: 'price-desc', label: 'Cena · od nejvyšší' },
+    { id: 'price-asc', label: 'Cena · od nejnižší' },
   ];
   return (
     <div className="relative">

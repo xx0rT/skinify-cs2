@@ -25,15 +25,15 @@ interface DailyPoint {
 }
 
 const PERIODS: { id: Period; label: string; days: number }[] = [
-  { id: '7d',  label: 'Last 7 days',  days: 7 },
-  { id: '30d', label: 'Last 30 days', days: 30 },
-  { id: '90d', label: 'Last 90 days', days: 90 },
+  { id: '7d',  label: 'Posledních 7 dní',  days: 7 },
+  { id: '30d', label: 'Posledních 30 dní', days: 30 },
+  { id: '90d', label: 'Posledních 90 dní', days: 90 },
 ];
 
 const METRICS: { id: Metric; label: string; fmt: 'currency' | 'count' }[] = [
-  { id: 'profit', label: 'Total profit', fmt: 'currency' },
-  { id: 'volume', label: 'Total volume', fmt: 'currency' },
-  { id: 'trades', label: 'Total trades', fmt: 'count' },
+  { id: 'profit', label: 'Celkový zisk', fmt: 'currency' },
+  { id: 'volume', label: 'Celkový objem', fmt: 'currency' },
+  { id: 'trades', label: 'Počet obchodů', fmt: 'count' },
 ];
 
 const TradingPerformanceTab: React.FC = () => {
@@ -187,12 +187,12 @@ const TradingPerformanceTab: React.FC = () => {
       <div className="card p-5 md:p-6">
         <div className="flex items-end justify-between mb-4 flex-wrap gap-2">
           <div>
-            <span className="label-eyebrow">Daily {metric}</span>
+            <span className="label-eyebrow">Denní přehled</span>
             <h3 className="text-[17px] font-bold tracking-tight text-ink mt-1.5 leading-none">
               {fmt(metric === 'profit' ? totals.profit : metric === 'volume' ? totals.volume : totals.trades, METRICS.find((m) => m.id === metric)!.fmt)}
             </h3>
           </div>
-          <span className="pill bg-accent-soft text-ink">Live data</span>
+          <span className="pill bg-accent-soft text-ink">Živá data</span>
         </div>
 
         {loading ? (

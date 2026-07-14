@@ -42,12 +42,12 @@ import { spring, tap } from '../../../lib/motion';
 type View = 'all' | 'purchases' | 'sales' | 'deposits' | 'escrow';
 
 const STATUS_STYLES: Record<string, { label: string; bg: string; fg: string; Icon: React.ComponentType<any> }> = {
-  pending:   { label: 'Pending',   bg: 'bg-amber-500/10',   fg: 'text-amber-700 dark:text-amber-300',   Icon: Clock },
-  escrow:    { label: 'In escrow', bg: 'bg-amber-500/10',   fg: 'text-amber-700 dark:text-amber-300',   Icon: Hourglass },
-  completed: { label: 'Completed', bg: 'bg-emerald-500/10', fg: 'text-emerald-700 dark:text-emerald-300', Icon: CheckCircle2 },
-  cancelled: { label: 'Cancelled', bg: 'bg-subtle',         fg: 'text-ink-muted',                       Icon: XCircle },
-  refunded:  { label: 'Refunded',  bg: 'bg-subtle',         fg: 'text-ink-muted',                       Icon: RotateCcw },
-  disputed:  { label: 'Disputed',  bg: 'bg-rose-500/10',    fg: 'text-rose-700 dark:text-rose-300',     Icon: AlertTriangle },
+  pending:   { label: 'Čeká',      bg: 'bg-amber-500/10',   fg: 'text-amber-700 dark:text-amber-300',   Icon: Clock },
+  escrow:    { label: 'V úschově', bg: 'bg-amber-500/10',   fg: 'text-amber-700 dark:text-amber-300',   Icon: Hourglass },
+  completed: { label: 'Dokončeno', bg: 'bg-emerald-500/10', fg: 'text-emerald-700 dark:text-emerald-300', Icon: CheckCircle2 },
+  cancelled: { label: 'Zrušeno',   bg: 'bg-subtle',         fg: 'text-ink-muted',                       Icon: XCircle },
+  refunded:  { label: 'Vráceno',   bg: 'bg-subtle',         fg: 'text-ink-muted',                       Icon: RotateCcw },
+  disputed:  { label: 'Sporné',    bg: 'bg-rose-500/10',    fg: 'text-rose-700 dark:text-rose-300',     Icon: AlertTriangle },
 };
 
 interface FeedEntry {
@@ -86,7 +86,7 @@ const TradesTab: React.FC = () => {
   const [verifyingKey, setVerifyingKey] = useState<string | null>(null);
 
   /* ── Seller P2P delivery ─────────────────────────────────────────
-     "Send trade" opens Steam's trade window pre-targeted at the buyer
+     "Poslat trade" opens Steam's trade window pre-targeted at the buyer
      (their saved trade URL carries partner + token — Steam doesn't
      allow pre-filling items via URL, so the seller picks the sold
      item in the window). "Verify delivery" runs the server-side
@@ -115,7 +115,7 @@ const TradesTab: React.FC = () => {
         window.open(tradeUrl, '_blank', 'noopener');
         addToast({
           type: 'info',
-          title: 'Steam trade opened',
+          title: 'Steam trade otevřen',
           message: `Add ${itemNames || 'the sold item(s)'} to the trade and send it. Then come back and hit “Verify delivery”.`,
           duration: 9000,
         });
@@ -127,13 +127,13 @@ const TradesTab: React.FC = () => {
         );
         addToast({
           type: 'warning',
-          title: 'Buyer has no trade URL saved',
-          message: 'Opened their Steam profile instead — send the trade from there.',
+          title: 'Kupující nemá uložený trade URL',
+          message: 'Otevřeli jsme jejich Steam profil — trade pošlete odtamtud.',
           duration: 8000,
         });
       }
     } catch {
-      addToast({ type: 'error', title: 'Could not open the trade window' });
+      addToast({ type: 'error', title: 'Trade okno se nepodařilo otevřít' });
     }
   };
 
@@ -164,24 +164,24 @@ const TradesTab: React.FC = () => {
       if (res.ok && body?.verification_passed) {
         addToast({
           type: 'success',
-          title: 'Delivery verified',
-          message: 'Items found in the buyer’s inventory — escrow credited to your balance.',
+          title: 'Doručení ověřeno',
+          message: 'Předměty nalezeny v inventáři kupujícího — úschova připsána na váš zůstatek.',
           duration: 8000,
         });
         refresh();
       } else {
         addToast({
           type: 'warning',
-          title: 'Not verified yet',
+          title: 'Zatím neověřeno',
           message:
             body?.error ||
             body?.message ||
-            'Items weren’t found in the buyer’s inventory yet. If the buyer just accepted, wait a minute and try again.',
+            'Předměty zatím nebyly v inventáři kupujícího nalezeny. Pokud kupující právě přijal trade, chvíli počkejte a zkuste to znovu.',
           duration: 9000,
         });
       }
     } catch (err: any) {
-      addToast({ type: 'error', title: 'Verification failed', message: err?.message });
+      addToast({ type: 'error', title: 'Ověření selhalo', message: err?.message });
     } finally {
       setVerifyingKey(null);
     }
@@ -266,7 +266,7 @@ const TradesTab: React.FC = () => {
           key: `tx_${tx.id}`,
           kind: 'pending_sale',
           status: isPending ? 'escrow' : 'completed',
-          title: isPending ? 'Pending sale credit' : 'Sale paid out',
+          title: isPending ? 'Čekající kredit z prodeje' : 'Prodej vyplacen',
           subtitle: tx.description || tx.reference_id,
           timestamp: tx.created_at || new Date().toISOString(),
           positive: true,
@@ -288,12 +288,12 @@ const TradesTab: React.FC = () => {
           status: String(tx.status || 'completed'),
           title:
             type === 'deposit'
-              ? 'Deposit'
+              ? 'Vklad'
               : type === 'withdrawal'
-              ? 'Withdrawal'
+              ? 'Výběr'
               : type === 'refund'
-              ? 'Refund'
-              : 'Account adjustment',
+              ? 'Vrácení peněz'
+              : 'Úprava účtu',
           subtitle: tx.description || undefined,
           timestamp: tx.created_at || new Date().toISOString(),
           positive: type === 'deposit' || type === 'refund' || type === 'admin_adjustment',
@@ -353,8 +353,8 @@ const TradesTab: React.FC = () => {
           <span className="text-ink-dim"> · {kpis.soldN} sale{kpis.soldN === 1 ? '' : 's'}</span>
         </span>
         <span>
-          In escrow <span className="font-bold text-ink tabular-nums">{formatPrice(kpis.escrowVal)}</span>
-          <span className="text-ink-dim"> · {kpis.escrowN} order{kpis.escrowN === 1 ? '' : 's'}</span>
+          V úschově <span className="font-bold text-ink tabular-nums">{formatPrice(kpis.escrowVal)}</span>
+          <span className="text-ink-dim"> · {kpis.escrowN} obj.</span>
         </span>
       </div>
 
@@ -363,11 +363,11 @@ const TradesTab: React.FC = () => {
         <div className="flex items-center gap-1 px-1 flex-wrap">
           {(
             [
-              { id: 'all',       label: 'All' },
-              { id: 'purchases', label: 'Purchases' },
-              { id: 'sales',     label: 'Sales' },
-              { id: 'escrow',    label: 'In escrow' },
-              { id: 'deposits',  label: 'Balance' },
+              { id: 'all',       label: 'Vše' },
+              { id: 'purchases', label: 'Nákupy' },
+              { id: 'sales',     label: 'Prodeje' },
+              { id: 'escrow',    label: 'V úschově' },
+              { id: 'deposits',  label: 'Zůstatek' },
             ] as const
           ).map((v) => {
             const active = view === v.id;
@@ -397,7 +397,7 @@ const TradesTab: React.FC = () => {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by order ID, description…"
+            placeholder="Hledat podle ID objednávky, popisu…"
             className="flex-1 bg-transparent outline-none text-ink placeholder:text-ink-dim text-[12.5px] font-medium"
           />
         </div>
@@ -406,7 +406,7 @@ const TradesTab: React.FC = () => {
           onClick={refresh}
           disabled={refreshing}
           className="icon-chip-sm hover:bg-subtle disabled:opacity-40"
-          title="Refresh"
+          title="Obnovit"
           aria-label="Refresh"
         >
           <RefreshCw size={13} strokeWidth={2.2} className={`text-ink-muted ${refreshing ? 'animate-spin' : ''}`} />
@@ -417,11 +417,11 @@ const TradesTab: React.FC = () => {
       {filtered.length === 0 ? (
         <div className="card p-12 text-center">
           <ShoppingBag size={28} className="mx-auto text-ink-muted mb-3" />
-          <p className="text-[15px] font-bold text-ink tracking-tight">No transactions to show</p>
+          <p className="text-[15px] font-bold text-ink tracking-tight">Žádné transakce k zobrazení</p>
           <p className="text-[13px] text-ink-muted font-medium mt-1">
             {view === 'all'
-              ? 'Buy or sell your first item, or top up your balance to get started.'
-              : `Nothing matches the ${view} filter.`}
+              ? 'Kupte nebo prodejte první předmět, nebo si dobijte zůstatek.'
+              : 'Tomuto filtru nic neodpovídá.'}
           </p>
           <motion.button
             whileTap={tap}
@@ -506,7 +506,7 @@ const TradesTab: React.FC = () => {
                                       disabled={verifyingKey === e.key}
                                       className="h-9 px-4 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[12.5px] font-bold transition-colors disabled:opacity-50"
                                     >
-                                      {verifyingKey === e.key ? 'Verifying…' : 'Verify delivery'}
+                                      {verifyingKey === e.key ? 'Ověřuji…' : 'Ověřit doručení'}
                                     </button>
                                   </>
                                 )}
@@ -521,7 +521,7 @@ const TradesTab: React.FC = () => {
                                     onClick={() => navigate(`/messages?peer=${peer}`)}
                                     className="h-9 px-4 rounded-full bg-subtle hover:bg-accent-soft text-ink text-[12.5px] font-bold transition-colors"
                                   >
-                                    {e.kind === 'purchase' ? 'Message seller' : 'Message buyer'}
+                                    {e.kind === 'purchase' ? 'Napsat prodejci' : 'Napsat kupujícímu'}
                                   </button>
                                 );
                               })()}
@@ -598,11 +598,11 @@ const Timeline: React.FC<{ entry: FeedEntry; formatPrice: (n: number) => string 
       const cancelled = status === 'cancelled' || status === 'refunded';
       const completed = status === 'completed';
       return [
-        { label: 'Order created',     Icon: ShoppingBag,  date: createdAt, done: true },
-        { label: 'Funds in escrow',   Icon: Hourglass,    done: !cancelled, active: status === 'escrow' || status === 'pending' },
+        { label: 'Objednávka vytvořena', Icon: ShoppingBag,  date: createdAt, done: true },
+        { label: 'Peníze v úschově',  Icon: Hourglass,    done: !cancelled, active: status === 'escrow' || status === 'pending' },
         cancelled
-          ? { label: 'Cancelled',     Icon: XCircle,      date: completedAt, active: true, done: true }
-          : { label: 'Trade complete', Icon: CheckCircle2, date: completedAt, active: completed, done: completed },
+          ? { label: 'Zrušeno',       Icon: XCircle,      date: completedAt, active: true, done: true }
+          : { label: 'Obchod dokončen', Icon: CheckCircle2, date: completedAt, active: completed, done: completed },
       ];
     }
 
@@ -610,34 +610,34 @@ const Timeline: React.FC<{ entry: FeedEntry; formatPrice: (n: number) => string 
       const holdUntil = raw?.metadata?.hold_until;
       const released = entry.status === 'completed';
       return [
-        { label: 'Credited to pending balance', Icon: Wallet, date: createdAt, done: true },
-        { label: 'Released to main balance',    Icon: CheckCircle2, date: holdUntil, active: !released, done: released },
+        { label: 'Připsáno do čekajícího zůstatku', Icon: Wallet, date: createdAt, done: true },
+        { label: 'Uvolněno do hlavního zůstatku', Icon: CheckCircle2, date: holdUntil, active: !released, done: released },
       ];
     }
 
     if (entry.kind === 'deposit') {
       return [
-        { label: 'Deposit requested', Icon: Clock,        date: createdAt, done: true },
-        { label: 'Funds received',    Icon: CheckCircle2, date: completedAt || createdAt, done: true, active: true },
+        { label: 'Vklad zadán',      Icon: Clock,        date: createdAt, done: true },
+        { label: 'Peníze přijaty',   Icon: CheckCircle2, date: completedAt || createdAt, done: true, active: true },
       ];
     }
 
     if (entry.kind === 'withdrawal') {
       return [
-        { label: 'Withdrawal requested', Icon: Clock,        date: createdAt, done: true },
-        { label: 'Paid out',             Icon: CheckCircle2, date: completedAt, done: !!completedAt, active: !completedAt },
+        { label: 'Výběr zadán',        Icon: Clock,        date: createdAt, done: true },
+        { label: 'Vyplaceno',          Icon: CheckCircle2, date: completedAt, done: !!completedAt, active: !completedAt },
       ];
     }
 
     if (entry.kind === 'refund') {
       return [
-        { label: 'Refund issued',  Icon: RotateCcw,    date: createdAt, done: true, active: true },
-        { label: 'Back in balance', Icon: CheckCircle2, done: true },
+        { label: 'Vrácení odesláno', Icon: RotateCcw,    date: createdAt, done: true, active: true },
+        { label: 'Zpět na zůstatku', Icon: CheckCircle2, done: true },
       ];
     }
 
     return [
-      { label: 'Recorded', Icon: CheckCircle2, date: createdAt, done: true, active: true },
+      { label: 'Zaznamenáno', Icon: CheckCircle2, date: createdAt, done: true, active: true },
     ];
   }, [entry]);
 
@@ -660,7 +660,7 @@ const Timeline: React.FC<{ entry: FeedEntry; formatPrice: (n: number) => string 
   return (
     <div className="card-flat p-4 space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <span className="label-eyebrow">Tracking</span>
+        <span className="label-eyebrow">Sledování</span>
         {referenceId && (
           <span className="text-[10.5px] font-mono text-ink-dim truncate max-w-[200px]">
             {referenceId}
