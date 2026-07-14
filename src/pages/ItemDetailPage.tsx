@@ -553,6 +553,16 @@ const ItemDetailPage: React.FC = () => {
                 }}
               />
 
+              {/* Rarity glow — soft colored halo behind the skin image so
+                  the hero reads the item's grade at a glance. */}
+              <div
+                aria-hidden
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background: `radial-gradient(ellipse 52% 42% at 50% 44%, ${color}40 0%, ${color}14 45%, transparent 72%)`,
+                }}
+              />
+
               {/* Float readout — value + mini wear scale, top-left */}
               {enrichedItem.float != null && Number.isFinite(Number(enrichedItem.float)) && (
                 <div className="absolute top-5 left-5 md:top-6 md:left-6 flex items-center gap-2.5 z-10">
