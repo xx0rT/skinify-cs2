@@ -63,15 +63,77 @@ Deno.serve(async (req) => {
     return json(400, { error: 'Invalid JSON body.' });
   }
 
+  const action = body?.action as string;
+
+  /* `get_public_flags` is the one PUBLIC action — it exposes only the
+     sitewide feature flags (maintenance/promo banner) that every visitor
+     needs to render the app. Everything else stays admin-gated. */
+  if (action === 'get_public_flags') {
+    const { data } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'site_flags')
+      .maybeSingle();
+    return json(200, { flags: data?.value ?? {} });
+  }
+
   const steamId = req.headers.get('x-steam-id') || body?.steamId || '';
   if (!ADMIN_STEAM_IDS.has(steamId)) {
     return json(403, { error: 'Not authorized.' });
   }
 
-  const action = body?.action as string;
-
   try {
     switch (action) {
+      case 'analytics': {
+        /* All aggregates the Analytics tab needs, fetched as service_role
+           (anon reads are RLS-blocked for Steam-OpenID admins → zeros). */
+        const nDays = Math.max(1, Math.min(120, Number(body.rangeDays) || 30));
+        const start = new Date();
+        start.setDate(start.getDate() - nDays);
+        const startIso = start.toISOString();
+
+        const [usersCount, listingsCount, newUsersRes, txRes, topRes, activityRes] =
+          await Promise.all([
+            supabase.from('users').select('*', { count: 'exact', head: true }),
+            supabase
+              .from('marketplace_listings')
+              .select('*', { count: 'exact', head: true })
+              .eq('is_active', true),
+            supabase
+              .from('users')
+              .select('created_at')
+              .gte('created_at', startIso)
+              .order('created_at', { ascending: true }),
+            supabase
+              .from('user_transactions')
+              .select('created_at, amount, type, status')
+              .gte('created_at', startIso)
+              .order('created_at', { ascending: true }),
+            supabase
+              .from('marketplace_listings')
+              .select('item_name, price, views, image_url')
+              .eq('is_active', true)
+              .order('views', { ascending: false })
+              .limit(5),
+            supabase
+              .from('user_activity')
+              .select('created_at, event_type, session_id, page_url')
+              .eq('event_type', 'page_view')
+              .gte('created_at', startIso)
+              .order('created_at', { ascending: true })
+              .limit(20000),
+          ]);
+
+        return json(200, {
+          usersCount: usersCount.count ?? 0,
+          listingsCount: listingsCount.count ?? 0,
+          newUsers: newUsersRes.data ?? [],
+          transactions: txRes.data ?? [],
+          topListings: topRes.data ?? [],
+          activity: activityRes.data ?? [],
+        });
+      }
+
       case 'list_settings': {
         const { data, error } = await supabase
           .from('system_settings')

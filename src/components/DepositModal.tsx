@@ -6,6 +6,7 @@ import { useToastStore } from '../store/toastStore';
 import { useAuthStore } from '../store/authStore';
 import { spring, tap } from '../lib/motion';
 import { getSupabaseCredentials } from '../utils/supabaseHelpers';
+import { useSiteFlags } from '../utils/siteFlags';
 import { supabase } from '../lib/supabaseClient';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useT } from '../lib/useT';
@@ -186,7 +187,11 @@ export const DepositModal: React.FC = () => {
   const [amount, setAmount] = useState<number>(500);
   const [method, setMethod] = useState<MethodId>('all');
   const [submitting, setSubmitting] = useState(false);
+  const siteFlags = useSiteFlags();
   const [promoActive, setPromoActive] = useState(PROMO.enabled);
+  /* Sitewide kill-switch (Admin → Developer): hides the deposit-bonus
+     banner + disables the bonus when promo_banner is off. */
+  const promoOn = promoActive && (siteFlags.promo_banner ?? true);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const { formatPrice } = useCurrencyStore();
   const { addToast } = useToastStore();
@@ -218,7 +223,7 @@ export const DepositModal: React.FC = () => {
   const safeAmount = Number.isFinite(amount) ? Math.max(0, amount) : 0;
   const feeRate = calcFeeRate(method);
   const fee = safeAmount * feeRate;
-  const bonus = promoActive ? safeAmount * 0.1 : 0;
+  const bonus = promoOn ? safeAmount * 0.1 : 0;
   const credited = Math.max(0, safeAmount - fee + bonus);
 
   const belowMin = safeAmount > 0 && safeAmount < MIN_AMOUNT;
@@ -489,7 +494,7 @@ export const DepositModal: React.FC = () => {
                     the user opens the modal to deposit money so the
                     amount field should be the first thing they see. */}
                 <div className="lg:hidden space-y-4 mb-5">
-                  {promoActive && (
+                  {promoOn && (
                     <PromoBanner onDismiss={() => setPromoActive(false)} />
                   )}
                   <AmountField
@@ -554,7 +559,7 @@ export const DepositModal: React.FC = () => {
                     value={fee > 0 ? `− ${formatPrice(fee)}` : t('deposit.summary.noFee', 'No fee')}
                     tone={fee > 0 ? 'muted' : 'positive'}
                   />
-                  {promoActive && (
+                  {promoOn && (
                     <Row
                       label={`${t('deposit.summary.bonus', 'Bonus')} · ${PROMO.code}`}
                       value={`+ ${formatPrice(bonus)}`}
@@ -588,7 +593,7 @@ export const DepositModal: React.FC = () => {
                 </div>
 
                 {/* Promo banner */}
-                {promoActive && (
+                {promoOn && (
                   <PromoBanner onDismiss={() => setPromoActive(false)} />
                 )}
 
@@ -632,7 +637,7 @@ export const DepositModal: React.FC = () => {
                     value={fee > 0 ? `− ${formatPrice(fee)}` : t('deposit.summary.noFee', 'No fee')}
                     tone={fee > 0 ? 'muted' : 'positive'}
                   />
-                  {promoActive && (
+                  {promoOn && (
                     <Row
                       label={`${t('deposit.summary.bonus', 'Bonus')} · ${PROMO.code}`}
                       value={`+ ${formatPrice(bonus)}`}

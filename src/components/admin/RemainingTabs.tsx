@@ -4,6 +4,7 @@ import { Package, Lock, BarChart3, Settings, MessageSquare, Wrench, Wallet, Acti
 import { createClient } from '@supabase/supabase-js';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useAuthStore } from '../../store/authStore';
+import { fetchSiteFlags, type SiteFlags } from '../../utils/siteFlags';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -976,10 +977,53 @@ export const DeveloperTab: React.FC<{ addToast: any }> = ({ addToast }) => {
   const TABLES = ['users', 'marketplace_listings', 'user_transactions', 'support_tickets', 'api_keys'];
   const FUNCTIONS = ['orders', 'api-keys', 'send-email', 'support-chat', 'user-profile'];
   const FLAGS = [
-    { id: 'maintenance_banner', label: 'Maintenance banner', sub: 'Show a maintenance notice site-wide' },
-    { id: 'promo_banner', label: 'Promo banner', sub: 'Show the deposit-bonus banner' },
     { id: 'verbose_logging', label: 'Verbose logging', sub: 'Extra console logging in this browser' },
   ];
+
+  /* SITEWIDE flags — persisted to system_settings (key `site_flags`) via
+     admin-settings; every visitor reads them through get_public_flags. */
+  const adminSteamId = useAuthStore((s) => s.user?.steamId);
+  const [siteFlags, setSiteFlags] = useState<SiteFlags>({});
+  const [flagsLoading, setFlagsLoading] = useState(true);
+  const [flagsSaving, setFlagsSaving] = useState(false);
+  const [maintenanceText, setMaintenanceText] = useState('');
+
+  useEffect(() => {
+    fetchSiteFlags(true).then((f) => {
+      setSiteFlags(f);
+      setMaintenanceText(f.maintenance_text || '');
+      setFlagsLoading(false);
+    });
+  }, []);
+
+  const saveSiteFlags = async (next: SiteFlags) => {
+    setSiteFlags(next);
+    setFlagsSaving(true);
+    try {
+      const res = await fetch(`${supabaseUrl}/functions/v1/admin-settings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${supabaseKey}`,
+          'X-Steam-Id': adminSteamId || '',
+        },
+        body: JSON.stringify({
+          action: 'save_setting',
+          key: 'site_flags',
+          value: next,
+          description: 'Sitewide feature flags (Developer tab)',
+          category: 'features',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `Server error (${res.status})`);
+      addToast({ type: 'success', title: 'Sitewide flags saved', message: 'Live for all visitors within a minute.' });
+    } catch (e: any) {
+      addToast({ type: 'error', title: 'Save failed', message: e?.message });
+    } finally {
+      setFlagsSaving(false);
+    }
+  };
 
   const fetchCounts = async () => {
     if (!supabase) return;
@@ -1166,16 +1210,96 @@ export const DeveloperTab: React.FC<{ addToast: any }> = ({ addToast }) => {
       </motion.section>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        {/* Feature flags (local) */}
+        {/* Feature flags — sitewide + local */}
         <motion.section
           variants={{ hidden: { opacity: 0, y: 12 }, shown: { opacity: 1, y: 0 } }}
           className="panel p-6"
         >
           <span className="label-eyebrow">Feature flags</span>
           <h3 className="text-[16px] font-bold tracking-tight mt-1 leading-none mb-1">
-            Local toggles
+            Sitewide toggles
           </h3>
           <p className="text-[11.5px] text-ink-dim font-medium mb-4">
+            Saved to the database — apply to every visitor within a minute.
+            {flagsSaving && <span className="text-accent font-bold"> Saving…</span>}
+          </p>
+          <div className="space-y-4 mb-6">
+            {/* Maintenance banner + editable text */}
+            <div className="rounded-2xl ring-1 ring-line p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13.5px] font-bold text-ink tracking-tight">Maintenance banner</div>
+                  <div className="text-[11.5px] text-ink-muted font-medium">
+                    Amber notice pinned above the whole site
+                  </div>
+                </div>
+                <button
+                  onClick={() =>
+                    saveSiteFlags({
+                      ...siteFlags,
+                      maintenance_banner: !siteFlags.maintenance_banner,
+                      maintenance_text: maintenanceText,
+                    })
+                  }
+                  disabled={flagsLoading}
+                  aria-pressed={!!siteFlags.maintenance_banner}
+                  className={`relative h-6 w-11 rounded-full transition-colors shrink-0 disabled:opacity-50 ${
+                    siteFlags.maintenance_banner ? 'bg-amber-500' : 'bg-subtle'
+                  }`}
+                >
+                  <motion.span
+                    animate={{ x: siteFlags.maintenance_banner ? 20 : 2 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+                    className="absolute top-0.5 left-0 w-5 h-5 rounded-full bg-surface shadow-sm"
+                  />
+                </button>
+              </div>
+              <div className="mt-3 flex items-stretch gap-1.5">
+                <input
+                  value={maintenanceText}
+                  onChange={(e) => setMaintenanceText(e.target.value)}
+                  placeholder="Probíhá plánovaná údržba — některé funkce mohou být dočasně nedostupné."
+                  className="flex-1 min-w-0 h-10 px-3.5 rounded-xl bg-subtle ring-1 ring-line outline-none text-ink text-[12.5px] font-medium focus:ring-2 focus:ring-accent transition-all"
+                />
+                <button
+                  onClick={() => saveSiteFlags({ ...siteFlags, maintenance_text: maintenanceText })}
+                  disabled={flagsSaving}
+                  className="h-10 px-4 rounded-xl bg-accent text-on-accent text-[12px] font-bold disabled:opacity-50 shrink-0"
+                >
+                  Save text
+                </button>
+              </div>
+            </div>
+
+            {/* Promo banner */}
+            <div className="rounded-2xl ring-1 ring-line p-4 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="text-[13.5px] font-bold text-ink tracking-tight">Promo banner</div>
+                <div className="text-[11.5px] text-ink-muted font-medium">
+                  Deposit-bonus banner + landing promo banner
+                </div>
+              </div>
+              <button
+                onClick={() =>
+                  saveSiteFlags({ ...siteFlags, promo_banner: !(siteFlags.promo_banner ?? true) })
+                }
+                disabled={flagsLoading}
+                aria-pressed={siteFlags.promo_banner ?? true}
+                className={`relative h-6 w-11 rounded-full transition-colors shrink-0 disabled:opacity-50 ${
+                  (siteFlags.promo_banner ?? true) ? 'bg-accent' : 'bg-subtle'
+                }`}
+              >
+                <motion.span
+                  animate={{ x: (siteFlags.promo_banner ?? true) ? 20 : 2 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+                  className="absolute top-0.5 left-0 w-5 h-5 rounded-full bg-surface shadow-sm"
+                />
+              </button>
+            </div>
+          </div>
+
+          <h3 className="text-[13px] font-bold tracking-tight leading-none mb-1">Local toggles</h3>
+          <p className="text-[11.5px] text-ink-dim font-medium mb-3">
             Stored in this browser (localStorage) — read them via the
             <code className="font-mono"> skinify_feature_flags</code> key.
           </p>

@@ -1,7 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { RefreshCw } from 'lucide-react';
-import { supabase } from '../../lib/supabaseClient';
+import {
+  RefreshCw,
+  Users,
+  Wallet,
+  ArrowLeftRight,
+  Package,
+  Eye,
+  Receipt,
+  CheckCircle2,
+  MousePointerClick,
+} from 'lucide-react';
+import { useAuthStore } from '../../store/authStore';
+import { getSupabaseCredentials } from '../../utils/supabaseHelpers';
 import {
   AreaChart,
   Area,
@@ -60,8 +71,10 @@ const child = {
   shown: { opacity: 1, y: 0, transition: spring },
 };
 
-const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
+const AnalyticsTab: React.FC<{ addToast?: any }> = ({ addToast }) => {
+  const adminSteamId = useAuthStore((s) => s.user?.steamId);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [range, setRange] = useState<Range>('30d');
   const [days, setDays] = useState<DayPoint[]>([]);
   const [totals, setTotals] = useState({
@@ -84,46 +97,33 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
 
   const fetchAnalytics = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const nDays = RANGE_DAYS[range];
-      const start = new Date();
-      start.setDate(start.getDate() - nDays);
-      const startIso = start.toISOString();
 
-      const [usersCount, listingsCount, newUsersRes, txRes, topRes, activityRes] = await Promise.all([
-        supabase.from('users').select('*', { count: 'exact', head: true }),
-        supabase
-          .from('marketplace_listings')
-          .select('*', { count: 'exact', head: true })
-          .eq('is_active', true),
-        supabase
-          .from('users')
-          .select('created_at')
-          .gte('created_at', startIso)
-          .order('created_at', { ascending: true }),
-        supabase
-          .from('user_transactions')
-          .select('created_at, amount, type, status')
-          .gte('created_at', startIso)
-          .order('created_at', { ascending: true }),
-        supabase
-          .from('marketplace_listings')
-          .select('item_name, price, views, image_url')
-          .eq('is_active', true)
-          .order('views', { ascending: false })
-          .limit(5),
-        supabase
-          .from('user_activity')
-          .select('created_at, event_type, session_id, page_url')
-          .eq('event_type', 'page_view')
-          .gte('created_at', startIso)
-          .order('created_at', { ascending: true })
-          .limit(20000),
-      ]);
+      /* All reads go through the admin-settings edge function (service
+         role). Direct anon-key queries return zeros here — Steam-OpenID
+         admins hold no Supabase Auth session, so RLS blocks the tables
+         and the tab used to render as if the site had no data. */
+      const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+      const res = await fetch(`${supabaseUrl}/functions/v1/admin-settings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${supabaseKey}`,
+          'X-Steam-Id': adminSteamId || '',
+        },
+        body: JSON.stringify({ action: 'analytics', rangeDays: nDays }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload?.error || `Server error (${res.status})`);
 
-      const newUsers = newUsersRes.data || [];
-      const txs = txRes.data || [];
-      const activity = activityRes.data || [];
+      const usersCount = { count: Number(payload.usersCount || 0) };
+      const listingsCount = { count: Number(payload.listingsCount || 0) };
+      const topRes = { data: payload.topListings || [] };
+      const newUsers = payload.newUsers || [];
+      const txs = payload.transactions || [];
+      const activity = payload.activity || [];
 
       /* Bucket everything by calendar day so the charts always have a
          continuous axis, even for days with zero events. */
@@ -233,8 +233,10 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
         transactions: txs.length,
         activeListings: listingsCount.count || 0,
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error('[analytics] fetch failed:', e);
+      setLoadError(e?.message || 'Failed to load analytics.');
+      addToast?.({ type: 'error', title: 'Analytics failed', message: e?.message });
     } finally {
       setLoading(false);
     }
@@ -249,14 +251,14 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
       ? Math.round((revStats.completed / totals.transactions) * 100)
       : 100;
   const kpis = [
-    { label: 'Total users', value: totals.users.toLocaleString(), sub: `+${totals.newUsers} in range` },
-    { label: 'Revenue', value: `${Math.round(totals.revenue).toLocaleString()} Kč`, sub: 'Completed deposits + purchases' },
-    { label: 'Transactions', value: totals.transactions.toLocaleString(), sub: `Last ${RANGE_DAYS[range]} days` },
-    { label: 'Active listings', value: totals.activeListings.toLocaleString(), sub: 'Live right now' },
-    { label: 'Page views', value: traffic.pageViews.toLocaleString(), sub: `${traffic.visitors.toLocaleString()} unique visitors` },
-    { label: 'Avg order value', value: `${Math.round(revStats.aov).toLocaleString()} Kč`, sub: 'Per completed payment' },
-    { label: 'Completion rate', value: `${completionRate}%`, sub: `${revStats.failedOrPending} pending/failed` },
-    { label: 'Views / visitor', value: traffic.visitors > 0 ? (traffic.pageViews / traffic.visitors).toFixed(1) : '—', sub: 'Session depth' },
+    { label: 'Total users', Icon: Users, value: totals.users.toLocaleString(), sub: `+${totals.newUsers} in range` },
+    { label: 'Revenue', Icon: Wallet, value: `${Math.round(totals.revenue).toLocaleString()} Kč`, sub: 'Completed deposits + purchases' },
+    { label: 'Transactions', Icon: ArrowLeftRight, value: totals.transactions.toLocaleString(), sub: `Last ${RANGE_DAYS[range]} days` },
+    { label: 'Active listings', Icon: Package, value: totals.activeListings.toLocaleString(), sub: 'Live right now' },
+    { label: 'Page views', Icon: Eye, value: traffic.pageViews.toLocaleString(), sub: `${traffic.visitors.toLocaleString()} unique visitors` },
+    { label: 'Avg order value', Icon: Receipt, value: `${Math.round(revStats.aov).toLocaleString()} Kč`, sub: 'Per completed payment' },
+    { label: 'Completion rate', Icon: CheckCircle2, value: `${completionRate}%`, sub: `${revStats.failedOrPending} pending/failed` },
+    { label: 'Views / visitor', Icon: MousePointerClick, value: traffic.visitors > 0 ? (traffic.pageViews / traffic.visitors).toFixed(1) : '—', sub: 'Session depth' },
   ];
 
   const tooltipStyle = {
@@ -322,11 +324,31 @@ const AnalyticsTab: React.FC<{ addToast?: any }> = () => {
         </motion.button>
       </motion.div>
 
+      {/* Load error — surfaced instead of silently rendering zeros. */}
+      {loadError && (
+        <motion.div
+          variants={child}
+          className="rounded-2xl ring-1 ring-rose-500/30 bg-rose-500/10 px-4 py-3 text-[12.5px] font-semibold text-rose-600 dark:text-rose-400"
+        >
+          {loadError}
+        </motion.div>
+      )}
+
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {kpis.map(({ label, value, sub }) => (
-          <motion.div key={label} variants={child} whileHover={{ y: -2 }} className="panel p-5">
-            <div className="label-meta mb-2">{label}</div>
+        {kpis.map(({ label, value, sub, Icon }) => (
+          <motion.div
+            key={label}
+            variants={child}
+            whileHover={{ y: -2 }}
+            className="rounded-3xl ring-1 ring-line bg-surface p-5"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="label-meta">{label}</div>
+              <div className="w-8 h-8 rounded-xl bg-accent-soft grid place-items-center shrink-0">
+                <Icon size={14} strokeWidth={2.4} className="text-accent" />
+              </div>
+            </div>
             <div className="text-[22px] font-bold tracking-tight tabular-nums text-ink leading-none">
               {value}
             </div>

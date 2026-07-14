@@ -56,6 +56,7 @@ const staggerChild = {
 
 
 import useDocumentMeta, { faqJsonLd } from '../hooks/useDocumentMeta';
+import { useSiteFlags } from '../utils/siteFlags';
 
 
 const LANDING_FAQ = [
@@ -94,6 +95,7 @@ const LANDING_FAQ = [
 const LandingPage: React.FC = () => {
   const langCode = useTranslationStore((s) => s.currentLanguage.code);
   const isCS = langCode === 'cs';
+  const siteFlags = useSiteFlags();
 
   useDocumentMeta({
     title: isCS
@@ -408,10 +410,13 @@ const LandingPage: React.FC = () => {
         </Reveal>
 
         {/* ===== 7 · PROMO BANNER — the purple Skinify banner, at the very
-            bottom as a closing call-to-action. ===== */}
-        <Reveal className="mt-12">
-          <PromoBanner />
-        </Reveal>
+            bottom as a closing call-to-action. Sitewide flag (Admin →
+            Developer) can switch it off. ===== */}
+        {(siteFlags.promo_banner ?? true) && (
+          <Reveal className="mt-12">
+            <PromoBanner />
+          </Reveal>
+        )}
       </main>
 
       <Footer />

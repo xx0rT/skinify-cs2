@@ -22,6 +22,7 @@ import LandingPage from './pages/LandingPage';
 import AuthCallback from './pages/AuthCallback';
 import LanguageDetector from './components/LanguageDetector';
 import VpnBanner from './components/VpnBanner';
+import MaintenanceBanner from './components/MaintenanceBanner';
 
 /* lazyWithRetry — wraps React.lazy with retry-and-recover logic for
    dynamic-import failures.
@@ -263,6 +264,7 @@ export default function App() {
         <ScrollToTop />
         <MetaResetter />
         <OnboardingGate />
+        <MaintenanceBanner />
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             {/* Main routes - always use mobile version for small screens */}
