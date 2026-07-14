@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -15,9 +15,11 @@ import {
   List as ListIcon,
   Mail,
   MessageCircle,
+  Move,
   Palette,
   Pause,
   Play,
+  RotateCcw,
   Save,
   Sparkles,
   Store,
@@ -75,7 +77,29 @@ interface Shop {
   show_socials?: boolean | null;
   show_stats?: boolean | null;
   detail_modal?: Record<string, any> | null;
+  /* Freeform drag & edit transforms (migration 20260714100000). */
+  element_layout?: Record<string, ElTransform> | null;
 }
+
+/* Per-element transform stored by the drag & edit designer. */
+interface ElTransform {
+  x: number;
+  y: number;
+  scale: number;
+}
+
+const DEFAULT_T: ElTransform = { x: 0, y: 0, scale: 1 };
+
+/* Labels for the floating toolbar / selection chip. */
+const EL_LABELS: Record<string, string> = {
+  banner: 'Banner',
+  logo: 'Logo',
+  title: 'Shop name',
+  bio: 'Description',
+  stats: 'Stats',
+  socials: 'Socials & share',
+  items: 'Items grid',
+};
 
 /* Font choices offered in the editor. Values are safe web/system fonts. */
 const SHOP_FONTS = [
@@ -201,6 +225,39 @@ const UserShopPage: React.FC = () => {
   const [showCSS, setShowCSS] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
+  /* Drag & edit designer — direct manipulation of the live preview.
+     Only meaningful inside edit mode; selection + transforms live on
+     the draft until Save. */
+  const [designMode, setDesignMode] = useState(false);
+  const [selectedEl, setSelectedEl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!editMode) {
+      setDesignMode(false);
+      setSelectedEl(null);
+    }
+  }, [editMode]);
+
+  /* Esc — deselect, then leave design mode. */
+  useEffect(() => {
+    if (!designMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setSelectedEl((sel) => {
+        if (sel) return null;
+        setDesignMode(false);
+        return null;
+      });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [designMode]);
+
+  const patchEl = (id: string, t: ElTransform) =>
+    setDraft((d) =>
+      d ? { ...d, element_layout: { ...(d.element_layout || {}), [id]: t } } : d,
+    );
 
   useDocumentMeta({
     title: shop ? `${shop.shop_name} · Shop` : 'Shop',
@@ -333,6 +390,7 @@ const UserShopPage: React.FC = () => {
       show_socials: draft.show_socials,
       show_stats: draft.show_stats,
       detail_modal: draft.detail_modal,
+      element_layout: draft.element_layout ?? null,
     };
 
     const { error } = await supabase.from('user_shops').update(base).eq('id', draft.id);
@@ -461,6 +519,20 @@ const UserShopPage: React.FC = () => {
       : view.layout_style === 'masonry'
       ? 'columns-2 sm:columns-3 lg:columns-4 gap-3 space-y-3'
       : 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3';
+
+  /* Freeform transforms — applied for visitors too; edited via the
+     drag & edit designer. */
+  const elLayout = (view.element_layout || {}) as Record<string, ElTransform>;
+  const elT = (id: string) => elLayout[id] || DEFAULT_T;
+  const design = isOwner && editMode && designMode;
+  const elProps = (id: string) => ({
+    id,
+    design,
+    t: elLayout[id],
+    selected: selectedEl === id,
+    onSelect: setSelectedEl,
+    onChange: patchEl,
+  });
 
   return (
     <div
@@ -689,6 +761,38 @@ const UserShopPage: React.FC = () => {
                     );
                   })}
                 </div>
+              </Group>
+
+              {/* Freeform drag & edit designer */}
+              <Group title="Freeform layout">
+                <button
+                  onClick={() => {
+                    setDesignMode((v) => !v);
+                    setSelectedEl(null);
+                  }}
+                  className={`w-full h-11 rounded-2xl text-[12.5px] font-bold inline-flex items-center justify-center gap-2 transition-colors ${
+                    designMode
+                      ? 'bg-fuchsia-500 hover:bg-fuchsia-400 text-white'
+                      : 'bg-white/8 hover:bg-white/14 text-white'
+                  }`}
+                >
+                  <Move size={13} strokeWidth={2.4} />
+                  {designMode ? 'Exit drag & edit mode' : 'Drag & edit mode'}
+                </button>
+                <p className="text-[10.5px] text-white/45 leading-relaxed">
+                  Click any element in the preview to select it, drag to move, use the toolbar to
+                  scale, and double-click the shop name or description to rename them inline.
+                </p>
+                <button
+                  onClick={() => {
+                    setDraft((d) => (d ? { ...d, element_layout: {} } : d));
+                    setSelectedEl(null);
+                  }}
+                  className="w-full h-9 rounded-2xl bg-white/8 hover:bg-white/14 text-[11.5px] font-semibold inline-flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <RotateCcw size={11} strokeWidth={2.4} />
+                  Reset all positions
+                </button>
               </Group>
 
               {/* Typography + card design */}
@@ -921,10 +1025,51 @@ const UserShopPage: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* Design-mode hint bar — pinned to the top of the preview. */}
+      <AnimatePresence>
+        {design && (
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            className="fixed top-3 left-1/2 -translate-x-1/2 lg:left-[calc(50%+220px)] z-[70] h-10 px-4 rounded-full bg-[rgb(18,18,22)] text-white ring-1 ring-white/12 inline-flex items-center gap-2 whitespace-nowrap"
+            style={{ boxShadow: '0 16px 40px -16px rgba(0,0,0,0.7)' }}
+          >
+            <Move size={12} strokeWidth={2.4} className="text-fuchsia-300" />
+            <span className="text-[11.5px] font-semibold text-white/80">
+              Drag to move · double-click text to rename · Esc to finish
+            </span>
+            <button
+              onClick={() => {
+                setDesignMode(false);
+                setSelectedEl(null);
+              }}
+              className="h-7 px-2.5 rounded-full bg-fuchsia-500 hover:bg-fuchsia-400 text-[11px] font-bold transition-colors"
+            >
+              Done
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Selected-element toolbar */}
+      <AnimatePresence>
+        {design && selectedEl && (
+          <DesignToolbar
+            id={selectedEl}
+            t={elT(selectedEl)}
+            onChange={patchEl}
+            onReset={(id) => patchEl(id, { ...DEFAULT_T })}
+            onDone={() => setSelectedEl(null)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ─── Shop content ──────────────────────────────────────────── */}
       <main
         className="max-w-[1280px] mx-auto px-4 sm:px-8 pt-6 pb-32"
         style={{ minHeight: '100vh' }}
+        onPointerDown={design ? () => setSelectedEl(null) : undefined}
       >
         {/* Back link — tiny, top-left. Not a navbar — just lets visitors
             leave the storefront. Hidden in edit mode to keep focus. */}
@@ -941,77 +1086,112 @@ const UserShopPage: React.FC = () => {
 
         {/* Banner */}
         {view.banner_url && (
-          <div
-            className="shop-banner relative w-full overflow-hidden mb-6"
-            style={{
-              background: view.secondary_color,
-              height: `${view.banner_height ?? 200}px`,
-              borderRadius: 'var(--shop-radius)',
-            }}
-          >
-            <img
-              src={view.banner_url}
-              alt=""
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = 'none';
+          <Editable {...elProps('banner')} className="mb-6">
+            <div
+              className="shop-banner relative w-full overflow-hidden"
+              style={{
+                background: view.secondary_color,
+                height: `${view.banner_height ?? 200}px`,
+                borderRadius: 'var(--shop-radius)',
               }}
-            />
-          </div>
+            >
+              <img
+                src={view.banner_url}
+                alt=""
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            </div>
+          </Editable>
         )}
 
         {/* Identity row */}
         <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5 mb-8">
           <div className="flex items-center gap-4 min-w-0">
-            <div
-              className="shop-logo w-20 h-20 sm:w-24 sm:h-24 rounded-3xl shrink-0 grid place-items-center overflow-hidden"
-              style={{
-                background: view.secondary_color,
-                color: view.accent_color,
-              }}
-            >
-              {view.logo_url ? (
-                <img
-                  src={view.logo_url}
-                  alt={view.shop_name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.currentTarget.parentNode as HTMLElement).innerHTML =
-                      `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="${view.accent_color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7l2-3h16l2 3v3a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0V7zM4 12v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8"/></svg>`;
-                  }}
-                />
-              ) : (
-                <Store size={34} strokeWidth={2} style={{ color: view.accent_color }} />
-              )}
-            </div>
+            <Editable {...elProps('logo')} className="shrink-0">
+              <div
+                className="shop-logo w-20 h-20 sm:w-24 sm:h-24 rounded-3xl shrink-0 grid place-items-center overflow-hidden"
+                style={{
+                  background: view.secondary_color,
+                  color: view.accent_color,
+                }}
+              >
+                {view.logo_url ? (
+                  <img
+                    src={view.logo_url}
+                    alt={view.shop_name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.currentTarget.parentNode as HTMLElement).innerHTML =
+                        `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="${view.accent_color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7l2-3h16l2 3v3a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0V7zM4 12v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8"/></svg>`;
+                    }}
+                  />
+                ) : (
+                  <Store size={34} strokeWidth={2} style={{ color: view.accent_color }} />
+                )}
+              </div>
+            </Editable>
             <div className="min-w-0">
-              <h1 className="shop-title text-[28px] sm:text-[36px] font-bold tracking-tight leading-none truncate">
-                {view.shop_name || 'Untitled shop'}
-              </h1>
-              {(view.show_bio ?? true) && view.description && (
-                <p
-                  className="text-[13.5px] sm:text-[14.5px] mt-3 leading-relaxed max-w-[560px]"
-                  style={{ color: textMuted }}
+              <Editable {...elProps('title')} lockChildren={false}>
+                <h1
+                  className={`shop-title text-[28px] sm:text-[36px] font-bold tracking-tight leading-none ${
+                    design ? 'outline-none' : 'truncate'
+                  }`}
+                  contentEditable={design}
+                  suppressContentEditableWarning
+                  spellCheck={false}
+                  onBlur={(e) =>
+                    design &&
+                    setDraft((d) =>
+                      d ? { ...d, shop_name: e.currentTarget.textContent?.trim() || d.shop_name } : d,
+                    )
+                  }
                 >
-                  {view.description}
-                </p>
+                  {view.shop_name || 'Untitled shop'}
+                </h1>
+              </Editable>
+              {(view.show_bio ?? true) && (view.description || design) && (
+                <Editable {...elProps('bio')} lockChildren={false}>
+                  <p
+                    className={`text-[13.5px] sm:text-[14.5px] mt-3 leading-relaxed max-w-[560px] ${
+                      design ? 'outline-none' : ''
+                    }`}
+                    style={{ color: textMuted }}
+                    contentEditable={design}
+                    suppressContentEditableWarning
+                    spellCheck={false}
+                    onBlur={(e) =>
+                      design &&
+                      setDraft((d) =>
+                        d ? { ...d, description: e.currentTarget.textContent ?? d.description } : d,
+                      )
+                    }
+                  >
+                    {view.description || (design ? 'Click to write a description…' : '')}
+                  </p>
+                </Editable>
               )}
               {(view.show_stats ?? true) && (
-                <div className="mt-3 flex items-center gap-4 text-[12px]" style={{ color: textMuted }}>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Eye size={11} strokeWidth={2.4} />
-                    {(view.total_views || 0).toLocaleString()} views
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Sparkles size={11} strokeWidth={2.4} />
-                    {(view.total_sales || 0).toLocaleString()} sales
-                  </span>
-                </div>
+                <Editable {...elProps('stats')}>
+                  <div className="mt-3 flex items-center gap-4 text-[12px]" style={{ color: textMuted }}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Eye size={11} strokeWidth={2.4} />
+                      {(view.total_views || 0).toLocaleString()} views
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Sparkles size={11} strokeWidth={2.4} />
+                      {(view.total_sales || 0).toLocaleString()} sales
+                    </span>
+                  </div>
+                </Editable>
               )}
             </div>
           </div>
 
           {/* Socials + share */}
+          <Editable {...elProps('socials')}>
           <div className="flex items-center gap-2 flex-wrap">
             {(view.show_socials ?? true) && [
               view.twitter_url && { Icon: Twitter, href: view.twitter_url, label: 'Twitter' },
@@ -1050,6 +1230,7 @@ const UserShopPage: React.FC = () => {
               Share shop
             </button>
           </div>
+          </Editable>
         </header>
 
         {/* Items */}
@@ -1078,6 +1259,7 @@ const UserShopPage: React.FC = () => {
             )}
           </div>
         ) : (
+          <Editable {...elProps('items')}>
           <div className={layoutClass}>
             {items.map((it) => {
               const l = it.marketplace_listings;
@@ -1149,6 +1331,7 @@ const UserShopPage: React.FC = () => {
               );
             })}
           </div>
+          </Editable>
         )}
 
         {/* Footnote — discreet credit */}
@@ -1250,6 +1433,153 @@ const UserShopPage: React.FC = () => {
 };
 
 /* ─── Editor sub-components ─────────────────────────────────────────── */
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Editable — direct-manipulation wrapper for the drag & edit designer.
+
+   Always applies the stored translate/scale so saved layouts render for
+   visitors too. In design mode it adds: hover outline, click-to-select,
+   pointer-drag to move (4px threshold so plain clicks still select /
+   place a text caret), and an optional child-interaction lock so Buy /
+   social buttons don't fire while designing.
+   ───────────────────────────────────────────────────────────────────────── */
+const Editable: React.FC<{
+  id: string;
+  design: boolean;
+  t?: ElTransform;
+  selected: boolean;
+  onSelect: (id: string) => void;
+  onChange: (id: string, t: ElTransform) => void;
+  /** Block child clicks while designing (default true). Text elements
+      pass false so double-click keeps working for inline renaming. */
+  lockChildren?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}> = ({ id, design, t, selected, onSelect, onChange, lockChildren = true, className = '', children }) => {
+  const tr = t || DEFAULT_T;
+  const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
+  const [hovered, setHovered] = useState(false);
+
+  const hasT = tr.x !== 0 || tr.y !== 0 || tr.scale !== 1;
+  const baseStyle: React.CSSProperties = hasT
+    ? { transform: `translate(${tr.x}px, ${tr.y}px) scale(${tr.scale})`, transformOrigin: 'top left' }
+    : {};
+
+  if (!design) {
+    return (
+      <div className={className} style={baseStyle}>
+        {children}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`relative ${className}`}
+      style={{
+        ...baseStyle,
+        touchAction: 'none',
+        cursor: 'grab',
+        outline: selected
+          ? '2px solid #e879f9'
+          : hovered
+          ? '1.5px dashed rgba(232,121,249,0.6)'
+          : '1.5px dashed transparent',
+        outlineOffset: 5,
+        zIndex: selected ? 30 : undefined,
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        onSelect(id);
+        dragRef.current = { sx: e.clientX, sy: e.clientY, ox: tr.x, oy: tr.y, moved: false };
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      }}
+      onPointerMove={(e) => {
+        const d = dragRef.current;
+        if (!d) return;
+        const dx = e.clientX - d.sx;
+        const dy = e.clientY - d.sy;
+        if (!d.moved && Math.hypot(dx, dy) < 4) return;
+        d.moved = true;
+        e.preventDefault();
+        onChange(id, { ...tr, x: Math.round(d.ox + dx), y: Math.round(d.oy + dy) });
+      }}
+      onPointerUp={() => {
+        dragRef.current = null;
+      }}
+      onClickCapture={(e) => {
+        /* Swallow clicks that ended a drag so buttons underneath don't fire. */
+        if (lockChildren) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }}
+    >
+      {(selected || hovered) && (
+        <span
+          className="absolute -top-7 left-0 z-40 inline-flex items-center gap-1 px-2 h-5 rounded-md bg-fuchsia-500 text-white text-[10px] font-bold whitespace-nowrap pointer-events-none select-none"
+        >
+          <Move size={9} strokeWidth={2.6} />
+          {EL_LABELS[id] || id}
+        </span>
+      )}
+      {children}
+    </div>
+  );
+};
+
+/* Floating toolbar for the selected element — scale slider + reset. */
+const DesignToolbar: React.FC<{
+  id: string;
+  t: ElTransform;
+  onChange: (id: string, t: ElTransform) => void;
+  onReset: (id: string) => void;
+  onDone: () => void;
+}> = ({ id, t, onChange, onReset, onDone }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 24 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: 16 }}
+    transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+    className="fixed bottom-4 left-1/2 -translate-x-1/2 lg:left-[calc(50%+220px)] z-[70] flex items-center gap-3 h-13 px-4 py-2.5 rounded-2xl bg-[rgb(18,18,22)] text-white ring-1 ring-white/12"
+    style={{ boxShadow: '0 22px 50px -18px rgba(0,0,0,0.7)' }}
+  >
+    <span className="text-[11px] font-bold uppercase tracking-wider text-fuchsia-300 whitespace-nowrap">
+      {EL_LABELS[id] || id}
+    </span>
+    <div className="flex items-center gap-2">
+      <span className="text-[10.5px] font-bold text-white/50 uppercase tracking-wider">Scale</span>
+      <input
+        type="range"
+        min={0.5}
+        max={2}
+        step={0.05}
+        value={t.scale}
+        onChange={(e) => onChange(id, { ...t, scale: Number(e.target.value) })}
+        className="w-28 accent-fuchsia-400"
+      />
+      <span className="text-[11px] font-mono tabular-nums text-white/80 w-10">
+        {Math.round(t.scale * 100)}%
+      </span>
+    </div>
+    <button
+      onClick={() => onReset(id)}
+      className="h-8 px-2.5 rounded-lg bg-white/8 hover:bg-white/14 text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
+      title="Reset position & scale"
+    >
+      <RotateCcw size={11} strokeWidth={2.4} />
+      Reset
+    </button>
+    <button
+      onClick={onDone}
+      className="h-8 px-3 rounded-lg bg-fuchsia-500 hover:bg-fuchsia-400 text-white text-[11px] font-bold transition-colors"
+    >
+      Done
+    </button>
+  </motion.div>
+);
 
 const Group: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <section>
