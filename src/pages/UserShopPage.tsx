@@ -95,11 +95,18 @@ interface CustomBlock {
   size?: number;
 }
 
-/* Per-element transform stored by the drag & edit designer. */
+/* Per-element transform + style overrides stored by the drag & edit
+   designer. Style fields are optional — unset means "inherit theme". */
 interface ElTransform {
   x: number;
   y: number;
   scale: number;
+  color?: string;
+  bg?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  radius?: number;
+  padding?: number;
 }
 
 const DEFAULT_T: ElTransform = { x: 0, y: 0, scale: 1 };
@@ -468,15 +475,18 @@ const UserShopPage: React.FC = () => {
 
     const { error: advErr } = await supabase.from('user_shops').update(advanced).eq('id', draft.id);
     setSaving(false);
-    // Local preview always reflects the draft; a missing-column error on the
-    // advanced update is non-fatal (styling still previews, just not
-    // persisted until the migration is pushed).
     setShop({ ...draft });
-    addToast({
-      type: 'success',
-      title: 'Shop saved',
-      message: advErr ? 'Saved. Some advanced styles need a DB update to persist.' : 'Changes are live.',
-    });
+    if (advErr) {
+      /* Loud, not a fake success — a silent advanced failure is exactly
+         how saved layouts went missing (42703 on a lost column). */
+      addToast({
+        type: 'error',
+        title: 'Layout not fully saved',
+        message: `Basic info saved, but layout/styles failed: ${advErr.message}`,
+      });
+      return;
+    }
+    addToast({ type: 'success', title: 'Shop saved', message: 'Changes are live.' });
   };
 
   /* Toggle the shop between active (public) and paused (hidden from
@@ -1662,9 +1672,19 @@ const Editable: React.FC<{
   const [hovered, setHovered] = useState(false);
 
   const hasT = tr.x !== 0 || tr.y !== 0 || tr.scale !== 1;
-  const baseStyle: React.CSSProperties = hasT
-    ? { transform: `translate(${tr.x}px, ${tr.y}px) scale(${tr.scale})`, transformOrigin: 'top left' }
-    : {};
+  const baseStyle: React.CSSProperties = {
+    ...(hasT
+      ? { transform: `translate(${tr.x}px, ${tr.y}px) scale(${tr.scale})`, transformOrigin: 'top left' }
+      : {}),
+    /* Style overrides from the design panel — applied for visitors too. */
+    ...(tr.color ? { color: tr.color } : {}),
+    ...(tr.bg ? { background: tr.bg } : {}),
+    ...(tr.borderColor || tr.borderWidth
+      ? { border: `${tr.borderWidth ?? 1}px solid ${tr.borderColor || 'rgba(255,255,255,0.25)'}` }
+      : {}),
+    ...(tr.radius != null ? { borderRadius: tr.radius } : {}),
+    ...(tr.padding != null ? { padding: tr.padding } : {}),
+  };
 
   if (!design) {
     return (
@@ -1817,52 +1837,149 @@ const DesignToolbar: React.FC<{
     animate={{ opacity: 1, y: 0 }}
     exit={{ opacity: 0, y: 16 }}
     transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-    className="fixed bottom-4 left-1/2 -translate-x-1/2 lg:left-[calc(50%+220px)] z-[70] flex items-center gap-3 h-13 px-4 py-2.5 rounded-2xl bg-[rgb(18,18,22)] text-white ring-1 ring-white/12"
+    className="fixed bottom-4 left-1/2 -translate-x-1/2 lg:left-[calc(50%+220px)] z-[70] flex flex-col gap-2.5 px-4 py-3 rounded-2xl bg-[rgb(18,18,22)] text-white ring-1 ring-white/12 max-w-[calc(100vw-24px)]"
     style={{ boxShadow: '0 22px 50px -18px rgba(0,0,0,0.7)' }}
   >
-    <span className="text-[11px] font-bold uppercase tracking-wider text-fuchsia-300 whitespace-nowrap">
-      {labelFor(id)}
-    </span>
-    <div className="flex items-center gap-2">
-      <span className="text-[10.5px] font-bold text-white/50 uppercase tracking-wider">Scale</span>
-      <input
-        type="range"
-        min={0.5}
-        max={2}
-        step={0.05}
-        value={t.scale}
-        onChange={(e) => onChange(id, { ...t, scale: Number(e.target.value) })}
-        className="w-28 accent-fuchsia-400"
-      />
-      <span className="text-[11px] font-mono tabular-nums text-white/80 w-10">
-        {Math.round(t.scale * 100)}%
+    {/* Row 1 — identity + scale + actions */}
+    <div className="flex items-center gap-3 flex-wrap">
+      <span className="text-[11px] font-bold uppercase tracking-wider text-fuchsia-300 whitespace-nowrap">
+        {labelFor(id)}
       </span>
-    </div>
-    <button
-      onClick={() => onReset(id)}
-      className="h-8 px-2.5 rounded-lg bg-white/8 hover:bg-white/14 text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
-      title="Reset position & scale"
-    >
-      <RotateCcw size={11} strokeWidth={2.4} />
-      Reset
-    </button>
-    {onDelete && (
+      <div className="flex items-center gap-2">
+        <span className="text-[10.5px] font-bold text-white/50 uppercase tracking-wider">Scale</span>
+        <input
+          type="range"
+          min={0.5}
+          max={2}
+          step={0.05}
+          value={t.scale}
+          onChange={(e) => onChange(id, { ...t, scale: Number(e.target.value) })}
+          className="w-24 accent-fuchsia-400"
+        />
+        <span className="text-[11px] font-mono tabular-nums text-white/80 w-10">
+          {Math.round(t.scale * 100)}%
+        </span>
+      </div>
       <button
-        onClick={onDelete}
-        className="h-8 px-2.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/35 text-rose-300 text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
-        title="Delete this component"
+        onClick={() => onReset(id)}
+        className="h-8 px-2.5 rounded-lg bg-white/8 hover:bg-white/14 text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
+        title="Reset position, scale & styles"
       >
-        <Trash2 size={11} strokeWidth={2.4} />
-        Delete
+        <RotateCcw size={11} strokeWidth={2.4} />
+        Reset
+      </button>
+      {onDelete && (
+        <button
+          onClick={onDelete}
+          className="h-8 px-2.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/35 text-rose-300 text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
+          title="Delete this component"
+        >
+          <Trash2 size={11} strokeWidth={2.4} />
+          Delete
+        </button>
+      )}
+      <button
+        onClick={onDone}
+        className="h-8 px-3 rounded-lg bg-fuchsia-500 hover:bg-fuchsia-400 text-white text-[11px] font-bold transition-colors ml-auto"
+      >
+        Done
+      </button>
+    </div>
+
+    {/* Row 2 — style overrides: every aspect editable */}
+    <div className="flex items-center gap-3.5 flex-wrap border-t border-white/8 pt-2.5">
+      <Swatch label="Text" value={t.color} onChange={(v) => onChange(id, { ...t, color: v })} />
+      <Swatch label="Background" value={t.bg} onChange={(v) => onChange(id, { ...t, bg: v })} />
+      <Swatch
+        label="Border"
+        value={t.borderColor}
+        onChange={(v) => onChange(id, { ...t, borderColor: v, borderWidth: v ? t.borderWidth ?? 1 : undefined })}
+      />
+      {t.borderColor && (
+        <MiniSlider
+          label="Width"
+          min={1}
+          max={8}
+          value={t.borderWidth ?? 1}
+          onChange={(n) => onChange(id, { ...t, borderWidth: n })}
+        />
+      )}
+      <MiniSlider
+        label="Radius"
+        min={0}
+        max={40}
+        value={t.radius ?? 0}
+        onChange={(n) => onChange(id, { ...t, radius: n })}
+      />
+      <MiniSlider
+        label="Padding"
+        min={0}
+        max={48}
+        value={t.padding ?? 0}
+        onChange={(n) => onChange(id, { ...t, padding: n })}
+      />
+    </div>
+  </motion.div>
+);
+
+/* Swatch — color picker with an inherit/clear state for the toolbar. */
+const Swatch: React.FC<{
+  label: string;
+  value?: string;
+  onChange: (v?: string) => void;
+}> = ({ label, value, onChange }) => (
+  <div className="flex items-center gap-1.5">
+    <span className="text-[10px] font-bold uppercase tracking-wider text-white/50 whitespace-nowrap">
+      {label}
+    </span>
+    <label className="relative h-6 w-6 rounded-md overflow-hidden cursor-pointer ring-1 ring-white/20 shrink-0">
+      <input
+        type="color"
+        value={value || '#ffffff'}
+        onChange={(e) => onChange(e.target.value)}
+        className="absolute inset-0 opacity-0 cursor-pointer"
+      />
+      <span className="absolute inset-0" style={{ background: value || 'transparent' }} />
+      {!value && (
+        <span className="absolute inset-0 grid place-items-center text-[9px] text-white/40 pointer-events-none">
+          —
+        </span>
+      )}
+    </label>
+    {value && (
+      <button
+        onClick={() => onChange(undefined)}
+        className="h-5 w-5 rounded bg-white/8 hover:bg-white/14 grid place-items-center transition-colors"
+        title="Clear (inherit theme)"
+      >
+        <X size={9} strokeWidth={2.6} />
       </button>
     )}
-    <button
-      onClick={onDone}
-      className="h-8 px-3 rounded-lg bg-fuchsia-500 hover:bg-fuchsia-400 text-white text-[11px] font-bold transition-colors"
-    >
-      Done
-    </button>
-  </motion.div>
+  </div>
+);
+
+const MiniSlider: React.FC<{
+  label: string;
+  min: number;
+  max: number;
+  value: number;
+  onChange: (n: number) => void;
+}> = ({ label, min, max, value, onChange }) => (
+  <div className="flex items-center gap-1.5">
+    <span className="text-[10px] font-bold uppercase tracking-wider text-white/50 whitespace-nowrap">
+      {label}
+    </span>
+    <input
+      type="range"
+      min={min}
+      max={max}
+      step={1}
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className="w-16 accent-fuchsia-400"
+    />
+    <span className="text-[10px] font-mono tabular-nums text-white/70 w-6">{value}</span>
+  </div>
 );
 
 const Group: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
