@@ -474,7 +474,7 @@ const ConfirmListingDialog: React.FC<{
             {preview.map((g) => (
               <div
                 key={g.key}
-                className="relative w-14 h-14 rounded-2xl bg-subtle grid place-items-center overflow-hidden shrink-0"
+                className="relative w-14 h-14 rounded-2xl bg-subtle ring-1 ring-line grid place-items-center overflow-hidden shrink-0"
                 title={g.name}
               >
                 <img
@@ -490,14 +490,14 @@ const ConfirmListingDialog: React.FC<{
               </div>
             ))}
             {remaining > 0 && (
-              <div className="w-14 h-14 rounded-2xl bg-subtle grid place-items-center text-[12px] font-bold text-ink-muted tabular-nums shrink-0">
+              <div className="w-14 h-14 rounded-2xl bg-subtle ring-1 ring-line grid place-items-center text-[12px] font-bold text-ink-muted tabular-nums shrink-0">
                 +{remaining}
               </div>
             )}
           </div>
 
           {/* Money breakdown */}
-          <div className="rounded-3xl bg-subtle p-4 space-y-2">
+          <div className="rounded-3xl bg-subtle ring-1 ring-line p-4 space-y-2">
             <Row label="Mezisoučet" value={formatPrice(totals.subtotal)} />
             <Row
               label={`Poplatek Skinify · ${feePct} %`}
@@ -629,12 +629,12 @@ const ItemCard: React.FC<{
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-      className="card-flat p-4"
+      className="rounded-3xl ring-1 ring-line bg-surface overflow-hidden divide-y divide-line"
     >
       {/* Header row */}
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-4 p-4">
         <div
-          className="w-16 h-16 rounded-2xl shrink-0 grid place-items-center overflow-hidden"
+          className="w-16 h-16 rounded-2xl shrink-0 grid place-items-center overflow-hidden ring-1 ring-line"
           style={{
             background: `radial-gradient(ellipse at 50% 100%, ${rc}26 0%, rgb(var(--subtle) / 0.6) 70%)`,
           }}
@@ -674,7 +674,7 @@ const ItemCard: React.FC<{
       </div>
 
       {/* PRICE — the centrepiece */}
-      <div className="mt-4 card-flat p-3.5 rounded-2xl bg-subtle/40">
+      <div className="p-4 bg-subtle/30">
         <div className="flex items-baseline justify-between gap-3 mb-2.5">
           <div className="label-meta">Vaše cena</div>
           {!group.isLoadingPrice && (
@@ -766,7 +766,7 @@ const ItemCard: React.FC<{
 
       {/* Quantity — only when there's more than one to choose from */}
       {group.quantity > 1 && (
-        <div className="mt-3 flex items-center justify-between">
+        <div className="p-4 flex items-center justify-between">
           <div>
             <div className="text-[11px] font-bold uppercase tracking-wider text-ink-dim">
               Množství
@@ -779,7 +779,7 @@ const ItemCard: React.FC<{
             <button
               onClick={() => stepQuantity(-1)}
               disabled={group.selectedQuantity <= 1}
-              className="h-9 w-9 rounded-full bg-subtle hover:bg-bg disabled:opacity-40 disabled:cursor-not-allowed grid place-items-center transition-colors"
+              className="h-9 w-9 rounded-full bg-surface ring-1 ring-line hover:bg-bg disabled:opacity-40 disabled:cursor-not-allowed grid place-items-center transition-colors"
             >
               <Minus size={13} strokeWidth={2.4} className="text-ink" />
             </button>
@@ -789,7 +789,7 @@ const ItemCard: React.FC<{
             <button
               onClick={() => stepQuantity(1)}
               disabled={group.selectedQuantity >= group.quantity}
-              className="h-9 w-9 rounded-full bg-subtle hover:bg-bg disabled:opacity-40 disabled:cursor-not-allowed grid place-items-center transition-colors"
+              className="h-9 w-9 rounded-full bg-surface ring-1 ring-line hover:bg-bg disabled:opacity-40 disabled:cursor-not-allowed grid place-items-center transition-colors"
             >
               <Plus size={13} strokeWidth={2.4} className="text-ink" />
             </button>
@@ -797,37 +797,38 @@ const ItemCard: React.FC<{
         </div>
       )}
 
-      {/* OPTIONS — collapsible footer with descriptors instead of icons */}
-      <button
-        onClick={onToggleExpand}
-        className="w-full mt-3 h-10 px-3 rounded-2xl bg-subtle hover:bg-bg text-[12px] font-bold text-ink-muted hover:text-ink inline-flex items-center justify-between transition-colors"
-      >
-        <span className="inline-flex items-center gap-2">
-          {expanded ? 'Skrýt možnosti' : 'Další možnosti'}
-        </span>
-        <span className="inline-flex items-center gap-1.5 text-[11px] text-ink-dim font-semibold">
-          {group.visibility === 'private' ? 'Soukromé' : 'Veřejné'} ·{' '}
-          {group.listingType === 'auction'
-            ? `Aukce ${group.auctionDuration ?? 3} d`
-            : 'Koupit hned'}
-          <ChevronDown
-            size={12}
-            strokeWidth={2.4}
-            className={`transition-transform ${expanded ? 'rotate-180' : ''}`}
-          />
-        </span>
-      </button>
+      {/* OPTIONS — collapsible section with descriptors instead of icons */}
+      <div>
+        <button
+          onClick={onToggleExpand}
+          className="w-full h-12 px-4 bg-surface hover:bg-subtle/50 text-[12px] font-bold text-ink-muted hover:text-ink inline-flex items-center justify-between transition-colors"
+        >
+          <span className="inline-flex items-center gap-2">
+            {expanded ? 'Skrýt možnosti' : 'Další možnosti'}
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-ink-dim font-semibold">
+            {group.visibility === 'private' ? 'Soukromé' : 'Veřejné'} ·{' '}
+            {group.listingType === 'auction'
+              ? `Aukce ${group.auctionDuration ?? 3} d`
+              : 'Koupit hned'}
+            <ChevronDown
+              size={12}
+              strokeWidth={2.4}
+              className={`transition-transform ${expanded ? 'rotate-180' : ''}`}
+            />
+          </span>
+        </button>
 
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-            className="overflow-hidden"
-          >
-            <div className="pt-3 space-y-3">
+        <AnimatePresence initial={false}>
+          {expanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+              className="overflow-hidden"
+            >
+              <div className="px-4 pb-4 pt-1 space-y-3 border-t border-line">
               {/* Visibility */}
               <div>
                 <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim mb-1.5">
@@ -881,7 +882,7 @@ const ItemCard: React.FC<{
                         className={`h-10 rounded-2xl text-[12px] font-bold transition-colors ${
                           group.auctionDuration === d
                             ? 'bg-accent text-on-accent'
-                            : 'bg-subtle text-ink hover:bg-bg'
+                            : 'bg-surface ring-1 ring-line text-ink hover:bg-bg'
                         }`}
                       >
                         {d}d
@@ -907,13 +908,14 @@ const ItemCard: React.FC<{
                     patchGroup({ description: e.target.value.slice(0, 32) })
                   }
                   placeholder="např. nízký float, vzácný pattern…"
-                  className="w-full h-10 px-3.5 rounded-full bg-subtle outline-none text-ink placeholder:text-ink-dim text-[12.5px] font-medium focus:ring-2 focus:ring-accent transition-all"
+                  className="w-full h-11 px-3.5 rounded-2xl bg-surface ring-1 ring-line outline-none text-ink placeholder:text-ink-dim text-[12.5px] font-medium focus:ring-2 focus:ring-accent transition-all"
                 />
               </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </motion.div>
   );
 };
@@ -984,7 +986,7 @@ const Pill: React.FC<{
   <button
     onClick={onClick}
     className={`h-14 px-3 rounded-2xl text-left transition-colors flex items-center gap-2.5 ${
-      active ? 'bg-accent-soft ring-1 ring-accent' : 'bg-subtle hover:bg-bg'
+      active ? 'bg-accent-soft ring-1 ring-accent' : 'bg-surface ring-1 ring-line hover:bg-bg'
     }`}
   >
     <Icon
@@ -1006,7 +1008,7 @@ const Stat: React.FC<{
   value: string;
   tone?: 'rose' | 'accent';
 }> = ({ label, value, tone }) => (
-  <div>
+  <div className="rounded-2xl ring-1 ring-line bg-surface px-3.5 py-3">
     <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">{label}</div>
     <div
       className={`text-[15px] font-bold tracking-tight tabular-nums mt-1 ${
