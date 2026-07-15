@@ -53,7 +53,7 @@ const faqItems = [
   },
   {
     q: 'How do deposits and withdrawals work?',
-    a: 'Card, PayPal, Apple Pay, Google Pay, bank transfer and crypto (BTC, ETH, USDT) are supported. Deposits are instant. Withdrawals process within 24 hours; VIP users get same-day payouts.',
+    a: 'Payments run through PayU: cards (Visa, Mastercard, Maestro), instant bank transfer / SEPA, Apple Pay and Google Pay. Deposits are instant. Withdrawals process within 24 hours; VIP users get same-day payouts.',
   },
   {
     q: 'Do you charge buyer fees?',
