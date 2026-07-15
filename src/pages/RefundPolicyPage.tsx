@@ -56,6 +56,11 @@ const sections: LegalSection[] = [
           <li>Refund processing: 5-10 business days after approval</li>
           <li>Bank transfer completion: 1-3 additional business days</li>
         </ul>
+        <p>
+          Approved refunds are returned through our payment provider{' '}
+          <span className="font-semibold text-ink">PayU</span> to the original payment method (card, bank
+          account, Apple Pay / Google Pay). Refunds of unused account balance are paid out the same way.
+        </p>
       </>
     ),
   },

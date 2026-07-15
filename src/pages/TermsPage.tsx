@@ -72,6 +72,48 @@ const sections: LegalSection[] = [
     ),
   },
   {
+    title: 'Payments and payment processing',
+    body: (
+      <>
+        <p>
+          Online payments on Skinify are processed by <span className="font-semibold text-ink">PayU S.A.</span>,
+          a licensed payment institution. Skinify does not store your card details — all payment data is handled
+          directly by the payment provider in a PCI-DSS-compliant environment.
+        </p>
+        <p className="font-semibold text-ink">Accepted payment methods:</p>
+        <ul className="list-disc pl-5 space-y-1.5">
+          <li>Payment cards (Visa, Mastercard, Maestro)</li>
+          <li>Instant bank transfer / SEPA</li>
+          <li>Apple Pay and Google Pay</li>
+        </ul>
+        <p>
+          All prices on the platform are displayed including any applicable fees, in your selected currency
+          (default CZK). Your account is charged at the moment the order is confirmed. Purchased digital items
+          (CS2 skins) are delivered electronically — typically within minutes of payment — via a Steam trade
+          offer, protected by our escrow system until you confirm receipt.
+        </p>
+      </>
+    ),
+  },
+  {
+    title: 'Right of withdrawal (digital content)',
+    body: (
+      <>
+        <p>
+          Under EU consumer law you generally have the right to withdraw from a distance contract within 14 days.
+          For digital content delivered immediately (marketplace purchases and balance top-ups used for a
+          purchase), you expressly consent to delivery beginning immediately upon payment and acknowledge that you
+          thereby lose the right of withdrawal once delivery has begun, as permitted by Directive 2011/83/EU.
+        </p>
+        <p>
+          Unused account balance can be withdrawn back to you at any time in line with our{' '}
+          <a href="/refund-policy" className="text-accent font-semibold hover:underline">Refund policy</a>. If a
+          seller fails to deliver a purchased item, you are refunded automatically in full.
+        </p>
+      </>
+    ),
+  },
+  {
     title: 'Dispute resolution and refunds',
     body: (
       <>

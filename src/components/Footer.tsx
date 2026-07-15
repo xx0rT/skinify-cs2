@@ -23,12 +23,11 @@ const useResolve = () => {
   };
 };
 
+/* Only the methods we ACTUALLY accept (payments run through PayU).
+   Advertising unsupported providers is a common reason payment
+   gateways reject merchant-site verification. */
 const paymentMethods = [
-  'Visa', 'MasterCard', 'Paypal', 'Apple', 'GoogleWallet',
-  'Bitcoin', 'Stripe', 'Klarna', 'Skrill', 'Amazon',
-  'AmericanExpress', 'DinersClub', 'Discover', 'JCB', 'Maestro',
-  'AliPay', 'Bancontact', 'GiroPay', 'Sepa', 'UnionPay',
-  'Bitpay', 'Clickandbuy',
+  'PayU', 'Visa', 'MasterCard', 'Maestro', 'Apple', 'GoogleWallet', 'Sepa',
 ];
 
 const faqItems = [
