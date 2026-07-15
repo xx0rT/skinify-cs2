@@ -134,6 +134,113 @@ Deno.serve(async (req) => {
         });
       }
 
+      case 'backfill_listings': {
+        /* One-shot repair for existing listings: fill float_value,
+           pattern_template and inspect_link from (1) the user_inventories
+           cache and (2) a live Steam inventory fetch per seller. Fixes
+           dashes on the detail page and dead "Inspect in game" links for
+           listings created before the parsing fixes. */
+        const { data: listings, error } = await supabase
+          .from('marketplace_listings')
+          .select('id, steam_id, asset_id, float_value, pattern_template, inspect_link')
+          .eq('is_active', true);
+        if (error) return json(500, { error: error.message });
+
+        const needsWork = (l: any) => !l.float_value || !l.pattern_template || !l.inspect_link;
+        const need = (listings || []).filter(needsWork);
+        const summary: any = { total: listings?.length || 0, needed: need.length, fromCache: 0, fromSteam: 0, sellers: {} };
+        const hasPlaceholder = (s: string) => /%[a-z_]+%/i.test(s);
+
+        /* Pass 1 — inventory cache (no rate limits). */
+        for (const l of need) {
+          if (!l.asset_id) continue;
+          const { data: row } = await supabase
+            .from('user_inventories')
+            .select('float_value, pattern, inspect_link')
+            .eq('asset_id', String(l.asset_id))
+            .maybeSingle();
+          if (!row) continue;
+          const patch: Record<string, unknown> = {};
+          if (!l.float_value && row.float_value) patch.float_value = row.float_value;
+          if (!l.pattern_template && row.pattern) patch.pattern_template = row.pattern;
+          if (!l.inspect_link && row.inspect_link && !hasPlaceholder(row.inspect_link)) {
+            patch.inspect_link = row.inspect_link;
+          }
+          if (Object.keys(patch).length) {
+            await supabase.from('marketplace_listings').update(patch).eq('id', l.id);
+            Object.assign(l, patch);
+            summary.fromCache++;
+          }
+        }
+
+        /* Pass 2 — live Steam inventory, one fetch per seller. */
+        const still = need.filter(needsWork);
+        const sellers = [...new Set(still.map((l: any) => String(l.steam_id || '')).filter((s) => /^\d{17}$/.test(s)))];
+        for (const sid of sellers) {
+          try {
+            const res = await fetch(
+              `https://steamcommunity.com/inventory/${sid}/730/2?l=english&count=5000`,
+              {
+                headers: {
+                  'User-Agent':
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
+                  Accept: 'application/json',
+                },
+              },
+            );
+            summary.sellers[sid] = res.status;
+            if (!res.ok) continue;
+            const inv = await res.json().catch(() => null);
+            if (!inv?.assets || !inv?.descriptions) continue;
+            const descByKey = new Map<string, any>();
+            for (const d of inv.descriptions) descByKey.set(`${d.classid}_${d.instanceid}`, d);
+            const propsByAsset = new Map<string, any[]>();
+            for (const p of inv.asset_properties || []) {
+              if (p?.assetid) propsByAsset.set(String(p.assetid), p.asset_properties || []);
+            }
+            for (const l of still.filter((x: any) => String(x.steam_id) === sid)) {
+              const asset = inv.assets.find((a: any) => String(a.assetid) === String(l.asset_id));
+              if (!asset) continue;
+              const desc = descByKey.get(`${asset.classid}_${asset.instanceid}`);
+              let float: string | null = null;
+              let seed: string | null = null;
+              for (const pr of propsByAsset.get(String(asset.assetid)) || []) {
+                if (pr?.propertyid === 2 || pr?.name === 'Wear Rating') {
+                  if (pr.float_value != null) float = String(pr.float_value);
+                }
+                if (pr?.propertyid === 1 || pr?.name === 'Pattern Template') {
+                  if (pr.int_value != null) seed = String(pr.int_value);
+                }
+              }
+              const action = (desc?.actions || []).find((x: any) =>
+                x?.link?.includes('csgo_econ_action_preview'),
+              );
+              let insp: string | null = action
+                ? String(action.link)
+                    .replace(/%owner_steamid%/g, sid)
+                    .replace(/%assetid%/g, String(l.asset_id))
+                : null;
+              if (insp && hasPlaceholder(insp)) insp = null;
+              const patch: Record<string, unknown> = {};
+              if (!l.float_value && float) patch.float_value = float;
+              if (!l.pattern_template && seed) patch.pattern_template = seed;
+              if (!l.inspect_link && insp) patch.inspect_link = insp;
+              if (Object.keys(patch).length) {
+                await supabase.from('marketplace_listings').update(patch).eq('id', l.id);
+                Object.assign(l, patch);
+                summary.fromSteam++;
+              }
+            }
+          } catch (e) {
+            summary.sellers[sid] = String((e as Error)?.message || e);
+          }
+          /* Space out seller fetches — Steam rate-limits per IP hard. */
+          await new Promise((r) => setTimeout(r, 1500));
+        }
+
+        return json(200, { ok: true, ...summary });
+      }
+
       case 'admin_listings': {
         /* Inventory tab — full listing table with the real seller join
            (anon reads can't see the users join → "Unknown" sellers). */

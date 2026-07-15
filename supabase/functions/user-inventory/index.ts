@@ -191,6 +191,7 @@ function cachedRowsResponse(
     marketable: !!row.marketable,
     float: row.float_value ?? undefined,
     pattern: row.pattern ?? undefined,
+    inspect_link: row.inspect_link ?? undefined,
     stickers: row.stickers ?? undefined,
     assetid: row.asset_id,
     classid: row.class_id,
@@ -983,6 +984,7 @@ Deno.serve(async (req) => {
             marketable: it.marketable,
             float_value: it.float ?? null,
             pattern: (it as any).pattern ?? null,
+            inspect_link: (it as any).inspect_link ?? null,
             stickers: it.stickers ?? null,
             last_updated: new Date().toISOString(),
           }));
@@ -1000,6 +1002,39 @@ Deno.serve(async (req) => {
         }
       } catch (cacheErr) {
         console.warn('[user-inventory] cache write failed:', cacheErr);
+      }
+
+      /* Self-healing listings: a successful live fetch is the only time we
+         reliably have float / pattern / resolved inspect links for this
+         seller's items — patch their active listings that are missing any
+         of them. Steam's rate limits make a bulk backfill unreliable, so
+         repairs ride along with organic inventory loads instead. */
+      try {
+        const { data: sellerListings } = await db
+          .from('marketplace_listings')
+          .select('id, asset_id, float_value, pattern_template, inspect_link')
+          .eq('steam_id', steamId64)
+          .eq('is_active', true);
+        const byAsset = new Map(items.map((it: any) => [String(it.assetid), it]));
+        for (const l of sellerListings || []) {
+          const it: any = byAsset.get(String(l.asset_id));
+          if (!it) continue;
+          const patch: Record<string, unknown> = {};
+          if (!l.float_value && it.float) patch.float_value = it.float;
+          if (!l.pattern_template && (it as any).pattern) patch.pattern_template = (it as any).pattern;
+          if (
+            !l.inspect_link &&
+            (it as any).inspect_link &&
+            !/%[a-z_]+%/i.test((it as any).inspect_link)
+          ) {
+            patch.inspect_link = (it as any).inspect_link;
+          }
+          if (Object.keys(patch).length) {
+            await db.from('marketplace_listings').update(patch).eq('id', l.id);
+          }
+        }
+      } catch (healErr) {
+        console.warn('[user-inventory] listing self-heal failed:', healErr);
       }
     }
 
