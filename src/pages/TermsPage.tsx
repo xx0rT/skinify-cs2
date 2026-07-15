@@ -1,186 +1,228 @@
 import React from 'react';
-import { useT } from '../lib/useT';
 import { Scale } from 'lucide-react';
 import LegalShell, { LegalSection } from '../components/legal/LegalShell';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 
+/* Obchodní podmínky — v ČEŠTINĚ. PayU vyžaduje, aby jazyk webu odpovídal
+   měně (CZK → čeština), a kontroluje konkrétní náležitosti: identifikaci
+   provozovatele, dobu zpracování objednávky v pracovních dnech, postup a
+   adresu pro vrácení zboží, zákonnou lhůtu a reklamační řád s kontakty. */
+
 const sections: LegalSection[] = [
   {
-    title: 'Acceptance of terms',
+    title: 'Úvodní ustanovení',
     body: (
       <>
         <p>
-          These Terms of Service ("Terms") govern your use of the Skinify platform and services. By creating an
-          account or using our services, you acknowledge that you have read, understood, and agree to be bound by
-          these Terms.
+          Tyto obchodní podmínky („Podmínky") upravují používání platformy Skinify a jejích služeb.
+          Vytvořením účtu nebo používáním našich služeb potvrzujete, že jste si Podmínky přečetli,
+          porozuměli jim a souhlasíte s nimi.
         </p>
         <p>
-          We reserve the right to modify these Terms at any time. Changes are effective immediately upon posting.
-          Continued use of the service constitutes acceptance of the modified Terms.
+          Vyhrazujeme si právo Podmínky kdykoli změnit. Změny jsou účinné okamžikem zveřejnění.
+          Pokračováním v používání služby vyjadřujete souhlas s upraveným zněním.
         </p>
       </>
     ),
   },
   {
-    title: 'Eligibility and account registration',
+    title: 'Registrace a uživatelský účet',
     body: (
       <>
         <p>
-          You must be at least 13 years old to use Skinify. By using our services, you represent that you meet this
-          requirement and have the legal capacity to enter into binding agreements.
+          Pro používání Skinify musí být uživateli alespoň 13 let. Používáním služeb prohlašujete,
+          že tuto podmínku splňujete a máte způsobilost uzavírat závazné smlouvy.
         </p>
         <ul className="list-disc pl-5 space-y-1.5">
-          <li>Provide accurate and complete information during registration</li>
-          <li>Keep your account information current</li>
-          <li>Do not share your account with others</li>
-          <li>Use Steam Guard authentication as required</li>
+          <li>Při registraci uvádějte přesné a úplné údaje</li>
+          <li>Udržujte údaje ve svém účtu aktuální</li>
+          <li>Účet nesdílejte s dalšími osobami</li>
+          <li>Používejte ověření Steam Guard, je-li vyžadováno</li>
         </ul>
       </>
     ),
   },
   {
-    title: 'Trading and marketplace rules',
+    title: 'Pravidla tržiště',
     body: (
       <>
         <p>
-          Skinify provides a platform for users to trade CS2 items safely. All trades must comply with our
-          marketplace rules and Steam's Terms of Service.
+          Skinify poskytuje platformu pro bezpečné obchodování s předměty ze hry CS2. Všechny obchody
+          musí být v souladu s těmito Podmínkami a s podmínkami služby Steam.
         </p>
-        <p className="font-semibold text-ink">Prohibited activities:</p>
+        <p className="font-semibold text-ink">Zakázané aktivity:</p>
         <ul className="list-disc pl-5 space-y-1.5">
-          <li>Trading items obtained through cheating, hacking, or fraud</li>
-          <li>Manipulating prices through artificial means</li>
-          <li>Creating multiple accounts to circumvent restrictions</li>
-          <li>Engaging in money laundering or other illegal activities</li>
-          <li>Harassment, abuse, or threatening behavior toward other users</li>
+          <li>Obchodování s předměty získanými podvodem, cheatováním nebo hackingem</li>
+          <li>Umělá manipulace s cenami</li>
+          <li>Zakládání více účtů za účelem obcházení omezení</li>
+          <li>Praní špinavých peněz a jiná protiprávní činnost</li>
+          <li>Obtěžování, urážky nebo vyhrožování ostatním uživatelům</li>
         </ul>
       </>
     ),
   },
   {
-    title: 'Fees and payments',
-    body: (
-      <>
-        <p>Skinify charges fees for certain services. Current structure:</p>
-        <ul className="list-disc pl-5 space-y-1.5">
-          <li>Trading fee: 2% of transaction value (volume discounts available)</li>
-          <li>Withdrawal fee: 1.5% of withdrawal amount</li>
-          <li>Currency conversion fees may apply for international transactions</li>
-        </ul>
-        <p>All fees are clearly displayed before transaction completion. Fee changes will be announced 30 days in advance.</p>
-      </>
-    ),
-  },
-  {
-    title: 'Payments and payment processing',
+    title: 'Ceny a poplatky',
     body: (
       <>
         <p>
-          Online payments on Skinify are processed by <span className="font-semibold text-ink">PayU S.A.</span>,
-          a licensed payment institution. Skinify does not store your card details — all payment data is handled
-          directly by the payment provider in a PCI-DSS-compliant environment.
-        </p>
-        <p className="font-semibold text-ink">Accepted payment methods:</p>
-        <ul className="list-disc pl-5 space-y-1.5">
-          <li>Payment cards (Visa, Mastercard, Maestro)</li>
-          <li>Instant bank transfer / SEPA</li>
-          <li>Apple Pay and Google Pay</li>
-        </ul>
-        <p>
-          All prices on the platform are displayed including any applicable fees, in your selected currency
-          (default CZK). Your account is charged at the moment the order is confirmed. Purchased digital items
-          (CS2 skins) are delivered electronically — typically within minutes of payment — via a Steam trade
-          offer, protected by our escrow system until you confirm receipt.
-        </p>
-      </>
-    ),
-  },
-  {
-    title: 'Right of withdrawal (digital content)',
-    body: (
-      <>
-        <p>
-          Under EU consumer law you generally have the right to withdraw from a distance contract within 14 days.
-          For digital content delivered immediately (marketplace purchases and balance top-ups used for a
-          purchase), you expressly consent to delivery beginning immediately upon payment and acknowledge that you
-          thereby lose the right of withdrawal once delivery has begun, as permitted by Directive 2011/83/EU.
-        </p>
-        <p>
-          Unused account balance can be withdrawn back to you at any time in line with our{' '}
-          <a href="/refund-policy" className="text-accent font-semibold hover:underline">Refund policy</a>. If a
-          seller fails to deliver a purchased item, you are refunded automatically in full.
-        </p>
-      </>
-    ),
-  },
-  {
-    title: 'Dispute resolution and refunds',
-    body: (
-      <>
-        <p>
-          We provide dispute resolution services for transactions on our platform. Our escrow system protects both
-          buyers and sellers.
+          Všechny ceny na platformě jsou uvedeny v korunách českých (Kč) včetně případných poplatků,
+          a to vždy před dokončením objednávky. Skinify účtuje poplatky za tyto služby:
         </p>
         <ul className="list-disc pl-5 space-y-1.5">
-          <li>Refunds available if seller fails to deliver items as described</li>
-          <li>Buyer protection through escrow</li>
-          <li>Disputes must be reported within 7 days of transaction</li>
-          <li>Platform fees are non-refundable except in cases of platform error</li>
+          <li>Poplatek z prodeje: 2 % z hodnoty transakce (množstevní slevy k dispozici)</li>
+          <li>Poplatek za výběr: 1,5 % z vybírané částky</li>
+          <li>U mezinárodních transakcí se mohou uplatnit poplatky za konverzi měn</li>
         </ul>
+        <p>Změny poplatků oznamujeme 30 dní předem.</p>
       </>
     ),
   },
   {
-    title: 'Intellectual property',
+    title: 'Platby a zpracování plateb',
     body: (
       <>
         <p>
-          Skinify and its original content, features, and functionality are protected by international copyright,
-          trademark, and other intellectual property laws.
+          Online platby zpracovává společnost <span className="font-semibold text-ink">PayU S.A.</span>,
+          licencovaná platební instituce. Skinify neukládá údaje o vaší platební kartě — veškerá
+          platební data zpracovává přímo poskytovatel plateb v prostředí odpovídajícím standardu
+          PCI-DSS.
         </p>
-        <p>Users retain ownership of their CS2 items. Skinify does not claim ownership of virtual items traded on the platform.</p>
-      </>
-    ),
-  },
-  {
-    title: 'Limitation of liability',
-    body: (
-      <>
+        <p className="font-semibold text-ink">Přijímané platební metody:</p>
+        <ul className="list-disc pl-5 space-y-1.5">
+          <li>Platební karty (Visa, Mastercard, Maestro)</li>
+          <li>Okamžitý bankovní převod / SEPA</li>
+          <li>Apple Pay a Google Pay</li>
+        </ul>
         <p>
-          Skinify shall not be liable for any indirect, incidental, special, consequential, or punitive damages
-          resulting from your use of the service.
-        </p>
-        <p>
-          Total liability for any claim arising from these Terms or your use of the service shall not exceed the
-          amount paid to Skinify in the 12 months preceding the claim.
-        </p>
-      </>
-    ),
-  },
-  {
-    title: 'Termination',
-    body: (
-      <>
-        <p>
-          We reserve the right to suspend or terminate your account at our discretion, including for violations of
-          these Terms or suspicious activity.
-        </p>
-        <p>
-          Upon termination, your right to use the service ends immediately. Provisions that should survive
-          termination shall survive.
+          Platba je z vašeho účtu stržena okamžikem potvrzení objednávky tlačítkem „Koupit"
+          (objednávka zavazující k platbě).
         </p>
       </>
     ),
   },
   {
-    title: 'Contact',
+    title: 'Zpracování a doručení objednávky',
     body: (
       <>
-        <p>For questions about these Terms, reach us at:</p>
+        <p>
+          Objednávky zpracováváme <span className="font-semibold text-ink">ihned po přijetí platby</span>.
+          Zakoupené digitální předměty (CS2 skiny) jsou doručovány elektronicky prostřednictvím Steam
+          trade nabídky — je-li prodejce online, obvykle do několika minut, nejpozději však do{' '}
+          <span className="font-semibold text-ink">2 pracovních dnů</span> od přijetí platby.
+        </p>
+        <p>
+          Pokud předmět podléhá dočasnému zámku obchodování na straně Steam (0–8 dní), je bezpečně
+          uložen ve vašem Skinify inventáři a odeslán automaticky v okamžiku vypršení zámku. Nedodá-li
+          prodejce předmět v doručovacím okně, je vám platba automaticky vrácena v plné výši.
+        </p>
+        <p>
+          Dobití zůstatku se na účtu projeví okamžitě po potvrzení platby poskytovatelem,
+          nejpozději do 1 pracovního dne.
+        </p>
+      </>
+    ),
+  },
+  {
+    title: 'Odstoupení od smlouvy a vrácení zboží',
+    body: (
+      <>
+        <p>
+          Spotřebitel má ze zákona právo odstoupit od smlouvy uzavřené distančním způsobem ve lhůtě{' '}
+          <span className="font-semibold text-ink">14 dnů</span> bez udání důvodu (§ 1829 občanského
+          zákoníku, směrnice 2011/83/EU).
+        </p>
+        <p>
+          U digitálního obsahu dodávaného okamžitě (nákupy na tržišti a čerpané dobití zůstatku)
+          udělujete výslovný souhlas se zahájením plnění před uplynutím lhůty pro odstoupení a berete
+          na vědomí, že okamžikem zahájení dodání právo na odstoupení zaniká (§ 1837 písm. l)
+          občanského zákoníku).
+        </p>
+        <p className="font-semibold text-ink">Postup při vrácení / odstoupení:</p>
+        <ul className="list-disc pl-5 space-y-1.5">
+          <li>Odstoupení zašlete e-mailem na <span className="text-ink font-semibold">support@skinify.gg</span>, nebo písemně na adresu níže</li>
+          <li>Uveďte číslo objednávky, datum nákupu a číslo účtu pro vrácení peněz</li>
+          <li>Peníze vracíme do 14 dnů od odstoupení, stejnou platební metodou přes PayU</li>
+          <li>Nevyčerpaný zůstatek účtu si můžete kdykoli vybrat zpět dle Zásad vracení peněz</li>
+        </ul>
+        <p>
+          <span className="text-ink-dim">Adresa pro vrácení a písemný styk:</span>{' '}
+          <span className="font-semibold text-ink">Skinify s.r.o., Grafická 3365/1, 150 00 Praha 5, Česká republika</span>
+        </p>
+      </>
+    ),
+  },
+  {
+    title: 'Reklamace (reklamační řád)',
+    body: (
+      <>
+        <p className="font-semibold text-ink">Pravidla reklamací:</p>
+        <ul className="list-disc pl-5 space-y-1.5">
+          <li>Reklamovat lze nedodání předmětu, dodání jiného předmětu, než byl popsán v nabídce, nebo chybné stržení platby</li>
+          <li>Reklamaci uplatněte do 7 dnů od transakce přes podporu v aplikaci nebo e-mailem</li>
+          <li>Uveďte ID transakce, popis problému a případné důkazy (screenshoty, záznam obchodu)</li>
+        </ul>
+        <p className="font-semibold text-ink pt-2">Postup vyřízení:</p>
+        <ul className="list-disc pl-5 space-y-1.5">
+          <li>Přijetí reklamace potvrdíme do 24–48 hodin</li>
+          <li>Reklamaci vyřídíme bez zbytečného odkladu, nejpozději do <span className="font-semibold text-ink">30 dnů</span> od uplatnění</li>
+          <li>V případě uznání vracíme peníze na zůstatek nebo původní platební metodou přes PayU</li>
+        </ul>
+        <p className="font-semibold text-ink pt-2">Kontakt pro reklamace:</p>
         <ul className="list-none space-y-1.5">
-          <li><span className="text-ink-dim">Email:</span> <span className="text-ink font-semibold">legal@skinify.com</span></li>
-          <li><span className="text-ink-dim">Address:</span> Grafická 3365/1, 150 00 Praha 5, Česká republika</li>
-          <li><span className="text-ink-dim">Response time:</span> Within 48 hours for legal inquiries</li>
+          <li><span className="text-ink-dim">E-mail:</span> <span className="text-ink font-semibold">support@skinify.gg</span></li>
+          <li><span className="text-ink-dim">Adresa:</span> Skinify s.r.o., Grafická 3365/1, 150 00 Praha 5, Česká republika</li>
+          <li><span className="text-ink-dim">Podpora v aplikaci:</span> nepřetržitě (24/7)</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    title: 'Mimosoudní řešení sporů',
+    body: (
+      <>
+        <p>
+          K mimosoudnímu řešení spotřebitelských sporů je příslušná Česká obchodní inspekce
+          (www.coi.cz), Ústřední inspektorát – oddělení ADR, Štěpánská 44, 110 00 Praha 1.
+          Spotřebitelé mohou využít rovněž platformu pro řešení sporů online (ODR) na adrese
+          ec.europa.eu/consumers/odr.
+        </p>
+      </>
+    ),
+  },
+  {
+    title: 'Duševní vlastnictví a odpovědnost',
+    body: (
+      <>
+        <p>
+          Obsah, funkce a vzhled platformy Skinify jsou chráněny autorským právem a dalšími předpisy
+          o duševním vlastnictví. Uživatelé zůstávají vlastníky svých CS2 předmětů — Skinify si na
+          virtuální předměty obchodované na platformě nečiní nárok.
+        </p>
+        <p>
+          Skinify neodpovídá za nepřímé či následné škody vzniklé používáním služby. Celková
+          odpovědnost je omezena částkou, kterou jste Skinify uhradili za posledních 12 měsíců.
+        </p>
+      </>
+    ),
+  },
+  {
+    title: 'Ukončení účtu a závěrečná ustanovení',
+    body: (
+      <>
+        <p>
+          Vyhrazujeme si právo pozastavit nebo ukončit účet při porušení těchto Podmínek nebo při
+          podezřelé aktivitě. Ukončením zaniká právo službu používat; ustanovení, která mají přetrvat,
+          zůstávají v platnosti.
+        </p>
+        <p>
+          Právní vztahy neupravené těmito Podmínkami se řídí právním řádem České republiky, zejména
+          zákonem č. 89/2012 Sb., občanský zákoník, a zákonem č. 634/1992 Sb., o ochraně spotřebitele.
+        </p>
+        <p className="font-semibold text-ink pt-2">Kontakt:</p>
+        <ul className="list-none space-y-1.5">
+          <li><span className="text-ink-dim">E-mail:</span> <span className="text-ink font-semibold">support@skinify.gg</span></li>
+          <li><span className="text-ink-dim">Adresa:</span> Grafická 3365/1, 150 00 Praha 5, Česká republika</li>
         </ul>
       </>
     ),
@@ -188,33 +230,32 @@ const sections: LegalSection[] = [
 ];
 
 const TermsPage: React.FC = () => {
-  const tr = useT();
   useDocumentMeta({
-    title: 'Terms of Service · Skinify',
+    title: 'Obchodní podmínky · Skinify',
     description:
-      'Skinify Terms of Service. Account rules, marketplace conduct, dispute handling, payment processing, and the platform agreement.',
+      'Obchodní podmínky platformy Skinify — pravidla účtu a tržiště, platby přes PayU, doba zpracování objednávky, odstoupení od smlouvy a reklamační řád.',
     canonical: 'https://skinify.gg/terms',
   });
   return (
-  <LegalShell
-    Icon={Scale}
-    eyebrow={tr('legal.eyebrow', 'Legal')}
-    title={tr('legal.terms.title', 'Terms of service')}
-    intro={tr('legal.terms.intro', 'Please read these terms carefully before using Skinify. They govern your account, our marketplace, and the way we resolve disputes.')}
-    lastUpdated="January 15, 2026"
-    info={{
-      label: 'Service provider',
-      rows: [
-        { k: 'Company', v: 'Skinify s.r.o.' },
-        { k: 'Legal form', v: 'Sole trader' },
-        { k: 'Business ID (IČO)', v: '29671311' },
-        { k: 'Tax ID', v: '29671311' },
-        { k: 'Address', v: 'Grafická 3365/1, 150 00 Praha 5, Česká republika' },
-        { k: 'Registered', v: '16.06.2026' },
-      ],
-    }}
-    sections={sections}
-  />
+    <LegalShell
+      Icon={Scale}
+      eyebrow="Právní dokumenty"
+      title="Obchodní podmínky"
+      intro="Před používáním Skinify si prosím tyto podmínky pečlivě přečtěte. Upravují váš účet, naše tržiště, platby, doručení objednávek i způsob řešení reklamací."
+      lastUpdated="14. 7. 2026"
+      info={{
+        label: 'Provozovatel služby',
+        rows: [
+          { k: 'Společnost', v: 'Skinify s.r.o.' },
+          { k: 'IČO', v: '29671311' },
+          { k: 'DIČ', v: 'CZ29671311' },
+          { k: 'Sídlo', v: 'Grafická 3365/1, 150 00 Praha 5, Česká republika' },
+          { k: 'E-mail', v: 'support@skinify.gg' },
+          { k: 'Zápis', v: 'Obchodní rejstřík vedený Městským soudem v Praze' },
+        ],
+      }}
+      sections={sections}
+    />
   );
 };
 

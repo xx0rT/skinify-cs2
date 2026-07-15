@@ -112,16 +112,16 @@ const footerColumns: { titleKey: string; titleFallback: string; links: { label: 
       { label: 'Blog', to: '/blog' },
       { label: 'API docs', to: '/docs' },
       { label: 'Support', to: '/support' },
-      { label: 'Contact', to: '/contact' },
+      { label: 'Kontakt', to: '/contact' },
     ],
   },
   {
     titleKey: 'footer.col.legal',
     titleFallback: 'Legal',
     links: [
-      { label: 'Terms of service', to: '/terms' },
-      { label: 'Privacy policy', to: '/privacy' },
-      { label: 'Refund policy', to: '/refund-policy' },
+      { label: 'Obchodní podmínky', to: '/terms' },
+      { label: 'Ochrana osobních údajů', to: '/privacy' },
+      { label: 'Vracení peněz', to: '/refund-policy' },
       { label: 'Dispute resolution', to: '/dispute-resolution' },
     ],
   },
@@ -545,9 +545,9 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
             <Link to="/docs" className="hover:text-ink transition-colors">API docs</Link>
             <Link to="/sitemap" className="hover:text-ink transition-colors">Sitemap</Link>
             <Link to="/changelog" className="hover:text-ink transition-colors">Changelog</Link>
-            <Link to="/terms" className="hover:text-ink transition-colors">Terms</Link>
-            <Link to="/privacy" className="hover:text-ink transition-colors">Privacy</Link>
-            <Link to="/refund-policy" className="hover:text-ink transition-colors">Refunds</Link>
+            <Link to="/terms" className="hover:text-ink transition-colors">Obchodní podmínky</Link>
+            <Link to="/privacy" className="hover:text-ink transition-colors">Soukromí</Link>
+            <Link to="/refund-policy" className="hover:text-ink transition-colors">Vracení peněz</Link>
           </nav>
         </div>
       </motion.div>

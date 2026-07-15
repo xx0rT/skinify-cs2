@@ -1,148 +1,152 @@
 import React from 'react';
-import { useT } from '../lib/useT';
 import { Shield } from 'lucide-react';
 import LegalShell, { LegalSection } from '../components/legal/LegalShell';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 
+/* Zásady ochrany osobních údajů — v ČEŠTINĚ, se všemi náležitostmi, které
+   vyžaduje PayU: identifikace správce (název, IČO, adresa), právní předpis
+   a účely zpracování, zabezpečení, práva subjektů (přístup / oprava /
+   výmaz) a výčet příjemců, se kterými jsou údaje sdíleny. */
+
 const sections: LegalSection[] = [
   {
-    title: 'Information we collect',
+    title: 'Správce osobních údajů',
     body: (
       <>
-        <p className="font-semibold text-ink">Personal information</p>
-        <ul className="list-disc pl-5 space-y-1.5">
-          <li>Steam ID and profile data (display name, avatar)</li>
-          <li>Email address for account verification and communications</li>
-          <li>Payment information for transactions (processed by secure third parties)</li>
-          <li>Trading history and preferences</li>
-        </ul>
-        <p className="font-semibold text-ink pt-2">Automatically collected</p>
-        <ul className="list-disc pl-5 space-y-1.5">
-          <li>IP address and approximate location</li>
-          <li>Browser type and device information</li>
-          <li>Platform usage analytics and performance data</li>
-          <li>Cookies and similar tracking technologies</li>
+        <p>Správcem osobních údajů je:</p>
+        <ul className="list-none space-y-1.5">
+          <li><span className="text-ink-dim">Společnost:</span> <span className="text-ink font-semibold">Skinify s.r.o.</span></li>
+          <li><span className="text-ink-dim">IČO:</span> <span className="text-ink font-semibold">29671311</span></li>
+          <li><span className="text-ink-dim">DIČ:</span> <span className="text-ink font-semibold">CZ29671311</span></li>
+          <li><span className="text-ink-dim">Sídlo:</span> <span className="text-ink font-semibold">Grafická 3365/1, 150 00 Praha 5, Česká republika</span></li>
+          <li><span className="text-ink-dim">E-mail:</span> <span className="text-ink font-semibold">privacy@skinify.gg</span></li>
         </ul>
       </>
     ),
   },
   {
-    title: 'How we use your information',
+    title: 'Právní základ a účely zpracování',
     body: (
       <>
-        <p>We use your information solely to provide and improve our services:</p>
+        <p>
+          Osobní údaje kupujících zpracováváme v souladu s{' '}
+          <span className="font-semibold text-ink">Nařízením Evropského parlamentu a Rady (EU) 2016/679 (GDPR)</span>{' '}
+          a zákonem č. 110/2019 Sb., o zpracování osobních údajů.
+        </p>
+        <p className="font-semibold text-ink">Účely a právní tituly zpracování:</p>
         <ul className="list-disc pl-5 space-y-1.5">
-          <li>Process trades and transactions securely</li>
-          <li>Verify user identity and prevent fraud</li>
-          <li>Provide customer support and resolve disputes</li>
-          <li>Send important notifications about your account</li>
-          <li>Improve platform features and user experience</li>
-          <li>Comply with legal obligations and enforce our Terms</li>
+          <li><span className="font-semibold text-ink">Plnění smlouvy</span> (čl. 6 odst. 1 písm. b) GDPR) — vedení účtu, zpracování objednávek a plateb, doručení předmětů, výplaty</li>
+          <li><span className="font-semibold text-ink">Právní povinnosti</span> (čl. 6 odst. 1 písm. c) GDPR) — účetnictví, daňové předpisy, opatření proti praní špinavých peněz (AML), ověření totožnosti (KYC)</li>
+          <li><span className="font-semibold text-ink">Oprávněný zájem</span> (čl. 6 odst. 1 písm. f) GDPR) — zabezpečení platformy, prevence podvodů, řešení sporů</li>
+          <li><span className="font-semibold text-ink">Souhlas</span> (čl. 6 odst. 1 písm. a) GDPR) — marketingová sdělení; souhlas lze kdykoli odvolat</li>
         </ul>
-        <p className="text-emerald-700 dark:text-emerald-300 font-semibold">
-          We never sell your personal information to third parties.
+      </>
+    ),
+  },
+  {
+    title: 'Jaké údaje shromažďujeme',
+    body: (
+      <>
+        <ul className="list-disc pl-5 space-y-1.5">
+          <li>Identifikační a kontaktní údaje: jméno/přezdívka, e-mail, Steam ID a veřejný Steam profil</li>
+          <li>Transakční údaje: historie objednávek, dobití, výběrů a obchodů</li>
+          <li>Platební údaje: identifikátory plateb od poskytovatele PayU (čísla karet neukládáme)</li>
+          <li>Údaje pro ověření totožnosti (KYC) u vyšších objemů: doklad totožnosti zpracovaný ověřovacím partnerem</li>
+          <li>Technické údaje: IP adresa, typ zařízení a prohlížeče, protokoly o přihlášení a aktivitě</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    title: 'Zabezpečení osobních údajů',
+    body: (
+      <>
+        <p>Údaje chráníme technickými a organizačními opatřeními, zejména:</p>
+        <ul className="list-disc pl-5 space-y-1.5">
+          <li>Šifrování přenosu dat (TLS/HTTPS) i uložených dat</li>
+          <li>Řízení přístupů — k údajům přistupují pouze oprávněné osoby v nezbytném rozsahu</li>
+          <li>Zabezpečená databázová infrastruktura s pravidelnými zálohami</li>
+          <li>Dvoufázové ověření účtů a monitoring podezřelé aktivity</li>
+          <li>Platební údaje zpracovává výhradně licencovaný poskytovatel v režimu PCI-DSS</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    title: 'Vaše práva — přístup, oprava a výmaz údajů',
+    body: (
+      <>
+        <p>Podle GDPR máte právo:</p>
+        <ul className="list-disc pl-5 space-y-1.5">
+          <li><span className="font-semibold text-ink">na přístup</span> — vyžádat si kopii údajů, které o vás zpracováváme</li>
+          <li><span className="font-semibold text-ink">na opravu</span> — nepřesné údaje můžete upravit přímo v nastavení účtu, nebo o opravu požádat</li>
+          <li><span className="font-semibold text-ink">na výmaz</span> („právo být zapomenut") — o smazání účtu a údajů lze požádat v Nastavení → Soukromí, nebo e-mailem</li>
+          <li><span className="font-semibold text-ink">na omezení zpracování a námitku</span> proti zpracování z titulu oprávněného zájmu</li>
+          <li><span className="font-semibold text-ink">na přenositelnost</span> — export údajů ve strojově čitelném formátu</li>
+          <li><span className="font-semibold text-ink">odvolat souhlas</span> s marketingem kdykoli, bez vlivu na zákonnost dřívějšího zpracování</li>
+        </ul>
+        <p>
+          Žádosti vyřizujeme do 30 dnů na adrese{' '}
+          <span className="font-semibold text-ink">privacy@skinify.gg</span>. Máte rovněž právo podat
+          stížnost u Úřadu pro ochranu osobních údajů (www.uoou.cz), Pplk. Sochora 27, 170 00 Praha 7.
         </p>
       </>
     ),
   },
   {
-    title: 'Information sharing and disclosure',
+    title: 'Příjemci údajů — s kým údaje sdílíme',
     body: (
       <>
-        <p>We share data only in limited circumstances:</p>
-        <p className="font-semibold text-ink pt-2">Service providers</p>
+        <p>Osobní údaje sdílíme pouze v nezbytném rozsahu s těmito kategoriemi příjemců:</p>
         <ul className="list-disc pl-5 space-y-1.5">
-          <li>Payment processors for transaction handling</li>
-          <li>Cloud storage providers for data hosting</li>
-          <li>Security services for fraud prevention</li>
-          <li>Analytics providers for platform improvement</li>
+          <li><span className="font-semibold text-ink">PayU S.A.</span> — zpracování online plateb a vracení peněz</li>
+          <li><span className="font-semibold text-ink">Supabase Inc.</span> — hosting databáze a aplikační infrastruktury</li>
+          <li><span className="font-semibold text-ink">Brevo (Sendinblue SAS)</span> — odesílání transakčních e-mailů</li>
+          <li><span className="font-semibold text-ink">Sumsub</span> — ověření totožnosti (KYC) tam, kde je vyžadováno zákonem</li>
+          <li><span className="font-semibold text-ink">Valve Corporation (Steam)</span> — doručování předmětů přes Steam trade</li>
+          <li>Orgány veřejné moci, pokud to vyžaduje právní předpis</li>
         </ul>
-        <p className="font-semibold text-ink pt-2">Legal requirements</p>
+        <p>
+          Osobní údaje neprodáváme. Se všemi zpracovateli máme uzavřené smlouvy o zpracování osobních
+          údajů; při předání mimo EU/EHP používáme standardní smluvní doložky.
+        </p>
+      </>
+    ),
+  },
+  {
+    title: 'Doba uchování údajů',
+    body: (
+      <>
         <ul className="list-disc pl-5 space-y-1.5">
-          <li>When required by law or legal process</li>
-          <li>To protect our rights and property</li>
-          <li>To prevent fraud or illegal activities</li>
-          <li>In connection with business transfers</li>
+          <li>Údaje účtu — po dobu existence účtu a 30 dní po jeho smazání</li>
+          <li>Transakční a účetní záznamy — 10 let (zákonná povinnost)</li>
+          <li>Záznamy KYC/AML — 10 let od ukončení obchodního vztahu (zákonná povinnost)</li>
+          <li>Technické protokoly — max. 12 měsíců</li>
         </ul>
       </>
     ),
   },
   {
-    title: 'Data security and protection',
+    title: 'Cookies',
     body: (
       <>
-        <p>We implement comprehensive security measures:</p>
-        <p className="font-semibold text-ink pt-2">Technical safeguards</p>
-        <ul className="list-disc pl-5 space-y-1.5">
-          <li>SSL/TLS encryption for all data transmission</li>
-          <li>AES-256 encryption for stored data</li>
-          <li>Regular security audits and penetration testing</li>
-          <li>Multi-factor authentication requirements</li>
-        </ul>
-        <p className="font-semibold text-ink pt-2">Operational safeguards</p>
-        <ul className="list-disc pl-5 space-y-1.5">
-          <li>Need-to-know access controls for personal data</li>
-          <li>Regular employee security training</li>
-          <li>Incident response and breach notification procedures</li>
-          <li>Secure data centers with physical security controls</li>
-        </ul>
+        <p>
+          Používáme nezbytné cookies pro přihlášení a fungování košíku a — pouze s vaším souhlasem —
+          analytické cookies pro zlepšování služby. Preference můžete kdykoli změnit v nastavení
+          prohlížeče.
+        </p>
       </>
     ),
   },
   {
-    title: 'Your privacy rights',
+    title: 'Kontakt',
     body: (
       <>
-        <p>You have the following rights regarding your personal data:</p>
-        <ul className="list-disc pl-5 space-y-1.5">
-          <li>Access, update, or correct your personal data</li>
-          <li>Download your data in a portable format</li>
-          <li>Request deletion of your account and data</li>
-          <li>Restrict or object to processing of your information</li>
-          <li>Withdraw consent for optional features</li>
-        </ul>
-        <p>To exercise these rights, contact <span className="text-ink font-semibold">privacy@skinify.com</span> or use your account settings.</p>
-      </>
-    ),
-  },
-  {
-    title: 'Cookies and tracking',
-    body: (
-      <>
-        <p>We use cookies and similar technologies to enhance your experience.</p>
-        <ul className="list-disc pl-5 space-y-1.5">
-          <li><span className="text-ink font-semibold">Essential:</span> required for platform functionality</li>
-          <li><span className="text-ink font-semibold">Performance:</span> help us improve site performance</li>
-          <li><span className="text-ink font-semibold">Analytics:</span> understand how users interact with our site</li>
-          <li><span className="text-ink font-semibold">Preference:</span> remember your settings</li>
-        </ul>
-        <p>Manage cookies through your browser settings or our cookie consent banner.</p>
-      </>
-    ),
-  },
-  {
-    title: 'International data transfers',
-    body: (
-      <>
-        <p>Skinify operates globally and may transfer your data across international borders. We ensure adequate protection through:</p>
-        <ul className="list-disc pl-5 space-y-1.5">
-          <li>Standard Contractual Clauses with service providers</li>
-          <li>Adequacy decisions for certain jurisdictions</li>
-          <li>Appropriate safeguards for all international transfers</li>
-          <li>Compliance with applicable data protection laws</li>
-        </ul>
-      </>
-    ),
-  },
-  {
-    title: 'Contact our Data Protection Officer',
-    body: (
-      <>
-        <p>For privacy questions or data subject requests:</p>
+        <p>S dotazy k ochraně osobních údajů se na nás obraťte:</p>
         <ul className="list-none space-y-1.5">
-          <li><span className="text-ink-dim">DPO email:</span> <span className="text-ink font-semibold">dpo@skinify.com</span></li>
-          <li><span className="text-ink-dim">General privacy:</span> <span className="text-ink font-semibold">privacy@skinify.com</span></li>
-          <li><span className="text-ink-dim">Response time:</span> within 30 days of request</li>
+          <li><span className="text-ink-dim">E-mail:</span> <span className="text-ink font-semibold">privacy@skinify.gg</span></li>
+          <li><span className="text-ink-dim">Adresa:</span> Skinify s.r.o., Grafická 3365/1, 150 00 Praha 5, Česká republika</li>
+          <li><span className="text-ink-dim">Doba odezvy:</span> do 48 hodin</li>
         </ul>
       </>
     ),
@@ -150,31 +154,30 @@ const sections: LegalSection[] = [
 ];
 
 const PrivacyPage: React.FC = () => {
-  const tr = useT();
   useDocumentMeta({
-    title: 'Privacy Policy · Skinify',
+    title: 'Zásady ochrany osobních údajů · Skinify',
     description:
-      'How Skinify collects, stores, and processes your data. GDPR-compliant practices for Steam OpenID, payment processing, and cookies.',
+      'Jak Skinify zpracovává osobní údaje podle GDPR — správce, účely a právní tituly, zabezpečení, práva subjektů údajů a příjemci údajů.',
     canonical: 'https://skinify.gg/privacy',
   });
   return (
-  <LegalShell
-    Icon={Shield}
-    eyebrow={tr('legal.eyebrow', 'Legal')}
-    title={tr('legal.privacy.title', 'Privacy policy')}
-    intro={tr('legal.privacy.intro', 'How we collect, use, and safeguard your personal information when you use Skinify.')}
-    lastUpdated="January 15, 2026"
-    info={{
-      label: 'Data controller',
-      rows: [
-        { k: 'Entity', v: 'Skinify s.r.o.' },
-        { k: 'Address', v: 'Grafická 3365/1, 150 00 Praha 5, Česká republika' },
-        { k: 'Business ID (IČO)', v: '29671311' },
-        { k: 'DPO email', v: 'dpo@skinify.gg' },
-      ],
-    }}
-    sections={sections}
-  />
+    <LegalShell
+      Icon={Shield}
+      eyebrow="Právní dokumenty"
+      title="Zásady ochrany osobních údajů"
+      intro="Jak shromažďujeme, používáme a chráníme vaše osobní údaje podle GDPR — a jak můžete svá práva uplatnit."
+      lastUpdated="14. 7. 2026"
+      info={{
+        label: 'Správce osobních údajů',
+        rows: [
+          { k: 'Společnost', v: 'Skinify s.r.o.' },
+          { k: 'IČO', v: '29671311' },
+          { k: 'Sídlo', v: 'Grafická 3365/1, 150 00 Praha 5, Česká republika' },
+          { k: 'E-mail', v: 'privacy@skinify.gg' },
+        ],
+      }}
+      sections={sections}
+    />
   );
 };
 
