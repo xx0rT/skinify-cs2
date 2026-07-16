@@ -240,6 +240,35 @@ Deno.serve(async (req: Request) => {
     const url = new URL(req.url);
     const checkStatus = url.searchParams.get("checkStatus");
 
+    /* Diagnostic: list every payment method on the merchant POS with its
+       status, so "PAYU_NO_ACTIVE_METHODS" can be traced to the exact
+       switch that's off in the PayU panel. Read-only, no order created. */
+    if (url.searchParams.get("diag") === "paymethods") {
+      const accessToken = await getPayUAccessToken();
+      const pmRes = await fetch(`${PAYU_CONFIG.apiUrl}/api/v2_1/paymethods`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const body = await pmRes.json().catch(() => ({}));
+      const methods = (body.payByLinks || []).map((m: any) => ({
+        value: m.value,
+        name: m.name,
+        status: m.status,
+        minAmount: m.minAmount,
+        maxAmount: m.maxAmount,
+      }));
+      return new Response(
+        JSON.stringify({
+          httpStatus: pmRes.status,
+          posId: PAYU_CONFIG.posId,
+          apiUrl: PAYU_CONFIG.apiUrl,
+          cardTokens: (body.cardTokens || []).length,
+          pexTokens: (body.pexTokens || []).length,
+          methods,
+        }, null, 2),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     if (checkStatus === "true") {
       const body = await req.json();
       const { orderId, userId } = body;
