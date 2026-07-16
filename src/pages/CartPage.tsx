@@ -226,48 +226,43 @@ const CartPage: React.FC = () => {
     <div className="min-h-screen bg-bg text-ink">
       <LandingNav />
 
-      <main className="max-w-[1480px] mx-auto px-4 sm:px-6 pt-4 pb-16">
+      <main className="max-w-[1060px] mx-auto px-4 sm:px-6 pt-4 pb-16">
         <BackButton onClick={() => navigate(-1)} />
 
-        {/* Header card */}
+        {/* Compact header — title + count chip left, clear-cart right. No
+            full-width banner card; the page gets its personality from the
+            item cards and the summary instead. */}
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={spring}
-          className="card p-5 sm:p-6 mb-4 relative overflow-hidden"
+          className="flex items-end justify-between flex-wrap gap-3 mb-5 px-1"
         >
-          <motion.div
-            aria-hidden
-            className="absolute -top-32 -right-24 w-[360px] h-[360px] rounded-full pointer-events-none"
-            style={{
-              background:
-                'radial-gradient(closest-side, rgb(var(--accent) / 0.14), transparent 65%)',
-            }}
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
-          />
-          <div className="relative flex items-end justify-between flex-wrap gap-3">
-            <div>
-              <span className="label-eyebrow">Pokladna</span>
-              <h1 className="text-[26px] sm:text-[32px] font-bold tracking-tight mt-1.5 leading-none">
-                Váš košík
-              </h1>
-              <p className="text-[13px] text-ink-muted font-medium mt-2">
-                {items.length} {items.length === 1 ? 'položka' : items.length <= 4 ? 'položky' : 'položek'} · {formatPrice(subtotal)}
-              </p>
-            </div>
-            <motion.button
-              whileTap={tap}
-              onClick={() => setConfirmClearOpen(true)}
-              className="h-10 px-4 rounded-full bg-subtle hover:bg-bg flex items-center gap-1.5 text-[13px] text-ink-muted hover:text-ink font-semibold transition-colors"
+          <div className="flex items-baseline gap-3">
+            <h1 className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none">
+              Váš košík
+            </h1>
+            <motion.span
+              key={items.length}
+              initial={{ scale: 0.6, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+              className="h-7 min-w-7 px-2 rounded-full bg-accent text-on-accent grid place-items-center text-[13px] font-bold tabular-nums"
             >
-              <Trash2 size={13} strokeWidth={2.2} />
-              Vysypat košík
-            </motion.button>
+              {items.length}
+            </motion.span>
           </div>
+          <motion.button
+            whileTap={tap}
+            onClick={() => setConfirmClearOpen(true)}
+            className="h-9 px-3.5 rounded-full hover:bg-subtle flex items-center gap-1.5 text-[12.5px] text-ink-muted hover:text-rose-500 font-semibold transition-colors"
+          >
+            <Trash2 size={13} strokeWidth={2.2} />
+            Vysypat košík
+          </motion.button>
         </motion.div>
 
-        <div className="grid lg:grid-cols-[1fr_420px] gap-4">
+        <div className="grid lg:grid-cols-[1fr_380px] gap-4">
           {/* Items column */}
           <section className="space-y-2 min-w-0">
             <AnimatePresence initial={false}>
@@ -277,13 +272,21 @@ const CartPage: React.FC = () => {
                   <motion.article
                     key={item.id}
                     layout
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                    transition={{ ...spring, delay: Math.min(idx * 0.04, 0.2) }}
-                    whileHover={{ y: -2 }}
-                    className="relative card p-3 pr-3 sm:pr-4 flex items-center gap-3 sm:gap-4 overflow-hidden"
+                    initial={{ opacity: 0, x: -28, scale: 0.97 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: 90, scale: 0.92, transition: { duration: 0.28, ease: [0.4, 0, 0.8, 0.4] } }}
+                    transition={{ type: 'spring', stiffness: 340, damping: 28, delay: Math.min(idx * 0.06, 0.3) }}
+                    whileHover={{ y: -3, scale: 1.008 }}
+                    className="group relative card p-3 pr-3 sm:pr-4 flex items-center gap-3 sm:gap-4 overflow-hidden"
                   >
+                    {/* Rarity accent — soft edge wash instead of a hard stripe. */}
+                    <div
+                      aria-hidden
+                      className="absolute inset-y-0 left-0 w-28 pointer-events-none opacity-70 group-hover:opacity-100 transition-opacity"
+                      style={{
+                        background: `linear-gradient(90deg, ${color || 'rgb(var(--accent))'}26 0%, transparent 100%)`,
+                      }}
+                    />
                     <div
                       className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full"
                       style={{ background: color || 'rgb(var(--accent))' }}
@@ -297,14 +300,20 @@ const CartPage: React.FC = () => {
                         aria-hidden
                         className="absolute inset-0 pointer-events-none"
                         style={{
-                          background: `radial-gradient(circle at 50% 50%, ${color || 'rgb(var(--accent))'}22, transparent 65%)`,
+                          background: `radial-gradient(circle at 50% 62%, ${color || 'rgb(var(--accent))'}33, transparent 68%)`,
                         }}
                       />
-                      <CachedImage
-                        src={item.image}
-                        alt={item.name}
-                        className="relative w-[85%] h-[85%] object-contain"
-                      />
+                      <motion.div
+                        className="relative w-full h-full grid place-items-center"
+                        whileHover={{ scale: 1.12, rotate: -2 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 18 }}
+                      >
+                        <CachedImage
+                          src={item.image}
+                          alt={item.name}
+                          className="w-[85%] h-[85%] object-contain drop-shadow-[0_10px_18px_rgba(0,0,0,0.25)]"
+                        />
+                      </motion.div>
                     </motion.button>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline gap-2 mb-0.5 flex-wrap">
@@ -364,9 +373,9 @@ const CartPage: React.FC = () => {
           {/* Summary column */}
           <aside className="lg:sticky lg:top-24 self-start space-y-3">
             <motion.section
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ ...spring, delay: 0.08 }}
+              initial={{ opacity: 0, x: 26 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 28, delay: 0.1 }}
               className="card p-6 relative overflow-hidden"
             >
               {/* Accent wash — gives the summary visual weight without
