@@ -639,14 +639,15 @@ const ItemCard: React.FC<{
         <div className="absolute top-0 inset-x-0 p-2 flex items-start justify-between gap-2 z-10">
           <div className="flex items-center gap-1.5">
             {item.listed_for_sale && (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase rounded-sm bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
-                <CheckCircle2 size={9} strokeWidth={2.8} />
-                Listed
+              <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-bg/85 backdrop-blur-md ring-1 ring-line text-[10px] font-bold text-ink shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                Vystaveno
               </span>
             )}
             {!item.tradable && (
-              <span className="px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase rounded-sm bg-rose-500/15 text-rose-700 dark:text-rose-300">
-                Untradable
+              <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-bg/85 backdrop-blur-md ring-1 ring-line text-[10px] font-bold text-ink-muted shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                Neobchodovatelné
               </span>
             )}
           </div>

@@ -768,18 +768,20 @@ const ListingCard: React.FC<{
         <div className="absolute top-0 inset-x-0 p-2 flex items-start justify-between gap-2 z-10">
           <div className="flex items-center gap-1.5">
             {listing.listing_type === 'auction' && (
-              <span className="px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase rounded-sm bg-amber-500/15 text-amber-700 dark:text-amber-300">
-                Auction
+              <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-bg/85 backdrop-blur-md ring-1 ring-line text-[10px] font-bold text-ink shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                Aukce
               </span>
             )}
             {listing.listing_type === 'private' && (
-              <span className="px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase rounded-sm bg-purple-500/15 text-purple-700 dark:text-purple-300">
-                Private
+              <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-bg/85 backdrop-blur-md ring-1 ring-line text-[10px] font-bold text-ink shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
+                Soukromé
               </span>
             )}
           </div>
           {listing.views > 0 && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-bg/75 backdrop-blur-sm text-ink-muted tabular-nums">
+            <span className="inline-flex items-center gap-1 h-6 px-2 rounded-full bg-bg/85 backdrop-blur-md ring-1 ring-line text-[10px] font-bold text-ink-muted tabular-nums shadow-sm">
               <Eye size={10} strokeWidth={2.6} />
               {listing.views}
             </span>
@@ -840,7 +842,7 @@ const ListingCard: React.FC<{
         {/* ACTIONS — pinned at the bottom via mt-auto so the panel
             grows to fill any leftover vertical space; actions are
             always at the same Y coordinate across the grid. */}
-        <div className="mt-auto space-y-1.5" onClick={(e) => e.stopPropagation()}>
+        <div className="!mt-auto pt-3 space-y-1.5" onClick={(e) => e.stopPropagation()}>
           {editing ? (
             <div className="flex items-center gap-1">
               <input

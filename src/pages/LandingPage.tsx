@@ -1235,14 +1235,19 @@ const PromotedRow: React.FC<{
     const node = ref.current;
     if (!node) return;
     drag.current = { active: true, startX: e.clientX, startScroll: node.scrollLeft, moved: false };
-    node.setPointerCapture?.(e.pointerId);
+    /* Pointer capture happens lazily in onPointerMove — capturing on
+       pointerdown retargets the follow-up click to the scroller and
+       cards stop opening. */
   };
   const onPointerMove = (e: React.PointerEvent) => {
     const node = ref.current;
     if (!node || !drag.current.active) return;
     const dx = e.clientX - drag.current.startX;
-    if (Math.abs(dx) > 4) drag.current.moved = true;
-    node.scrollLeft = drag.current.startScroll - dx;
+    if (!drag.current.moved && Math.abs(dx) > 4) {
+      drag.current.moved = true;
+      node.setPointerCapture?.(e.pointerId);
+    }
+    if (drag.current.moved) node.scrollLeft = drag.current.startScroll - dx;
   };
   const endDrag = (e: React.PointerEvent) => {
     const node = ref.current;
