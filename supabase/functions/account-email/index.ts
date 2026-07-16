@@ -23,6 +23,19 @@
 */
 
 import { createClient } from 'npm:@supabase/supabase-js@2.39.0';
+import { clientIp, throttle, tooManyRequests, originAllowed } from '../_shared/auth-guard.ts';
+
+/* Per-action throttle budgets, keyed by caller IP. Tight on the
+   attack-worthy actions (reset, signup, confirm/reset token guessing),
+   generous on the harmless polling one (check_confirmed). */
+const LIMITS: Record<string, { max: number; windowSec: number }> = {
+  signup: { max: 5, windowSec: 600 },          // 5 accounts / 10 min / IP
+  send_reset: { max: 5, windowSec: 900 },      // 5 reset mails / 15 min / IP
+  send_confirmation: { max: 5, windowSec: 900 },
+  reset: { max: 10, windowSec: 600 },          // 10 token tries / 10 min / IP
+  confirm: { max: 20, windowSec: 600 },
+  check_confirmed: { max: 60, windowSec: 60 }, // 1/sec poll
+};
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -189,6 +202,18 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const action = body?.action as string;
 
+  /* CSRF-style origin check for browser-driven POSTs. */
+  if (!originAllowed(req)) {
+    return json(403, { error: 'Zdroj požadavku není povolen.', code: 'ORIGIN_BLOCKED' });
+  }
+
+  /* Rate-limit every action per caller IP before doing any work. */
+  const limit = LIMITS[action];
+  if (limit) {
+    const t = await throttle(supabase, `ip:${clientIp(req)}`, `account-email:${action}`, limit.max, limit.windowSec);
+    if (t.limited) return tooManyRequests(t.retryAfter);
+  }
+
   try {
     if (action === 'signup') {
       /* Full server-side signup. We create the auth user via the ADMIN API
@@ -314,9 +339,19 @@ Deno.serve(async (req) => {
 
     if (action === 'send_reset') {
       const email = String(body.email || '').trim().toLowerCase();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, { error: 'Invalid email.' });
-      // Don't leak whether the account exists — always return ok, but only
-      // send if there's a matching auth user.
+      /* Uniform response + uniform timing regardless of account existence.
+         The lookup + Brevo send only happen for real accounts, but we pad
+         to a fixed floor so an attacker can't distinguish "exists" from
+         "doesn't" by response time (the listUsers scan is slower than a
+         no-op). Always return the same 200 body. */
+      const started = Date.now();
+      const MIN_MS = 700;
+      const finish = async () => {
+        const elapsed = Date.now() - started;
+        if (elapsed < MIN_MS) await new Promise((r) => setTimeout(r, MIN_MS - elapsed));
+        return json(200, { ok: true });
+      };
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return finish();
       const match = await findAuthUserByEmail(supabase, email);
       if (match) {
         const token = randomToken();
@@ -338,7 +373,7 @@ Deno.serve(async (req) => {
         });
         await sendViaBrevo(brevoCfg, email, 'Reset your Skinify password', html);
       }
-      return json(200, { ok: true });
+      return finish();
     }
 
     if (action === 'reset') {
