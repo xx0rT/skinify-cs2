@@ -72,6 +72,40 @@ interface FeedEntry {
   raw: any;
 }
 
+
+/* czDetail — DB descriptions are raw English strings ("Withdrawal request
+   #2 rejected — funds returned", "Bonus reward: daily", TXN ids…). Map the
+   known shapes to short Czech and shorten transaction ids so rows stay
+   scannable. */
+const shortTxn = (id: string) => `#${id.slice(-6)}`;
+function czDetail(raw?: string | null): string {
+  if (!raw) return '';
+  let t = String(raw);
+  let m = t.match(/^Withdrawal request #(\d+) rejected/i);
+  if (m) return `Výběr č. ${m[1]} zamítnut — peníze vráceny`;
+  if (/^Bonus reward:\s*daily/i.test(t)) return 'Denní bonus';
+  if (/^Bonus reward:\s*spend/i.test(t)) return 'Bonus za útratu';
+  if (/^Bonus reward/i.test(t)) return 'Bonusová odměna';
+  m = t.match(/^Withdrawal request via (\w+)/i);
+  if (m) return `Výběr přes ${m[1].charAt(0).toUpperCase()}${m[1].slice(1)}`;
+  m = t.match(/^Pending sale\s*[-–]\s*Order (TXN-\S+)/i);
+  if (m) return `Objednávka ${shortTxn(m[1])} · uvolní se za 8 dní`;
+  m = t.match(/^(?:Order|Objednávka) (TXN-\S+)/i);
+  if (m) return `Objednávka ${shortTxn(m[1])}`;
+  return t.replace(/TXN-\d+-\w+/g, (id) => shortTxn(id));
+}
+
+
+/* Status → dot colour for the quiet chips (replaces loud tinted pills). */
+const STATUS_DOT: Record<string, string> = {
+  pending: 'bg-amber-500',
+  escrow: 'bg-amber-500',
+  completed: 'bg-emerald-500',
+  cancelled: 'bg-ink-dim',
+  refunded: 'bg-ink-dim',
+  disputed: 'bg-rose-500',
+};
+
 const TradesTab: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -234,10 +268,12 @@ const TradesTab: React.FC = () => {
         key: `order_${o.id}`,
         kind,
         status: displayStatus,
-        title: isBuyer
-          ? `Purchase · ${o.items?.length || 0} item${(o.items?.length || 0) === 1 ? '' : 's'}`
-          : `Sale · ${o.items?.length || 0} item${(o.items?.length || 0) === 1 ? '' : 's'}`,
-        subtitle: o.transaction_id ? `Order ${o.transaction_id}` : undefined,
+        title: (() => {
+          const n = o.items?.length || 0;
+          const noun = n === 1 ? 'položka' : n >= 2 && n <= 4 ? 'položky' : 'položek';
+          return `${isBuyer ? 'Nákup' : 'Prodej'} · ${n} ${noun}`;
+        })(),
+        subtitle: o.transaction_id ? `Objednávka ${o.transaction_id}` : undefined,
         timestamp: o.created_at || new Date().toISOString(),
         positive: !isBuyer,
         amount: Number(o.total_amount || 0),
@@ -345,12 +381,12 @@ const TradesTab: React.FC = () => {
       {/* Summary — one quiet text line instead of boxed KPI cards. */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-1 text-[12px] font-medium text-ink-muted">
         <span>
-          Purchased <span className="font-bold text-ink tabular-nums">{formatPrice(kpis.boughtVal)}</span>
-          <span className="text-ink-dim"> · {kpis.boughtN} order{kpis.boughtN === 1 ? '' : 's'}</span>
+          Nakoupeno <span className="font-bold text-ink tabular-nums">{formatPrice(kpis.boughtVal)}</span>
+          <span className="text-ink-dim"> · {kpis.boughtN} obj.</span>
         </span>
         <span>
-          Sold <span className="font-bold text-ink tabular-nums">{formatPrice(kpis.soldVal)}</span>
-          <span className="text-ink-dim"> · {kpis.soldN} sale{kpis.soldN === 1 ? '' : 's'}</span>
+          Prodáno <span className="font-bold text-ink tabular-nums">{formatPrice(kpis.soldVal)}</span>
+          <span className="text-ink-dim"> · {kpis.soldN} prod.</span>
         </span>
         <span>
           V úschově <span className="font-bold text-ink tabular-nums">{formatPrice(kpis.escrowVal)}</span>
@@ -451,14 +487,19 @@ const TradesTab: React.FC = () => {
                         <span className="text-[14px] font-bold text-ink tracking-tight truncate max-w-[300px]">
                           {e.title}
                         </span>
-                        <span className={`pill ${s.bg} ${s.fg} inline-flex items-center gap-1`}>
-                          <s.Icon size={10} strokeWidth={2.6} />
+                        <span className="inline-flex items-center gap-1.5 h-5 px-2 rounded-full bg-subtle text-[10px] font-bold text-ink-muted shrink-0">
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[e.status] || 'bg-ink-dim'}`} />
                           {s.label}
                         </span>
                       </div>
                       <div className="text-[11.5px] text-ink-dim font-medium mt-0.5 truncate">
-                        {new Date(e.timestamp).toLocaleString()}
-                        {e.subtitle ? ` · ${e.subtitle}` : ''}
+                        {new Date(e.timestamp).toLocaleString('cs-CZ', {
+                          day: 'numeric',
+                          month: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        {e.subtitle ? ` · ${czDetail(e.subtitle)}` : ''}
                       </div>
                     </div>
                     <div className="text-right shrink-0">
