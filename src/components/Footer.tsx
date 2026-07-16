@@ -122,7 +122,7 @@ const footerColumns: { titleKey: string; titleFallback: string; links: { label: 
       { label: 'Obchodní podmínky', to: '/terms' },
       { label: 'Ochrana osobních údajů', to: '/privacy' },
       { label: 'Vracení peněz', to: '/refund-policy' },
-      { label: 'Dispute resolution', to: '/dispute-resolution' },
+      { label: 'Řešení sporů', to: '/dispute-resolution' },
     ],
   },
   {
