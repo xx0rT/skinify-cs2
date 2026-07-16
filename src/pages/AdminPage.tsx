@@ -356,7 +356,7 @@ const AdminPage: React.FC = () => {
           <div className="h-12 flex items-center justify-center mb-4 mx-auto group-hover:mx-3 overflow-hidden">
             <div className="relative flex items-center">
               <motion.img
-                src="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png"
+                src="/favicon.png"
                 alt="Skinify Logo"
                 className="h-12 w-auto object-contain cursor-pointer"
                 onClick={() => navigate('/')}
@@ -367,7 +367,7 @@ const AdminPage: React.FC = () => {
 
               <div className="hidden group-hover:block">
                 <motion.img
-                  src="https://i.postimg.cc/xqdxTY2d/skinify2-2-removebg-preview.png"
+                  src="/logo-alt.png"
                   alt="Skinify Logo Extended"
                   className="h-12 w-auto object-contain cursor-pointer"
                   onClick={() => navigate('/')}

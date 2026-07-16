@@ -282,7 +282,7 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
             <div className="flex items-center gap-2.5">
               <div className="icon-chip text-on-accent">
                 <img
-                  src="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png"
+                  src="/favicon.png"
                   alt=""
                   className="w-6 h-6"
                 />

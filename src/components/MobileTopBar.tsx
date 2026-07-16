@@ -65,7 +65,7 @@ const MobileTopBar: React.FC = () => {
           className="shrink-0 w-10 h-10 rounded-2xl bg-accent text-on-accent grid place-items-center overflow-hidden"
         >
           <img
-            src="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png"
+            src="/favicon.png"
             alt=""
             className="w-8 h-8"
             draggable={false}

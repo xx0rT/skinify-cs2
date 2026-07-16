@@ -191,7 +191,7 @@ const Header: React.FC<HeaderProps> = ({
         >
           <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-accent-500 to-accent-700 grid place-items-center shadow-accent-glow">
             <img
-              src="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png"
+              src="/favicon.png"
               alt=""
               className="w-7 h-7 object-contain"
             />
@@ -313,7 +313,7 @@ const Header: React.FC<HeaderProps> = ({
               aria-label="Home"
             >
               <img
-                src="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png"
+                src="/favicon.png"
                 alt=""
                 className="w-6 h-6"
               />

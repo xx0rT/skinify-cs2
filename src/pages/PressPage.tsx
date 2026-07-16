@@ -250,12 +250,12 @@ const PressPage: React.FC = () => {
           </h2>
           <div className="mt-5 grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <a
-              href="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png"
+              href="/favicon.png"
               download
               className="card-flat p-5 flex flex-col items-center justify-center text-center hover:bg-subtle/60 transition-colors"
             >
               <img
-                src="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png"
+                src="/favicon.png"
                 alt="Skinify logo"
                 className="h-16 w-auto mb-3"
               />

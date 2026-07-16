@@ -190,7 +190,7 @@ export function TopHeader() {
         {/* Center Logo */}
         <div className="absolute left-1/2 transform -translate-x-1/2">
           <img
-            src="https://i.postimg.cc/TYWDynC3/IMG-2524-1.png"
+            src="/logo-header.png"
             alt="Logo"
             className="h-24 w-auto object-contain cursor-pointer"
             onClick={() => navigate('/')}

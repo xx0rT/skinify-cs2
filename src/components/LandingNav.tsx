@@ -698,7 +698,7 @@ const LogoLink: React.FC = () => {
       aria-label="Skinify home"
     >
       <img
-        src="https://i.postimg.cc/rsN3wQRf/skinfy1-2-removebg-preview.png"
+        src="/favicon.png"
         alt="Skinify"
         className="w-8 h-8 relative z-10 select-none"
         draggable={false}
