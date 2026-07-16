@@ -116,6 +116,7 @@ const TradesTab: React.FC = () => {
   const [view, setView] = useState<View>('all');
   const [query, setQuery] = useState('');
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [verifyingKey, setVerifyingKey] = useState<string | null>(null);
 
@@ -353,14 +354,43 @@ const TradesTab: React.FC = () => {
       if (view === 'deposits' && e.kind !== 'deposit' && e.kind !== 'withdrawal') return false;
       if (view === 'escrow' && e.status !== 'escrow' && e.status !== 'pending') return false;
       if (!q) return true;
+      /* Detailed search: item names, Czech detail text, order/tx ids AND
+         amounts — "39596", "1.88" or "1,88" all match the row amount. */
+      const qNum = q.replace(',', '.').replace(/\s|kč/gi, '');
+      const amountMatch =
+        qNum.length > 0 &&
+        !Number.isNaN(Number(qNum)) &&
+        (String(Math.abs(e.amount)).includes(qNum) ||
+          Math.abs(e.amount).toFixed(2).includes(qNum) ||
+          String(Math.round(Math.abs(e.amount))) === qNum);
       return (
         e.title.toLowerCase().includes(q) ||
         String(e.subtitle || '').toLowerCase().includes(q) ||
+        czDetail(e.subtitle).toLowerCase().includes(q) ||
+        (e.items || []).some((it: any) =>
+          String(it.name || it.market_name || '').toLowerCase().includes(q),
+        ) ||
         String(e.raw?.transaction_id || '').toLowerCase().includes(q) ||
-        String(e.raw?.reference_id || '').toLowerCase().includes(q)
+        String(e.raw?.reference_id || '').toLowerCase().includes(q) ||
+        amountMatch
       );
     });
   }, [feed, view, query]);
+
+  /* Pagination — 10 rows per page; reset when the filter changes. */
+  const PAGE_SIZE = 10;
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  useEffect(() => {
+    setPage(0);
+  }, [view, query]);
+  useEffect(() => {
+    if (page > pageCount - 1) setPage(Math.max(0, pageCount - 1));
+  }, [pageCount, page]);
+  const paged = filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+
+  /* Detail mode — an opened entry takes over the whole panel; the list,
+     toolbar and summary hide and a back button leads to the history. */
+  const openEntry = openKey ? feed.find((en) => en.key === openKey) || null : null;
 
   const kpis = useMemo(() => {
     const bought = feed.filter((e) => e.kind === 'purchase');
@@ -379,6 +409,7 @@ const TradesTab: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Summary — one quiet text line instead of boxed KPI cards. */}
+      {!openEntry && (
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-1 text-[12px] font-medium text-ink-muted">
         <span>
           Nakoupeno <span className="font-bold text-ink tabular-nums">{formatPrice(kpis.boughtVal)}</span>
@@ -393,8 +424,10 @@ const TradesTab: React.FC = () => {
           <span className="text-ink-dim"> · {kpis.escrowN} obj.</span>
         </span>
       </div>
+      )}
 
       {/* Toolbar */}
+      {!openEntry && (
       <div className="card p-2 flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-1 px-1 flex-wrap">
           {(
@@ -448,9 +481,10 @@ const TradesTab: React.FC = () => {
           <RefreshCw size={13} strokeWidth={2.2} className={`text-ink-muted ${refreshing ? 'animate-spin' : ''}`} />
         </motion.button>
       </div>
+      )}
 
       {/* List */}
-      {filtered.length === 0 ? (
+      {!openEntry && filtered.length === 0 ? (
         <div className="card p-12 text-center">
           <ShoppingBag size={28} className="mx-auto text-ink-muted mb-3" />
           <p className="text-[15px] font-bold text-ink tracking-tight">Žádné transakce k zobrazení</p>
@@ -469,9 +503,22 @@ const TradesTab: React.FC = () => {
           </motion.button>
         </div>
       ) : (
+        <>
+          {openEntry && (
+            <motion.button
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              whileTap={tap}
+              onClick={() => setOpenKey(null)}
+              className="h-10 px-4 rounded-full bg-subtle hover:bg-bg text-ink text-[13px] font-bold inline-flex items-center gap-1.5 transition-colors self-start"
+            >
+              <ChevronRight size={14} className="rotate-180" />
+              Zpět na všechny obchody
+            </motion.button>
+          )}
         <div className="card p-2">
           <ul className="divide-y divide-line">
-            {filtered.map((e) => {
+            {(openEntry ? [openEntry] : paged).map((e) => {
               const s = STATUS_STYLES[e.status] || STATUS_STYLES.pending;
               const expanded = openKey === e.key;
               return (
@@ -601,6 +648,52 @@ const TradesTab: React.FC = () => {
             })}
           </ul>
         </div>
+
+          {/* Pagination — 10 per page */}
+          {!openEntry && pageCount > 1 && (
+            <div className="flex items-center justify-center gap-1.5 pt-1 flex-wrap">
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="h-9 w-9 rounded-full bg-subtle hover:bg-bg text-ink font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                aria-label="Předchozí stránka"
+              >
+                ‹
+              </button>
+              {Array.from({ length: pageCount }).map((_, i) => {
+                const show =
+                  i === 0 || i === pageCount - 1 || Math.abs(i - page) <= 2;
+                const gapBefore =
+                  !show && (i === 1 || i === pageCount - 2) && pageCount > 7;
+                if (!show)
+                  return gapBefore ? (
+                    <span key={i} className="text-ink-dim text-[12px] px-0.5">…</span>
+                  ) : null;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setPage(i)}
+                    className={`h-9 min-w-9 px-2 rounded-full text-[12.5px] font-bold tabular-nums transition-colors ${
+                      i === page
+                        ? 'bg-accent text-on-accent'
+                        : 'bg-subtle hover:bg-bg text-ink-muted hover:text-ink'
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                disabled={page === pageCount - 1}
+                className="h-9 w-9 rounded-full bg-subtle hover:bg-bg text-ink font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                aria-label="Další stránka"
+              >
+                ›
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
