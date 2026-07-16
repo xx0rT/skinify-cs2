@@ -709,6 +709,16 @@ const overviewChild = {
   shown: { opacity: 1, y: 0, transition: spring },
 };
 
+/* Czech labels for transaction types on the overview list. */
+const TX_TYPE_CS: Record<string, string> = {
+  deposit: 'Vklad',
+  purchase: 'Nákup',
+  sale: 'Prodej',
+  refund: 'Vrácení peněz',
+  withdrawal: 'Výběr',
+  admin_adjustment: 'Úprava účtu',
+};
+
 const OverviewTab: React.FC<{
   balance: number;
   onGoTo: (t: TabId, sub?: string) => void;
@@ -725,6 +735,45 @@ const OverviewTab: React.FC<{
   const tr = useT();
   const navigate = useNavigate();
   const recentTx = (transactions || []).slice(0, 6);
+
+  /* KYC status — the banner used to always say "Dokončit" even for
+     verified users. Seed from the auth store, confirm via sumsub-kyc
+     (same source Settings uses) and flip the row to a success state. */
+  const authUser = useAuthStore((st) => st.user);
+  const patchUser = useAuthStore((st) => (st as any).patchUser);
+  const [kycVerified, setKycVerified] = useState<boolean>(!!(authUser as any)?.kycVerified);
+  useEffect(() => {
+    if (kycVerified) return;
+    let alive = true;
+    (async () => {
+      try {
+        const { getSupabaseCredentials } = await import('../utils/supabaseHelpers');
+        const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+        const steamId = (authUser as any)?.steamId;
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`${supabaseUrl}/functions/v1/sumsub-kyc`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session?.access_token || supabaseKey}`,
+            ...(steamId ? { 'X-Steam-Id': steamId } : {}),
+          },
+          body: JSON.stringify({ action: 'status' }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (alive && res.ok && body?.verified) {
+          setKycVerified(true);
+          patchUser?.({ kycVerified: true });
+        }
+      } catch {
+        /* keep CTA */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <motion.div
@@ -786,7 +835,7 @@ const OverviewTab: React.FC<{
           onClick={() => onGoTo('settings')}
           className="relative h-10 px-4 rounded-full bg-subtle hover:bg-bg text-ink text-[13px] font-bold transition-colors shrink-0"
         >
-          Edit
+          Upravit
         </motion.button>
       </motion.div>
 
@@ -849,8 +898,8 @@ const OverviewTab: React.FC<{
                         }`}
                       />
                       <span className="min-w-0">
-                        <span className="block text-[13px] font-bold text-ink capitalize truncate">
-                          {tx.type}
+                        <span className="block text-[13px] font-bold text-ink truncate">
+                          {TX_TYPE_CS[String(tx.type)] || tx.type}
                         </span>
                         <span className="block text-[11px] text-ink-dim font-medium tabular-nums">
                           {tx.created_at ? new Date(tx.created_at).toLocaleDateString() : '—'}
@@ -889,23 +938,33 @@ const OverviewTab: React.FC<{
       <OverviewRow
         variants={overviewChild}
         Icon={FileCheck}
-        iconClass="text-accent"
-        chipClass="bg-accent-soft"
+        iconClass={kycVerified ? 'text-emerald-600 dark:text-emerald-400' : 'text-accent'}
+        chipClass={kycVerified ? 'bg-emerald-500/12' : 'bg-accent-soft'}
         label={tr('profile.kyc.title', 'Identity Verification')}
-        text={tr('profile.kyc.text', 'Complete KYC to enjoy limitless trading.')}
+        text={
+          kycVerified
+            ? 'Vaše totožnost je ověřená — můžete obchodovat bez limitů.'
+            : tr('profile.kyc.text', 'Complete KYC to enjoy limitless trading.')
+        }
         action={
-          <motion.button
-            whileTap={tap}
-            onClick={() =>
-              /* Go to Settings → Account AND flag `verify=1` so the KYC
-                 section auto-launches the Sumsub flow (previously this just
-                 switched tabs and did nothing). */
-              navigate('/profile?tab=settings&sub=profile&verify=1')
-            }
-            className="h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold transition-opacity hover:opacity-90"
-          >
-            {tr('profile.kyc.cta', 'Complete')}
-          </motion.button>
+          kycVerified ? (
+            <span className="h-10 px-4 rounded-full bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 text-[13px] font-bold inline-flex items-center">
+              Ověřeno
+            </span>
+          ) : (
+            <motion.button
+              whileTap={tap}
+              onClick={() =>
+                /* Go to Settings → Account AND flag `verify=1` so the KYC
+                   section auto-launches the Sumsub flow (previously this just
+                   switched tabs and did nothing). */
+                navigate('/profile?tab=settings&sub=profile&verify=1')
+              }
+              className="h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold transition-opacity hover:opacity-90"
+            >
+              {tr('profile.kyc.cta', 'Complete')}
+            </motion.button>
+          )
         }
       />
 
@@ -962,7 +1021,7 @@ const OverviewTab: React.FC<{
 
       {/* ── Notifications ── */}
       <motion.div variants={overviewChild} className="label-eyebrow pt-4 pb-1">
-        Notifications
+        Oznámení
       </motion.div>
 
       <OverviewRow
@@ -976,7 +1035,7 @@ const OverviewTab: React.FC<{
             onClick={() => onGoTo('settings', 'notifications')}
             className="h-10 px-4 rounded-full bg-subtle hover:bg-bg text-ink text-[13px] font-bold transition-colors"
           >
-            Manage
+            Spravovat
           </motion.button>
         }
       />
