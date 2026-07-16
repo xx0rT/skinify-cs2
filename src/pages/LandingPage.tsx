@@ -444,12 +444,6 @@ const LandingPage: React.FC = () => {
           <LandingSeoBlock isCS={isCS} faq={isCS ? LANDING_FAQ_CS : LANDING_FAQ} />
         </Reveal>
 
-        {/* ===== 6b · TRUSTPILOT — reviews widget filling the gap under
-            the SEO block; users can rate directly through it. ===== */}
-        <Reveal className="mt-12">
-          <TrustpilotSection isCS={isCS} />
-        </Reveal>
-
         {/* ===== 7 · PROMO BANNER — the purple Skinify banner, at the very
             bottom as a closing call-to-action. Sitewide flag (Admin →
             Developer) can switch it off. ===== */}
@@ -1070,51 +1064,6 @@ const Linkified: React.FC<{ text: string }> = ({ text }) => (
   </>
 );
 
-/* ─────────────────────────────────────────────────────────────────────────
-   TrustpilotSection — official Trustpilot "review collector" TrustBox.
-   Users can rate Skinify directly from the widget. The loader script is
-   in index.html; we re-init on mount so the widget renders in the SPA
-   (Trustpilot only auto-scans on first page load).
-
-   Replace TEMPLATE_ID / BUSINESS_UNIT_ID once the real Trustpilot
-   business profile is created (Trustpilot → Integrations → TrustBox).
-   Until then the widget shows Trustpilot's "no reviews yet" state.
-   ───────────────────────────────────────────────────────────────────────── */
-const TrustpilotSection: React.FC<{ isCS: boolean }> = ({ isCS }) => {
-  const ref = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const tp = (window as any).Trustpilot;
-    if (tp && ref.current) tp.loadFromElement(ref.current, true);
-  }, []);
-  return (
-    <section className="panel p-6 sm:p-8 text-center">
-      <span className="label-eyebrow">{isCS ? 'Hodnocení' : 'Reviews'}</span>
-      <h3 className="text-[22px] sm:text-[26px] font-bold text-ink tracking-tight mt-1.5 mb-5">
-        {isCS ? 'Co říkají obchodníci na Skinify' : 'What traders say about Skinify'}
-      </h3>
-      {/* TrustBox "Review Collector" — has a built-in "Write a review" CTA */}
-      <div
-        ref={ref}
-        className="trustpilot-widget"
-        data-locale={isCS ? 'cs-CZ' : 'en-US'}
-        data-template-id="56278e9abfbbba0bdcd568bc"
-        data-businessunit-id="000000000000000000000000"
-        data-style-height="52px"
-        data-style-width="100%"
-      >
-        <a
-          href="https://www.trustpilot.com/review/skinify.gg"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[13.5px] font-bold text-accent hover:opacity-80 transition-opacity"
-        >
-          {isCS ? 'Ohodnoťte nás na Trustpilotu →' : 'Rate us on Trustpilot →'}
-        </a>
-      </div>
-    </section>
-  );
-};
-
 const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer: string }[] }> = ({
   isCS,
   faq,
@@ -1174,6 +1123,52 @@ const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer
               </div>
             ))}
           </div>
+
+          {/* Trustpilot — fills the dead space under the essay sub-sections.
+              Logo + a short line, whole card links to the review page. */}
+          <a
+            href="https://www.trustpilot.com/review/skinify.gg"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group mt-12 block rounded-3xl ring-1 ring-line bg-surface hover:bg-subtle/50 transition-colors p-6 sm:p-7"
+          >
+            <div className="flex items-center gap-5">
+              <img
+                src="/trustpilot-logo.png"
+                alt="Trustpilot"
+                className="w-16 h-16 sm:w-[72px] sm:h-[72px] shrink-0 object-contain"
+                loading="lazy"
+              />
+              <div className="min-w-0">
+                <div className="flex items-center gap-1 mb-1.5">
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <span
+                      key={i}
+                      className="w-6 h-6 grid place-items-center rounded-[3px]"
+                      style={{ background: '#00b67a' }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff" aria-hidden>
+                        <path d="M12 2l2.9 6.9L22 9.6l-5.4 4.7L18.2 22 12 18.1 5.8 22l1.6-7.7L2 9.6l7.1-.7z" />
+                      </svg>
+                    </span>
+                  ))}
+                </div>
+                <div className="text-[16px] font-bold text-ink tracking-tight group-hover:text-accent transition-colors">
+                  {isCS ? 'Ohodnoťte nás na Trustpilotu' : 'Rate us on Trustpilot'}
+                </div>
+                <p className="text-[13px] text-ink-muted font-medium mt-1 leading-relaxed">
+                  {isCS
+                    ? 'Obchodujete na Skinify? Podělte se o zkušenost a pomozte ostatním hráčům nakupovat s klidem.'
+                    : 'Trade on Skinify? Share your experience and help fellow players buy with confidence.'}
+                </p>
+              </div>
+              <ArrowRight
+                size={18}
+                strokeWidth={2.4}
+                className="ml-auto shrink-0 text-ink-dim group-hover:text-accent group-hover:translate-x-0.5 transition-all hidden sm:block"
+              />
+            </div>
+          </a>
         </div>
 
         {/* Blog rail — thumbnail cards stretched to the full height of the
