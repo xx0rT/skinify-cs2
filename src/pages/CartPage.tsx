@@ -12,7 +12,6 @@ import {
   ArrowRight,
   Plus,
   Minus,
-  Sparkles,
   X,
   Zap,
 } from 'lucide-react';
@@ -199,12 +198,12 @@ const CartPage: React.FC = () => {
               <div className="icon-chip-lg mx-auto mb-5 bg-accent-soft">
                 <ShoppingCart size={24} className="text-accent" />
               </div>
-              <span className="label-eyebrow">Cart</span>
+              <span className="label-eyebrow">Košík</span>
               <h1 className="text-[26px] sm:text-[32px] font-bold tracking-tight mt-2 leading-none">
-                Your cart is empty
+                Váš košík je prázdný
               </h1>
               <p className="text-[14px] text-ink-muted font-medium mt-3 max-w-md mx-auto">
-                Browse the marketplace, add the skins you want, and check out in one go.
+                Projděte tržiště, přidejte skiny, které chcete, a zaplaťte vše najednou.
               </p>
               <motion.button
                 whileTap={tap}
@@ -213,7 +212,7 @@ const CartPage: React.FC = () => {
                 className="mt-7 h-12 px-6 rounded-full bg-accent text-on-accent font-bold text-[14px] inline-flex items-center gap-2"
                 style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.6)' }}
               >
-                Browse marketplace <ArrowRight size={15} strokeWidth={2.4} />
+                Otevřít tržiště <ArrowRight size={15} strokeWidth={2.4} />
               </motion.button>
             </div>
           </motion.div>
@@ -249,12 +248,12 @@ const CartPage: React.FC = () => {
           />
           <div className="relative flex items-end justify-between flex-wrap gap-3">
             <div>
-              <span className="label-eyebrow">Checkout</span>
+              <span className="label-eyebrow">Pokladna</span>
               <h1 className="text-[26px] sm:text-[32px] font-bold tracking-tight mt-1.5 leading-none">
-                Your cart
+                Váš košík
               </h1>
               <p className="text-[13px] text-ink-muted font-medium mt-2">
-                {items.length} {items.length === 1 ? 'item' : 'items'} · {formatPrice(subtotal)}
+                {items.length} {items.length === 1 ? 'položka' : items.length <= 4 ? 'položky' : 'položek'} · {formatPrice(subtotal)}
               </p>
             </div>
             <motion.button
@@ -263,7 +262,7 @@ const CartPage: React.FC = () => {
               className="h-10 px-4 rounded-full bg-subtle hover:bg-bg flex items-center gap-1.5 text-[13px] text-ink-muted hover:text-ink font-semibold transition-colors"
             >
               <Trash2 size={13} strokeWidth={2.2} />
-              Clear cart
+              Vysypat košík
             </motion.button>
           </div>
         </motion.div>
@@ -329,7 +328,7 @@ const CartPage: React.FC = () => {
                       </h3>
                       {item.seller?.name && (
                         <p className="text-[12px] text-ink-muted font-medium mt-1 truncate">
-                          Seller · {item.seller.name}
+                          Prodejce · {item.seller.name}
                         </p>
                       )}
                     </div>
@@ -342,7 +341,7 @@ const CartPage: React.FC = () => {
                       whileTap={tap}
                       onClick={() => removeItem(item.id)}
                       className="h-10 w-10 shrink-0 rounded-full bg-subtle hover:bg-rose-500/15 text-ink-muted hover:text-rose-500 grid place-items-center transition-colors"
-                      title="Remove"
+                      title="Odebrat"
                     >
                       <Trash2 size={14} strokeWidth={2.2} />
                     </motion.button>
@@ -358,7 +357,7 @@ const CartPage: React.FC = () => {
               className="w-full h-12 mt-3 rounded-3xl bg-subtle hover:bg-bg text-ink text-[13.5px] font-bold flex items-center justify-center gap-2 transition-colors"
             >
               <ShoppingCart size={14} strokeWidth={2.2} />
-              Continue browsing
+              Pokračovat v nákupu
             </motion.button>
           </section>
 
@@ -368,15 +367,45 @@ const CartPage: React.FC = () => {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ ...spring, delay: 0.08 }}
-              className="card p-6"
+              className="card p-6 relative overflow-hidden"
             >
-              <span className="label-eyebrow">Summary</span>
-              <h2 className="text-[17px] font-bold tracking-tight mt-1.5 leading-none mb-5">
-                Order details
-              </h2>
+              {/* Accent wash — gives the summary visual weight without
+                  extra boxes. */}
+              <div
+                aria-hidden
+                className="absolute inset-x-0 top-0 h-28 pointer-events-none"
+                style={{
+                  background:
+                    'linear-gradient(180deg, rgb(var(--accent) / 0.12) 0%, transparent 100%)',
+                }}
+              />
+              <div className="relative flex items-start justify-between gap-3">
+                <div>
+                  <span className="label-eyebrow">Souhrn</span>
+                  <h2 className="text-[17px] font-bold tracking-tight mt-1.5 leading-none mb-5">
+                    Detail objednávky
+                  </h2>
+                </div>
+                {/* Overlapping item thumbnails */}
+                <div className="flex -space-x-3 shrink-0">
+                  {items.slice(0, 4).map((it) => (
+                    <span
+                      key={it.id}
+                      className="w-10 h-10 rounded-full bg-subtle ring-2 ring-surface overflow-hidden grid place-items-center"
+                    >
+                      <CachedImage src={it.image} alt="" className="w-[78%] h-[78%] object-contain" />
+                    </span>
+                  ))}
+                  {items.length > 4 && (
+                    <span className="w-10 h-10 rounded-full bg-accent text-on-accent ring-2 ring-surface grid place-items-center text-[11px] font-bold tabular-nums">
+                      +{items.length - 4}
+                    </span>
+                  )}
+                </div>
+              </div>
 
               <div className="space-y-2.5 text-[13.5px]">
-                <Row label={`Subtotal (${items.length})`} value={formatPrice(subtotal)} />
+                <Row label={`Mezisoučet (${items.length})`} value={formatPrice(subtotal)} />
                 <AnimatePresence>
                   {appliedPromo && (
                     <motion.div
@@ -386,20 +415,20 @@ const CartPage: React.FC = () => {
                       className="overflow-hidden"
                     >
                       <Row
-                        label={`Discount · ${appliedPromo.code}`}
+                        label={`Sleva · ${appliedPromo.code}`}
                         value={`−${formatPrice(discount)}`}
                         valueClass="text-emerald-600 dark:text-emerald-400"
                       />
                     </motion.div>
                   )}
                 </AnimatePresence>
-                <Row label="Marketplace fee" value="0%" valueClass="text-emerald-600 dark:text-emerald-400" />
+                <Row label="Poplatek tržiště" value="0 %" valueClass="text-emerald-600 dark:text-emerald-400" />
               </div>
 
               <div className="my-4 border-t border-line" />
 
               <div className="flex items-baseline justify-between mb-5">
-                <span className="label-eyebrow">Total</span>
+                <span className="label-eyebrow">Celkem</span>
                 <motion.span
                   key={total}
                   initial={{ scale: 0.94, opacity: 0.5 }}
@@ -419,7 +448,7 @@ const CartPage: React.FC = () => {
                     value={promo}
                     onChange={(e) => setPromo(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && applyPromo()}
-                    placeholder="Promo code"
+                    placeholder="Promo kód"
                     className="flex-1 bg-transparent outline-none text-ink placeholder:text-ink-dim text-[13px] font-bold uppercase tracking-wider"
                   />
                 </div>
@@ -428,7 +457,7 @@ const CartPage: React.FC = () => {
                   onClick={applyPromo}
                   className="h-11 px-4 rounded-full bg-subtle hover:bg-bg text-ink text-[12.5px] font-bold transition-colors"
                 >
-                  Apply
+                  Použít
                 </motion.button>
               </div>
 
@@ -441,12 +470,22 @@ const CartPage: React.FC = () => {
                 style={{ boxShadow: '0 10px 24px -10px rgb(var(--accent) / 0.6)' }}
               >
                 <Lock size={14} strokeWidth={2.4} />
-                Secure checkout
+                Bezpečně zaplatit
               </motion.button>
+
+              {/* Trust — one quiet line instead of a whole box; details
+                  live in the FAQ. */}
+              <p className="mt-3.5 text-[12px] text-ink-dim font-medium text-center">
+                <Shield size={11} strokeWidth={2.4} className="inline -mt-0.5 mr-1 text-accent" />
+                Platba je chráněna escrow úschovou.{' '}
+                <a href="/faq" className="text-accent font-semibold hover:underline">
+                  Jak funguje ochrana?
+                </a>
+              </p>
 
               {user && (
                 <div className="mt-3.5 flex items-center justify-between text-[12.5px] font-medium">
-                  <span className="text-ink-muted">Balance after</span>
+                  <span className="text-ink-muted">Zůstatek po nákupu</span>
                   <span
                     className={
                       canAfford ? 'text-ink-muted font-semibold tabular-nums' : 'text-rose-500 font-bold tabular-nums'
@@ -458,7 +497,7 @@ const CartPage: React.FC = () => {
                         onClick={() => navigate('/profile?tab=balance')}
                         className="ml-2 text-accent hover:underline font-bold"
                       >
-                        Refill
+                        Dobít
                       </button>
                     )}
                   </span>
@@ -466,28 +505,7 @@ const CartPage: React.FC = () => {
               )}
             </motion.section>
 
-            <motion.section
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ ...spring, delay: 0.12 }}
-              className="card p-5"
-            >
-              <span className="label-eyebrow">Why you're protected</span>
-              <ul className="mt-3 space-y-2.5">
-                {[
-                  { Icon: Shield, label: 'Escrow until you confirm receipt' },
-                  { Icon: CheckCircle2, label: 'Refunded if any seller fails' },
-                  { Icon: Sparkles, label: 'Items remain tradable on Steam' },
-                ].map(({ Icon, label }) => (
-                  <li key={label} className="flex items-center gap-2.5 text-[13px] text-ink-muted font-medium">
-                    <div className="icon-chip-sm bg-accent-soft shrink-0">
-                      <Icon size={13} strokeWidth={2.2} className="text-accent" />
-                    </div>
-                    <span>{label}</span>
-                  </li>
-                ))}
-              </ul>
-            </motion.section>
+
           </aside>
         </div>
       </main>
@@ -500,12 +518,12 @@ const CartPage: React.FC = () => {
         onConfirm={() => {
           clearCart();
           setConfirmClearOpen(false);
-          addToast({ type: 'info', title: 'Cart cleared' });
+          addToast({ type: 'info', title: 'Košík vysypán' });
         }}
-        title="Clear cart?"
-        message="This will remove all items from your cart."
-        confirmText="Clear"
-        cancelText="Keep"
+        title="Vysypat košík?"
+        message="Z košíku se odeberou všechny položky."
+        confirmText="Vysypat"
+        cancelText="Ponechat"
         variant="warning"
       />
 
