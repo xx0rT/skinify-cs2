@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Save, Eye, Palette, Code, Download, Upload, Heart, Maximize2, Minimize2, Store, Sparkles, Image as ImageIcon, Share2, Copy, Check, Grid2x2 as Grid, List } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuthStore } from '../../store/authStore';
+import { sanitizeCss } from '../../utils/sanitizeCss';
 
 interface Shop {
   id: string;
@@ -863,7 +864,7 @@ const VisualShopEditor: React.FC<VisualShopEditorProps> = ({ shop, onClose }) =>
                 </div>
 
                 <div className="flex-1 overflow-auto">
-                  <style dangerouslySetInnerHTML={{ __html: formData.custom_css || '' }} />
+                  <style dangerouslySetInnerHTML={{ __html: sanitizeCss(formData.custom_css) }} />
 
                   {/* 1:1 Replica of UserShopPage */}
                   <div className="min-h-screen bg-gray-900">

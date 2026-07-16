@@ -38,6 +38,7 @@ import { useCartStore } from '../store/cartStore';
 import ShopItemModal from '../components/marketplace/ShopItemModal';
 import { spring, tap } from '../lib/motion';
 import useDocumentMeta from '../hooks/useDocumentMeta';
+import { sanitizeCss } from '../utils/sanitizeCss';
 
 /* ─────────────────────────────────────────────────────────────────────────
    UserShopPage — public shop hosted at /shop/:shopUrl
@@ -635,10 +636,12 @@ const UserShopPage: React.FC = () => {
           editor placeholder. */}
       {view.custom_css && (
         <style
-          /* Strip any literal `</style>` so a malformed user rule can't
-             escape the tag and break HTML parsing. */
+          /* Owner CSS is injected into a <style> on this PUBLIC page, so a
+             malicious owner could stored-XSS every visitor. sanitizeCss
+             removes all tag-breakout + script vectors (the old single
+             `</style>` regex was trivially bypassable). */
           dangerouslySetInnerHTML={{
-            __html: view.custom_css.replace(/<\/style>/gi, ''),
+            __html: sanitizeCss(view.custom_css),
           }}
         />
       )}
@@ -1311,8 +1314,17 @@ const UserShopPage: React.FC = () => {
                     alt={view.shop_name}
                     className="w-full h-full object-cover"
                     onError={(e) => {
+                      /* accent_color is owner-controlled; injecting it raw
+                         into innerHTML is stored-XSS if it isn't a real
+                         colour. Only allow a hex/rgb/hsl token, else fall
+                         back to a safe default. */
+                      const safeColor = /^(#[0-9a-fA-F]{3,8}|rgb[a]?\([0-9.,\s%]+\)|hsl[a]?\([0-9.,\s%]+\))$/.test(
+                        String(view.accent_color || ''),
+                      )
+                        ? view.accent_color
+                        : '#8b49f2';
                       (e.currentTarget.parentNode as HTMLElement).innerHTML =
-                        `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="${view.accent_color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7l2-3h16l2 3v3a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0V7zM4 12v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8"/></svg>`;
+                        `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="${safeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7l2-3h16l2 3v3a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0V7zM4 12v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8"/></svg>`;
                     }}
                   />
                 ) : (

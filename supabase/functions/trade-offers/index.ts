@@ -375,8 +375,15 @@ async function cancelTradeOffer(supabaseClient: any, request: CancelTradeRequest
  */
 async function getTradeOffers(supabaseClient: any, steamId: string, filter?: string) {
   console.log('=== FETCHING TRADE OFFERS ===');
-  console.log('Steam ID:', steamId);
   console.log('Filter:', filter);
+
+  /* SECURITY: steamId is interpolated into a PostgREST .or() filter, so a
+     non-numeric value could inject extra filter clauses and read other
+     users' offers. A Steam ID64 is exactly 17 digits — reject anything
+     else before it reaches the query string. */
+  if (!/^\d{17}$/.test(String(steamId))) {
+    throw new Error('Invalid steamId');
+  }
 
   let query = supabaseClient
     .from('trade_offers')

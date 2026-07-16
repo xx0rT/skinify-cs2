@@ -1235,6 +1235,17 @@ Deno.serve(async (req) => {
         );
       }
 
+      /* SECURITY: steamId is interpolated into a PostgREST .or() ownership
+         filter below. Reject anything that isn't a 17-digit Steam ID64 so
+         it can't inject extra filter clauses and update other users'
+         orders. */
+      if (!/^\d{17}$/.test(String(steamId))) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid steam_id' }),
+          { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+        );
+      }
+
       const updateData = await req.json();
 
       console.log('=== ORDER UPDATE REQUEST ===');

@@ -182,16 +182,23 @@ Deno.serve(async (req) => {
 
     console.log(`=== FETCHING USER PROFILE FOR ${steamId} ===`);
 
+    /* PII minimisation: this GET is public (called with the anon key for
+       seller avatars/cards), so it must return ONLY non-sensitive public
+       fields. Never `select('*')` here — the row also holds email,
+       balances and the trade_link. The trade_link in particular is a
+       Steam partner token that lets anyone send the user trade offers, so
+       it is deliberately excluded from the public response (the owner
+       reads their own via an authenticated path). */
     const { data: user, error } = await supabase
       .from('users')
-      .select('*')
+      .select('steam_id, display_name, avatar_url, created_at, last_login')
       .eq('steam_id', steamId)
       .single();
 
     if (error) {
       console.error('User not found:', error);
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: 'User not found',
           steam_id: steamId
         }),
@@ -205,7 +212,6 @@ Deno.serve(async (req) => {
           steam_id: user.steam_id,
           display_name: user.display_name,
           avatar_url: user.avatar_url,
-          trade_link: user.trade_link,
           created_at: user.created_at,
           last_login: user.last_login
         },
