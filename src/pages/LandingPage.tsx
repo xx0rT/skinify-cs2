@@ -1196,7 +1196,7 @@ const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer
                 <div className="relative flex-1 min-h-[110px] overflow-hidden" style={{ background: '#0b0714' }}>
                   <img
                     src={b.img}
-                    alt=""
+                    alt={b.title}
                     className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
                     loading="lazy"
                     draggable={false}

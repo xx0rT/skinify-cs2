@@ -2,8 +2,20 @@
   command = "npm run build"
   publish = "dist"
 
+# ── Bot prerendering ─────────────────────────────────────────────────
+# This is a client-rendered React SPA: the source #root is empty and all
+# content is built by JS. Search + AI crawlers that don't execute JS
+# (GPTBot, ClaudeBot, PerplexityBot, Bingbot, Seznam) would otherwise see
+# a blank page. Netlify Prerendering serves a fully-rendered HTML snapshot
+# to bot user-agents from Netlify's infra — no headless Chrome in our own
+# build, so it can't break CI.
+#   NOTE: also enable Prerendering in the Netlify UI
+#   (Site settings → Build & deploy → Prerendering → Enable),
+#   the env flag alone is not always sufficient.
+
 [build.environment]
   NODE_VERSION = "18"
+  NETLIFY_PRERENDER = "true"
   # Allow Supabase anon key in build output (it's meant to be public for client-side apps)
   SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_ANON_KEY"
 
