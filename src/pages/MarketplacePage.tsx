@@ -379,7 +379,7 @@ const MarketplacePage: React.FC = () => {
     <div className="min-h-screen bg-bg text-ink">
       <LandingNav />
 
-      <main className="max-w-[1480px] mx-auto px-4 sm:px-6 pt-4 pb-16">
+      <main className="max-w-none mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-16">
         {/* ===== HEADER ===== */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -1042,8 +1042,8 @@ const MarketplacePage: React.FC = () => {
                          the cards a consistent visual size regardless of
                          the sidebar state. */
                       filtersOpen
-                        ? 'lg:grid-cols-4 xl:grid-cols-5'
-                        : 'lg:grid-cols-5 xl:grid-cols-6'
+                        ? 'lg:grid-cols-5 xl:grid-cols-7 2xl:grid-cols-8'
+                        : 'lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10'
                     }`
                     : 'space-y-2'
                 }
@@ -1089,8 +1089,8 @@ const MarketplacePage: React.FC = () => {
                      Filters open  → sidebar eats ~280px → 5 cols at xl.
                      Filters closed → full width → 6 cols at xl. */
                   filtersOpen
-                    ? 'lg:grid-cols-4 xl:grid-cols-5'
-                    : 'lg:grid-cols-5 xl:grid-cols-6'
+                    ? 'lg:grid-cols-5 xl:grid-cols-7 2xl:grid-cols-8'
+                    : 'lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10'
                 }`}
               >
                 {displayItems.map((item: any) => {

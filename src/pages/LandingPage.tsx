@@ -1064,6 +1064,56 @@ const Linkified: React.FC<{ text: string }> = ({ text }) => (
   </>
 );
 
+/* TrustpilotCard — review CTA that fills the gap in the SEO block. The
+   logo star is dark, so it sits on a white rounded tile to stay legible on
+   the dark theme. Whole card links to the review page. */
+const TrustpilotCard: React.FC<{ isCS: boolean }> = ({ isCS }) => (
+  <a
+    href="https://www.trustpilot.com/review/skinify.gg"
+    target="_blank"
+    rel="noopener noreferrer"
+    className="group self-start rounded-3xl ring-1 ring-line bg-surface hover:bg-subtle/50 transition-colors p-5 sm:p-6 flex flex-col"
+  >
+    <div className="flex items-center gap-4">
+      {/* White tile so the dark Trustpilot star reads on the dark theme */}
+      <span className="w-14 h-14 shrink-0 rounded-2xl bg-white grid place-items-center shadow-sm">
+        <img
+          src="/trustpilot-logo.png"
+          alt="Trustpilot"
+          className="w-9 h-9 object-contain"
+          loading="lazy"
+        />
+      </span>
+      <div className="flex items-center gap-1">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <span
+            key={i}
+            className="w-6 h-6 grid place-items-center rounded-[3px]"
+            style={{ background: '#00b67a' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff" aria-hidden>
+              <path d="M12 2l2.9 6.9L22 9.6l-5.4 4.7L18.2 22 12 18.1 5.8 22l1.6-7.7L2 9.6l7.1-.7z" />
+            </svg>
+          </span>
+        ))}
+      </div>
+    </div>
+    <div className="text-[16px] font-bold text-ink tracking-tight mt-4 group-hover:text-accent transition-colors inline-flex items-center gap-1.5">
+      {isCS ? 'Ohodnoťte nás na Trustpilotu' : 'Rate us on Trustpilot'}
+      <ArrowRight
+        size={16}
+        strokeWidth={2.4}
+        className="text-ink-dim group-hover:text-accent group-hover:translate-x-0.5 transition-all"
+      />
+    </div>
+    <p className="text-[13px] text-ink-muted font-medium mt-1.5 leading-relaxed">
+      {isCS
+        ? 'Obchodujete na Skinify? Podělte se o zkušenost a pomozte ostatním hráčům nakupovat s klidem.'
+        : 'Trade on Skinify? Share your experience and help fellow players buy with confidence.'}
+    </p>
+  </a>
+);
+
 const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer: string }[] }> = ({
   isCS,
   faq,
@@ -1110,65 +1160,34 @@ const LandingSeoBlock: React.FC<{ isCS: boolean; faq: { question: string; answer
             ))}
           </div>
 
-          {/* Remaining sections — two columns inside the essay area. */}
+          {/* Remaining sections — two columns inside the essay area. The
+              Trustpilot card is injected as the SECOND cell so it fills the
+              empty space to the right of the first sub-section instead of
+              sitting as dead width below the text. */}
           <div className="mt-12 grid xl:grid-cols-2 gap-x-12 gap-y-10">
-            {sections.slice(1).map((sec) => (
-              <div key={sec.h}>
-                <h3 className="text-[19px] font-bold text-ink tracking-tight">{sec.h}</h3>
-                {sec.p.map((para, i) => (
-                  <p key={i} className="text-[15px] text-ink-muted font-medium mt-3 leading-[1.85]">
-                    <Linkified text={para} />
-                  </p>
-                ))}
-              </div>
-            ))}
+            {(() => {
+              const subs = sections.slice(1);
+              const out: React.ReactNode[] = [];
+              subs.forEach((sec, idx) => {
+                out.push(
+                  <div key={sec.h}>
+                    <h3 className="text-[19px] font-bold text-ink tracking-tight">{sec.h}</h3>
+                    {sec.p.map((para, i) => (
+                      <p key={i} className="text-[15px] text-ink-muted font-medium mt-3 leading-[1.85]">
+                        <Linkified text={para} />
+                      </p>
+                    ))}
+                  </div>,
+                );
+                /* After the first sub-section, drop the Trustpilot card into
+                   the neighbouring column so the right-hand gap is filled. */
+                if (idx === 0) {
+                  out.push(<TrustpilotCard key="trustpilot" isCS={isCS} />);
+                }
+              });
+              return out;
+            })()}
           </div>
-
-          {/* Trustpilot — fills the dead space under the essay sub-sections.
-              Logo + a short line, whole card links to the review page. */}
-          <a
-            href="https://www.trustpilot.com/review/skinify.gg"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group mt-12 block rounded-3xl ring-1 ring-line bg-surface hover:bg-subtle/50 transition-colors p-6 sm:p-7"
-          >
-            <div className="flex items-center gap-5">
-              <img
-                src="/trustpilot-logo.png"
-                alt="Trustpilot"
-                className="w-16 h-16 sm:w-[72px] sm:h-[72px] shrink-0 object-contain"
-                loading="lazy"
-              />
-              <div className="min-w-0">
-                <div className="flex items-center gap-1 mb-1.5">
-                  {[0, 1, 2, 3, 4].map((i) => (
-                    <span
-                      key={i}
-                      className="w-6 h-6 grid place-items-center rounded-[3px]"
-                      style={{ background: '#00b67a' }}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff" aria-hidden>
-                        <path d="M12 2l2.9 6.9L22 9.6l-5.4 4.7L18.2 22 12 18.1 5.8 22l1.6-7.7L2 9.6l7.1-.7z" />
-                      </svg>
-                    </span>
-                  ))}
-                </div>
-                <div className="text-[16px] font-bold text-ink tracking-tight group-hover:text-accent transition-colors">
-                  {isCS ? 'Ohodnoťte nás na Trustpilotu' : 'Rate us on Trustpilot'}
-                </div>
-                <p className="text-[13px] text-ink-muted font-medium mt-1 leading-relaxed">
-                  {isCS
-                    ? 'Obchodujete na Skinify? Podělte se o zkušenost a pomozte ostatním hráčům nakupovat s klidem.'
-                    : 'Trade on Skinify? Share your experience and help fellow players buy with confidence.'}
-                </p>
-              </div>
-              <ArrowRight
-                size={18}
-                strokeWidth={2.4}
-                className="ml-auto shrink-0 text-ink-dim group-hover:text-accent group-hover:translate-x-0.5 transition-all hidden sm:block"
-              />
-            </div>
-          </a>
         </div>
 
         {/* Blog rail — thumbnail cards stretched to the full height of the
