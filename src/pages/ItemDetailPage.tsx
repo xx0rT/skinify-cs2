@@ -358,8 +358,6 @@ const ItemDetailPage: React.FC = () => {
             condition: item.condition,
             rarity: item.rarity,
             sellerName: item.seller?.name,
-            rating: 4.9,
-            ratingCount: 128,
           }),
           breadcrumbJsonLd([
             { name: 'Home', url: 'https://skinify.gg/' },

@@ -41,15 +41,25 @@ function applyGoogleTranslate(code: string) {
     /* private mode — ignore */
   }
   /* Mirror the chosen language to <html lang="…"> so screen readers
-     and Google's crawler see the right value. This is the only side
-     effect we need; the React tree re-renders via the zustand state
-     update automatically. */
+     and Google's crawler see the right value.
+
+     CRITICAL: only ever set a lang code we actually SHIP a dictionary
+     for. The picker advertises ~20 languages but only en/cs/de/ru have
+     real translations — everything else renders English via the
+     createTranslations() fallback. Setting <html lang="fr"> while the
+     visible text is English tells crawlers the wrong language (the bug
+     an SEO audit flagged). Fall back to 'en' for any unsupported code. */
   try {
-    document.documentElement.lang = code || 'en';
+    const htmlLang = TRANSLATED_LANGS.has(code) ? code : 'en';
+    document.documentElement.lang = htmlLang;
   } catch {
     /* extremely defensive — DOM should always be available here */
   }
 }
+
+/* Languages that have a real dictionary in data/translations.ts. Keep in
+   sync when a new locale is fully translated. */
+export const TRANSLATED_LANGS = new Set(['en', 'cs', 'de', 'ru']);
 
 export interface Language {
   code: string;

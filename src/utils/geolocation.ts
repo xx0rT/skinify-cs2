@@ -291,7 +291,13 @@ export const detectGeoForUser = async (): Promise<DetectedGeo | null> => {
 
   const currencyCode = countryCurrencyMap[countryCode];
   const currency = currencyCode ? currencies.find((c) => c.code === currencyCode) || null : null;
-  const languageCode = countryLangMap[countryCode] || null;
+  /* Only surface a language we actually ship a dictionary for. The map
+     covers many locales, but untranslated ones (fr/it/es/pt/pl/tr/ar…)
+     would set <html lang> to a language whose content is really English
+     — an SEO signal bug. Fall back to English for those. */
+  const rawLang = countryLangMap[countryCode] || null;
+  const TRANSLATED = new Set(['en', 'cs', 'de', 'ru']);
+  const languageCode = rawLang && TRANSLATED.has(rawLang) ? rawLang : null;
 
   return { countryCode, currency, languageCode };
 };
