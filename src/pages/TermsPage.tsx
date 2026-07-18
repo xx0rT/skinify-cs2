@@ -83,7 +83,7 @@ const sections: LegalSection[] = [
     body: (
       <>
         <p>
-          Online platby zpracovává společnost <span className="font-semibold text-ink">PayU S.A.</span>,
+          Online platby zpracovává společnost <span className="font-semibold text-ink">Stripe Payments Europe, Ltd.</span>,
           licencovaná platební instituce. Skinify neukládá údaje o vaší platební kartě — veškerá
           platební data zpracovává přímo poskytovatel plateb v prostředí odpovídajícím standardu
           PCI-DSS.
@@ -142,7 +142,7 @@ const sections: LegalSection[] = [
         <ul className="list-disc pl-5 space-y-1.5">
           <li>Odstoupení zašlete e-mailem na <span className="text-ink font-semibold">support@skinify.gg</span>, nebo písemně na adresu níže</li>
           <li>Uveďte číslo objednávky, datum nákupu a číslo účtu pro vrácení peněz</li>
-          <li>Peníze vracíme do 14 dnů od odstoupení, stejnou platební metodou přes PayU</li>
+          <li>Peníze vracíme do 14 dnů od odstoupení, stejnou platební metodou přes Stripe</li>
           <li>Nevyčerpaný zůstatek účtu si můžete kdykoli vybrat zpět dle Zásad vracení peněz</li>
         </ul>
         <p>
@@ -166,7 +166,7 @@ const sections: LegalSection[] = [
         <ul className="list-disc pl-5 space-y-1.5">
           <li>Přijetí reklamace potvrdíme do 24–48 hodin</li>
           <li>Reklamaci vyřídíme bez zbytečného odkladu, nejpozději do <span className="font-semibold text-ink">30 dnů</span> od uplatnění</li>
-          <li>V případě uznání vracíme peníze na zůstatek nebo původní platební metodou přes PayU</li>
+          <li>V případě uznání vracíme peníze na zůstatek nebo původní platební metodou přes Stripe</li>
         </ul>
         <p className="font-semibold text-ink pt-2">Kontakt pro reklamace:</p>
         <ul className="list-none space-y-1.5">
@@ -233,7 +233,7 @@ const TermsPage: React.FC = () => {
   useDocumentMeta({
     title: 'Obchodní podmínky · Skinify',
     description:
-      'Obchodní podmínky platformy Skinify — pravidla účtu a tržiště, platby přes PayU, doba zpracování objednávky, odstoupení od smlouvy a reklamační řád.',
+      'Obchodní podmínky platformy Skinify — pravidla účtu a tržiště, platby přes Stripe, doba zpracování objednávky, odstoupení od smlouvy a reklamační řád.',
     canonical: 'https://skinify.gg/terms',
   });
   return (

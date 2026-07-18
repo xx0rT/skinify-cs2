@@ -5,7 +5,7 @@ import useDocumentMeta from '../hooks/useDocumentMeta';
 
 /* Zásady vracení peněz — v ČEŠTINĚ (PayU: jazyk webu musí odpovídat měně).
    Obsahuje postup vrácení, lhůty v pracovních dnech, adresu pro vrácení a
-   informaci, že refundace jdou přes PayU na původní platební metodu. */
+   informaci, že refundace jdou přes Stripe na původní platební metodu. */
 
 const sections: LegalSection[] = [
   {
@@ -67,7 +67,7 @@ const sections: LegalSection[] = [
         </ul>
         <p>
           Schválené refundace vracíme přes platebního poskytovatele{' '}
-          <span className="font-semibold text-ink">PayU</span> na původní platební metodu (karta,
+          <span className="font-semibold text-ink">Stripe</span> na původní platební metodu (karta,
           bankovní účet, Apple Pay / Google Pay). Stejně vyplácíme i nevyčerpaný zůstatek účtu.
         </p>
       </>
@@ -128,7 +128,7 @@ const RefundPolicyPage: React.FC = () => {
   useDocumentMeta({
     title: 'Zásady vracení peněz · Skinify',
     description:
-      'Kdy máte nárok na vrácení peněz, jak o něj požádat a jak dlouho zpracování trvá. Refundace vracíme přes PayU na původní platební metodu.',
+      'Kdy máte nárok na vrácení peněz, jak o něj požádat a jak dlouho zpracování trvá. Refundace vracíme přes Stripe na původní platební metodu.',
     canonical: 'https://skinify.gg/refund-policy',
   });
   return (

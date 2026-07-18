@@ -23,11 +23,11 @@ const useResolve = () => {
   };
 };
 
-/* Only the methods we ACTUALLY accept (payments run through PayU).
+/* Only the methods we ACTUALLY accept (payments run through Stripe).
    Advertising unsupported providers is a common reason payment
    gateways reject merchant-site verification. */
 const paymentMethods = [
-  'PayU', 'Visa', 'MasterCard', 'Maestro', 'Apple', 'GoogleWallet', 'Sepa',
+  'Stripe', 'Visa', 'MasterCard', 'Maestro', 'Apple', 'GoogleWallet', 'Sepa',
 ];
 
 const faqItems = [
@@ -53,7 +53,7 @@ const faqItems = [
   },
   {
     q: 'How do deposits and withdrawals work?',
-    a: 'Payments run through PayU: cards (Visa, Mastercard, Maestro), instant bank transfer / SEPA, Apple Pay and Google Pay. Deposits are instant. Withdrawals process within 24 hours; VIP users get same-day payouts.',
+    a: 'Payments run through Stripe: cards (Visa, Mastercard, Maestro), Apple Pay and Google Pay. Deposits are instant. Withdrawals process within 24 hours; VIP users get same-day payouts.',
   },
   {
     q: 'Do you charge buyer fees?',

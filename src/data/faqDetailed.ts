@@ -18,7 +18,7 @@
    Why hand-written long-form instead of AI-padding the existing
    answers: Google's "helpful content" update rewards genuine
    expertise. The questions here describe the actual Skinify product
-   (8-day escrow, 2% seller fee, real CSFloat-fetched floats, PayU
+   (8-day escrow, 2% seller fee, real CSFloat-fetched floats, Stripe
    processor, Steam OpenID auth) — pages that show specifics outrank
    pages that bullet-point platitudes.
    ───────────────────────────────────────────────────────────────────────── */
@@ -65,9 +65,9 @@ export const FAQ_DETAILS: FaqDetail[] = [
         'Real float and paint seed values fetched from CSFloat for every listing',
       ]},
       { type: 'h', text: 'How it differs from Skinport' },
-      { type: 'p', text: 'Skinport charges sellers 12% — six times what we charge. Both platforms use escrow, both pay in real money, but the fee gap means you keep more of every sale on Skinify. We also have native Czech bank support via PayU, whereas Skinport routes through SEPA.' },
+      { type: 'p', text: 'Skinport charges sellers 12% — six times what we charge. Both platforms use escrow, both pay in real money, but the fee gap means you keep more of every sale on Skinify. We also have native Czech bank support via Stripe, whereas Skinport routes through SEPA.' },
       { type: 'h', text: 'Who runs Skinify' },
-      { type: 'p', text: 'Skinify s.r.o. — a registered Czech limited company (IČO 29671311) headquartered at Grafická 3365/1, 150 00 Praha 5. Payments are processed by PayU, a licensed European payment institution. All transactions are tax-receipted and we issue VAT invoices for business customers.' },
+      { type: 'p', text: 'Skinify s.r.o. — a registered Czech limited company (IČO 29671311) headquartered at Grafická 3365/1, 150 00 Praha 5. Payments are processed by Stripe, a licensed European payment institution. All transactions are tax-receipted and we issue VAT invoices for business customers.' },
     ],
     related: ['how-does-escrow-work', 'what-are-the-fees', 'is-skinify-safe', 'how-to-sell-cs2-skins'],
     cta: { label: 'Browse the marketplace', href: '/marketplace' },
@@ -112,12 +112,12 @@ export const FAQ_DETAILS: FaqDetail[] = [
       { type: 'p', text: '2% of the listing price, deducted when the sale closes. Example: list at 1000 Kč, sale closes, you receive 980 Kč.' },
       { type: 'p', text: 'There are no upfront fees. Creating a listing is free, editing the price is free, removing a listing is free, having a listing sit unsold for months is free.' },
       { type: 'h', text: 'Payment-processor fees' },
-      { type: 'p', text: 'When you deposit funds, PayU (our payment processor) may charge a small percentage depending on the method — typically 1-2% for cards, 0% for Czech bank transfers, ~3% for paysafecard. These fees are shown before you confirm the deposit.' },
+      { type: 'p', text: 'When you deposit funds, Stripe (our payment processor) may charge a small percentage depending on the method — typically 1-2% for cards, 0% for Czech bank transfers, ~3% for paysafecard. These fees are shown before you confirm the deposit.' },
       { type: 'h', text: 'Withdrawal fees' },
       { type: 'ul', items: [
         'Czech bank transfer (CSOB, KB, Fio, mBank, etc.): 0 Kč',
         'SEPA international: 0 Kč under 10,000 Kč, 50 Kč above',
-        'Card refund (rare, for unused deposits): handled by PayU\'s rules',
+        'Card refund (rare, for unused deposits): handled by Stripe\'s rules',
       ]},
       { type: 'h', text: 'Promotion fees (optional)' },
       { type: 'p', text: '49 Kč buys 7 days of "Promoted" placement on a listing — the item appears in the Trending Now strip on the landing page and at the top of marketplace search. Optional; most sellers don\'t use it.' },
@@ -130,13 +130,13 @@ export const FAQ_DETAILS: FaqDetail[] = [
     category: 'Security',
     question: 'Is Skinify safe?',
     answer:
-      'Yes. Every trade is escrow-protected for 8 days. Skinify s.r.o. is a registered Czech business, payments are processed by PayU (a licensed EU payment institution).',
+      'Yes. Every trade is escrow-protected for 8 days. Skinify s.r.o. is a registered Czech business, payments are processed by Stripe (a licensed EU payment institution).',
     body: [
       { type: 'p', text: 'Safety on Skinify is layered: escrow on every trade, regulated payment processing, real legal entity behind the platform, and active fraud monitoring.' },
       { type: 'h', text: 'Trade safety' },
       { type: 'p', text: 'Every purchase enters our 8-day escrow window. Your money never sits with the seller until you\'ve received the item and the Steam trade-back risk has passed. If anything goes wrong — seller no-show, wrong item, dispute — you get a full refund.' },
       { type: 'h', text: 'Payment safety' },
-      { type: 'p', text: 'Payments are processed by PayU, a licensed payment institution regulated under EU law. Your card details never touch Skinify\'s servers — they go directly from your browser to PayU\'s tokenisation API. We never see your CVV, full card number, or banking credentials.' },
+      { type: 'p', text: 'Payments are processed by Stripe, a licensed payment institution regulated under EU law. Your card details never touch Skinify\'s servers — they go directly from your browser to Stripe\'s tokenisation API. We never see your CVV, full card number, or banking credentials.' },
       { type: 'h', text: 'Account safety' },
       { type: 'p', text: 'You sign in via Steam OpenID, which means Skinify never receives your Steam password. Anyone asking for your Steam password while pretending to be us is impersonating Skinify — report and ignore. Trade URLs are stored encrypted at rest.' },
       { type: 'h', text: 'The legal entity' },
@@ -219,7 +219,7 @@ export const FAQ_DETAILS: FaqDetail[] = [
         'SEPA: 1-2 business days',
       ]},
       { type: 'h', text: 'Withdrawal fees' },
-      { type: 'p', text: 'Czech bank withdrawals are free. SEPA international: free under 10,000 Kč, 50 Kč flat above. Card refunds: whatever PayU charges (typically 0 for refunds back to the original card).' },
+      { type: 'p', text: 'Czech bank withdrawals are free. SEPA international: free under 10,000 Kč, 50 Kč flat above. Card refunds: whatever Stripe charges (typically 0 for refunds back to the original card).' },
       { type: 'h', text: 'What if my balance is in Pending' },
       { type: 'p', text: 'Pending balance is escrowed from recent sales — it can\'t be withdrawn until the 8-day Steam trade-back window passes. Your Balance tab shows the release date for each Pending entry. Once released, the funds move to your main (withdrawable) balance automatically.' },
       { type: 'h', text: 'KYC threshold' },

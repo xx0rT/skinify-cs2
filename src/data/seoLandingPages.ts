@@ -68,7 +68,7 @@ export const SEO_LANDING_PAGES: SeoLandingPageContent[] = [
         bullets: [
           'Nulové poplatky pro kupujícího',
           'Úschova chrání proti podvodu i vrácení obchodu Steamem',
-          'Platba kartou, bankovním převodem, Apple Pay nebo BLIK přes PayU',
+          'Platba kartou, bankovním převodem, Apple Pay nebo BLIK přes Stripe',
           'Český zákaznický support, fakturace v Kč',
         ],
       },
@@ -112,7 +112,7 @@ export const SEO_LANDING_PAGES: SeoLandingPageContent[] = [
       },
       {
         q: 'Můžu platit českou kartou nebo bankovním převodem?',
-        a: 'Ano. Skinify používá PayU jako platební bránu. Akceptujeme všechny české banky (ČSOB, KB, Česká spořitelna, Fio, mBank, Raiffeisenbank, UniCredit, Air Bank), karty Visa/Mastercard, Apple Pay a Google Pay.',
+        a: 'Ano. Skinify používá Stripe jako platební bránu. Akceptujeme karty Visa/Mastercard, Apple Pay a Google Pay.',
       },
     ],
     related: [
@@ -201,13 +201,13 @@ export const SEO_LANDING_PAGES: SeoLandingPageContent[] = [
           '0% buyer fee on every transaction',
           'Escrow holds funds for 8 days — covers Steam trade-back risk',
           'Real float, paint seed, paint index via CSFloat for every listing',
-          'Pay with card, Apple Pay, Google Pay or bank transfer (CZ banks via PayU)',
+          'Pay with card, Apple Pay, Google Pay or bank transfer (CZ banks via Stripe)',
         ],
       },
       {
         h2: 'How buying works',
         paragraphs: [
-          'Pick a skin on the marketplace, add it to your cart, pay via PayU. Your payment goes straight to escrow — not to the seller\'s wallet. The seller is notified instantly and sends you a Steam trade offer, usually within minutes.',
+          'Pick a skin on the marketplace, add it to your cart, pay via Stripe. Your payment goes straight to escrow — not to the seller\'s wallet. The seller is notified instantly and sends you a Steam trade offer, usually within minutes.',
           'Accept the trade in Steam. Skinify\'s 8-day escrow timer starts. After it expires, funds release to the seller automatically. You can open a dispute any time before that if the trade didn\'t come through correctly.',
         ],
       },
@@ -240,7 +240,7 @@ export const SEO_LANDING_PAGES: SeoLandingPageContent[] = [
       },
       {
         q: 'What payment methods do you accept?',
-        a: 'Cards (Visa, Mastercard, Amex), Apple Pay, Google Pay, BLIK, and direct bank transfer from any major Czech bank — ČSOB, Komerční banka, Česká spořitelna, Fio, mBank, Raiffeisenbank, UniCredit, Air Bank. All processed by PayU.',
+        a: 'Cards (Visa, Mastercard, Amex), Apple Pay and Google Pay. All processed by Stripe.',
       },
       {
         q: 'Can I sell on Skinify too?',
@@ -270,7 +270,7 @@ export const SEO_LANDING_PAGES: SeoLandingPageContent[] = [
       {
         h2: 'Real money payouts, not Steam credit',
         paragraphs: [
-          'Steam Market is a one-way street — you can sell skins but the money is stuck in Steam Wallet. Skinify pays out in real currency to your bank via PayU, with full invoicing for businesses.',
+          'Steam Market is a one-way street — you can sell skins but the money is stuck in Steam Wallet. Skinify pays out in real currency to your bank via Stripe, with full invoicing for businesses.',
           'Our flat 2% seller fee is what you pay per sale. There are no listing fees, no monthly costs, no withdrawal fees.',
         ],
         bullets: [
@@ -500,7 +500,7 @@ export const SEO_LANDING_PAGES: SeoLandingPageContent[] = [
       },
       {
         q: 'Is Skinify legal?',
-        a: 'Yes. Skinify s.r.o. is a registered Czech company (IČO 29671311). All transactions are tax-receipted, payments processed by PayU (licensed payment institution).',
+        a: 'Yes. Skinify s.r.o. is a registered Czech company (IČO 29671311). All transactions are tax-receipted, payments processed by Stripe (licensed payment institution).',
       },
     ],
     related: [
@@ -532,7 +532,7 @@ export const SEO_LANDING_PAGES: SeoLandingPageContent[] = [
         h2: 'Payment methods',
         paragraphs: [
           'Skinport supports cards, SEPA, PayPal, BLIK, Klarna, and some crypto. Strong international coverage.',
-          'Skinify uses PayU as the payment processor — full Czech bank coverage (ČSOB, KB, ČS, Fio, mBank, Raiffeisenbank, UniCredit, Air Bank, Moneta), cards, Apple Pay, Google Pay. International cards work too.',
+          'Skinify uses Stripe as the payment processor — cards (Visa, Mastercard), Apple Pay and Google Pay. International cards work too.',
         ],
       },
       {
