@@ -132,14 +132,34 @@ const labelFor = (id: string): string => {
   return id;
 };
 
-/* Font choices offered in the editor. Values are safe web/system fonts. */
-const SHOP_FONTS = [
-  { id: 'Inter', label: 'Inter (clean)' },
-  { id: 'Lexend', label: 'Lexend (rounded)' },
+/* Font choices offered in the editor. `google` names are loaded on demand
+   from Google Fonts — without loading them the CSS font-family silently
+   falls back to the site default, which made saved fonts look like they
+   never persisted. */
+const SHOP_FONTS: { id: string; label: string; google?: string }[] = [
+  { id: 'Lexend', label: 'Lexend (site default)' },
+  { id: 'Inter', label: 'Inter (clean)', google: 'Inter:wght@400;500;600;700;800' },
+  { id: 'Poppins', label: 'Poppins (round)', google: 'Poppins:wght@400;500;600;700' },
+  { id: 'Space Grotesk', label: 'Space Grotesk (techy)', google: 'Space+Grotesk:wght@400;500;600;700' },
+  { id: 'Playfair Display', label: 'Playfair (elegant serif)', google: 'Playfair+Display:wght@400;600;700' },
   { id: 'Georgia, serif', label: 'Georgia (serif)' },
   { id: "'Courier New', monospace", label: 'Mono' },
   { id: 'system-ui', label: 'System' },
 ];
+
+/* Inject a Google Fonts stylesheet for the picked shop font (once per
+   family). CSP already allows fonts.googleapis.com / fonts.gstatic.com. */
+const loadedFonts = new Set<string>();
+function ensureShopFontLoaded(fontId?: string | null) {
+  if (!fontId) return;
+  const font = SHOP_FONTS.find((f) => f.id === fontId);
+  if (!font?.google || loadedFonts.has(font.google)) return;
+  loadedFonts.add(font.google);
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = `https://fonts.googleapis.com/css2?family=${font.google}&display=swap`;
+  document.head.appendChild(link);
+}
 
 interface ShopItem {
   id: string;
@@ -264,6 +284,11 @@ const UserShopPage: React.FC = () => {
   const [selectedEl, setSelectedEl] = useState<string | null>(null);
   /* Full-screen editor drawer toggle. */
   const [drawerWide, setDrawerWide] = useState(false);
+  /* Full-screen mode swaps the single long scroll for per-tab sections;
+     this tracks which section is on screen. */
+  const [activeTab, setActiveTab] = useState<
+    'identity' | 'theme' | 'layout' | 'contact' | 'css'
+  >('identity');
 
   useEffect(() => {
     if (!editMode) {
@@ -532,6 +557,12 @@ const UserShopPage: React.FC = () => {
      preview, otherwise the persisted shop. */
   const view = (editMode && draft) || shop;
 
+  /* Load the shop's font family on demand — for visitors AND live while
+     the owner is previewing choices in the editor. */
+  useEffect(() => {
+    ensureShopFontLoaded(view?.font_family);
+  }, [view?.font_family]);
+
   const handleAddCart = (item: ShopItem) => {
     const listing = item.marketplace_listings;
     if (!listing) return;
@@ -681,7 +712,13 @@ const UserShopPage: React.FC = () => {
             className={`fixed left-0 top-0 bottom-0 z-50 w-full bg-[rgb(16,16,20)] text-white overflow-hidden flex flex-col transition-[width] duration-300 ${
               drawerWide ? 'lg:w-full' : 'lg:w-[440px]'
             }`}
-            style={{ boxShadow: '24px 0 60px -24px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)' }}
+            style={{
+              boxShadow: '24px 0 60px -24px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)',
+              /* The editor UI must NOT inherit the shop's chosen font —
+                 it lives inside the shop wrapper for the live preview,
+                 so pin it to the site font explicitly. */
+              fontFamily: "'Lexend', system-ui, sans-serif",
+            }}
           >
             {/* Header — eyebrow + close. Preview-as-visitor toggle is
                 surfaced in the actions row at the bottom of the header
@@ -724,9 +761,10 @@ const UserShopPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Tab strip — jump between scopes. The body is still one
-                  long scroll so users can mix-and-match without losing
-                  context, but the strip scrolls to the matching group. */}
+              {/* Tab strip. Narrow drawer: the body is one long scroll and
+                  tabs jump to the matching group. Full screen: each tab is
+                  its own section — clicking swaps the visible panel with a
+                  slide/fade animation. */}
               <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
                 {(
                   [
@@ -736,27 +774,55 @@ const UserShopPage: React.FC = () => {
                     { id: 'contact',  label: 'Contact' },
                     { id: 'css',      label: 'CSS' },
                   ] as const
-                ).map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => {
-                      const el = document.getElementById(`editor-group-${t.id}`);
-                      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }}
-                    className="h-8 px-3 rounded-full bg-white/6 hover:bg-white/12 text-[11.5px] font-bold tracking-tight whitespace-nowrap transition-colors"
-                  >
-                    {t.label}
-                  </button>
-                ))}
+                ).map((t) => {
+                  const active = drawerWide && activeTab === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => {
+                        setActiveTab(t.id);
+                        if (!drawerWide) {
+                          const el = document.getElementById(`editor-group-${t.id}`);
+                          el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                      }}
+                      className={`relative h-8 px-3 rounded-full text-[11.5px] font-bold tracking-tight whitespace-nowrap transition-colors ${
+                        active ? 'text-black' : 'bg-white/6 hover:bg-white/12 text-white'
+                      }`}
+                    >
+                      {active && (
+                        <motion.span
+                          layoutId="editor-tab-active"
+                          className="absolute inset-0 rounded-full bg-white"
+                          transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                        />
+                      )}
+                      <span className="relative">{t.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             <div
-              className={`flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-6 scrollbar-thin ${
+              className={`flex-1 min-h-0 overflow-y-auto px-5 py-5 scrollbar-thin ${
                 drawerWide ? 'w-full max-w-3xl mx-auto' : ''
               }`}
             >
+              {/* Narrow drawer: every group renders in one long scroll.
+                  Full screen: only the active tab's groups render, and
+                  switching tabs animates the section in from the side. */}
+              <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={drawerWide ? activeTab : 'all'}
+                initial={drawerWide ? { opacity: 0, x: 28 } : false}
+                animate={{ opacity: 1, x: 0 }}
+                exit={drawerWide ? { opacity: 0, x: -20 } : undefined}
+                transition={{ type: 'spring', stiffness: 420, damping: 36, mass: 0.8 }}
+                className="space-y-6"
+              >
               {/* Identity */}
+              {(!drawerWide || activeTab === 'identity') && (<>
               <div id="editor-group-identity" />
               <Group title="Identity">
                 <Field label="Shop name">
@@ -791,8 +857,10 @@ const UserShopPage: React.FC = () => {
                   />
                 </Field>
               </Group>
+              </>)}
 
               {/* Presets */}
+              {(!drawerWide || activeTab === 'theme') && (<>
               <div id="editor-group-theme" />
               <Group title="Presets">
                 <div className="grid grid-cols-2 gap-2">
@@ -840,8 +908,10 @@ const UserShopPage: React.FC = () => {
                   onChange={(v) => setDraft({ ...draft, accent_color: v })}
                 />
               </Group>
+              </>)}
 
               {/* Layout */}
+              {(!drawerWide || activeTab === 'layout') && (<>
               <div id="editor-group-layout" />
               <Group title="Layout">
                 <div className="grid grid-cols-3 gap-1.5">
@@ -979,8 +1049,10 @@ const UserShopPage: React.FC = () => {
                   </div>
                 )}
               </Group>
+              </>)}
 
-              {/* Typography + card design */}
+              {/* Typography + card design — theme scope */}
+              {(!drawerWide || activeTab === 'theme') && (<>
               <Group title="Typography & cards">
                 <Field label="Font">
                   <select
@@ -1018,8 +1090,10 @@ const UserShopPage: React.FC = () => {
                   />
                 </Field>
               </Group>
+              </>)}
 
-              {/* Section visibility */}
+              {/* Section visibility — layout scope */}
+              {(!drawerWide || activeTab === 'layout') && (<>
               <Group title="Sections">
                 <ToggleRow
                   label="Show bio / description"
@@ -1075,7 +1149,10 @@ const UserShopPage: React.FC = () => {
                 </p>
               </Group>
 
+              </>)}
+
               {/* Social / contact */}
+              {(!drawerWide || activeTab === 'contact') && (<>
               <div id="editor-group-contact" />
               <Group title="Contact">
                 <Field label="Email" Icon={Mail}>
@@ -1114,8 +1191,10 @@ const UserShopPage: React.FC = () => {
                   />
                 </Field>
               </Group>
+              </>)}
 
               {/* Custom CSS */}
+              {(!drawerWide || activeTab === 'css') && (<>
               <div id="editor-group-css" />
               <Group title="Custom CSS">
                 <button
@@ -1184,27 +1263,30 @@ const UserShopPage: React.FC = () => {
                   Delete shop permanently
                 </button>
               </Group>
+              </>)}
+              </motion.div>
+              </AnimatePresence>
             </div>
 
-            {/* Sticky save bar — sibling of the scroll container in
-                the flex-col layout above, so it stays pinned to the
-                bottom of the drawer no matter how long the body gets. */}
-            <div className="shrink-0 px-5 py-3 bg-[rgb(18,18,22)] border-t border-white/8 flex gap-2">
+            {/* Sticky save bar — compact, anchored to the bottom-right of
+                the drawer instead of a full-width banner. */}
+            <div className="shrink-0 px-5 py-3 bg-[rgb(18,18,22)] border-t border-white/8 flex items-center justify-end gap-2">
               <button
                 onClick={exitEdit}
-                className="h-11 px-4 rounded-full bg-white/8 hover:bg-white/14 text-[13px] font-semibold transition-colors"
+                className="h-10 px-4 rounded-full bg-white/8 hover:bg-white/14 text-[12.5px] font-semibold transition-colors"
               >
                 Cancel
               </button>
-              <button
+              <motion.button
+                whileTap={{ scale: 0.97 }}
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 h-11 rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-500 hover:from-fuchsia-400 hover:to-indigo-400 text-white font-bold text-[13.5px] inline-flex items-center justify-center gap-2 disabled:opacity-60 transition-colors"
+                className="h-10 px-5 rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-500 hover:from-fuchsia-400 hover:to-indigo-400 text-white font-bold text-[13px] inline-flex items-center justify-center gap-2 disabled:opacity-60 transition-colors"
                 style={{ boxShadow: '0 10px 24px -10px rgba(217, 70, 239, 0.55)' }}
               >
-                <Save size={14} strokeWidth={2.4} />
+                <Save size={13} strokeWidth={2.4} />
                 {saving ? 'Saving…' : 'Save changes'}
-              </button>
+              </motion.button>
             </div>
           </motion.aside>
         )}
