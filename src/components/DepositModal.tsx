@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Check, CreditCard, Loader2, ShieldCheck, Smartphone, X, Zap } from 'lucide-react';
+import { ArrowLeft, Loader2, ShieldCheck, X } from 'lucide-react';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { useCurrencyStore } from '../store/currencyStore';
@@ -54,26 +54,6 @@ const PROMO = {
   code: 'WELCOME10',
   copy: '+10% bonus on your first deposit · auto-applied',
 };
-
-/* What the Payment Element will offer — surfaced as informational tiles
-   on step 1 so the modal doesn't look empty before checkout. */
-const METHOD_PREVIEWS: { icon: React.ReactNode; label: string; caption: string }[] = [
-  {
-    icon: <CreditCard size={16} strokeWidth={2.2} />,
-    label: 'Card',
-    caption: 'Visa · Mastercard · instant',
-  },
-  {
-    icon: <Smartphone size={16} strokeWidth={2.2} />,
-    label: 'Apple Pay / Google Pay',
-    caption: 'One tap on supported devices',
-  },
-  {
-    icon: <Zap size={16} strokeWidth={2.2} />,
-    label: 'Instant credit',
-    caption: 'Balance updates the moment payment clears',
-  },
-];
 
 async function callStripeFn(body: Record<string, unknown>) {
   const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
@@ -505,32 +485,8 @@ export const DepositModal: React.FC = () => {
                         {t('deposit.method.stripe', 'Pay securely with Stripe')}
                       </h2>
 
-                      <div className="mt-3 sm:mt-4 space-y-2.5">
-                        {METHOD_PREVIEWS.map((m) => (
-                          <div
-                            key={m.label}
-                            className="rounded-2xl bg-surface px-4 py-3 flex items-center gap-3.5"
-                            style={{ boxShadow: 'inset 0 0 0 1px rgb(var(--accent) / 0.25)' }}
-                          >
-                            <span className="w-9 h-9 rounded-xl bg-accent-soft text-accent grid place-items-center shrink-0">
-                              {m.icon}
-                            </span>
-                            <div className="min-w-0">
-                              <div className="text-[13px] font-bold tracking-tight text-ink leading-tight">
-                                {m.label}
-                              </div>
-                              <div className="text-[11px] font-semibold text-ink-muted mt-0.5 truncate">
-                                {m.caption}
-                              </div>
-                            </div>
-                            <Check
-                              size={15}
-                              strokeWidth={2.6}
-                              className="ml-auto text-accent shrink-0"
-                            />
-                          </div>
-                        ))}
-                      </div>
+                      {/* Custom graphics slot — the owner drops their own
+                          artwork here; keep the column otherwise clean. */}
 
                       <p className="text-[11px] text-ink-dim font-medium mt-4 leading-relaxed">
                         {t(
@@ -745,7 +701,16 @@ const StripeCheckoutForm: React.FC<{
         </div>
       )}
       <div className={ready ? '' : 'invisible h-0 overflow-hidden'}>
-        <PaymentElement onReady={() => setReady(true)} options={{ layout: 'tabs' }} />
+        {/* wallets: 'auto' surfaces Apple Pay (Safari + registered payment
+            method domain) and Google Pay (Chrome) as one-tap options at
+            the top of the element. */}
+        <PaymentElement
+          onReady={() => setReady(true)}
+          options={{
+            layout: 'tabs',
+            wallets: { applePay: 'auto', googlePay: 'auto' },
+          }}
+        />
       </div>
 
       {errorMsg && (
