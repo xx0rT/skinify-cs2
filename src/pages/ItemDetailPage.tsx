@@ -14,7 +14,6 @@ import {
   Star,
   MessageCircle,
   BarChart3,
-  Loader2,
 } from 'lucide-react';
 import { useMarketplaceItems } from '../hooks/useMarketplaceItems';
 import { MOCK_MARKET_ITEMS, findMockItem } from '../data/mockMarketItems';
@@ -37,7 +36,6 @@ import { rarityColor } from '../components/ui/SkinCard';
 import { useSkinFloat, itemHasWear } from '../hooks/useSkinFloat';
 import { getSupabaseCredentials } from '../utils/supabaseHelpers';
 import { resolveInspectLink } from '../utils/inspectLink';
-import { fetchSteamMarketPrice } from '../utils/steamMarketApi';
 import { spring, tap } from '../lib/motion';
 import { openDepositModal } from '../components/DepositModal';
 import {
@@ -595,8 +593,6 @@ const ItemDetailPage: React.FC = () => {
               <div className="absolute top-4 right-4 md:top-5 md:right-5 flex items-center gap-1 z-10">
                 <SteamCompareChip
                   marketHashName={item.market_hash_name || item.market_name || item.name}
-                  listedPriceCZK={Number(item.price)}
-                  formatPrice={formatPrice}
                 />
                 <motion.button
                   whileTap={tap}
@@ -1075,81 +1071,22 @@ const InspectTextLink: React.FC<{ item: any }> = ({ item }) => {
   );
 };
 
-/* SteamCompareChip — replaces the hero Inspect button. Click fetches the
-   Steam Community Market price (via the steam-market-price proxy, in CZK
-   so it compares against the listing's stored CZK price) and swaps the
-   chip content for "Steam <price>" plus a diff badge — green when the
-   Skinify listing is cheaper than Steam, red when it's above. */
-const SteamCompareChip: React.FC<{
-  marketHashName: string;
-  listedPriceCZK: number;
-  formatPrice: (czk: number) => string;
-}> = ({ marketHashName, listedPriceCZK, formatPrice }) => {
-  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
-  const [steamCZK, setSteamCZK] = useState<number | null>(null);
-
-  /* Reset when navigating between listings (component stays mounted). */
-  useEffect(() => {
-    setState('idle');
-    setSteamCZK(null);
-  }, [marketHashName]);
-
-  const compare = async () => {
-    if (state === 'loading') return;
-    setState('loading');
-    const data = await fetchSteamMarketPrice(marketHashName, 'CZK');
-    const price = data?.recommendedPrice || data?.lowestPrice || 0;
-    if (price > 0) {
-      setSteamCZK(price);
-      setState('done');
-    } else {
-      setState('error');
-    }
-  };
-
-  if (state === 'done' && steamCZK != null) {
-    const diff = listedPriceCZK > 0 ? ((listedPriceCZK - steamCZK) / steamCZK) * 100 : 0;
-    const cheaper = diff < 0;
-    return (
-      <span className="h-10 px-3.5 rounded-full bg-surface ring-1 ring-line inline-flex items-center gap-2 text-[12px] font-bold text-ink">
-        <span className="text-ink-muted font-semibold">Steam</span>
-        <span className="tabular-nums">{formatPrice(steamCZK)}</span>
-        {Math.abs(diff) >= 0.05 && (
-          <span
-            className={`px-1.5 py-0.5 rounded-full text-[11px] tabular-nums ${
-              cheaper
-                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                : 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
-            }`}
-            title={cheaper ? 'Cheaper here than on Steam' : 'Above the Steam price'}
-          >
-            {diff > 0 ? '+' : ''}
-            {diff.toFixed(1)}%
-          </span>
-        )}
-      </span>
-    );
-  }
-
-  return (
-    <motion.button
-      whileTap={tap}
-      onClick={compare}
-      disabled={state === 'loading'}
-      title="Compare with the Steam Community Market price"
-      className="h-10 px-3 rounded-full text-[12px] font-bold text-ink-muted hover:text-ink transition-colors inline-flex items-center gap-1.5 disabled:opacity-60"
-    >
-      {state === 'loading' ? (
-        <Loader2 size={15} strokeWidth={2.2} className="animate-spin" />
-      ) : (
-        <BarChart3 size={15} strokeWidth={2.2} />
-      )}
-      <span className="hidden sm:inline">
-        {state === 'error' ? 'Steam price unavailable' : 'Compare Steam price'}
-      </span>
-    </motion.button>
-  );
-};
+/* SteamCompareChip — links straight to the item's Steam Community Market
+   listing page so the buyer can compare prices there. The URL is
+   /market/listings/730/<market_hash_name>; Steam resolves the encoded
+   name to the listing. */
+const SteamCompareChip: React.FC<{ marketHashName: string }> = ({ marketHashName }) => (
+  <a
+    href={`https://steamcommunity.com/market/listings/730/${encodeURIComponent(marketHashName)}`}
+    target="_blank"
+    rel="noopener noreferrer"
+    title="Compare with the Steam Community Market price"
+    className="h-10 px-3 rounded-full text-[12px] font-bold text-ink-muted hover:text-ink transition-colors inline-flex items-center gap-1.5"
+  >
+    <BarChart3 size={15} strokeWidth={2.2} />
+    <span className="hidden sm:inline">Compare Steam price</span>
+  </a>
+);
 
 /* ───── Sub-panels ───── */
 
