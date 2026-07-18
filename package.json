@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^6.8.0",
+    "@stripe/stripe-js": "^9.10.0",
     "@sumsub/websdk": "^2.6.3",
     "@sumsub/websdk-react": "^2.6.3",
     "@supabase/supabase-js": "^2.39.0",

@@ -1,10 +1,13 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, X } from 'lucide-react';
+import { ArrowLeft, Check, CreditCard, Loader2, ShieldCheck, Smartphone, X, Zap } from 'lucide-react';
+import { loadStripe, type Stripe } from '@stripe/stripe-js';
+import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { useCurrencyStore } from '../store/currencyStore';
 import { useToastStore } from '../store/toastStore';
 import { useAuthStore } from '../store/authStore';
-import { spring, tap } from '../lib/motion';
+import { useBalanceStore } from '../store/balanceStore';
+import { tap } from '../lib/motion';
 import { getSupabaseCredentials } from '../utils/supabaseHelpers';
 import { useSiteFlags } from '../utils/siteFlags';
 import { supabase } from '../lib/supabaseClient';
@@ -12,160 +15,36 @@ import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { useT } from '../lib/useT';
 
 /**
- * DepositModal — full-screen, two-pane "add funds" dialog.
+ * DepositModal — full-screen, two-step "add funds" dialog on Stripe.
  *
- * Layout rules:
- *   - Outer is fixed-height (100vh / 100dvh).
- *   - Right pane (amount + summary + CTA) NEVER scrolls — it's the action
- *     surface; the user must always see the total and the Continue button.
- *   - Left pane (method list) is the only scrollable region. We keep the
- *     viewport in one screen by capping its height and letting the long
- *     method list scroll internally.
- *   - On <lg the panes stack; the page itself takes over scrolling.
+ * Step 1 (amount): amount + presets + promo + method overview.
+ * Step 2 (checkout): custom-coded Stripe Payment Element embedded in the
+ *   modal (no redirect to a hosted page). The stripe-payment edge function
+ *   creates the PaymentIntent server-side; after confirmation the same
+ *   function verifies the intent's status with Stripe's API (never
+ *   trusting the client) and credits the wallet exactly once.
  *
- * Visual rules:
- *   - No method-specific logos or rainbow icon chips. Methods are typed
- *     rows with a small fee tag — typography does the work.
+ * Redirect-based methods (3DS challenges, wallets) come back to
+ * /profile?tab=balance with Stripe's payment_intent params — the
+ * always-mounted modal watches for those on load and finalises the
+ * credit the same way.
  */
 
 let _openSetter: ((open: boolean) => void) | null = null;
 export const openDepositModal = () => _openSetter?.(true);
 export const closeDepositModal = () => _openSetter?.(false);
 
-/* PayU PBL channel ids — the value sent to the edge function as
-   `payMethod` (then forwarded as `payMethods.payMethod.value` to PayU).
-   Empty string => PayU's built-in method picker (lets the buyer choose
-   on the hosted page). Channels here mirror what's typically enabled
-   for a Czech-market POS; trim if your merchant doesn't have all of
-   them activated.
+/* Publishable key — public by design; env var lets prod override the
+   sandbox default without a code change. */
+const STRIPE_PK =
+  (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined) ||
+  'pk_test_51TuYRwPjKgwZqolxKAOIrnfQhXJryOxxyZS9q0eJQwkRVpcYBlBeQiNDLAJ5sjg83B6SA9lMXDQFFsdZofZOsOQn00JW7S3W9r';
 
-   When a channel above ships a fee in `fee:`, we surface it in the
-   tile footer and (currently informationally) in the breakdown — PayU's
-   real channel cost is invoiced separately, this is just transparency. */
-/* PayU methods enabled on POS 4433877. The current merchant config has
-   ONLY Czech-bank PBL channels active (1% fee each, 1 CZK fixed).
-   Cards, Apple Pay, Google Pay, BLIK, paysafecard are all disabled —
-   sending those values made PayU return PAY_METHOD_NOT_ENABLED_ON_POS.
-
-   Each tile sends the individual PayU PBL channel value so the buyer
-   lands straight on their bank. "All methods" sends an empty value
-   and lets PayU show its own picker (equivalent to the umbrella `dpcz`
-   here, since that's all that's enabled). When more methods get
-   activated in the PayU panel, add them back here with their channel
-   value and they'll just work.
-
-   Fees noted on the screenshot: 1% + 1 CZK fixed per transaction. */
-type MethodId =
-  | 'all'
-  | 'csob'
-  | 'cs'
-  | 'kb'
-  | 'mbank'
-  | 'fio'
-  | 'moneta'
-  | 'qr'
-  | 'raiffeisen'
-  | 'unicredit';
-
-interface MethodTile {
-  id: MethodId;
-  /** PayU PBL channel value (empty = "show PayU's full picker"). */
-  payuValue: string;
-  label: string;
-  caption: string;
-  badge?: { text: string; tone: 'top' | 'bonus' | 'neutral' };
-  chips: { kind: 'text' | 'mono'; label: string }[];
-  fee?: string;
-}
-
-const METHOD_TILES: MethodTile[] = [
-  {
-    id: 'all',
-    payuValue: '',
-    label: 'All banks',
-    caption: 'Pick on PayU',
-    badge: { text: 'TOP', tone: 'top' },
-    chips: [
-      { kind: 'text', label: 'ČSOB' },
-      { kind: 'text', label: 'KB' },
-      { kind: 'text', label: 'mBank' },
-      { kind: 'text', label: 'Fio' },
-    ],
-    fee: '1%',
-  },
-  {
-    id: 'csob',
-    payuValue: 'csobcz',
-    label: 'ČSOB',
-    caption: 'Instant bank transfer',
-    chips: [{ kind: 'text', label: 'ČSOB' }],
-    fee: '1%',
-  },
-  {
-    id: 'cs',
-    payuValue: 'cs',
-    label: 'Česká spořitelna',
-    caption: 'Instant bank transfer',
-    chips: [{ kind: 'text', label: 'ČS' }],
-    fee: '1%',
-  },
-  {
-    id: 'kb',
-    payuValue: 'kbcz',
-    label: 'Komerční banka',
-    caption: 'Instant bank transfer',
-    chips: [{ kind: 'text', label: 'KB' }],
-    fee: '1%',
-  },
-  {
-    id: 'mbank',
-    payuValue: 'mbankcz',
-    label: 'mBank',
-    caption: 'Instant bank transfer',
-    chips: [{ kind: 'text', label: 'mBank' }],
-    fee: '1%',
-  },
-  {
-    id: 'fio',
-    payuValue: 'fiocz',
-    label: 'Fio banka',
-    caption: 'Instant bank transfer',
-    chips: [{ kind: 'text', label: 'Fio' }],
-    fee: '1%',
-  },
-  {
-    id: 'moneta',
-    payuValue: 'monetacz',
-    label: 'Moneta',
-    caption: 'Money Bank · instant',
-    chips: [{ kind: 'text', label: 'Moneta' }],
-    fee: '1%',
-  },
-  {
-    id: 'raiffeisen',
-    payuValue: 'rbcz',
-    label: 'Raiffeisenbank',
-    caption: 'Instant bank transfer',
-    chips: [{ kind: 'text', label: 'RB' }],
-    fee: '1%',
-  },
-  {
-    id: 'unicredit',
-    payuValue: 'unicz',
-    label: 'UniCredit',
-    caption: 'Instant bank transfer',
-    chips: [{ kind: 'text', label: 'UCB' }],
-    fee: '1%',
-  },
-  {
-    id: 'qr',
-    payuValue: 'qrcz',
-    label: 'QR code',
-    caption: 'Scan with banking app',
-    chips: [{ kind: 'text', label: 'QR' }],
-    fee: '1%',
-  },
-];
+let _stripePromise: Promise<Stripe | null> | null = null;
+const getStripe = () => {
+  if (!_stripePromise) _stripePromise = loadStripe(STRIPE_PK);
+  return _stripePromise;
+};
 
 const QUICK_AMOUNTS = [200, 500, 1000, 2500, 5000, 10000];
 const MIN_AMOUNT = 50;
@@ -176,17 +55,50 @@ const PROMO = {
   copy: '+10% bonus on your first deposit · auto-applied',
 };
 
-/* All Czech-bank PBL channels on this POS share the same 1% + 1 CZK
-   fee schedule, so the calc is a constant. PayU bills the fee on top
-   of the deposit (out of your merchant payout), not deducted from the
-   buyer's amount — so this is for display only. */
-const calcFeeRate = (_id: MethodId): number => 0.01;
+/* What the Payment Element will offer — surfaced as informational tiles
+   on step 1 so the modal doesn't look empty before checkout. */
+const METHOD_PREVIEWS: { icon: React.ReactNode; label: string; caption: string }[] = [
+  {
+    icon: <CreditCard size={16} strokeWidth={2.2} />,
+    label: 'Card',
+    caption: 'Visa · Mastercard · instant',
+  },
+  {
+    icon: <Smartphone size={16} strokeWidth={2.2} />,
+    label: 'Apple Pay / Google Pay',
+    caption: 'One tap on supported devices',
+  },
+  {
+    icon: <Zap size={16} strokeWidth={2.2} />,
+    label: 'Instant credit',
+    caption: 'Balance updates the moment payment clears',
+  },
+];
+
+async function callStripeFn(body: Record<string, unknown>) {
+  const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+  const res = await fetch(`${supabaseUrl}/functions/v1/stripe-payment`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error(data?.error || `Payment service error ${res.status}`);
+  }
+  return data;
+}
 
 export const DepositModal: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState<number>(500);
-  const [method, setMethod] = useState<MethodId>('all');
   const [submitting, setSubmitting] = useState(false);
+  const [step, setStep] = useState<'amount' | 'checkout'>('amount');
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const siteFlags = useSiteFlags();
   const [promoActive, setPromoActive] = useState(PROMO.enabled);
   /* Sitewide kill-switch (Admin → Developer): hides the deposit-bonus
@@ -196,6 +108,7 @@ export const DepositModal: React.FC = () => {
   const { formatPrice } = useCurrencyStore();
   const { addToast } = useToastStore();
   const { user } = useAuthStore();
+  const { fetchBalance } = useBalanceStore();
   const t = useT();
 
   useEffect(() => {
@@ -207,8 +120,18 @@ export const DepositModal: React.FC = () => {
 
   useBodyScrollLock(open);
   useEffect(() => {
-    if (open) {
+    if (open && step === 'amount') {
       setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [open, step]);
+
+  /* Reset back to the amount step whenever the modal is (re)opened. */
+  useEffect(() => {
+    if (open) {
+      setStep('amount');
+      setClientSecret(null);
+      setPaymentIntentId(null);
+      setSubmitting(false);
     }
   }, [open]);
 
@@ -220,19 +143,71 @@ export const DepositModal: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [submitting]);
 
+  const finalizeCredit = useCallback(
+    async (piId: string) => {
+      const data = await callStripeFn({ action: 'confirm', paymentIntentId: piId });
+      if (data?.credited) {
+        addToast({
+          type: 'success',
+          title: t('deposit.success.title', 'Deposit successful'),
+          message: t('deposit.success.msg', 'Your balance has been credited.'),
+        });
+        if (user?.steamId) fetchBalance(user.steamId);
+        return true;
+      }
+      throw new Error(
+        data?.status && data.status !== 'succeeded'
+          ? `Payment status: ${data.status}`
+          : 'Payment could not be verified.',
+      );
+    },
+    [addToast, fetchBalance, t, user?.steamId],
+  );
+
+  /* Redirect-return watcher — 3DS / wallet flows leave the page and come
+     back with ?payment_intent=pi_…&redirect_status=…; finish the credit
+     server-side and scrub the params from the URL. */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const piId = params.get('payment_intent');
+    const status = params.get('redirect_status');
+    if (!piId || !/^pi_[A-Za-z0-9]+$/.test(piId)) return;
+
+    ['payment_intent', 'payment_intent_client_secret', 'redirect_status'].forEach((k) =>
+      params.delete(k),
+    );
+    const qs = params.toString();
+    window.history.replaceState(
+      {},
+      '',
+      `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`,
+    );
+
+    if (status === 'succeeded' || status === 'processing') {
+      finalizeCredit(piId).catch((err) => {
+        addToast({
+          type: 'error',
+          title: 'Deposit verification failed',
+          message: err instanceof Error ? err.message : 'Please contact support.',
+          duration: 8000,
+        });
+      });
+    } else if (status) {
+      addToast({
+        type: 'warning',
+        title: 'Payment not completed',
+        message: 'Your payment was cancelled or declined. No funds were taken.',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const safeAmount = Number.isFinite(amount) ? Math.max(0, amount) : 0;
-  const feeRate = calcFeeRate(method);
-  const fee = safeAmount * feeRate;
   const bonus = promoOn ? safeAmount * 0.1 : 0;
-  const credited = Math.max(0, safeAmount - fee + bonus);
+  const credited = Math.max(0, safeAmount + bonus);
 
   const belowMin = safeAmount > 0 && safeAmount < MIN_AMOUNT;
   const canSubmit = safeAmount >= MIN_AMOUNT && !submitting;
-
-  const selectedMethod = useMemo(
-    () => METHOD_TILES.find((x) => x.id === method),
-    [method],
-  );
 
   /* Track whether the last change came from a preset click vs raw typing,
      so we only run the rolling-digit animation on the big jumps (preset
@@ -240,11 +215,7 @@ export const DepositModal: React.FC = () => {
   const [animatedAmount, setAnimatedAmount] = useState<number>(amount);
   const lastSourceRef = useRef<'preset' | 'input'>('input');
   useEffect(() => {
-    if (lastSourceRef.current === 'preset') {
-      setAnimatedAmount(amount);
-    } else {
-      setAnimatedAmount(amount);
-    }
+    setAnimatedAmount(amount);
   }, [amount]);
 
   const pickPreset = (v: number) => {
@@ -257,7 +228,8 @@ export const DepositModal: React.FC = () => {
     setAmount(v);
   };
 
-  const handleSubmit = async () => {
+  /* Step 1 → 2: create the PaymentIntent and mount the Payment Element. */
+  const handleContinue = async () => {
     if (!canSubmit) return;
     if (!user?.steamId) {
       addToast({
@@ -270,10 +242,8 @@ export const DepositModal: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
-
-      /* The PayU edge function requires the public.users row id — not
-         the steam id. authStore caches it but if it's missing (older
+      /* The edge function requires the public.users row id — not the
+         steam id. authStore caches it but if it's missing (older
          session) we look it up by steam_id. */
       let userId = user.id;
       if (!userId) {
@@ -288,83 +258,57 @@ export const DepositModal: React.FC = () => {
         userId = data.id;
       }
 
-      /* Customer IP — PayU uses it for fraud-scoring. Best-effort:
-         a failed lookup falls back server-side to the x-forwarded-for
-         header, which is fine. */
-      let customerIp: string | undefined;
-      try {
-        const r = await fetch('https://ipapi.co/json/');
-        if (r.ok) {
-          const j = await r.json();
-          if (j?.ip) customerIp = j.ip;
-        }
-      } catch {
-        /* network — leave undefined, server will fall back */
-      }
-
-      const tile = METHOD_TILES.find((m) => m.id === method);
-      const payMethod = tile?.payuValue || undefined;
-
-      const res = await fetch(`${supabaseUrl}/functions/v1/payu-payment`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          amount: safeAmount,
-          userId,
-          steamId: user.steamId,
-          customerIp,
-          userEmail: user.email || `user_${user.steamId}@skinify.gg`,
-          description: `Skinify Wallet Top-up · ${safeAmount.toLocaleString('cs-CZ')} Kč`,
-          payMethod,
-        }),
+      const data = await callStripeFn({
+        action: 'create_intent',
+        amount: safeAmount,
+        userId,
+        steamId: user.steamId,
       });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        let msg = text || `PayU error ${res.status}`;
-        try {
-          const parsed = JSON.parse(text);
-          if (parsed?.error) msg = parsed.error;
-        } catch {
-          /* not JSON — keep raw text */
-        }
-        throw new Error(msg);
+      if (!data?.clientSecret) {
+        throw new Error('Payment service did not return a checkout session.');
       }
-
-      const data = await res.json();
-      if (!data?.redirectUri) {
-        throw new Error('PayU did not return a checkout URL.');
-      }
-
-      /* Persist order metadata so the success page can verify on return. */
-      try {
-        localStorage.setItem('payu_order_id', data.orderId);
-        localStorage.setItem('payu_ext_order_id', data.extOrderId);
-        localStorage.setItem('payu_user_id', userId);
-        localStorage.setItem('payu_amount', String(safeAmount));
-      } catch {
-        /* private window — non-fatal */
-      }
-
-      /* Hand off to PayU. The hosted page either lets the user pick a
-         method (when payMethod is empty) or jumps straight to the
-         requested method. Notification webhook credits the balance on
-         success. */
-      window.location.href = data.redirectUri;
+      setClientSecret(data.clientSecret);
+      setPaymentIntentId(data.paymentIntentId);
+      setStep('checkout');
     } catch (err) {
-      console.error('PayU deposit failed:', err);
+      console.error('Stripe deposit failed:', err);
       addToast({
         type: 'error',
         title: 'Deposit failed',
-        message: err instanceof Error ? err.message : 'Could not start PayU checkout.',
+        message: err instanceof Error ? err.message : 'Could not start checkout.',
         duration: 6000,
       });
+    } finally {
       setSubmitting(false);
     }
   };
+
+  /* Payment Element theme — pulled from the site's CSS variables at mount
+     so the iframe form matches light/dark mode. */
+  const elementsOptions = useMemo(() => {
+    if (!clientSecret) return null;
+    const css = getComputedStyle(document.documentElement);
+    const rgb = (name: string, fallback: string) => {
+      const v = css.getPropertyValue(name).trim();
+      return v ? `rgb(${v.split(' ').join(',')})` : fallback;
+    };
+    return {
+      clientSecret,
+      appearance: {
+        theme: 'flat' as const,
+        variables: {
+          colorPrimary: rgb('--accent', '#6d4aff'),
+          colorBackground: rgb('--subtle', '#1b1b22'),
+          colorText: rgb('--ink', '#f4f4f5'),
+          colorTextSecondary: rgb('--ink-muted', '#a1a1aa'),
+          colorDanger: '#f43f5e',
+          borderRadius: '14px',
+          fontFamily: css.getPropertyValue('font-family') || 'inherit',
+          spacingUnit: '4px',
+        },
+      },
+    };
+  }, [clientSecret]);
 
   return (
     <AnimatePresence>
@@ -385,16 +329,6 @@ export const DepositModal: React.FC = () => {
 
           <motion.div
             key="deposit-root"
-            /* Two entrance/exit recipes:
-                 - mobile (<lg) : slide up from the bottom like a native
-                                  sheet (Revolut/Apple Wallet style).
-                 - lg+         : the original fade-in full-screen pane.
-                We let framer-motion's variant `custom` switch between
-                them by reading a CSS class at runtime would be brittle,
-                so instead we use `initial`/`animate`/`exit` with a `y`
-                value and let the lg styles override `transform: none`
-                (set via Tailwind's `lg:!translate-y-0`). The opacity
-                doubles as the lg-fade. */
             initial={{ opacity: 0, y: '100%' }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: '100%' }}
@@ -402,16 +336,6 @@ export const DepositModal: React.FC = () => {
             role="dialog"
             aria-modal="true"
             aria-label="Add funds"
-            /* Drag-to-dismiss on mobile. Constrained to downward drag
-               only; releasing past 120px or with sufficient downward
-               velocity dismisses. lg+ ignores the drag (we lock with
-               dragListener=false via media query won't work — instead
-               we set dragConstraints={{top:0,bottom:0}} to zero
-               on lg via dragControls when on desktop). Simplest cross-
-               breakpoint approach: only enable drag in a narrow window
-               via dragListener — but framer doesn't expose a clean per-
-               breakpoint toggle. So we cap the drag at top=0 and only
-               accept it as a dismiss when the viewport is below lg. */
             drag="y"
             dragDirectionLock
             dragConstraints={{ top: 0, bottom: 0 }}
@@ -424,17 +348,8 @@ export const DepositModal: React.FC = () => {
                 setOpen(false);
               }
             }}
-            /* Mobile: rounded top corners, anchored to bottom of viewport
-                       at ~92dvh tall so a sliver of the backdrop stays
-                       visible at the top — that little gap is the visual
-                       cue that this is a sheet you can swipe down.
-               Desktop: original full-screen pane. The lg: utility classes
-                        override the mobile defaults. */
             className="deposit-modal-root fixed inset-x-0 bottom-0 z-[90] bg-bg text-ink flex flex-col overflow-hidden rounded-t-[28px] shadow-[0_-24px_60px_-12px_rgba(0,0,0,0.5)] lg:inset-0 lg:m-auto lg:w-[min(1080px,94vw)] lg:rounded-[24px] lg:shadow-2xl"
           >
-            {/* Scoped style — mobile height is 92dvh (sheet), lg is full
-                viewport. Doing this in CSS rather than inline lets the
-                lg breakpoint actually override the mobile height. */}
             <style>{`
               .deposit-modal-root { height: 92dvh; }
               @media (min-width: 1024px) {
@@ -442,10 +357,7 @@ export const DepositModal: React.FC = () => {
               }
             `}</style>
 
-            {/* Drag handle — mobile only. The grab pill at the top of
-                the sheet that tells the user this is draggable. Tapping
-                it is also a dismiss affordance for users who don't
-                discover the swipe gesture. */}
+            {/* Drag handle — mobile only. */}
             <div className="lg:hidden shrink-0 pt-2.5 pb-1 grid place-items-center">
               <button
                 type="button"
@@ -455,250 +367,326 @@ export const DepositModal: React.FC = () => {
               />
             </div>
 
-          {/* Top bar */}
-          <header
-            className="shrink-0 flex items-center justify-between px-5 sm:px-8 h-12 lg:h-16 border-b"
-            style={{ borderColor: 'rgb(var(--line))' }}
-          >
-            <div className="min-w-0">
-              <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
-                {t('wallet', 'Wallet')}
-              </div>
-              <div className="text-[14px] sm:text-[16px] font-bold tracking-tight text-ink leading-none mt-0.5 truncate">
-                {t('deposit.title', 'Add funds to your Skinify balance')}
-              </div>
-            </div>
-            {/* Close X — kept on lg+ as the primary dismiss affordance.
-                Hidden on mobile where the drag handle + backdrop tap
-                both close the sheet. */}
-            <button
-              onClick={() => !submitting && setOpen(false)}
-              aria-label={t('common.close', 'Close')}
-              className="hidden lg:grid h-10 w-10 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink place-items-center transition-colors"
-            >
-              <X size={16} strokeWidth={2.4} />
-            </button>
-          </header>
-
-          {/* Split pane — fills remaining height; only the left pane scrolls. */}
-          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1.05fr_1fr]">
-            {/* LEFT — method list (the only scroll surface) */}
-            <section
-              className="min-h-0 overflow-y-auto px-4 sm:px-8 py-4 sm:py-5 lg:border-r"
+            {/* Top bar */}
+            <header
+              className="shrink-0 flex items-center justify-between px-5 sm:px-8 h-12 lg:h-16 border-b"
               style={{ borderColor: 'rgb(var(--line))' }}
             >
-              <div className="max-w-[640px] mx-auto lg:mx-0">
-                {/* Mobile-only top section — Amount + presets + bonus
-                    summary, rendered ABOVE the method tiles. The desktop
-                    layout shows these in the right rail, but on mobile
-                    the user opens the modal to deposit money so the
-                    amount field should be the first thing they see. */}
-                <div className="lg:hidden space-y-4 mb-5">
-                  {promoOn && (
-                    <PromoBanner onDismiss={() => setPromoActive(false)} />
-                  )}
-                  <AmountField
-                    amount={amount}
-                    animatedAmount={animatedAmount}
-                    belowMin={belowMin}
-                    inputRef={inputRef}
-                    onChange={typeAmount}
-                    source={lastSourceRef.current}
-                  />
-                  <div className="grid grid-cols-3 gap-2">
-                    {QUICK_AMOUNTS.map((v) => {
-                      const active = amount === v;
-                      return (
-                        <motion.button
-                          whileTap={tap}
-                          key={v}
-                          onClick={() => pickPreset(v)}
-                          className={`h-10 rounded-full text-[12.5px] font-bold tabular-nums transition-colors ${
-                            active
-                              ? 'bg-accent text-on-accent'
-                              : 'bg-subtle text-ink-muted hover:bg-bg hover:text-ink'
-                          }`}
-                        >
-                          {formatPrice(v)}
-                        </motion.button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
-                  {t('deposit.method', 'Payment method')}
-                </div>
-                <h2 className="text-[16px] sm:text-[20px] font-bold tracking-tight text-ink leading-tight mt-1">
-                  {t('deposit.method.pick', 'Pick how you want to pay')}
-                </h2>
-
-                <div className="mt-3 sm:mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                  {METHOD_TILES.map((tile) => (
-                    <MethodCard
-                      key={tile.id}
-                      tile={tile}
-                      active={method === tile.id}
-                      onSelect={() => setMethod(tile.id)}
-                    />
-                  ))}
-                </div>
-
-                <p className="text-[11px] text-ink-dim font-medium mt-4 leading-relaxed">
-                  Cards flow through our acquirer; crypto deposits confirm
-                  on-chain; vouchers and gift cards settle instantly.
-                </p>
-
-                {/* Mobile breakdown — small grid right above the CTA so
-                    the user sees the math before tapping Continue. The
-                    desktop view shows this in the right rail. */}
-                <div className="lg:hidden mt-5 rounded-3xl bg-subtle p-4 space-y-2">
-                  <Row label={t('deposit.summary.youPay', 'You pay')} value={formatPrice(safeAmount)} />
-                  <Row
-                    label={`${selectedMethod?.label || t('deposit.method', 'Method')} ${t('deposit.summary.fee', 'fee').toLowerCase()}`}
-                    value={fee > 0 ? `− ${formatPrice(fee)}` : t('deposit.summary.noFee', 'No fee')}
-                    tone={fee > 0 ? 'muted' : 'positive'}
-                  />
-                  {promoOn && (
-                    <Row
-                      label={`${t('deposit.summary.bonus', 'Bonus')} · ${PROMO.code}`}
-                      value={`+ ${formatPrice(bonus)}`}
-                      tone="accent"
-                    />
-                  )}
-                  <div
-                    className="h-px my-1"
-                    style={{ background: 'rgb(var(--accent) / 0.30)' }}
-                  />
-                  <Row label={t('deposit.summary.credited', 'Credited')} value={formatPrice(credited)} bold />
-                </div>
-                {/* Bottom spacer so the sticky CTA doesn't overlap the
-                    last row when scrolled to the bottom. */}
-                <div className="lg:hidden h-20" aria-hidden />
-              </div>
-            </section>
-
-            {/* RIGHT — rigid action surface, never scrolls. */}
-            <aside className="hidden lg:flex flex-col bg-surface/40 px-8 py-6 overflow-hidden">
-              <div className="max-w-[480px] mx-auto w-full flex-1 flex flex-col gap-4">
-                {/* Title — mirrors the selected method so the pane reads
-                    as "what you're about to do", not a blank form. */}
-                <div>
-                  <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
-                    {t('deposit.method', 'Payment method')}
-                  </div>
-                  <h2 className="text-[24px] font-bold tracking-tight text-ink leading-tight mt-1">
-                    {`Deposit via ${selectedMethod?.label || 'bank transfer'}`}
-                  </h2>
-                </div>
-
-                {/* Promo banner */}
-                {promoOn && (
-                  <PromoBanner onDismiss={() => setPromoActive(false)} />
+              <div className="min-w-0 flex items-center gap-3">
+                {step === 'checkout' && (
+                  <button
+                    onClick={() => !submitting && setStep('amount')}
+                    aria-label="Back"
+                    className="h-9 w-9 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors shrink-0"
+                  >
+                    <ArrowLeft size={15} strokeWidth={2.4} />
+                  </button>
                 )}
+                <div className="min-w-0">
+                  <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
+                    {t('wallet', 'Wallet')}
+                  </div>
+                  <div className="text-[14px] sm:text-[16px] font-bold tracking-tight text-ink leading-none mt-0.5 truncate">
+                    {step === 'checkout'
+                      ? t('deposit.checkout.title', 'Complete your payment')
+                      : t('deposit.title', 'Add funds to your Skinify balance')}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => !submitting && setOpen(false)}
+                aria-label={t('common.close', 'Close')}
+                className="hidden lg:grid h-10 w-10 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink place-items-center transition-colors"
+              >
+                <X size={16} strokeWidth={2.4} />
+              </button>
+            </header>
 
-                {/* Amount */}
-                <AmountField
-                  amount={amount}
-                  animatedAmount={animatedAmount}
-                  belowMin={belowMin}
-                  inputRef={inputRef}
-                  onChange={typeAmount}
-                  source={lastSourceRef.current}
-                />
+            {step === 'checkout' && clientSecret && elementsOptions ? (
+              /* ══════════ STEP 2 — embedded Stripe checkout ══════════ */
+              <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-8 py-5">
+                <div className="max-w-[480px] mx-auto">
+                  <div className="rounded-3xl bg-subtle p-4 mb-4 space-y-2">
+                    <Row
+                      label={t('deposit.summary.youPay', 'You pay')}
+                      value={formatPrice(safeAmount)}
+                    />
+                    {promoOn && (
+                      <Row
+                        label={`${t('deposit.summary.bonus', 'Bonus')} · ${PROMO.code}`}
+                        value={`+ ${formatPrice(bonus)}`}
+                        tone="accent"
+                      />
+                    )}
+                    <div className="h-px my-1" style={{ background: 'rgb(var(--accent) / 0.30)' }} />
+                    <Row
+                      label={t('deposit.summary.credited', 'Credited')}
+                      value={formatPrice(credited)}
+                      bold
+                    />
+                  </div>
 
-                {/* Quick amounts */}
-                <div className="grid grid-cols-3 gap-2">
-                  {QUICK_AMOUNTS.map((v) => {
-                    const active = amount === v;
-                    return (
+                  <Elements stripe={getStripe()} options={elementsOptions as any}>
+                    <StripeCheckoutForm
+                      amountLabel={formatPrice(safeAmount)}
+                      paymentIntentId={paymentIntentId!}
+                      onSuccess={async (piId) => {
+                        try {
+                          await finalizeCredit(piId);
+                          setOpen(false);
+                        } catch (err) {
+                          addToast({
+                            type: 'error',
+                            title: 'Deposit verification failed',
+                            message:
+                              err instanceof Error ? err.message : 'Please contact support.',
+                            duration: 8000,
+                          });
+                        }
+                      }}
+                    />
+                  </Elements>
+
+                  <p className="text-[10.5px] text-ink-dim font-medium leading-relaxed text-center mt-4 flex items-center justify-center gap-1.5">
+                    <ShieldCheck size={12} strokeWidth={2.4} className="shrink-0" />
+                    {t(
+                      'deposit.disclaimer.stripe',
+                      'Card details go directly to Stripe — Skinify never sees them.',
+                    )}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              /* ══════════ STEP 1 — amount + method overview ══════════ */
+              <>
+                <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1.05fr_1fr]">
+                  {/* LEFT — method overview (the only scroll surface) */}
+                  <section
+                    className="min-h-0 overflow-y-auto px-4 sm:px-8 py-4 sm:py-5 lg:border-r"
+                    style={{ borderColor: 'rgb(var(--line))' }}
+                  >
+                    <div className="max-w-[640px] mx-auto lg:mx-0">
+                      {/* Mobile-only top section — amount first. */}
+                      <div className="lg:hidden space-y-4 mb-5">
+                        {promoOn && <PromoBanner onDismiss={() => setPromoActive(false)} />}
+                        <AmountField
+                          amount={amount}
+                          animatedAmount={animatedAmount}
+                          belowMin={belowMin}
+                          inputRef={inputRef}
+                          onChange={typeAmount}
+                          source={lastSourceRef.current}
+                        />
+                        <div className="grid grid-cols-3 gap-2">
+                          {QUICK_AMOUNTS.map((v) => {
+                            const active = amount === v;
+                            return (
+                              <motion.button
+                                whileTap={tap}
+                                key={v}
+                                onClick={() => pickPreset(v)}
+                                className={`h-10 rounded-full text-[12.5px] font-bold tabular-nums transition-colors ${
+                                  active
+                                    ? 'bg-accent text-on-accent'
+                                    : 'bg-subtle text-ink-muted hover:bg-bg hover:text-ink'
+                                }`}
+                              >
+                                {formatPrice(v)}
+                              </motion.button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
+                        {t('deposit.method', 'Payment method')}
+                      </div>
+                      <h2 className="text-[16px] sm:text-[20px] font-bold tracking-tight text-ink leading-tight mt-1">
+                        {t('deposit.method.stripe', 'Pay securely with Stripe')}
+                      </h2>
+
+                      <div className="mt-3 sm:mt-4 space-y-2.5">
+                        {METHOD_PREVIEWS.map((m) => (
+                          <div
+                            key={m.label}
+                            className="rounded-2xl bg-surface px-4 py-3 flex items-center gap-3.5"
+                            style={{ boxShadow: 'inset 0 0 0 1px rgb(var(--accent) / 0.25)' }}
+                          >
+                            <span className="w-9 h-9 rounded-xl bg-accent-soft text-accent grid place-items-center shrink-0">
+                              {m.icon}
+                            </span>
+                            <div className="min-w-0">
+                              <div className="text-[13px] font-bold tracking-tight text-ink leading-tight">
+                                {m.label}
+                              </div>
+                              <div className="text-[11px] font-semibold text-ink-muted mt-0.5 truncate">
+                                {m.caption}
+                              </div>
+                            </div>
+                            <Check
+                              size={15}
+                              strokeWidth={2.6}
+                              className="ml-auto text-accent shrink-0"
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      <p className="text-[11px] text-ink-dim font-medium mt-4 leading-relaxed">
+                        {t(
+                          'deposit.method.note',
+                          'You choose the exact method on the next step. Payments are processed by Stripe with 3D Secure where your bank requires it.',
+                        )}
+                      </p>
+
+                      {/* Mobile breakdown above the sticky CTA. */}
+                      <div className="lg:hidden mt-5 rounded-3xl bg-subtle p-4 space-y-2">
+                        <Row
+                          label={t('deposit.summary.youPay', 'You pay')}
+                          value={formatPrice(safeAmount)}
+                        />
+                        {promoOn && (
+                          <Row
+                            label={`${t('deposit.summary.bonus', 'Bonus')} · ${PROMO.code}`}
+                            value={`+ ${formatPrice(bonus)}`}
+                            tone="accent"
+                          />
+                        )}
+                        <div
+                          className="h-px my-1"
+                          style={{ background: 'rgb(var(--accent) / 0.30)' }}
+                        />
+                        <Row
+                          label={t('deposit.summary.credited', 'Credited')}
+                          value={formatPrice(credited)}
+                          bold
+                        />
+                      </div>
+                      <div className="lg:hidden h-20" aria-hidden />
+                    </div>
+                  </section>
+
+                  {/* RIGHT — rigid action surface, never scrolls. */}
+                  <aside className="hidden lg:flex flex-col bg-surface/40 px-8 py-6 overflow-hidden">
+                    <div className="max-w-[480px] mx-auto w-full flex-1 flex flex-col gap-4">
+                      <div>
+                        <div className="text-[10.5px] font-bold uppercase tracking-wider text-ink-dim">
+                          {t('deposit.method', 'Payment method')}
+                        </div>
+                        <h2 className="text-[24px] font-bold tracking-tight text-ink leading-tight mt-1">
+                          {t('deposit.title.card', 'Deposit with card or wallet')}
+                        </h2>
+                      </div>
+
+                      {promoOn && <PromoBanner onDismiss={() => setPromoActive(false)} />}
+
+                      <AmountField
+                        amount={amount}
+                        animatedAmount={animatedAmount}
+                        belowMin={belowMin}
+                        inputRef={inputRef}
+                        onChange={typeAmount}
+                        source={lastSourceRef.current}
+                      />
+
+                      <div className="grid grid-cols-3 gap-2">
+                        {QUICK_AMOUNTS.map((v) => {
+                          const active = amount === v;
+                          return (
+                            <motion.button
+                              whileTap={tap}
+                              key={v}
+                              onClick={() => pickPreset(v)}
+                              className={`h-10 rounded-2xl text-[13px] font-bold tabular-nums transition-colors ${
+                                active
+                                  ? 'bg-accent text-on-accent'
+                                  : 'bg-subtle text-ink-muted hover:bg-bg hover:text-ink'
+                              }`}
+                            >
+                              {formatPrice(v)}
+                            </motion.button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mt-auto rounded-3xl bg-subtle p-4 space-y-2">
+                        <Row
+                          label={t('deposit.summary.youPay', 'You pay')}
+                          value={formatPrice(safeAmount)}
+                        />
+                        {promoOn && (
+                          <Row
+                            label={`${t('deposit.summary.bonus', 'Bonus')} · ${PROMO.code}`}
+                            value={`+ ${formatPrice(bonus)}`}
+                            tone="accent"
+                          />
+                        )}
+                        <div
+                          className="h-px my-1"
+                          style={{ background: 'rgb(var(--accent) / 0.30)' }}
+                        />
+                        <Row
+                          label={t('deposit.summary.credited', 'Credited')}
+                          value={formatPrice(credited)}
+                          bold
+                        />
+                      </div>
+
                       <motion.button
                         whileTap={tap}
-                        key={v}
-                        onClick={() => pickPreset(v)}
-                        className={`h-10 rounded-2xl text-[13px] font-bold tabular-nums transition-colors ${
-                          active
-                            ? 'bg-accent text-on-accent'
-                            : 'bg-subtle text-ink-muted hover:bg-bg hover:text-ink'
-                        }`}
+                        whileHover={canSubmit ? { scale: 1.005 } : undefined}
+                        onClick={handleContinue}
+                        disabled={!canSubmit}
+                        className="w-full h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity hover:opacity-95"
                       >
-                        {formatPrice(v)}
+                        {submitting ? (
+                          <>
+                            <Loader2 size={15} strokeWidth={2.4} className="animate-spin" />
+                            {t('deposit.cta.processing', 'Processing…')}
+                          </>
+                        ) : safeAmount > 0 ? (
+                          `${t('deposit.cta.continue', 'Continue to payment')} · ${formatPrice(safeAmount)}`
+                        ) : (
+                          t('deposit.cta.enterAmount', 'Enter an amount')
+                        )}
                       </motion.button>
-                    );
-                  })}
+
+                      <p className="text-[10.5px] text-ink-dim font-medium leading-relaxed text-center">
+                        {t(
+                          'deposit.disclaimer.stripe',
+                          'Card details go directly to Stripe — Skinify never sees them.',
+                        )}
+                      </p>
+                    </div>
+                  </aside>
                 </div>
 
-                {/* Summary — anchored to the bottom like skins.com's
-                    "You receive" block. */}
-                <div className="mt-auto rounded-3xl bg-subtle p-4 space-y-2">
-                  <Row label={t('deposit.summary.youPay', 'You pay')} value={formatPrice(safeAmount)} />
-                  <Row
-                    label={`${selectedMethod?.label || t('deposit.method', 'Method')} ${t('deposit.summary.fee', 'fee').toLowerCase()}`}
-                    value={fee > 0 ? `− ${formatPrice(fee)}` : t('deposit.summary.noFee', 'No fee')}
-                    tone={fee > 0 ? 'muted' : 'positive'}
-                  />
-                  {promoOn && (
-                    <Row
-                      label={`${t('deposit.summary.bonus', 'Bonus')} · ${PROMO.code}`}
-                      value={`+ ${formatPrice(bonus)}`}
-                      tone="accent"
-                    />
-                  )}
-                  <div
-                    className="h-px my-1"
-                    style={{ background: 'rgb(var(--accent) / 0.30)' }}
-                  />
-                  <Row label={t('deposit.summary.credited', 'Credited')} value={formatPrice(credited)} bold />
-                </div>
-
-                {/* CTA */}
-                <motion.button
-                  whileTap={tap}
-                  whileHover={canSubmit ? { scale: 1.005 } : undefined}
-                  onClick={handleSubmit}
-                  disabled={!canSubmit}
-                  className="w-full h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-opacity hover:opacity-95"
+                {/* Mobile-only sticky CTA. */}
+                <div
+                  className="lg:hidden shrink-0 px-4 pt-2 pb-[max(env(safe-area-inset-bottom),12px)] bg-bg/95 backdrop-blur-md border-t"
+                  style={{ borderColor: 'rgb(var(--line))' }}
                 >
-                  {submitting
-                    ? t('deposit.cta.processing', 'Processing…')
-                    : safeAmount > 0
-                    ? `${t('deposit.cta.continue', 'Continue')} · ${formatPrice(safeAmount)}`
-                    : t('deposit.cta.enterAmount', 'Enter an amount')}
-                </motion.button>
-
-                <p className="text-[10.5px] text-ink-dim font-medium leading-relaxed text-center">
-                  {t(
-                    'deposit.disclaimer',
-                    'Skinify never sees your card details. Payments are encrypted and processed by your provider.',
-                  )}
-                </p>
-              </div>
-            </aside>
-
-          </div>
-
-          {/* Mobile-only sticky CTA. Pinned to the bottom of the
-              viewport so the Continue button is always within thumb
-              reach as the user scrolls through method tiles. Hidden on
-              lg+ where the right rail carries the CTA. */}
-          <div
-            className="lg:hidden shrink-0 px-4 pt-2 pb-[max(env(safe-area-inset-bottom),12px)] bg-bg/95 backdrop-blur-md border-t"
-            style={{ borderColor: 'rgb(var(--line))' }}
-          >
-            <motion.button
-              whileTap={tap}
-              onClick={handleSubmit}
-              disabled={!canSubmit}
-              className="w-full h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-opacity hover:opacity-95"
-              style={{ boxShadow: '0 10px 24px -12px rgb(var(--accent) / 0.65)' }}
-            >
-              {submitting
-                ? 'Processing…'
-                : safeAmount > 0
-                ? `Continue · ${formatPrice(safeAmount)}`
-                : 'Enter an amount'}
-            </motion.button>
-          </div>
+                  <motion.button
+                    whileTap={tap}
+                    onClick={handleContinue}
+                    disabled={!canSubmit}
+                    className="w-full h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity hover:opacity-95"
+                    style={{ boxShadow: '0 10px 24px -12px rgb(var(--accent) / 0.65)' }}
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 size={15} strokeWidth={2.4} className="animate-spin" />
+                        Processing…
+                      </>
+                    ) : safeAmount > 0 ? (
+                      `Continue to payment · ${formatPrice(safeAmount)}`
+                    ) : (
+                      'Enter an amount'
+                    )}
+                  </motion.button>
+                </div>
+              </>
+            )}
           </motion.div>
         </>
       )}
@@ -707,133 +695,81 @@ export const DepositModal: React.FC = () => {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────
-   MethodCard — one of nine large tiles in the payment-method grid.
-
-   Visually a solid brand-colored card (no flashy gradients or emoji-style
-   icons). Brand chips inside the body do the work — three or four wordmark-
-   style pills + a small corner badge for promotions. The footer carries
-   the wallet name and fee tag. Selecting a card swaps the outer ring to
-   the accent color and lifts it slightly.
+   StripeCheckoutForm — the embedded Payment Element + Pay button.
+   Lives inside <Elements>, so it can use the stripe/elements hooks.
+   confirmPayment uses redirect: 'if_required' — card payments settle
+   in-modal; bank redirects / wallet sheets bounce through return_url and
+   are finalised by the redirect watcher in DepositModal.
    ───────────────────────────────────────────────────────────────────────── */
-const MethodCard: React.FC<{
-  tile: MethodTile;
-  active: boolean;
-  onSelect: () => void;
-}> = ({ tile, active, onSelect }) => {
-  /* Badge tone — accent-tinted by default, kept restrained so the
-     selection state is the strongest signal on the card. */
-  const badgeTone =
-    tile.badge?.tone === 'top'
-      ? 'bg-accent text-on-accent'
-      : tile.badge?.tone === 'bonus'
-      ? 'bg-accent-soft text-accent'
-      : 'bg-subtle text-ink-muted';
+const StripeCheckoutForm: React.FC<{
+  amountLabel: string;
+  paymentIntentId: string;
+  onSuccess: (paymentIntentId: string) => Promise<void>;
+}> = ({ amountLabel, paymentIntentId, onSuccess }) => {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [paying, setPaying] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+
+  const pay = async () => {
+    if (!stripe || !elements || paying) return;
+    setPaying(true);
+    setErrorMsg(null);
+    const { error, paymentIntent } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        return_url: `${window.location.origin}/profile?tab=balance`,
+      },
+      redirect: 'if_required',
+    });
+    if (error) {
+      setErrorMsg(error.message || 'Payment failed. Please try again.');
+      setPaying(false);
+      return;
+    }
+    if (paymentIntent && (paymentIntent.status === 'succeeded' || paymentIntent.status === 'processing')) {
+      await onSuccess(paymentIntent.id || paymentIntentId);
+      setPaying(false);
+    } else {
+      setErrorMsg('Payment was not completed. No funds were taken.');
+      setPaying(false);
+    }
+  };
 
   return (
-    <motion.button
-      whileTap={tap}
-      whileHover={{ y: -2 }}
-      onClick={onSelect}
-      aria-pressed={active}
-      className="group relative text-left rounded-2xl overflow-hidden bg-surface focus:outline-none transition-shadow"
-      style={
-        !active
-          ? {
-              boxShadow:
-                'inset 0 0 0 1px rgb(var(--accent) / 0.35)',
-            }
-          : undefined
-      }
-    >
-      {/* Accent overlay — slides up from the bottom when this tile becomes
-          the selected one. Animated via layoutId so the highlight
-          smoothly transitions between cards instead of flashing. */}
-      <AnimatePresence>
-        {active && (
-          <motion.span
-            layoutId="method-card-active"
-            className="absolute inset-0 rounded-2xl pointer-events-none"
-            style={{
-              background:
-                'linear-gradient(180deg, rgb(var(--accent) / 0.10) 0%, rgb(var(--accent) / 0.18) 100%)',
-              boxShadow:
-                '0 0 0 2px rgb(var(--accent)), 0 16px 32px -16px rgb(var(--accent) / 0.55)',
-            }}
-            transition={{ type: 'spring', stiffness: 380, damping: 32, mass: 0.7 }}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Body — chips area */}
-      <div className="relative px-3 pt-3 pb-2 min-h-[112px] flex flex-col justify-between">
-        {tile.badge && (
-          <span
-            className={`absolute top-2 right-2 text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md ${badgeTone}`}
-          >
-            {tile.badge.text}
-          </span>
-        )}
-
-        {/* Check chip — scales/fades in. Absolutely positioned so its
-            entry doesn't push the chip row. */}
-        <AnimatePresence>
-          {active && (
-            <motion.span
-              key="check"
-              initial={{ scale: 0.4, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.4, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 520, damping: 28 }}
-              className="absolute top-2 left-2 w-5 h-5 rounded-full bg-accent text-on-accent grid place-items-center shadow-[0_4px_10px_-2px_rgb(var(--accent)/0.6)] z-10"
-            >
-              <Check size={11} strokeWidth={3.2} />
-            </motion.span>
-          )}
-        </AnimatePresence>
-
-        <div className="relative flex flex-wrap items-start gap-1.5 mt-5">
-          {tile.chips.map((chip, i) => (
-            <span
-              key={`${chip.label}-${i}`}
-              className={`inline-flex items-center justify-center text-[10.5px] font-bold tracking-tight px-1.5 py-0.5 rounded-[6px] bg-subtle text-ink ${
-                chip.kind === 'mono'
-                  ? 'font-mono text-[14px] leading-none w-7 h-7'
-                  : ''
-              }`}
-              style={{ boxShadow: 'inset 0 0 0 1px rgb(var(--accent) / 0.25)' }}
-            >
-              {chip.label}
-            </span>
-          ))}
+    <div>
+      {!ready && (
+        <div className="h-40 grid place-items-center text-ink-muted">
+          <Loader2 size={20} strokeWidth={2.2} className="animate-spin" />
         </div>
-
-        <div className="relative">
-          <div className="text-[13px] font-bold tracking-tight leading-tight mt-3 text-ink">
-            {tile.label}
-          </div>
-          <div className="text-[10.5px] font-semibold mt-0.5 leading-tight truncate text-ink-muted">
-            {tile.caption}
-          </div>
-        </div>
+      )}
+      <div className={ready ? '' : 'invisible h-0 overflow-hidden'}>
+        <PaymentElement onReady={() => setReady(true)} options={{ layout: 'tabs' }} />
       </div>
 
-      {/* Footer — fee + state label */}
-      <div
-        className="relative px-3 py-1.5 border-t text-[10px] font-bold uppercase tracking-wider flex items-center justify-between text-ink-dim bg-subtle/40"
-        style={{ borderColor: 'rgb(var(--line))' }}
+      {errorMsg && (
+        <div className="mt-3 rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-400 px-4 py-3 text-[12.5px] font-semibold">
+          {errorMsg}
+        </div>
+      )}
+
+      <motion.button
+        whileTap={tap}
+        onClick={pay}
+        disabled={!stripe || !elements || paying || !ready}
+        className="mt-4 w-full h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity hover:opacity-95"
       >
-        <span>{tile.fee ? `${tile.fee} fee` : 'No fee'}</span>
-        <motion.span
-          key={active ? 'selected' : 'select'}
-          initial={{ opacity: 0, y: 2 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.18 }}
-          className={active ? 'text-accent' : 'text-ink-muted'}
-        >
-          {active ? 'Selected' : 'Select'}
-        </motion.span>
-      </div>
-    </motion.button>
+        {paying ? (
+          <>
+            <Loader2 size={15} strokeWidth={2.4} className="animate-spin" />
+            Processing…
+          </>
+        ) : (
+          `Pay ${amountLabel}`
+        )}
+      </motion.button>
+    </div>
   );
 };
 
@@ -952,11 +888,6 @@ const AmountField: React.FC<{
    Translating the strip by ±10% per digit lands on the new value;
    framer-motion springs to the target so the digits feel mechanical
    (like a flipper / odometer).
-
-   When a digit goes 5 → 0 (down) we translate downward to roll through
-   4, 3, 2, 1, 0. When it goes 1 → 2 (up) we translate upward by 10%.
-   Padding the new value with zeros against the previous-width keeps
-   digit positions stable mid-animation.
    ───────────────────────────────────────────────────────────────────────── */
 
 const DigitReel: React.FC<{ value: number }> = ({ value }) => {
