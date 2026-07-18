@@ -1072,41 +1072,40 @@ const TrustpilotCard: React.FC<{ isCS: boolean }> = ({ isCS }) => (
     href="https://www.trustpilot.com/review/skinify.gg"
     target="_blank"
     rel="noopener noreferrer"
-    className="group self-start rounded-3xl ring-1 ring-line bg-surface hover:bg-subtle/50 transition-colors p-5 sm:p-6 flex flex-col"
+    className="group self-stretch h-full rounded-3xl ring-1 ring-line bg-surface hover:bg-subtle/50 transition-colors p-7 sm:p-9 flex flex-col items-center text-center justify-center gap-5"
   >
-    <div className="flex items-center gap-4">
-      {/* White tile so the dark Trustpilot star reads on the dark theme */}
-      <span className="w-14 h-14 shrink-0 rounded-2xl bg-white grid place-items-center shadow-sm">
-        <img
-          src="/trustpilot-logo.png"
-          alt="Trustpilot"
-          className="w-9 h-9 object-contain"
-          loading="lazy"
-        />
-      </span>
-      <div className="flex items-center gap-1">
-        {[0, 1, 2, 3, 4].map((i) => (
-          <span
-            key={i}
-            className="w-6 h-6 grid place-items-center rounded-[3px]"
-            style={{ background: '#00b67a' }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff" aria-hidden>
-              <path d="M12 2l2.9 6.9L22 9.6l-5.4 4.7L18.2 22 12 18.1 5.8 22l1.6-7.7L2 9.6l7.1-.7z" />
-            </svg>
-          </span>
-        ))}
-      </div>
+    {/* White tile so the dark Trustpilot star reads on the dark theme — large
+        and centered so the logo is clearly legible */}
+    <span className="w-28 h-28 shrink-0 rounded-3xl bg-white grid place-items-center shadow-md">
+      <img
+        src="/trustpilot-logo.png"
+        alt="Trustpilot"
+        className="w-20 h-20 object-contain"
+        loading="lazy"
+      />
+    </span>
+    <div className="flex items-center gap-1.5">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <span
+          key={i}
+          className="w-9 h-9 grid place-items-center rounded-[4px]"
+          style={{ background: '#00b67a' }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" aria-hidden>
+            <path d="M12 2l2.9 6.9L22 9.6l-5.4 4.7L18.2 22 12 18.1 5.8 22l1.6-7.7L2 9.6l7.1-.7z" />
+          </svg>
+        </span>
+      ))}
     </div>
-    <div className="text-[16px] font-bold text-ink tracking-tight mt-4 group-hover:text-accent transition-colors inline-flex items-center gap-1.5">
+    <div className="text-[19px] sm:text-[21px] font-bold text-ink tracking-tight group-hover:text-accent transition-colors inline-flex items-center gap-2">
       {isCS ? 'Ohodnoťte nás na Trustpilotu' : 'Rate us on Trustpilot'}
       <ArrowRight
-        size={16}
+        size={20}
         strokeWidth={2.4}
         className="text-ink-dim group-hover:text-accent group-hover:translate-x-0.5 transition-all"
       />
     </div>
-    <p className="text-[13px] text-ink-muted font-medium mt-1.5 leading-relaxed">
+    <p className="text-[14px] text-ink-muted font-medium leading-relaxed max-w-sm">
       {isCS
         ? 'Obchodujete na Skinify? Podělte se o zkušenost a pomozte ostatním hráčům nakupovat s klidem.'
         : 'Trade on Skinify? Share your experience and help fellow players buy with confidence.'}
