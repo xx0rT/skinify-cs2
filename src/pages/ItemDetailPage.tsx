@@ -34,6 +34,7 @@ import BuyConfirmModal from '../components/marketplace/BuyConfirmModal';
 import { rarityColor } from '../components/ui/SkinCard';
 import { useSkinFloat, itemHasWear } from '../hooks/useSkinFloat';
 import { getSupabaseCredentials } from '../utils/supabaseHelpers';
+import { resolveInspectLink } from '../utils/inspectLink';
 import { spring, tap } from '../lib/motion';
 import { openDepositModal } from '../components/DepositModal';
 import {
@@ -1048,30 +1049,8 @@ const ItemDetailPage: React.FC = () => {
   );
 };
 
-/* Resolve a working steam:// inspect link for a listing. Listing rows
-   may ship the link with Steam's %placeholders%; substitute what we
-   know. Falls back to building one from s/a/d params when present. */
-function resolveInspectLink(item: any): string | null {
-  let link: string | null =
-    item?.inspect_link || item?.inspectLink || item?.inspect_url || null;
-  if (link) {
-    const owner = item?.seller?.steamId ? String(item.seller.steamId) : '';
-    const assetId = item?.asset_id || item?.assetId || item?.itemId || '';
-    link = link
-      .replace('%owner_steamid%', owner)
-      .replace('%assetid%', String(assetId));
-    /* Unresolved placeholders make Steam reject the link — bail. */
-    if (link.includes('%')) return null;
-    return link;
-  }
-  const s = item?.s ?? item?.owner_steamid ?? item?.seller?.steamId;
-  const a = item?.a ?? item?.asset_id ?? item?.assetId;
-  const d = item?.d ?? item?.d_code;
-  if (s && a && d) {
-    return `steam://rungame/730/76561202255233023/+csgo_econ_action_preview S${s}A${a}D${d}`;
-  }
-  return null;
-}
+/* Inspect link resolution lives in utils/inspectLink — shared with
+   SkinCard so both surfaces agree on what counts as a working link. */
 
 /* ───── Sub-panels ───── */
 

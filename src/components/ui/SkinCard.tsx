@@ -12,6 +12,7 @@ import { CachedImage } from './CachedImage';
 import { tap } from '../../lib/motion';
 import { useToastStore } from '../../store/toastStore';
 import { useSkinFloat } from '../../hooks/useSkinFloat';
+import { resolveInspectLink } from '../../utils/inspectLink';
 
 /**
  * SkinCard — neutral, no-glow card for a CS2 listing.
@@ -907,23 +908,10 @@ const TileActionBar: React.FC<{
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
   const inspectInGame = () => {
-    /* Resolve an inspect link from any field the listing carries, or build
-       one from the raw S<owner>A<asset>D<dcode> parts when only those are
-       present. */
-    let inspectLink: string | null =
-      (item as any).inspect_link ||
-      (item as any).inspectLink ||
-      (item as any).inspect_url ||
-      null;
-
-    if (!inspectLink) {
-      const owner = (item as any).seller?.steamId || (item as any).owner_steam_id;
-      const asset = (item as any).asset_id || (item as any).assetid;
-      const dcode = (item as any).d_code || (item as any).dcode || (item as any).inspect_d;
-      if (owner && asset && dcode) {
-        inspectLink = `steam://rungame/730/76561202255233023/+csgo_econ_action_preview%20S${owner}A${asset}D${dcode}`;
-      }
-    }
+    /* Shared resolver — substitutes known placeholders, rejects links that
+       still carry unresolved %templates%, and falls back to building one
+       from the raw S<owner>A<asset>D<dcode> parts when only those exist. */
+    const inspectLink = resolveInspectLink(item);
 
     if (!inspectLink) {
       addToast({

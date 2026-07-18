@@ -24,10 +24,18 @@ function resolveInspectLink(
   if (assetId) {
     out = out.replace(/%assetid%/g, String(assetId));
   }
-  /* If after substitution any placeholder remains (e.g. assetId
-     wasn't supplied), drop the link — a templated URL would just
-     fail in Steam and we'd rather surface "inspect unavailable". */
-  if (out.includes('%') && /%[a-z_]+%/i.test(out)) return null;
+  /* If after substitution any placeholder remains (e.g. %propid:6%
+     from Steam's new inventory API), drop the link — a templated URL
+     would just fail in Steam and we'd rather surface "inspect
+     unavailable". Valid links may legitimately contain %20 (encoded
+     space in the new hex-blob format), so we can't just look for '%':
+     decode instead — a clean link decodes without any '%' left, while
+     unresolved templates either keep one or make decoding throw. */
+  try {
+    if (decodeURIComponent(out).includes('%')) return null;
+  } catch {
+    return null;
+  }
   return out;
 }
 

@@ -399,6 +399,7 @@ function extractInspectLink(
   actions: any[],
   ownerSteamId?: string,
   assetId?: string,
+  assetProperties?: any[],
 ): string | null {
   if (!actions) return null;
   const inspectAction = actions.find(
@@ -415,6 +416,25 @@ function extractInspectLink(
   }
   if (assetId) {
     link = link.replace(/%assetid%/g, assetId);
+  }
+  /* Steam's new inventory API ships `%propid:N%` templates that
+     reference an asset property holding the hex inspect blob
+     (typically propertyid 6). Substitute from asset_properties so
+     the stored link is directly openable. */
+  link = link.replace(/%propid:(\d+)%/g, (whole, id) => {
+    const prop = (assetProperties || []).find(
+      (p: any) => String(p?.propertyid) === String(id),
+    );
+    const val = prop?.string_value ?? prop?.value ?? prop?.int_value ?? null;
+    return val != null && val !== '' ? String(val) : whole;
+  });
+  /* A link with an unresolved template is worse than no link — the
+     Steam client rejects it. (%20 is a legit encoded space, so test
+     by decoding rather than just searching for '%'.) */
+  try {
+    if (decodeURIComponent(link).includes('%')) return null;
+  } catch {
+    return null;
   }
   return link;
 }
@@ -506,6 +526,7 @@ function parseCS2Item(
     description.actions || [],
     ownerSteamId,
     asset.assetid,
+    assetProperties,
   );
 
   // Extract float and pattern from asset_properties (most accurate)
