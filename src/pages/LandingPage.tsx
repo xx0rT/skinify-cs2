@@ -322,7 +322,7 @@ const LandingPage: React.FC = () => {
           where crawlers expect it without disrupting the layout.
         */}
         <h1 className="sr-only">
-          CS2 Marketplace — Buy and Sell CS2 Skins on Skinify
+          Skinify — CS2 Market: Buy and Sell CS2 Skins
         </h1>
 
         {/* ===== 1 · HERO ===== signed-in → account welcome banner with a
@@ -960,7 +960,7 @@ const SEO_SECTIONS_EN: { h: string; p: string[] }[] = [
   {
     h: 'Buy & sell CS2 (CS:GO) skins the easy, secure way with Skinify',
     p: [
-      'Skinify is a peer-to-peer marketplace built to make trading Counter-Strike 2 skins simple, fast and safe. Every purchase is protected by escrow, items are delivered to your Steam inventory in under a minute, and sellers cash out in real money — not locked Steam wallet funds. With low, transparent fees and a large, active community, you can buy the skin you want or sell the ones you don’t in just a few clicks.',
+      'Skinify is a peer-to-peer CS2 market built to make trading Counter-Strike 2 skins simple, fast and safe. Every purchase is protected by escrow, items are delivered to your Steam inventory in under a minute, and sellers cash out in real money — not locked Steam wallet funds. With low, transparent fees and a large, active community, you can buy the skin you want or sell the ones you don’t in just a few clicks.',
     ],
   },
   {

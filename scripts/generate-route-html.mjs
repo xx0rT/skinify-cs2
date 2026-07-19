@@ -39,8 +39,8 @@ function metaFor(path) {
 
   let h1, desc;
   if (path === '/marketplace') {
-    h1 = 'CS2 Skins Marketplace — Buy & Sell Skins';
-    desc = 'Browse thousands of CS2 skins from verified sellers. 0% buyer fees, escrow protection, instant Steam delivery.';
+    h1 = 'CS2 Market — Buy & Sell CS2 Skins';
+    desc = 'Browse thousands of CS2 skins on the Skinify CS2 market. Verified sellers, 0% buyer fees, escrow protection, instant Steam delivery.';
   } else if (path === '/weapons') {
     h1 = 'CS2 Weapon Skins by Category';
     desc = 'Explore CS2 skins by weapon category — rifles, pistols, knives, gloves and more. Real prices, real floats.';

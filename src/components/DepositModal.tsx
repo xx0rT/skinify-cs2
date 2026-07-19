@@ -488,13 +488,13 @@ export const DepositModal: React.FC = () => {
                       {/* Deposit artwork — fills the otherwise empty left
                           column under the method heading. */}
                       <motion.img
-                        src="/skinify_graphics/karambit.png"
+                        src="/skinify_graphics/2d6d1099-d6d0-46ad-9462-bca2246e2160-removebg-preview_upscaled.png"
                         alt=""
                         aria-hidden
                         initial={{ opacity: 0, y: 14, rotate: -2 }}
                         animate={{ opacity: 1, y: 0, rotate: 0 }}
                         transition={{ type: 'spring', stiffness: 260, damping: 26, delay: 0.1 }}
-                        className="mt-5 w-full max-w-[420px] mx-auto rounded-3xl object-cover select-none pointer-events-none"
+                        className="mt-5 w-full max-w-[420px] mx-auto object-contain select-none pointer-events-none drop-shadow-[0_24px_40px_rgba(0,0,0,0.35)]"
                         draggable={false}
                       />
 
