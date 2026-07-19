@@ -485,8 +485,18 @@ export const DepositModal: React.FC = () => {
                         {t('deposit.method.stripe', 'Pay securely with Stripe')}
                       </h2>
 
-                      {/* Custom graphics slot — the owner drops their own
-                          artwork here; keep the column otherwise clean. */}
+                      {/* Deposit artwork — fills the otherwise empty left
+                          column under the method heading. */}
+                      <motion.img
+                        src="/skinify_graphics/karambit.png"
+                        alt=""
+                        aria-hidden
+                        initial={{ opacity: 0, y: 14, rotate: -2 }}
+                        animate={{ opacity: 1, y: 0, rotate: 0 }}
+                        transition={{ type: 'spring', stiffness: 260, damping: 26, delay: 0.1 }}
+                        className="mt-5 w-full max-w-[420px] mx-auto rounded-3xl object-cover select-none pointer-events-none"
+                        draggable={false}
+                      />
 
                       <p className="text-[11px] text-ink-dim font-medium mt-4 leading-relaxed">
                         {t(
