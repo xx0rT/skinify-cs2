@@ -26,50 +26,50 @@
   </url>
 
   <!-- Weapon category landing pages -->
-  <url><loc>https://skinify.gg/weapons/Pistols</loc>     <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
-  <url><loc>https://skinify.gg/weapons/Rifles</loc>      <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
-  <url><loc>https://skinify.gg/weapons/SMGs</loc>        <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
-  <url><loc>https://skinify.gg/weapons/Heavy</loc>       <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
-  <url><loc>https://skinify.gg/weapons/Knives</loc>      <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.85</priority></url>
-  <url><loc>https://skinify.gg/weapons/Gloves</loc>      <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.85</priority></url>
-  <url><loc>https://skinify.gg/weapons/Containers</loc>  <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://skinify.gg/weapons/pistols</loc>     <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/weapons/rifles</loc>      <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/weapons/smgs</loc>        <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/weapons/heavy</loc>       <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/weapons/knives</loc>      <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/weapons/gloves</loc>      <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/weapons/containers</loc>  <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
 
   <!-- High-intent weapon deep links -->
-  <url><loc>https://skinify.gg/weapons/Rifles/AK-47</loc>           <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.85</priority></url>
-  <url><loc>https://skinify.gg/weapons/Rifles/M4A4</loc>            <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.85</priority></url>
-  <url><loc>https://skinify.gg/weapons/Rifles/M4A1-S</loc>          <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.85</priority></url>
-  <url><loc>https://skinify.gg/weapons/Rifles/AWP</loc>             <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.85</priority></url>
-  <url><loc>https://skinify.gg/weapons/Rifles/SSG%2008</loc>        <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.65</priority></url>
-  <url><loc>https://skinify.gg/weapons/Rifles/Galil%20AR</loc>      <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://skinify.gg/weapons/Rifles/FAMAS</loc>           <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://skinify.gg/weapons/Pistols/Desert%20Eagle</loc> <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
-  <url><loc>https://skinify.gg/weapons/Pistols/USP-S</loc>          <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
-  <url><loc>https://skinify.gg/weapons/Pistols/Glock-18</loc>       <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
-  <url><loc>https://skinify.gg/weapons/Pistols/P250</loc>           <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.75</priority></url>
-  <url><loc>https://skinify.gg/weapons/Pistols/Five-SeveN</loc>     <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.65</priority></url>
-  <url><loc>https://skinify.gg/weapons/Pistols/Tec-9</loc>          <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://skinify.gg/weapons/Pistols/CZ75-Auto</loc>      <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://skinify.gg/weapons/Knives/Karambit</loc>        <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.9</priority></url>
-  <url><loc>https://skinify.gg/weapons/Knives/M9%20Bayonet</loc>    <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.85</priority></url>
-  <url><loc>https://skinify.gg/weapons/Knives/Butterfly%20Knife</loc><lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.85</priority></url>
-  <url><loc>https://skinify.gg/weapons/Knives/Bayonet</loc>         <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.75</priority></url>
-  <url><loc>https://skinify.gg/weapons/Knives/Talon%20Knife</loc>   <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.75</priority></url>
-  <url><loc>https://skinify.gg/weapons/Knives/Skeleton%20Knife</loc><lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.75</priority></url>
-  <url><loc>https://skinify.gg/weapons/Knives/Ursus%20Knife</loc>   <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://skinify.gg/weapons/Knives/Stiletto%20Knife</loc><lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://skinify.gg/weapons/Gloves/Sport%20Gloves</loc>  <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
-  <url><loc>https://skinify.gg/weapons/Gloves/Specialist%20Gloves</loc><lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.75</priority></url>
-  <url><loc>https://skinify.gg/weapons/Gloves/Driver%20Gloves</loc>  <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
-  <url><loc>https://skinify.gg/weapons/Gloves/Moto%20Gloves</loc>    <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.65</priority></url>
-  <url><loc>https://skinify.gg/weapons/Gloves/Hand%20Wraps</loc>     <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.65</priority></url>
-  <url><loc>https://skinify.gg/weapons/Gloves/Hydra%20Gloves</loc>   <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://skinify.gg/weapons/SMGs/MP9</loc>               <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://skinify.gg/weapons/SMGs/MAC-10</loc>            <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://skinify.gg/weapons/SMGs/P90</loc>               <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://skinify.gg/weapons/SMGs/UMP-45</loc>            <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.55</priority></url>
-  <url><loc>https://skinify.gg/weapons/Heavy/Nova</loc>             <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.55</priority></url>
-  <url><loc>https://skinify.gg/weapons/Heavy/XM1014</loc>           <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.55</priority></url>
-  <url><loc>https://skinify.gg/weapons/Heavy/M249</loc>             <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://skinify.gg/weapons/rifles/ak-47</loc>           <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/weapons/rifles/m4a4</loc>            <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/weapons/rifles/m4a1-s</loc>          <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/weapons/rifles/awp</loc>             <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/weapons/rifles/ssg%2008</loc>        <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.65</priority></url>
+  <url><loc>https://skinify.gg/weapons/rifles/galil%20ar</loc>      <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://skinify.gg/weapons/rifles/famas</loc>           <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://skinify.gg/weapons/pistols/desert%20eagle</loc> <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/weapons/pistols/usp-s</loc>          <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/weapons/pistols/glock-18</loc>       <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/weapons/pistols/p250</loc>           <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://skinify.gg/weapons/pistols/five-seven</loc>     <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.65</priority></url>
+  <url><loc>https://skinify.gg/weapons/pistols/tec-9</loc>          <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://skinify.gg/weapons/pistols/cz75-auto</loc>      <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://skinify.gg/weapons/knives/karambit</loc>        <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://skinify.gg/weapons/knives/m9%20bayonet</loc>    <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/weapons/knives/butterfly%20knife</loc><lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.85</priority></url>
+  <url><loc>https://skinify.gg/weapons/knives/bayonet</loc>         <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://skinify.gg/weapons/knives/talon%20knife</loc>   <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://skinify.gg/weapons/knives/skeleton%20knife</loc><lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://skinify.gg/weapons/knives/ursus%20knife</loc>   <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://skinify.gg/weapons/knives/stiletto%20knife</loc><lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://skinify.gg/weapons/gloves/sport%20gloves</loc>  <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://skinify.gg/weapons/gloves/specialist%20gloves</loc><lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.75</priority></url>
+  <url><loc>https://skinify.gg/weapons/gloves/driver%20gloves</loc>  <lastmod>2026-07-16</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://skinify.gg/weapons/gloves/moto%20gloves</loc>    <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.65</priority></url>
+  <url><loc>https://skinify.gg/weapons/gloves/hand%20wraps</loc>     <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.65</priority></url>
+  <url><loc>https://skinify.gg/weapons/gloves/hydra%20gloves</loc>   <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://skinify.gg/weapons/smgs/mp9</loc>               <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://skinify.gg/weapons/smgs/mac-10</loc>            <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://skinify.gg/weapons/smgs/p90</loc>               <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://skinify.gg/weapons/smgs/ump-45</loc>            <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.55</priority></url>
+  <url><loc>https://skinify.gg/weapons/heavy/nova</loc>             <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.55</priority></url>
+  <url><loc>https://skinify.gg/weapons/heavy/xm1014</loc>           <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.55</priority></url>
+  <url><loc>https://skinify.gg/weapons/heavy/m249</loc>             <lastmod>2026-07-16</lastmod><changefreq>weekly</changefreq><priority>0.5</priority></url>
 
   <!-- High-volume head-term skin search queries (deduped). Each one
        maps to a filtered marketplace view with its own canonical URL. -->

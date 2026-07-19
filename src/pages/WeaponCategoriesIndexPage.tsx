@@ -125,7 +125,7 @@ const WeaponCategoriesIndexPage: React.FC = () => {
               }}
               whileHover={{ y: -4 }}
               whileTap={tap}
-              onClick={() => navigate(`/weapons/${encodeURIComponent(c.name)}`)}
+              onClick={() => navigate(`/weapons/${encodeURIComponent(c.name.toLowerCase())}`)}
               className="group relative card p-5 sm:p-6 text-left overflow-hidden transition-shadow"
             >
               <motion.div

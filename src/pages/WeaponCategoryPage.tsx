@@ -183,8 +183,8 @@ const WeaponCategoryPage: React.FC = () => {
     : 'Browse every CS2 weapon category on Skinify with 0% buyer fees and escrow protection.';
   const pageCanonical = resolvedCategory
     ? resolvedWeapon
-      ? `https://skinify.gg/weapons/${encodeURIComponent(resolvedCategory.name)}/${encodeURIComponent(resolvedWeapon)}`
-      : `https://skinify.gg/weapons/${encodeURIComponent(resolvedCategory.name)}`
+      ? `https://skinify.gg/weapons/${encodeURIComponent(resolvedCategory.name.toLowerCase())}/${encodeURIComponent(resolvedWeapon.toLowerCase())}`
+      : `https://skinify.gg/weapons/${encodeURIComponent(resolvedCategory.name.toLowerCase())}`
     : 'https://skinify.gg/weapons';
   const pageKeywords = resolvedCategory
     ? resolvedWeapon
@@ -199,7 +199,7 @@ const WeaponCategoryPage: React.FC = () => {
           { name: 'Categories', url: 'https://skinify.gg/weapons' },
           {
             name: resolvedCategory.name,
-            url: `https://skinify.gg/weapons/${encodeURIComponent(resolvedCategory.name)}`,
+            url: `https://skinify.gg/weapons/${encodeURIComponent(resolvedCategory.name.toLowerCase())}`,
           },
           { name: resolvedWeapon, url: pageCanonical },
         ]
@@ -295,7 +295,7 @@ const WeaponCategoryPage: React.FC = () => {
           {resolvedWeapon ? (
             <>
               <button
-                onClick={() => navigate(`/weapons/${encodeURIComponent(resolvedCategory.name)}`)}
+                onClick={() => navigate(`/weapons/${encodeURIComponent(resolvedCategory.name.toLowerCase())}`)}
                 className="hover:text-ink transition-colors whitespace-nowrap"
               >
                 {resolvedCategory.name}
@@ -407,7 +407,7 @@ const WeaponCategoryPage: React.FC = () => {
                 transition={{ ...spring, delay: Math.min(0.06 + i * 0.02, 0.4) }}
                 onClick={() =>
                   navigate(
-                    `/weapons/${encodeURIComponent(resolvedCategory.name)}/${encodeURIComponent(w)}`,
+                    `/weapons/${encodeURIComponent(resolvedCategory.name.toLowerCase())}/${encodeURIComponent(w.toLowerCase())}`,
                   )
                 }
                 className="h-9 px-3.5 rounded-full bg-subtle hover:bg-accent-soft text-ink-muted hover:text-ink text-[12.5px] font-semibold whitespace-nowrap transition-colors"

@@ -244,7 +244,7 @@ const SitemapPage: React.FC = () => {
             {weaponEntries.map(([key, cat]: any) => (
               <div key={key}>
                 <Link
-                  to={`/weapons/${encodeURIComponent(key)}`}
+                  to={`/weapons/${encodeURIComponent(key.toLowerCase())}`}
                   className="text-[13.5px] font-bold text-ink hover:text-accent transition-colors block mb-1.5 tracking-tight"
                 >
                   {cat.name}
@@ -253,7 +253,7 @@ const SitemapPage: React.FC = () => {
                   {(cat.weapons || []).slice(0, 8).map((w: string) => (
                     <li key={w}>
                       <Link
-                        to={`/weapons/${encodeURIComponent(key)}/${encodeURIComponent(w)}`}
+                        to={`/weapons/${encodeURIComponent(key.toLowerCase())}/${encodeURIComponent(w.toLowerCase())}`}
                         className="text-[12px] text-ink-muted hover:text-accent font-medium transition-colors"
                       >
                         {w}
