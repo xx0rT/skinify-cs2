@@ -124,6 +124,9 @@ export interface DMMessage {
       in the failure toast so the user sees the actual cause (RLS, no
       session, etc.) instead of a generic "not sent" with no recourse. */
   failureReason?: string;
+  /** emoji -> steam_ids who reacted with it. Empty object when no one
+      has reacted. Toggled through dmStore.toggleReaction. */
+  reactions?: Record<string, string[]>;
 }
 
 export interface DMThread {
@@ -167,6 +170,13 @@ interface DMState {
       you log in, not only after opening /messages. */
   hydrateInbox: () => Promise<void>;
   markThreadRead: (peerSteamId: string) => Promise<void>;
+  /** Toggle the caller's reaction to a message on/off. Optimistic —
+      updates local state immediately, then persists via dm-list. */
+  toggleReaction: (
+    peerSteamId: string,
+    messageServerId: number,
+    emoji: string,
+  ) => Promise<void>;
   deleteThread: (peerSteamId: string) => Promise<void>;
   totalUnread: () => number;
   threadUnread: (peerSteamId: string) => number;
@@ -198,6 +208,12 @@ let presenceFor: string | null = null;
 
 /* Typing-broadcast throttle: at most one event every 1200ms per peer. */
 const lastTypingSentAt = new Map<string, number>();
+
+/* One outbound broadcast-only channel per peer we've typed to this
+   session — see setTyping for why this is separate from our own
+   inbound realtimeChannel. Never torn down individually; they're cheap
+   and die with the page. */
+const typingSendChannels = new Map<string, RealtimeChannel>();
 
 export const useDMStore = create<DMState>()(
   persist(
@@ -294,6 +310,7 @@ export const useDMStore = create<DMState>()(
             ts: new Date(row.created_at).getTime(),
             read: row.from_steam_id === mySteamId ? true : !!row.read_at,
             status: 'sent',
+            reactions: row.reactions && typeof row.reactions === 'object' ? row.reactions : {},
           });
           grouped.set(peer, arr);
         }
@@ -371,6 +388,7 @@ export const useDMStore = create<DMState>()(
           ts: new Date(row.created_at).getTime(),
           read: row.from_steam_id === mySteamId ? true : !!row.read_at,
           status: 'sent',
+          reactions: row.reactions && typeof row.reactions === 'object' ? row.reactions : {},
         }));
 
         /* Resolve the peer's Steam display name + avatar from the
@@ -539,6 +557,92 @@ export const useDMStore = create<DMState>()(
         }
       },
 
+      toggleReaction: async (peerSteamId, messageServerId, emoji) => {
+        const { mySteamId, threads } = get();
+        if (!mySteamId) return;
+        const t = threads[peerSteamId];
+        if (!t) return;
+        const msg = t.messages.find((m) => m.serverId === messageServerId);
+        if (!msg) return;
+
+        /* Optimistic toggle so the tap feels instant. */
+        const prevReactions = msg.reactions || {};
+        const current = new Set(prevReactions[emoji] || []);
+        const hadIt = current.has(mySteamId);
+        if (hadIt) current.delete(mySteamId);
+        else current.add(mySteamId);
+        const nextReactions = { ...prevReactions };
+        if (current.size > 0) nextReactions[emoji] = Array.from(current);
+        else delete nextReactions[emoji];
+
+        set({
+          threads: {
+            ...threads,
+            [peerSteamId]: {
+              ...t,
+              messages: t.messages.map((m) =>
+                m.serverId === messageServerId ? { ...m, reactions: nextReactions } : m,
+              ),
+            },
+          },
+        });
+
+        try {
+          const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+          const res = await fetch(`${supabaseUrl}/functions/v1/dm-list`, {
+            method: 'POST',
+            headers: {
+              'x-steam-id': mySteamId,
+              Authorization: `Bearer ${supabaseKey}`,
+              apikey: supabaseKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              action: 'toggle_reaction',
+              message_id: messageServerId,
+              emoji,
+            }),
+          });
+          if (!res.ok) throw new Error(`toggle_reaction ${res.status}`);
+          const body = await res.json().catch(() => null);
+          /* Reconcile with the server's authoritative array (handles a
+             race where the peer reacted at the same moment). */
+          if (body?.reactions) {
+            const cur = get().threads[peerSteamId];
+            if (cur) {
+              set({
+                threads: {
+                  ...get().threads,
+                  [peerSteamId]: {
+                    ...cur,
+                    messages: cur.messages.map((m) =>
+                      m.serverId === messageServerId ? { ...m, reactions: body.reactions } : m,
+                    ),
+                  },
+                },
+              });
+            }
+          }
+        } catch (err) {
+          console.warn('[dmStore] toggleReaction failed, reverting:', err);
+          /* Revert on failure. */
+          const cur = get().threads[peerSteamId];
+          if (cur) {
+            set({
+              threads: {
+                ...get().threads,
+                [peerSteamId]: {
+                  ...cur,
+                  messages: cur.messages.map((m) =>
+                    m.serverId === messageServerId ? { ...m, reactions: prevReactions } : m,
+                  ),
+                },
+              },
+            });
+          }
+        }
+      },
+
       deleteThread: async (peerSteamId) => {
         const { threads } = get();
         if (!threads[peerSteamId]) return;
@@ -570,15 +674,31 @@ export const useDMStore = create<DMState>()(
 
       setTyping: (peerSteamId) => {
         const { mySteamId } = get();
-        if (!mySteamId || !realtimeChannel) return;
+        if (!mySteamId) return;
         const now = Date.now();
         const last = lastTypingSentAt.get(peerSteamId) || 0;
         if (now - last < 1200) return;
         lastTypingSentAt.set(peerSteamId, now);
-        /* Ephemeral broadcast — no DB write, no rate limit. The peer's
-           channel listens on the same `dm:to:<peer>` channel name. */
+        /* BUG FIX: this used to .send() on `realtimeChannel`, which is
+           OUR OWN inbound channel (`dm:to:<mySteamId>`) — broadcasting
+           there only echoes back to ourselves (and self-echo is off),
+           so the peer never received it. Typing events must be sent on
+           the RECIPIENT's channel (`dm:to:<peerSteamId>`), which they
+           are subscribed to. Supabase lets you .send() on a channel
+           that's merely been created (topic joined implicitly for
+           broadcast-only use) without a full subscribe(). We cache one
+           short-lived send-channel per peer so repeated keystrokes
+           don't re-create it every time. */
+        let sendChannel = typingSendChannels.get(peerSteamId);
+        if (!sendChannel) {
+          sendChannel = supabase.channel(`dm:to:${peerSteamId}`, {
+            config: { broadcast: { self: false } },
+          });
+          sendChannel.subscribe();
+          typingSendChannels.set(peerSteamId, sendChannel);
+        }
         try {
-          realtimeChannel.send({
+          sendChannel.send({
             type: 'broadcast',
             event: 'typing',
             payload: { from: mySteamId, to: peerSteamId },
@@ -714,6 +834,86 @@ export const useDMStore = create<DMState>()(
                   });
                 });
             }
+          },
+        );
+
+        /* UPDATE listener — covers both read receipts and reactions
+           landing on messages WE sent (from_steam_id = me). The peer's
+           browser is the one calling markThreadRead / toggleReaction,
+           so without this our own bubble never flips to "Seen" or
+           shows their reaction until the next poll. */
+        channel.on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'direct_messages',
+            filter: `from_steam_id=eq.${mySteamId}`,
+          },
+          (payload: any) => {
+            const row = payload?.new;
+            if (!row) return;
+            const peer = row.to_steam_id;
+            const existing = get().threads[peer];
+            if (!existing) return;
+            set({
+              threads: {
+                ...get().threads,
+                [peer]: {
+                  ...existing,
+                  messages: existing.messages.map((m) =>
+                    m.serverId === row.id
+                      ? {
+                          ...m,
+                          read: !!row.read_at,
+                          reactions:
+                            row.reactions && typeof row.reactions === 'object'
+                              ? row.reactions
+                              : {},
+                        }
+                      : m,
+                  ),
+                },
+              },
+            });
+          },
+        );
+
+        /* Same as above but for rows where WE are the recipient — covers
+           the peer reacting to a message they themselves sent us. */
+        channel.on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'direct_messages',
+            filter: `to_steam_id=eq.${mySteamId}`,
+          },
+          (payload: any) => {
+            const row = payload?.new;
+            if (!row) return;
+            const peer = row.from_steam_id;
+            const existing = get().threads[peer];
+            if (!existing) return;
+            set({
+              threads: {
+                ...get().threads,
+                [peer]: {
+                  ...existing,
+                  messages: existing.messages.map((m) =>
+                    m.serverId === row.id
+                      ? {
+                          ...m,
+                          reactions:
+                            row.reactions && typeof row.reactions === 'object'
+                              ? row.reactions
+                              : {},
+                        }
+                      : m,
+                  ),
+                },
+              },
+            });
           },
         );
 

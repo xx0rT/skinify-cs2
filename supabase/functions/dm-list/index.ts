@@ -61,9 +61,14 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const peer = url.searchParams.get('peer');
 
-  /* POST { action: 'mark_read', peer } — persist read state so the
-     unread badge doesn't come back on the next fetch. Scoped: only
-     messages SENT TO the caller can be marked. */
+  /* POST — three actions, all requiring the caller to be a participant:
+       { action: 'mark_read', peer }
+         Persist read state so the unread badge doesn't come back on
+         the next fetch. Scoped: only messages SENT TO the caller.
+       { action: 'toggle_reaction', message_id, emoji }
+         Add/remove the caller's steam_id from that emoji's array on
+         the message's `reactions` jsonb. Either participant may react
+         to either side's message (mirrors Instagram/iMessage). */
   if (req.method === 'POST') {
     let body: any = {};
     try {
@@ -71,10 +76,55 @@ Deno.serve(async (req) => {
     } catch {
       return json(400, { error: { code: 'bad_json', message: 'Invalid JSON body.' } });
     }
+
+    if (body?.action === 'toggle_reaction') {
+      const messageId = Number(body?.message_id);
+      const emoji = String(body?.emoji || '');
+      /* Small, fixed set — keeps the jsonb tidy and blocks arbitrary
+         string injection into the reactions map. */
+      const ALLOWED_EMOJI = new Set(['👍', '❤️', '😂', '😮', '😢', '🙏']);
+      if (!Number.isInteger(messageId) || !ALLOWED_EMOJI.has(emoji)) {
+        return json(400, {
+          error: { code: 'bad_request', message: 'toggle_reaction needs a valid message_id and emoji.' },
+        });
+      }
+      const { data: row, error: fetchErr } = await supabase
+        .from('direct_messages')
+        .select('id, from_steam_id, to_steam_id, reactions')
+        .eq('id', messageId)
+        .maybeSingle();
+      if (fetchErr || !row) {
+        return json(404, { error: { code: 'not_found', message: 'Message not found.' } });
+      }
+      if (row.from_steam_id !== mySteamId && row.to_steam_id !== mySteamId) {
+        return json(403, { error: { code: 'forbidden', message: 'Not a participant in this thread.' } });
+      }
+      const reactions: Record<string, string[]> = { ...(row.reactions || {}) };
+      const current = new Set(reactions[emoji] || []);
+      if (current.has(mySteamId)) {
+        current.delete(mySteamId);
+      } else {
+        current.add(mySteamId);
+      }
+      if (current.size > 0) {
+        reactions[emoji] = Array.from(current);
+      } else {
+        delete reactions[emoji];
+      }
+      const { error: updateErr } = await supabase
+        .from('direct_messages')
+        .update({ reactions })
+        .eq('id', messageId);
+      if (updateErr) {
+        return json(500, { error: { code: 'db_error', message: updateErr.message } });
+      }
+      return json(200, { ok: true, reactions });
+    }
+
     const markPeer = String(body?.peer || peer || '');
     if (body?.action !== 'mark_read' || !/^\d{17}$/.test(markPeer)) {
       return json(400, {
-        error: { code: 'bad_request', message: "POST supports { action: 'mark_read', peer }." },
+        error: { code: 'bad_request', message: "POST supports { action: 'mark_read', peer } or { action: 'toggle_reaction', message_id, emoji }." },
       });
     }
     const { error } = await supabase
@@ -92,7 +142,7 @@ Deno.serve(async (req) => {
   /* Both modes return the same shape — the client already parses this
      into DMMessage[] via the "srv_<id>" convention. */
   const columns =
-    'id, from_steam_id, to_steam_id, text, item_id, item_name, item_image, attachments, read_at, created_at';
+    'id, from_steam_id, to_steam_id, text, item_id, item_name, item_image, attachments, read_at, reactions, created_at';
 
   if (peer && /^\d{17}$/.test(peer)) {
     /* Single-thread mode. Two-sided filter — either direction. */

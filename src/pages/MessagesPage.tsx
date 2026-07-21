@@ -425,6 +425,47 @@ function computePresence(lastSeen: string | null): 'online' | 'recent' | 'away' 
   return 'away';
 }
 
+function isSameDay(a: number, b: number): boolean {
+  const da = new Date(a);
+  const db = new Date(b);
+  return (
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
+  );
+}
+
+/** Index of the last message in the array sent by us — used to show the
+ *  sent/seen indicator only on our most recent bubble, Instagram-style.
+ *  `mySteamId` may be null before hydration; fall back to the legacy
+ *  'me' sentinel in that case (same rule the Bubble component uses). */
+function lastMineIndex(messages: DMMessage[], mySteamId: string | null): number {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.fromSteamId === 'me' || (!!mySteamId && m.fromSteamId === mySteamId)) return i;
+  }
+  return -1;
+}
+
+function formatDateSeparator(ts: number): string {
+  const d = new Date(ts);
+  const now = new Date();
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86_400_000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return d.toLocaleDateString([], { weekday: 'long' });
+  return d.toLocaleDateString([], { day: 'numeric', month: 'short', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
+}
+
+const DateSeparator: React.FC<{ ts: number }> = ({ ts }) => (
+  <div className="flex items-center justify-center py-2" aria-hidden={false}>
+    <span className="text-[11px] font-bold uppercase tracking-wider text-ink-dim bg-subtle px-3 py-1 rounded-full">
+      {formatDateSeparator(ts)}
+    </span>
+  </div>
+);
+
 function formatRelative(iso: string): string {
   const ts = new Date(iso).getTime();
   if (!Number.isFinite(ts)) return 'recently';
@@ -452,6 +493,12 @@ const ChatPanel: React.FC<{
   const sendMessage = useDMStore((s) => s.sendMessage);
   const setTyping = useDMStore((s) => s.setTyping);
   const hydrateThread = useDMStore((s) => s.hydrateThread);
+  const mySteamId = useDMStore((s) => s.mySteamId);
+  /* Peer's last-seen timestamp — fetched alongside their avatar in
+     ThreadRow's profile lookup; ChatPanel does its own small fetch so
+     the header's "Last seen" line works even when opened via deep
+     link (no ThreadRow ever mounted for this peer). */
+  const [peerLastSeen, setPeerLastSeen] = useState<string | null>(null);
   /* Subscribe to the live peerTyping map; we re-render when it
      changes so the "typing…" hint flips on/off automatically. */
   const peerTypingTs = useDMStore(
@@ -477,6 +524,46 @@ const ChatPanel: React.FC<{
     return () => window.clearInterval(interval);
   }, []);
   const peerIsTyping = Date.now() - peerTypingTs < 3000;
+
+  /* Peer's last-seen timestamp, for the "Last seen 12m ago" header line
+     shown while they're offline. Cheap single-row lookup, refreshed
+     whenever the thread changes; process-wide cache shares the fetch
+     with ThreadRow's presence dot. */
+  useEffect(() => {
+    if (!thread.peerSteamId) return;
+    const cache = ((window as any).__skinifyPeerProfileCache ||= new Map<
+      string,
+      { avatar: string | null; lastSeen: string | null }
+    >());
+    if (cache.has(thread.peerSteamId)) {
+      setPeerLastSeen(cache.get(thread.peerSteamId)!.lastSeen);
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
+        const supabaseKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
+        if (!supabaseUrl || !supabaseKey) return;
+        const res = await fetch(
+          `${supabaseUrl}/functions/v1/user-profile?steam_id=${encodeURIComponent(thread.peerSteamId)}`,
+          { headers: { Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' } },
+        );
+        if (!res.ok) return;
+        const json = await res.json();
+        const lastSeen = json?.user?.last_login || json?.last_login || null;
+        cache.set(thread.peerSteamId, {
+          avatar: cache.get(thread.peerSteamId)?.avatar || null,
+          lastSeen,
+        });
+        if (!cancelled) setPeerLastSeen(lastSeen);
+      } catch {
+        /* network — keep whatever we had */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [thread.peerSteamId]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -649,6 +736,8 @@ const ChatPanel: React.FC<{
               </>
             ) : peerOnline ? (
               <span>Online</span>
+            ) : peerLastSeen ? (
+              <span>Last seen {formatRelative(peerLastSeen)}</span>
             ) : (
               <span>Offline</span>
             )}
@@ -681,7 +770,20 @@ const ChatPanel: React.FC<{
             </div>
           </div>
         ) : (
-          thread.messages.map((m) => <Bubble key={m.id} message={m} />)
+          thread.messages.map((m, i) => {
+            const prev = thread.messages[i - 1];
+            const showDateSeparator = !prev || !isSameDay(prev.ts, m.ts);
+            return (
+              <React.Fragment key={m.id}>
+                {showDateSeparator && <DateSeparator ts={m.ts} />}
+                <Bubble
+                  message={m}
+                  peerSteamId={thread.peerSteamId}
+                  isLastOfMine={lastMineIndex(thread.messages, mySteamId) === i}
+                />
+              </React.Fragment>
+            );
+          })
         )}
 
         {/* Typing bubble — appears at the end of the log while the peer
@@ -785,11 +887,18 @@ const ChatPanel: React.FC<{
   );
 };
 
-const Bubble: React.FC<{ message: DMMessage }> = ({ message }) => {
+const REACTION_EMOJI = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
+const Bubble: React.FC<{
+  message: DMMessage;
+  peerSteamId: string;
+  isLastOfMine: boolean;
+}> = ({ message, peerSteamId, isLastOfMine }) => {
   /* "Mine" check: the legacy sentinel `'me'` still appears in older
      localStorage rows; new rows carry the real Steam id and we compare
      against the authenticated user. */
   const mySteamId = useDMStore((s) => s.mySteamId);
+  const toggleReaction = useDMStore((s) => s.toggleReaction);
   const mine =
     message.fromSteamId === 'me' ||
     (!!mySteamId && message.fromSteamId === mySteamId);
@@ -797,6 +906,30 @@ const Bubble: React.FC<{ message: DMMessage }> = ({ message }) => {
     hour: '2-digit',
     minute: '2-digit',
   });
+
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const longPressTimer = useRef<number | null>(null);
+
+  const startLongPress = () => {
+    if (!message.serverId) return; // can't react to an unsent optimistic row
+    longPressTimer.current = window.setTimeout(() => setPickerOpen(true), 420);
+  };
+  const cancelLongPress = () => {
+    if (longPressTimer.current) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const react = (emoji: string) => {
+    if (!message.serverId) return;
+    toggleReaction(peerSteamId, message.serverId, emoji);
+    setPickerOpen(false);
+  };
+
+  const reactions = message.reactions || {};
+  const reactionEntries = Object.entries(reactions).filter(([, ids]) => ids.length > 0);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 6, scale: 0.98 }}
@@ -804,7 +937,7 @@ const Bubble: React.FC<{ message: DMMessage }> = ({ message }) => {
       transition={{ ...spring, mass: 0.5 }}
       className={`flex ${mine ? 'justify-end' : 'justify-start'}`}
     >
-      <div className={`max-w-[78%] ${mine ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
+      <div className={`group relative max-w-[78%] ${mine ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
         {/* Listing context card (first message only) */}
         {message.itemImage && (
           <div className="card-flat p-2 flex items-center gap-2">
@@ -822,16 +955,99 @@ const Bubble: React.FC<{ message: DMMessage }> = ({ message }) => {
           <AttachmentBubble key={a.id} attachment={a} />
         ))}
 
-        {/* Text */}
+        {/* Text — long-press (mobile) or hover (desktop, via the ⋯
+            reveal button) opens the emoji picker. */}
         {message.text && message.text.trim().length > 0 && (
-          <div
-            className={`px-3.5 py-2 rounded-2xl text-[13.5px] font-medium leading-snug whitespace-pre-wrap break-words ${
-              mine
-                ? 'bg-accent text-on-accent rounded-br-md'
-                : 'bg-subtle text-ink rounded-bl-md'
-            }`}
-          >
-            {message.text}
+          <div className="relative">
+            <div
+              onPointerDown={startLongPress}
+              onPointerUp={cancelLongPress}
+              onPointerLeave={cancelLongPress}
+              className={`px-3.5 py-2 rounded-2xl text-[13.5px] font-medium leading-snug whitespace-pre-wrap break-words select-none ${
+                mine
+                  ? 'bg-accent text-on-accent rounded-br-md'
+                  : 'bg-subtle text-ink rounded-bl-md'
+              }`}
+            >
+              {message.text}
+            </div>
+
+            {/* Desktop hover affordance — quick-react button appears on
+                the opposite side of the bubble from its tail. */}
+            {!!message.serverId && (
+              <button
+                type="button"
+                onClick={() => setPickerOpen((v) => !v)}
+                aria-label="React to message"
+                className={`hidden sm:group-hover:flex absolute top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-surface ring-1 ring-line items-center justify-center text-[12px] hover:bg-subtle transition-colors ${
+                  mine ? '-left-8' : '-right-8'
+                }`}
+              >
+                🙂
+              </button>
+            )}
+
+            {/* Emoji picker popover */}
+            <AnimatePresence>
+              {pickerOpen && (
+                <>
+                  <motion.div
+                    key="picker-backdrop"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-40"
+                    onClick={() => setPickerOpen(false)}
+                  />
+                  <motion.div
+                    key="picker"
+                    initial={{ opacity: 0, y: 6, scale: 0.9 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 4, scale: 0.92 }}
+                    transition={{ type: 'spring', stiffness: 480, damping: 32 }}
+                    className={`absolute z-50 bottom-full mb-2 ${mine ? 'right-0' : 'left-0'} bg-surface ring-1 ring-line rounded-full shadow-lg px-1.5 py-1 flex items-center gap-0.5`}
+                  >
+                    {REACTION_EMOJI.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => react(emoji)}
+                        className={`w-8 h-8 rounded-full grid place-items-center text-[16px] hover:bg-subtle hover:scale-125 transition-all ${
+                          mySteamId && reactions[emoji]?.includes(mySteamId) ? 'bg-accent-soft' : ''
+                        }`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
+        {/* Reaction pills — rendered under the bubble, tap to toggle
+            your own reaction on/off. */}
+        {reactionEntries.length > 0 && (
+          <div className={`flex flex-wrap gap-1 px-1 ${mine ? 'justify-end' : 'justify-start'}`}>
+            {reactionEntries.map(([emoji, ids]) => {
+              const mineReacted = !!mySteamId && ids.includes(mySteamId);
+              return (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => react(emoji)}
+                  className={`h-6 px-1.5 rounded-full text-[11px] font-bold inline-flex items-center gap-1 transition-colors ${
+                    mineReacted
+                      ? 'bg-accent-soft text-accent ring-1 ring-accent/40'
+                      : 'bg-subtle text-ink-muted hover:bg-bg'
+                  }`}
+                >
+                  <span>{emoji}</span>
+                  <span className="tabular-nums">{ids.length}</span>
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -853,6 +1069,12 @@ const Bubble: React.FC<{ message: DMMessage }> = ({ message }) => {
                 <span className="text-ink-dim normal-case"> · {message.failureReason}</span>
               ) : null}
             </span>
+          )}
+          {/* Sent/Seen — Instagram style, only on our most recent
+              delivered bubble (matching the rest of the thread would be
+              visual noise). */}
+          {mine && message.status === 'sent' && isLastOfMine && (
+            <span className="text-ink-dim">· {message.read ? 'Seen' : 'Sent'}</span>
           )}
         </div>
       </div>
