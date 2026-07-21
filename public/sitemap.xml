@@ -191,7 +191,11 @@
   <url><loc>https://skinify.gg/faq/does-skinify-ask-steam-password</loc><lastmod>2026-07-16</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://skinify.gg/faq/how-to-contact-support</loc><lastmod>2026-07-16</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
 
-  <!-- Blog posts — seeded by the 20260618130000 migration. -->
+  <!-- Blog posts — the authoritative, always-current list lives in
+       sitemap-blog.xml (generated at build time from the blog_posts
+       table). These are mirrored here too so generate-route-html.mjs
+       (which only reads this file) still builds a static shell for
+       every post; keep it in sync with what's_published in the DB. -->
   <url>
     <loc>https://skinify.gg/blog/skinify-vs-steam-market-poplatky-2026</loc>
     <lastmod>2026-07-16</lastmod>
@@ -207,6 +211,24 @@
   <url>
     <loc>https://skinify.gg/blog/how-cs2-escrow-works-skinify-8-day-window</loc>
     <lastmod>2026-07-16</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://skinify.gg/blog/how-to-safely-trade-csgo-skins</loc>
+    <lastmod>2026-05-29</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://skinify.gg/blog/welcome-to-csgo-marketplace</loc>
+    <lastmod>2026-05-29</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://skinify.gg/blog/top-5-valuable-csgo-skins-2025</loc>
+    <lastmod>2026-05-29</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>

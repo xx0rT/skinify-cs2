@@ -182,6 +182,7 @@ Disallow: /
 
 # ─── Sitemaps ────────────────────────────────────────────────────────
 Sitemap: https://skinify.gg/sitemap.xml
+Sitemap: https://skinify.gg/sitemap-blog.xml
 
 # Host hint (helps engines pick the canonical domain)
 Host: https://skinify.gg

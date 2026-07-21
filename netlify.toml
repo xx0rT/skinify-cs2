@@ -119,6 +119,12 @@
     Cache-Control = "public, max-age=3600"
 
 [[headers]]
+  for = "/sitemap-blog.xml"
+  [headers.values]
+    Content-Type = "application/xml"
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
   for = "/robots.txt"
   [headers.values]
     Content-Type = "text/plain"
