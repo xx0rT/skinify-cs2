@@ -38,15 +38,19 @@ import TradeOfferModal from '../components/trade/TradeOfferModal';
    (rather than colon-joined fields) avoids the note text breaking the
    format if it happens to contain a colon. */
 const MONEY_OFFER_PREFIX = '__money_offer__:';
+/* Lifecycle: pending → accepted → bought, or pending → rejected.
+     - pending:  awaiting the recipient (listing owner)'s decision.
+     - accepted: recipient agreed to the price; sender can now buy.
+     - rejected: recipient declined; dead end.
+     - bought:   sender completed the purchase at the agreed price. */
+type MoneyOfferStatus = 'pending' | 'accepted' | 'rejected' | 'bought';
 interface MoneyOfferPayload {
   amountCZK: number;
   note: string;
   listingId: number | null;
   listingName: string | null;
   listingImage: string | null;
-  /** Set once the recipient pays — flips the card to the green
-      "Bought" state for both sides via mark_money_offer_bought. */
-  bought?: boolean;
+  status: MoneyOfferStatus;
 }
 const buildMoneyOfferText = (payload: MoneyOfferPayload) =>
   `${MONEY_OFFER_PREFIX}${JSON.stringify(payload)}`;
@@ -55,13 +59,20 @@ const parseMoneyOfferText = (text: string): MoneyOfferPayload | null => {
   try {
     const parsed = JSON.parse(text.slice(MONEY_OFFER_PREFIX.length));
     if (!Number.isFinite(parsed?.amountCZK)) return null;
+    const validStatuses: MoneyOfferStatus[] = ['pending', 'accepted', 'rejected', 'bought'];
+    /* Back-compat: older rows only had a boolean `bought` flag. */
+    const legacyBought = parsed?.bought === true;
     return {
       amountCZK: parsed.amountCZK,
       note: typeof parsed.note === 'string' ? parsed.note : '',
       listingId: Number.isFinite(parsed?.listingId) ? parsed.listingId : null,
       listingName: parsed?.listingName || null,
       listingImage: parsed?.listingImage || null,
-      bought: !!parsed?.bought,
+      status: validStatuses.includes(parsed?.status)
+        ? parsed.status
+        : legacyBought
+        ? 'bought'
+        : 'pending',
     };
   } catch {
     return null;
@@ -781,6 +792,7 @@ const ChatPanel: React.FC<{
       listingId: selectedListingId,
       listingName: listing?.name || null,
       listingImage: listing?.image || null,
+      status: 'pending',
     };
     setMoneyAmount('');
     setMoneyNote('');
@@ -1302,69 +1314,111 @@ const Bubble: React.FC<{
             when the message text carries the money-offer prefix. Shows
             the targeted listing's thumbnail so it reads as "offer FOR
             this skin", not a bare number. Clickable — opens a detail
-            modal with full info and a Buy button (recipient only).
-            Once bought, flips to a green "Bought" state for both
-            sides. */}
-        {moneyOffer && (
-          <button
-            type="button"
-            onClick={() => setMoneyOfferDetailOpen(true)}
-            className={`rounded-2xl px-3.5 py-3 min-w-[200px] flex items-center gap-3 text-left transition-transform hover:scale-[1.015] active:scale-[0.99] ${
-              moneyOffer.bought
-                ? 'bg-emerald-500/15 ring-1 ring-emerald-500/40'
-                : mine
-                ? 'bg-accent text-on-accent'
-                : 'bg-subtle text-ink'
-            }`}
-          >
-            {moneyOffer.listingImage && (
-              <div className="w-12 h-12 rounded-lg bg-black/10 grid place-items-center overflow-hidden shrink-0">
-                <img src={moneyOffer.listingImage} alt="" className="w-[85%] h-[85%] object-contain" />
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <div
-                className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
-                  moneyOffer.bought ? 'text-emerald-700 dark:text-emerald-300' : 'opacity-70'
+            modal: the recipient (listing owner) gets Accept/Reject,
+            the sender gets a read-only view (plus a "Buy now" link
+            once accepted). */}
+        {moneyOffer && (() => {
+          const isBought = moneyOffer.status === 'bought';
+          const isAccepted = moneyOffer.status === 'accepted';
+          const isRejected = moneyOffer.status === 'rejected';
+          return (
+            <>
+              <button
+                type="button"
+                onClick={() => setMoneyOfferDetailOpen(true)}
+                className={`rounded-2xl px-3.5 py-3 min-w-[200px] flex items-center gap-3 text-left transition-transform hover:scale-[1.015] active:scale-[0.99] ${
+                  isBought
+                    ? 'bg-emerald-500/15 ring-1 ring-emerald-500/40'
+                    : isRejected
+                    ? 'bg-rose-500/10 ring-1 ring-rose-500/30'
+                    : isAccepted
+                    ? 'bg-emerald-500/10 ring-1 ring-emerald-500/30'
+                    : mine
+                    ? 'bg-accent text-on-accent'
+                    : 'bg-subtle text-ink'
                 }`}
               >
-                {moneyOffer.bought ? (
-                  <>
-                    <CheckCircle2 size={11} strokeWidth={2.6} />
-                    Bought
-                  </>
-                ) : (
-                  'Money offer'
+                {moneyOffer.listingImage && (
+                  <div className="w-12 h-12 rounded-lg bg-black/10 grid place-items-center overflow-hidden shrink-0">
+                    <img src={moneyOffer.listingImage} alt="" className="w-[85%] h-[85%] object-contain" />
+                  </div>
                 )}
-              </div>
-              {moneyOffer.listingName && (
-                <div
-                  className={`text-[11.5px] font-semibold truncate max-w-[160px] ${
-                    moneyOffer.bought ? 'text-ink' : 'opacity-90'
-                  }`}
-                >
-                  {moneyOffer.listingName}
+                <div className="min-w-0 flex-1">
+                  <div
+                    className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
+                      isBought
+                        ? 'text-emerald-700 dark:text-emerald-300'
+                        : isRejected
+                        ? 'text-rose-700 dark:text-rose-300'
+                        : isAccepted
+                        ? 'text-emerald-700 dark:text-emerald-300'
+                        : 'opacity-70'
+                    }`}
+                  >
+                    {isBought ? (
+                      <>
+                        <CheckCircle2 size={11} strokeWidth={2.6} />
+                        Bought
+                      </>
+                    ) : isRejected ? (
+                      'Offer rejected'
+                    ) : isAccepted ? (
+                      <>
+                        <CheckCircle2 size={11} strokeWidth={2.6} />
+                        Accepted
+                      </>
+                    ) : (
+                      'Money offer'
+                    )}
+                  </div>
+                  {moneyOffer.listingName && (
+                    <div
+                      className={`text-[11.5px] font-semibold truncate max-w-[160px] ${
+                        isBought || isAccepted || isRejected ? 'text-ink' : 'opacity-90'
+                      }`}
+                    >
+                      {moneyOffer.listingName}
+                    </div>
+                  )}
+                  <div
+                    className={`text-[18px] font-bold tracking-tight mt-0.5 ${
+                      isBought || isAccepted
+                        ? 'text-emerald-700 dark:text-emerald-300'
+                        : isRejected
+                        ? 'text-ink-muted line-through'
+                        : ''
+                    }`}
+                  >
+                    {formatPrice(moneyOffer.amountCZK)}
+                  </div>
+                  {moneyOffer.note && (
+                    <div
+                      className={`text-[12px] font-medium mt-1 ${
+                        isBought || isAccepted || isRejected ? 'text-ink-muted' : 'opacity-90'
+                      }`}
+                    >
+                      {moneyOffer.note}
+                    </div>
+                  )}
                 </div>
-              )}
-              <div
-                className={`text-[18px] font-bold tracking-tight mt-0.5 ${
-                  moneyOffer.bought ? 'text-emerald-700 dark:text-emerald-300' : ''
-                }`}
-              >
-                {formatPrice(moneyOffer.amountCZK)}
-              </div>
-              {moneyOffer.note && (
-                <div
-                  className={`text-[12px] font-medium mt-1 ${
-                    moneyOffer.bought ? 'text-ink-muted' : 'opacity-90'
-                  }`}
+              </button>
+
+              {/* Buy-now link — only for the SENDER (the one who pays),
+                  only while the recipient has accepted but payment
+                  hasn't happened yet. Small linked text under the card,
+                  not another big button. */}
+              {mine && isAccepted && (
+                <button
+                  type="button"
+                  onClick={() => setMoneyOfferDetailOpen(true)}
+                  className="text-[12px] font-bold text-accent hover:opacity-80 transition-opacity px-1 -mt-0.5"
                 >
-                  {moneyOffer.note}
-                </div>
+                  Buy now →
+                </button>
               )}
-            </div>
-          </button>
-        )}
+            </>
+          );
+        })()}
 
         {moneyOffer && (
           <MoneyOfferDetailModal
@@ -1491,10 +1545,17 @@ const Bubble: React.FC<{
 };
 
 /* ─────────────────────────────────────────────────────────────────────────
-   MoneyOfferDetailModal — full info about the offered listing + a Buy
-   button. Only the RECIPIENT of the offer (mine === false, i.e. we
-   didn't send it) can buy — they're the one paying. Once bought, marks
-   the message bought server-side so both sides see the green state.
+   MoneyOfferDetailModal — full info about the offered listing.
+
+   Two very different roles here:
+     - RECIPIENT (the listing owner, mine === false): sees Accept / Reject
+       on a pending offer. Accept asks for confirmation first ("are you
+       sure?") since it commits them to the sale price. No buy button —
+       they don't pay, the sender does.
+     - SENDER (mine === true): read-only view of their own offer, plus a
+       "Buy for X" button that appears only once the recipient has
+       accepted — completing the purchase at the agreed price and
+       flipping the card to "Bought" for both sides.
    ───────────────────────────────────────────────────────────────────────── */
 const MoneyOfferDetailModal: React.FC<{
   isOpen: boolean;
@@ -1509,14 +1570,41 @@ const MoneyOfferDetailModal: React.FC<{
   const { addToast } = useToastStore();
   const { user } = useAuthStore();
   const { balance, purchaseWithBalance } = useBalanceStore();
-  const markMoneyOfferBought = useDMStore((s) => s.markMoneyOfferBought);
+  const setMoneyOfferStatus = useDMStore((s) => s.setMoneyOfferStatus);
   const [buying, setBuying] = useState(false);
+  const [deciding, setDeciding] = useState(false);
+  const [confirmAccept, setConfirmAccept] = useState(false);
 
-  /* Only the recipient pays, so only they see an actionable Buy button.
-     The sender sees their own offer as read-only (with a "Bought" flip
-     once the recipient pays). */
-  const canBuy = !mine && !offer.bought && !!messageServerId;
+  const isPending = offer.status === 'pending';
+  const isAccepted = offer.status === 'accepted';
+  const isRejected = offer.status === 'rejected';
+  const isBought = offer.status === 'bought';
+
+  /* Recipient decides accept/reject on a pending offer. */
+  const canDecide = !mine && isPending && !!messageServerId;
+  /* Sender pays, and only once accepted. */
+  const canBuy = mine && isAccepted && !!messageServerId;
   const canAfford = Number(balance || 0) >= offer.amountCZK;
+
+  const handleDecision = async (status: 'accepted' | 'rejected') => {
+    if (!messageServerId || deciding) return;
+    setDeciding(true);
+    try {
+      const ok = await setMoneyOfferStatus(peerSteamId, messageServerId, status);
+      if (!ok) {
+        addToast({ type: 'error', title: 'Could not update offer', message: 'Try again.' });
+        return;
+      }
+      addToast({
+        type: status === 'accepted' ? 'success' : 'info',
+        title: status === 'accepted' ? 'Offer accepted' : 'Offer rejected',
+      });
+      setConfirmAccept(false);
+      onClose();
+    } finally {
+      setDeciding(false);
+    }
+  };
 
   const handleBuy = async () => {
     if (!messageServerId || buying) return;
@@ -1528,7 +1616,7 @@ const MoneyOfferDetailModal: React.FC<{
       addToast({
         type: 'warning',
         title: 'Insufficient balance',
-        message: `Add ${formatPrice(offer.amountCZK - Number(balance || 0))} to your balance to accept this offer.`,
+        message: `Add ${formatPrice(offer.amountCZK - Number(balance || 0))} to your balance to complete this purchase.`,
       });
       return;
     }
@@ -1549,13 +1637,21 @@ const MoneyOfferDetailModal: React.FC<{
         addToast({ type: 'error', title: 'Purchase failed', message: err || 'Try again.' });
         return;
       }
-      await markMoneyOfferBought(peerSteamId, messageServerId);
+      await setMoneyOfferStatus(peerSteamId, messageServerId, 'bought');
       addToast({ type: 'success', title: 'Purchase complete', message: offer.listingName || undefined });
       onClose();
     } finally {
       setBuying(false);
     }
   };
+
+  const headerLabel = isBought
+    ? 'Purchased offer'
+    : isRejected
+    ? 'Rejected offer'
+    : isAccepted
+    ? 'Accepted offer'
+    : 'Money offer';
 
   return (
     <AnimatePresence>
@@ -1581,7 +1677,7 @@ const MoneyOfferDetailModal: React.FC<{
           >
             <div className="flex items-center justify-between mb-4">
               <span className="text-[11px] font-bold uppercase tracking-wider text-ink-dim">
-                {offer.bought ? 'Purchased offer' : 'Money offer'}
+                {headerLabel}
               </span>
               <button
                 onClick={onClose}
@@ -1617,12 +1713,71 @@ const MoneyOfferDetailModal: React.FC<{
               </div>
             )}
 
-            {offer.bought ? (
+            {/* ── Status-driven action area ─────────────────────────── */}
+            {isBought && (
               <div className="mt-4 rounded-xl bg-emerald-500/15 ring-1 ring-emerald-500/30 px-3 py-2.5 flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
                 <CheckCircle2 size={16} strokeWidth={2.4} />
                 <span className="text-[13px] font-bold">Bought</span>
               </div>
-            ) : canBuy ? (
+            )}
+
+            {isRejected && (
+              <p className="mt-4 text-[12px] text-ink-dim font-medium text-center leading-relaxed">
+                This offer was rejected.
+              </p>
+            )}
+
+            {/* Recipient: Accept / Reject on a pending offer. */}
+            {canDecide && !confirmAccept && (
+              <div className="mt-4 flex gap-2">
+                <motion.button
+                  whileTap={tap}
+                  onClick={() => handleDecision('rejected')}
+                  disabled={deciding}
+                  className="flex-1 h-11 rounded-full bg-subtle hover:bg-bg text-ink font-bold text-[13px] disabled:opacity-60 transition-colors"
+                >
+                  Reject
+                </motion.button>
+                <motion.button
+                  whileTap={tap}
+                  onClick={() => setConfirmAccept(true)}
+                  disabled={deciding}
+                  className="flex-1 h-11 rounded-full bg-accent text-on-accent font-bold text-[13px] disabled:opacity-60 transition-opacity"
+                >
+                  Accept
+                </motion.button>
+              </div>
+            )}
+
+            {/* Confirmation step — accepting commits to the sale price. */}
+            {canDecide && confirmAccept && (
+              <div className="mt-4 rounded-xl bg-subtle p-3.5 space-y-3">
+                <p className="text-[12.5px] text-ink font-semibold leading-relaxed">
+                  Accept {formatPrice(offer.amountCZK)} for {offer.listingName || 'this item'}? The
+                  buyer will be able to complete the purchase at this price.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setConfirmAccept(false)}
+                    disabled={deciding}
+                    className="flex-1 h-10 rounded-full bg-bg hover:bg-line/30 text-ink font-semibold text-[12.5px] disabled:opacity-60 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <motion.button
+                    whileTap={tap}
+                    onClick={() => handleDecision('accepted')}
+                    disabled={deciding}
+                    className="flex-1 h-10 rounded-full bg-accent text-on-accent font-bold text-[12.5px] disabled:opacity-60 transition-opacity"
+                  >
+                    {deciding ? 'Confirming…' : 'Yes, accept'}
+                  </motion.button>
+                </div>
+              </div>
+            )}
+
+            {/* Sender: Buy, only once accepted. */}
+            {canBuy && (
               <motion.button
                 whileTap={tap}
                 onClick={handleBuy}
@@ -1632,9 +1787,21 @@ const MoneyOfferDetailModal: React.FC<{
                 <ShoppingBag size={14} strokeWidth={2.4} />
                 {buying ? 'Processing…' : `Buy for ${formatPrice(offer.amountCZK)}`}
               </motion.button>
-            ) : (
+            )}
+
+            {/* Sender waiting on a still-pending offer. */}
+            {mine && isPending && (
               <p className="mt-4 text-[11.5px] text-ink-dim font-medium text-center leading-relaxed">
                 Waiting for {peerName} to accept this offer.
+              </p>
+            )}
+
+            {/* Recipient looking at their own already-decided offer. */}
+            {!mine && (isAccepted || isRejected) && !isBought && (
+              <p className="mt-4 text-[11.5px] text-ink-dim font-medium text-center leading-relaxed">
+                {isAccepted
+                  ? `Waiting for ${peerName} to complete the purchase.`
+                  : 'You rejected this offer.'}
               </p>
             )}
           </motion.div>

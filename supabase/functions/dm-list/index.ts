@@ -69,11 +69,14 @@ Deno.serve(async (req) => {
          Add/remove the caller's steam_id from that emoji's array on
          the message's `reactions` jsonb. Either participant may react
          to either side's message (mirrors Instagram/iMessage).
-       { action: 'mark_money_offer_bought', message_id }
-         Flags a money-offer message as fulfilled so both sides see the
-         green "Bought" state. Only the RECIPIENT of the offer may mark
-         it bought (they're the one paying) — the sender can't fake
-         their own offer as fulfilled. */
+       { action: 'set_money_offer_status', message_id, status }
+         Money-offer lifecycle: pending -> accepted|rejected (by the
+         RECIPIENT, i.e. the listing owner deciding whether to take the
+         price) -> bought (by the SENDER, i.e. whoever is paying,
+         and only once the recipient has accepted). Each transition is
+         checked server-side against both the caller's role and the
+         offer's current status so neither side can skip a step or act
+         on the other's behalf. */
   if (req.method === 'POST') {
     let body: any = {};
     try {
@@ -82,10 +85,23 @@ Deno.serve(async (req) => {
       return json(400, { error: { code: 'bad_json', message: 'Invalid JSON body.' } });
     }
 
-    if (body?.action === 'mark_money_offer_bought') {
+    if (body?.action === 'set_money_offer_status') {
       const messageId = Number(body?.message_id);
-      if (!Number.isInteger(messageId)) {
-        return json(400, { error: { code: 'bad_request', message: 'mark_money_offer_bought needs a valid message_id.' } });
+      const nextStatus = String(body?.status || '');
+      const ALLOWED_TRANSITIONS: Record<string, { from: string[]; who: 'sender' | 'recipient' }> = {
+        /* Recipient (listing owner) decides whether to accept the price. */
+        accepted: { from: ['pending'], who: 'recipient' },
+        rejected: { from: ['pending'], who: 'recipient' },
+        /* Only the sender (the one paying) can mark it bought, and only
+           after the recipient has accepted — they can't skip straight
+           from pending to bought. */
+        bought: { from: ['accepted'], who: 'sender' },
+      };
+      const rule = ALLOWED_TRANSITIONS[nextStatus];
+      if (!Number.isInteger(messageId) || !rule) {
+        return json(400, {
+          error: { code: 'bad_request', message: 'set_money_offer_status needs a valid message_id and status (accepted|rejected|bought).' },
+        });
       }
       const { data: row, error: fetchErr } = await supabase
         .from('direct_messages')
@@ -95,11 +111,21 @@ Deno.serve(async (req) => {
       if (fetchErr || !row) {
         return json(404, { error: { code: 'not_found', message: 'Message not found.' } });
       }
-      /* Only the recipient (the one being asked to pay) can mark it
-         bought — the sender marking their own offer "bought" would let
-         anyone fake a sale. */
-      if (row.to_steam_id !== mySteamId) {
-        return json(403, { error: { code: 'forbidden', message: 'Only the offer recipient can mark it bought.' } });
+      const isSender = row.from_steam_id === mySteamId;
+      const isRecipient = row.to_steam_id === mySteamId;
+      if (!isSender && !isRecipient) {
+        return json(403, { error: { code: 'forbidden', message: 'Not a participant in this thread.' } });
+      }
+      if ((rule.who === 'sender' && !isSender) || (rule.who === 'recipient' && !isRecipient)) {
+        return json(403, {
+          error: {
+            code: 'forbidden',
+            message:
+              rule.who === 'recipient'
+                ? 'Only the offer recipient can accept or reject it.'
+                : 'Only the offer sender can mark it bought.',
+          },
+        });
       }
       const PREFIX = '__money_offer__:';
       if (!row.text?.startsWith(PREFIX)) {
@@ -111,7 +137,14 @@ Deno.serve(async (req) => {
       } catch {
         return json(400, { error: { code: 'bad_payload', message: 'Malformed money offer.' } });
       }
-      payload.bought = true;
+      const currentStatus = payload?.status || (payload?.bought ? 'bought' : 'pending');
+      if (!rule.from.includes(currentStatus)) {
+        return json(409, {
+          error: { code: 'invalid_transition', message: `Cannot move from "${currentStatus}" to "${nextStatus}".` },
+        });
+      }
+      payload.status = nextStatus;
+      delete payload.bought; // superseded by status, drop the legacy flag
       const newText = `${PREFIX}${JSON.stringify(payload)}`;
       const { error: updateErr } = await supabase
         .from('direct_messages')

@@ -177,10 +177,15 @@ interface DMState {
     messageServerId: number,
     emoji: string,
   ) => Promise<void>;
-  /** Flip a money-offer message to "bought" — only callable by the
-      offer's recipient (they're the one paying). Optimistic; reconciled
-      by the dm-list response and by realtime for the other tab/device. */
-  markMoneyOfferBought: (peerSteamId: string, messageServerId: number) => Promise<boolean>;
+  /** Advance a money-offer's lifecycle: accepted/rejected (recipient
+      only) or bought (sender only, after acceptance). Optimistic;
+      reconciled by the dm-list response and by realtime for the other
+      tab/device. Returns false (and reverts) on a rejected transition. */
+  setMoneyOfferStatus: (
+    peerSteamId: string,
+    messageServerId: number,
+    status: 'accepted' | 'rejected' | 'bought',
+  ) => Promise<boolean>;
   deleteThread: (peerSteamId: string) => Promise<void>;
   totalUnread: () => number;
   threadUnread: (peerSteamId: string) => number;
@@ -655,18 +660,26 @@ export const useDMStore = create<DMState>()(
         }
       },
 
-      markMoneyOfferBought: async (peerSteamId, messageServerId) => {
+      setMoneyOfferStatus: async (peerSteamId, messageServerId, status) => {
         const { mySteamId, threads } = get();
         if (!mySteamId) return false;
         const t = threads[peerSteamId];
         const msg = t?.messages.find((m) => m.serverId === messageServerId);
         if (!msg) return false;
 
-        /* Optimistic flip. */
+        /* Optimistic flip — patch the JSON payload's `status` field
+           in place, whatever its current value. */
         const prevText = msg.text;
-        const patched = prevText.replace(/"bought":\s*false/, '"bought":true');
-        const optimisticText =
-          patched !== prevText ? patched : prevText.replace(/}$/, ',"bought":true}');
+        let optimisticText = prevText;
+        try {
+          const PREFIX = '__money_offer__:';
+          const parsed = JSON.parse(prevText.slice(PREFIX.length));
+          parsed.status = status;
+          delete parsed.bought;
+          optimisticText = `${PREFIX}${JSON.stringify(parsed)}`;
+        } catch {
+          /* leave optimisticText as prevText — server response will fix it */
+        }
         patchMessage(set, get, peerSteamId, msg.id, { text: optimisticText });
 
         try {
@@ -679,16 +692,16 @@ export const useDMStore = create<DMState>()(
               apikey: supabaseKey,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ action: 'mark_money_offer_bought', message_id: messageServerId }),
+            body: JSON.stringify({ action: 'set_money_offer_status', message_id: messageServerId, status }),
           });
           const body = await res.json().catch(() => null);
-          if (!res.ok) throw new Error(body?.error?.message || `mark_money_offer_bought ${res.status}`);
+          if (!res.ok) throw new Error(body?.error?.message || `set_money_offer_status ${res.status}`);
           if (typeof body?.text === 'string') {
             patchMessage(set, get, peerSteamId, msg.id, { text: body.text });
           }
           return true;
         } catch (err) {
-          console.warn('[dmStore] markMoneyOfferBought failed, reverting:', err);
+          console.warn('[dmStore] setMoneyOfferStatus failed, reverting:', err);
           patchMessage(set, get, peerSteamId, msg.id, { text: prevText });
           return false;
         }
@@ -889,11 +902,11 @@ export const useDMStore = create<DMState>()(
         );
 
         /* UPDATE listener — covers read receipts, reactions, and money-
-           offer "bought" flips landing on messages WE sent (from_steam_id
+           offer status changes landing on messages WE sent (from_steam_id
            = me). The peer's browser is the one calling markThreadRead /
-           toggleReaction / markMoneyOfferBought, so without this our own
+           toggleReaction / setMoneyOfferStatus, so without this our own
            bubble never updates until the next poll. `text` is included
-           because marking a money offer bought rewrites the message's
+           because a money-offer status change rewrites the message's
            JSON payload in place. */
         channel.on(
           'postgres_changes',
