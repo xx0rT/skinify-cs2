@@ -413,16 +413,28 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
 
   return (
     <div className="space-y-4">
-      {/* KPIs */}
+      {/* KPIs — small inline summary line instead of three large cards. */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={spring}
-        className="grid grid-cols-3 gap-3"
+        className="flex items-center flex-wrap gap-x-4 gap-y-1 px-1 text-[11.5px] text-ink-dim font-medium"
       >
-        <KpiTile label="Aktivní nabídky" value={String(kpis.count)} Icon={ShoppingBag} />
-        <KpiTile label="Hodnota nabídek" value={formatPrice(kpis.totalValue)} Icon={TrendingUp} />
-        <KpiTile label="Zobrazení celkem" value={kpis.totalViews.toLocaleString()} Icon={Eye} />
+        <span>
+          <span className="text-ink font-bold tabular-nums">{kpis.count}</span> aktivních nabídek
+        </span>
+        <span className="text-ink-dim/50">·</span>
+        <span>
+          hodnota{' '}
+          <span className="text-ink font-bold tabular-nums">{formatPrice(kpis.totalValue)}</span>
+        </span>
+        <span className="text-ink-dim/50">·</span>
+        <span>
+          <span className="text-ink font-bold tabular-nums">
+            {kpis.totalViews.toLocaleString()}
+          </span>{' '}
+          zobrazení
+        </span>
       </motion.div>
 
       {/* Toolbar */}
@@ -611,24 +623,6 @@ const ListingsTab: React.FC<{ steamId: string }> = ({ steamId }) => {
 /* ─────────────────────────────────────────────────────────────────────────
    Subcomponents
    ───────────────────────────────────────────────────────────────────────── */
-
-const KpiTile: React.FC<{
-  label: string;
-  value: string;
-  Icon: React.ComponentType<any>;
-}> = ({ label, value, Icon }) => (
-  <motion.div whileHover={{ y: -2 }} transition={spring} className="card p-4">
-    <div className="flex items-start justify-between mb-3">
-      <span className="label-meta">{label}</span>
-      <div className="icon-chip-sm bg-accent-soft">
-        <Icon size={14} strokeWidth={2.2} className="text-accent" />
-      </div>
-    </div>
-    <div className="text-[20px] sm:text-[22px] font-bold tracking-tight tabular-nums text-ink leading-none">
-      {value}
-    </div>
-  </motion.div>
-);
 
 /* Wraps the marketplace SkinCard (same visual as /marketplace) and
    stacks a thin owner-only action row beneath it: edit price + remove.

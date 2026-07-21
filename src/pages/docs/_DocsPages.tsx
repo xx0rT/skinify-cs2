@@ -184,6 +184,14 @@ export const QuickstartDoc: React.FC = () => (
         an AK-47 | Redline in field-tested condition.
       </p>
       <CodeTabs samples={pricesSamples('AK-47 | Redline (Field-Tested)')} />
+      <Callout tone="info">
+        If <InlineCode>floor</InlineCode>/<InlineCode>median</InlineCode>/<InlineCode>max</InlineCode>{' '}
+        come back <InlineCode>null</InlineCode> and <InlineCode>listings_count</InlineCode> is{' '}
+        <InlineCode>0</InlineCode>, that market_hash_name simply has no active listings right
+        now — try a different condition/skin, or hit{' '}
+        <Link to="/docs/endpoints/search">/v1/search</Link> first to find one that's currently
+        listed. It's not an error.
+      </Callout>
     </Section>
 
     <Section id="with-a-key" title="With an API key" Icon={Key}>

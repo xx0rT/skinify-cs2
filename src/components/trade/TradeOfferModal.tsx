@@ -17,7 +17,12 @@ import { CachedImage } from '../ui/CachedImage';
 
 interface InventoryItem {
   id: string;
-  asset_id: string;
+  /** The user-inventory edge function returns this field as `assetid`
+      (no underscore) — kept optional here and resolved via
+      itemAssetId() below so a future rename doesn't silently
+      reintroduce the null-asset_id trade_items insert failure. */
+  asset_id?: string;
+  assetid?: string;
   name: string;
   market_name: string;
   type: string;
@@ -177,12 +182,27 @@ const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
       return;
     }
 
+    /* Guard against the "null asset_id" DB failure (trade_items.asset_id
+       is NOT NULL) surfacing as an opaque 500 — catch it client-side
+       with an actionable message instead. */
+    const missingId = [...mySelectedItems, ...recipientSelectedItems].some(
+      (item) => !(item.asset_id || item.assetid),
+    );
+    if (missingId) {
+      addToast({
+        type: 'error',
+        title: 'Item data incomplete',
+        message: 'One of the selected items is missing its Steam asset id. Try refreshing inventories.',
+      });
+      return;
+    }
+
     setCreating(true);
     try {
       const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
 
       const offeredItems = mySelectedItems.map((item) => ({
-        asset_id: item.asset_id,
+        asset_id: item.asset_id || item.assetid,
         item_name: item.name,
         market_name: item.market_name,
         item_type: item.type,
@@ -196,7 +216,7 @@ const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
       }));
 
       const requestedItems = recipientSelectedItems.map((item) => ({
-        asset_id: item.asset_id,
+        asset_id: item.asset_id || item.assetid,
         item_name: item.name,
         market_name: item.market_name,
         item_type: item.type,

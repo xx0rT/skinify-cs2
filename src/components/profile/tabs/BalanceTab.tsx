@@ -72,8 +72,22 @@ const BalanceTab: React.FC = () => {
           String(tx.type || '').toLowerCase().includes(q)
         );
       })
-      .slice(0, 50);
+      .slice(0, 200);
   }, [transactions, filter, query]);
+
+  /* Pagination — the list used to hard-cap at 50 rows with no way to
+     see more or page through them. Page size is user-selectable. */
+  const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [page, setPage] = useState(0);
+  useEffect(() => {
+    setPage(0);
+  }, [filter, query, pageSize]);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paged = useMemo(
+    () => filtered.slice(page * pageSize, page * pageSize + pageSize),
+    [filtered, page, pageSize],
+  );
 
   return (
     <div className="space-y-4">

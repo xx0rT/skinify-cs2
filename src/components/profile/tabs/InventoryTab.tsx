@@ -327,16 +327,27 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
     <div className="space-y-4">
       {!steamLinked && <SteamLinkBanner />}
 
-      {/* KPIs */}
+      {/* KPIs — small inline summary line instead of three large cards;
+          the numbers are useful context but don't need a whole tile
+          each. */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={spring}
-        className="grid grid-cols-3 gap-3"
+        className="flex items-center flex-wrap gap-x-4 gap-y-1 px-1 text-[11.5px] text-ink-dim font-medium"
       >
-        <KpiTile label="Položky" value={String(kpis.total)} Icon={Package} sub={`${kpis.listed} vystaveno`} />
-        <KpiTile label="Vystaveno k prodeji" value={String(kpis.listed)} Icon={Tag} sub={`${kpis.total - kpis.listed} k dispozici`} />
-        <KpiTile label="Odhadovaná hodnota" value={formatPrice(kpis.value)} Icon={TrendingUp} sub="Napříč všemi položkami" />
+        <span>
+          <span className="text-ink font-bold tabular-nums">{kpis.total}</span> položek
+        </span>
+        <span className="text-ink-dim/50">·</span>
+        <span>
+          <span className="text-ink font-bold tabular-nums">{kpis.listed}</span> vystaveno
+        </span>
+        <span className="text-ink-dim/50">·</span>
+        <span>
+          odhad. hodnota{' '}
+          <span className="text-ink font-bold tabular-nums">{formatPrice(kpis.value)}</span>
+        </span>
       </motion.div>
 
       {/* Toolbar */}
@@ -543,25 +554,6 @@ const InventoryTab: React.FC<{ steamId: string }> = ({ steamId }) => {
    Subcomponents
    ───────────────────────────────────────────────────────────────────────── */
 
-const KpiTile: React.FC<{
-  label: string;
-  value: string;
-  sub: string;
-  Icon: React.ComponentType<any>;
-}> = ({ label, value, sub, Icon }) => (
-  <motion.div whileHover={{ y: -2 }} transition={spring} className="card p-4">
-    <div className="flex items-start justify-between mb-3">
-      <span className="label-meta">{label}</span>
-      <div className="icon-chip-sm bg-accent-soft">
-        <Icon size={14} strokeWidth={2.2} className="text-accent" />
-      </div>
-    </div>
-    <div className="text-[20px] sm:text-[22px] font-bold tracking-tight tabular-nums text-ink leading-none">
-      {value}
-    </div>
-    <div className="text-[11.5px] text-ink-dim font-medium mt-1.5">{sub}</div>
-  </motion.div>
-);
 
 /* Inventory tile — matches the Listings/Nabídky ListingCard exactly:
    sharp rounded-md corners, a single-surface card with an inset hairline
