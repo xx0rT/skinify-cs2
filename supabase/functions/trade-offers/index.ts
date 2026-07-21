@@ -98,24 +98,27 @@ async function createTradeOffer(supabaseClient: any, request: TradeOfferRequest)
     throw new Error(`Price difference too large: ${priceDifference.toFixed(2)}%. Must be within 15%.`);
   }
 
-  // Get trade URLs from users table
+  // Get trade URLs from users table. The column is `trade_link` (set via
+  // the profile settings trade-URL field) — this used to select the
+  // non-existent `steam_trade_url`, which made every create() 500 with
+  // "column users.steam_trade_url does not exist".
   const { data: initiatorUser, error: initiatorError } = await supabaseClient
     .from('users')
-    .select('steam_trade_url')
+    .select('trade_link')
     .eq('steam_id', request.initiator_steam_id)
     .maybeSingle();
 
   const { data: recipientUser, error: recipientError } = await supabaseClient
     .from('users')
-    .select('steam_trade_url')
+    .select('trade_link')
     .eq('steam_id', request.recipient_steam_id)
     .maybeSingle();
 
-  if (!initiatorUser?.steam_trade_url) {
+  if (!initiatorUser?.trade_link) {
     throw new Error('Initiator must set their Steam trade URL before creating offers');
   }
 
-  if (!recipientUser?.steam_trade_url) {
+  if (!recipientUser?.trade_link) {
     throw new Error('Recipient must have a Steam trade URL set to receive offers');
   }
 
@@ -130,8 +133,8 @@ async function createTradeOffer(supabaseClient: any, request: TradeOfferRequest)
       total_offer_value: totalOfferValue,
       total_request_value: totalRequestValue,
       price_difference_percentage: priceDifference,
-      initiator_trade_url: initiatorUser.steam_trade_url,
-      recipient_trade_url: recipientUser.steam_trade_url,
+      initiator_trade_url: initiatorUser.trade_link,
+      recipient_trade_url: recipientUser.trade_link,
       notes: request.notes || '',
       status: 'pending',
       expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
