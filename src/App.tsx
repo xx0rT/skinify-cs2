@@ -530,6 +530,50 @@ function OnboardingGate() {
     });
   }, [user?.steamId]);
 
+  /* Presence heartbeat — `users.last_login` used to only get touched at
+     sign-in, so a chat's "Last seen" line stayed frozen on whatever day
+     the peer last logged in even if they'd been active in the app for
+     hours since. (The old onlineStatusStore heartbeat was dead code —
+     it only fired from RealTimeChat, a component nothing ever mounts,
+     and even then pointed sendBeacon at the wrong Supabase project.)
+
+     Goes through the `presence` edge function (service_role) rather
+     than a direct client update — RLS on users.UPDATE requires
+     id = auth.uid(), which Steam-only sessions don't reliably carry,
+     so a direct update would silently no-op for exactly the users this
+     is meant to fix. Touches last_login every 2 minutes while the tab
+     is active + once on mount/regaining visibility. */
+  React.useEffect(() => {
+    const sid = user?.steamId;
+    if (!sid) return;
+    let cancelled = false;
+    const touch = async () => {
+      if (cancelled || document.hidden) return;
+      try {
+        const { getSupabaseCredentials } = await import('./utils/supabaseHelpers');
+        const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+        await fetch(`${supabaseUrl}/functions/v1/presence`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ steam_id: sid, status: 'online', timestamp: new Date().toISOString() }),
+        });
+      } catch {
+        /* best-effort — a missed heartbeat just delays "Last seen" */
+      }
+    };
+    touch();
+    const interval = window.setInterval(touch, 120_000);
+    const onVisible = () => {
+      if (!document.hidden) touch();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [user?.steamId]);
+
   React.useEffect(() => {
     if (!user) return;
     const path = location.pathname || '/';

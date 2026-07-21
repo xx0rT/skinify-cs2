@@ -78,8 +78,15 @@ const urls = posts
   )
   .join('\n');
 
+/* Same root-element shape as public/sitemap.xml (including the xhtml
+   namespace, even though this file doesn't use hreflang alternates) —
+   Search Console flagged this file as "Type: Unknown / Couldn't fetch"
+   while the main sitemap fetched fine, and matching the two byte-for-
+   byte at the structural level rules out any parser-level difference. */
 const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+
 ${urls}
 </urlset>
 `;

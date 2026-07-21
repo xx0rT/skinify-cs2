@@ -6,6 +6,9 @@ import {
   ArrowLeft,
   ChevronLeft,
   Paperclip,
+  Plus,
+  Repeat,
+  Banknote,
   Search as SearchIcon,
   Send,
   Trash2,
@@ -18,9 +21,28 @@ import { useAuthStore } from '../store/authStore';
 import { useDMStore, DMAttachment, DMMessage } from '../store/dmStore';
 import { uploadAttachments, formatBytes } from '../utils/dmAttachments';
 import { useToastStore } from '../store/toastStore';
+import { useCurrencyStore } from '../store/currencyStore';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import { spring, tap } from '../lib/motion';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import TradeOfferModal from '../components/trade/TradeOfferModal';
+
+/* Money-offer messages are plain DMs whose text carries a machine-
+   readable prefix — no schema change needed. Bubble detects the prefix
+   and renders a price-offer card instead of a text bubble. */
+const MONEY_OFFER_PREFIX = '__money_offer__:';
+const buildMoneyOfferText = (amountCZK: number, note: string) =>
+  `${MONEY_OFFER_PREFIX}${amountCZK}${note ? `:${note}` : ''}`;
+const parseMoneyOfferText = (
+  text: string,
+): { amountCZK: number; note: string } | null => {
+  if (!text.startsWith(MONEY_OFFER_PREFIX)) return null;
+  const rest = text.slice(MONEY_OFFER_PREFIX.length);
+  const [amountStr, ...noteParts] = rest.split(':');
+  const amountCZK = Number(amountStr);
+  if (!Number.isFinite(amountCZK)) return null;
+  return { amountCZK, note: noteParts.join(':') };
+};
 
 /* ─────────────────────────────────────────────────────────────────────────
    MessagesPage — full inbox + active chat.
@@ -399,7 +421,7 @@ const ThreadRow: React.FC<{
                 unread > 0 ? 'text-ink font-semibold' : 'text-ink-muted'
               }`}
             >
-              {lastMsg?.text?.trim() ||
+              {(lastMsg?.text && parseMoneyOfferText(lastMsg.text) ? '💰 Money offer' : lastMsg?.text?.trim()) ||
                 lastMsg?.attachments?.[0]?.name ||
                 'No messages yet'}
             </div>
@@ -516,6 +538,14 @@ const ChatPanel: React.FC<{
   const [text, setText] = useState('');
   const [pending, setPending] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
+  /* '+' composer bar — expands in place of the plain paperclip button
+     to offer Attach / Trade offer / Money offer. */
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [tradeModalOpen, setTradeModalOpen] = useState(false);
+  const [moneyOfferOpen, setMoneyOfferOpen] = useState(false);
+  const [moneyAmount, setMoneyAmount] = useState('');
+  const [moneyNote, setMoneyNote] = useState('');
+  const { formatPrice } = useCurrencyStore();
   /* Tick state every second so the "is the peer still typing" check
      re-evaluates without us having to thread the ts into a useEffect. */
   const [, setNowTick] = useState(0);
@@ -648,6 +678,36 @@ const ChatPanel: React.FC<{
       setText('');
       setPending([]);
       setTimeout(() => inputRef.current?.focus(), 0);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const sendMoneyOffer = async () => {
+    const amount = Number(moneyAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      addToast({ type: 'warning', title: 'Enter a valid amount' });
+      return;
+    }
+    setSending(true);
+    try {
+      const result = await sendMessage(
+        thread.peerSteamId,
+        buildMoneyOfferText(amount, moneyNote.trim()),
+      );
+      if (result.status === 'failed') {
+        addToast({
+          type: 'error',
+          title: 'Offer not sent',
+          message: result.failureReason || 'Try again.',
+        });
+      } else {
+        addToast({ type: 'success', title: 'Money offer sent', message: formatPrice(amount) });
+      }
+      setMoneyAmount('');
+      setMoneyNote('');
+      setMoneyOfferOpen(false);
+      setActionsOpen(false);
     } finally {
       setSending(false);
     }
@@ -840,49 +900,189 @@ const ChatPanel: React.FC<{
           )}
         </AnimatePresence>
 
-        <div className="flex items-end gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={(e) => onPickFiles(e.target.files)}
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="h-10 w-10 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors shrink-0"
-            aria-label="Attach files"
-            title="Attach files"
-          >
-            <Paperclip size={15} strokeWidth={2.2} />
-          </button>
-          <textarea
-            ref={inputRef}
-            value={text}
-            onChange={(e) => onTextChange(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder="Type a message…"
-            rows={1}
-            maxLength={2000}
-            className="flex-1 min-h-[40px] max-h-[180px] rounded-2xl bg-subtle px-3.5 py-2.5 text-[13.5px] text-ink font-medium outline-none focus:ring-2 focus:ring-accent/40 resize-none"
-          />
-          <motion.button
-            whileTap={tap}
-            whileHover={text.trim() || pending.length > 0 ? { scale: 1.04 } : undefined}
-            onClick={send}
-            disabled={(!text.trim() && pending.length === 0) || sending}
-            aria-label="Send"
-            className="h-10 w-10 rounded-full bg-accent text-on-accent grid place-items-center disabled:opacity-40 disabled:cursor-not-allowed transition-opacity shrink-0"
-          >
-            <Send size={15} strokeWidth={2.4} />
-          </motion.button>
-        </div>
-        <div className="text-[10.5px] text-ink-dim font-medium flex items-center justify-between">
-          <span>Enter to send · Shift+Enter for newline · Paperclip to attach</span>
-          <span className="tabular-nums">{text.length}/2000</span>
-        </div>
+        {/* Money-offer inline form — replaces the text row while open. */}
+        <AnimatePresence mode="wait">
+          {moneyOfferOpen ? (
+            <motion.div
+              key="money-form"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="rounded-2xl bg-subtle p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-ink-dim">
+                    Send a money offer
+                  </span>
+                  <button
+                    onClick={() => setMoneyOfferOpen(false)}
+                    className="text-ink-muted hover:text-ink"
+                    aria-label="Cancel"
+                  >
+                    <XIcon size={13} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    value={moneyAmount}
+                    onChange={(e) => setMoneyAmount(e.target.value)}
+                    placeholder="Amount"
+                    autoFocus
+                    className="w-32 h-10 rounded-xl bg-bg px-3 text-[13.5px] font-bold text-ink outline-none focus:ring-2 focus:ring-accent/40"
+                  />
+                  <input
+                    value={moneyNote}
+                    onChange={(e) => setMoneyNote(e.target.value)}
+                    placeholder="Note (optional)"
+                    maxLength={140}
+                    className="flex-1 h-10 rounded-xl bg-bg px-3 text-[13px] font-medium text-ink outline-none focus:ring-2 focus:ring-accent/40"
+                  />
+                  <motion.button
+                    whileTap={tap}
+                    onClick={sendMoneyOffer}
+                    disabled={!moneyAmount || sending}
+                    className="h-10 px-4 rounded-xl bg-accent text-on-accent font-bold text-[13px] disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                  >
+                    Send
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="text-row"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="flex items-end gap-2 overflow-visible"
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  onPickFiles(e.target.files);
+                  setActionsOpen(false);
+                }}
+              />
+
+              {/* '+' composer trigger — morphs into a horizontal action
+                  bar (Attach / Trade offer / Money offer) instead of
+                  opening a separate menu, so the transform reads as one
+                  continuous shape change. */}
+              <div className="relative shrink-0">
+                <motion.button
+                  layout
+                  onClick={() => setActionsOpen((v) => !v)}
+                  aria-label={actionsOpen ? 'Close actions' : 'More actions'}
+                  className="h-10 w-10 rounded-full bg-subtle hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors overflow-hidden"
+                >
+                  <motion.span
+                    animate={{ rotate: actionsOpen ? 45 : 0 }}
+                    transition={{ type: 'spring', stiffness: 420, damping: 28 }}
+                    className="grid place-items-center"
+                  >
+                    <Plus size={17} strokeWidth={2.4} />
+                  </motion.span>
+                </motion.button>
+
+                <AnimatePresence>
+                  {actionsOpen && (
+                    <>
+                      <motion.div
+                        key="actions-backdrop"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-40"
+                        onClick={() => setActionsOpen(false)}
+                      />
+                      <motion.div
+                        key="actions-bar"
+                        initial={{ opacity: 0, scale: 0.9, x: -8 }}
+                        animate={{ opacity: 1, scale: 1, x: 0 }}
+                        exit={{ opacity: 0, scale: 0.92, x: -6 }}
+                        transition={{ type: 'spring', stiffness: 460, damping: 32 }}
+                        className="absolute z-50 bottom-full mb-2 left-0 bg-surface ring-1 ring-line rounded-2xl shadow-lg p-1.5 flex items-center gap-1 whitespace-nowrap"
+                      >
+                        <button
+                          onClick={() => {
+                            fileInputRef.current?.click();
+                          }}
+                          className="h-9 px-3 rounded-xl hover:bg-subtle text-ink text-[12.5px] font-semibold inline-flex items-center gap-1.5 transition-colors"
+                        >
+                          <Paperclip size={14} strokeWidth={2.2} />
+                          Attach
+                        </button>
+                        <button
+                          onClick={() => {
+                            setTradeModalOpen(true);
+                            setActionsOpen(false);
+                          }}
+                          className="h-9 px-3 rounded-xl hover:bg-subtle text-ink text-[12.5px] font-semibold inline-flex items-center gap-1.5 transition-colors"
+                        >
+                          <Repeat size={14} strokeWidth={2.2} />
+                          Trade offer
+                        </button>
+                        <button
+                          onClick={() => {
+                            setMoneyOfferOpen(true);
+                          }}
+                          className="h-9 px-3 rounded-xl hover:bg-subtle text-ink text-[12.5px] font-semibold inline-flex items-center gap-1.5 transition-colors"
+                        >
+                          <Banknote size={14} strokeWidth={2.2} />
+                          Money offer
+                        </button>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <textarea
+                ref={inputRef}
+                value={text}
+                onChange={(e) => onTextChange(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder="Type a message…"
+                rows={1}
+                maxLength={2000}
+                className="flex-1 min-h-[40px] max-h-[180px] rounded-2xl bg-subtle px-3.5 py-2.5 text-[13.5px] text-ink font-medium outline-none focus:ring-2 focus:ring-accent/40 resize-none"
+              />
+              <motion.button
+                whileTap={tap}
+                whileHover={text.trim() || pending.length > 0 ? { scale: 1.04 } : undefined}
+                onClick={send}
+                disabled={(!text.trim() && pending.length === 0) || sending}
+                aria-label="Send"
+                className="h-10 w-10 rounded-full bg-accent text-on-accent grid place-items-center disabled:opacity-40 disabled:cursor-not-allowed transition-opacity shrink-0"
+              >
+                <Send size={15} strokeWidth={2.4} />
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {!moneyOfferOpen && (
+          <div className="text-[10.5px] text-ink-dim font-medium flex items-center justify-between">
+            <span>Enter to send · Shift+Enter for newline · Tap + to attach or make an offer</span>
+            <span className="tabular-nums">{text.length}/2000</span>
+          </div>
+        )}
       </div>
+
+      <TradeOfferModal
+        isOpen={tradeModalOpen}
+        onClose={() => setTradeModalOpen(false)}
+        recipientSteamId={thread.peerSteamId}
+        recipientName={thread.peerName}
+      />
     </>
   );
 };
@@ -929,6 +1129,8 @@ const Bubble: React.FC<{
 
   const reactions = message.reactions || {};
   const reactionEntries = Object.entries(reactions).filter(([, ids]) => ids.length > 0);
+  const { formatPrice } = useCurrencyStore();
+  const moneyOffer = message.text ? parseMoneyOfferText(message.text) : null;
 
   return (
     <motion.div
@@ -955,9 +1157,29 @@ const Bubble: React.FC<{
           <AttachmentBubble key={a.id} attachment={a} />
         ))}
 
+        {/* Money-offer card — rendered instead of the plain text bubble
+            when the message text carries the money-offer prefix. */}
+        {moneyOffer && (
+          <div
+            className={`rounded-2xl px-4 py-3 min-w-[180px] ${
+              mine ? 'bg-accent text-on-accent' : 'bg-subtle text-ink'
+            }`}
+          >
+            <div className="text-[10px] font-bold uppercase tracking-wider opacity-70">
+              Money offer
+            </div>
+            <div className="text-[20px] font-bold tracking-tight mt-0.5">
+              {formatPrice(moneyOffer.amountCZK)}
+            </div>
+            {moneyOffer.note && (
+              <div className="text-[12px] font-medium mt-1 opacity-90">{moneyOffer.note}</div>
+            )}
+          </div>
+        )}
+
         {/* Text — long-press (mobile) or hover (desktop, via the ⋯
             reveal button) opens the emoji picker. */}
-        {message.text && message.text.trim().length > 0 && (
+        {!moneyOffer && message.text && message.text.trim().length > 0 && (
           <div className="relative">
             <div
               onPointerDown={startLongPress}
@@ -971,21 +1193,6 @@ const Bubble: React.FC<{
             >
               {message.text}
             </div>
-
-            {/* Desktop hover affordance — quick-react button appears on
-                the opposite side of the bubble from its tail. */}
-            {!!message.serverId && (
-              <button
-                type="button"
-                onClick={() => setPickerOpen((v) => !v)}
-                aria-label="React to message"
-                className={`hidden sm:group-hover:flex absolute top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-surface ring-1 ring-line items-center justify-center text-[12px] hover:bg-subtle transition-colors ${
-                  mine ? '-left-8' : '-right-8'
-                }`}
-              >
-                🙂
-              </button>
-            )}
 
             {/* Emoji picker popover */}
             <AnimatePresence>
