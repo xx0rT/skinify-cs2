@@ -61,20 +61,66 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const peer = url.searchParams.get('peer');
 
-  /* POST — three actions, all requiring the caller to be a participant:
+  /* POST — four actions, all requiring the caller to be a participant:
        { action: 'mark_read', peer }
          Persist read state so the unread badge doesn't come back on
          the next fetch. Scoped: only messages SENT TO the caller.
        { action: 'toggle_reaction', message_id, emoji }
          Add/remove the caller's steam_id from that emoji's array on
          the message's `reactions` jsonb. Either participant may react
-         to either side's message (mirrors Instagram/iMessage). */
+         to either side's message (mirrors Instagram/iMessage).
+       { action: 'mark_money_offer_bought', message_id }
+         Flags a money-offer message as fulfilled so both sides see the
+         green "Bought" state. Only the RECIPIENT of the offer may mark
+         it bought (they're the one paying) — the sender can't fake
+         their own offer as fulfilled. */
   if (req.method === 'POST') {
     let body: any = {};
     try {
       body = await req.json();
     } catch {
       return json(400, { error: { code: 'bad_json', message: 'Invalid JSON body.' } });
+    }
+
+    if (body?.action === 'mark_money_offer_bought') {
+      const messageId = Number(body?.message_id);
+      if (!Number.isInteger(messageId)) {
+        return json(400, { error: { code: 'bad_request', message: 'mark_money_offer_bought needs a valid message_id.' } });
+      }
+      const { data: row, error: fetchErr } = await supabase
+        .from('direct_messages')
+        .select('id, from_steam_id, to_steam_id, text')
+        .eq('id', messageId)
+        .maybeSingle();
+      if (fetchErr || !row) {
+        return json(404, { error: { code: 'not_found', message: 'Message not found.' } });
+      }
+      /* Only the recipient (the one being asked to pay) can mark it
+         bought — the sender marking their own offer "bought" would let
+         anyone fake a sale. */
+      if (row.to_steam_id !== mySteamId) {
+        return json(403, { error: { code: 'forbidden', message: 'Only the offer recipient can mark it bought.' } });
+      }
+      const PREFIX = '__money_offer__:';
+      if (!row.text?.startsWith(PREFIX)) {
+        return json(400, { error: { code: 'not_money_offer', message: 'This message is not a money offer.' } });
+      }
+      let payload: any;
+      try {
+        payload = JSON.parse(row.text.slice(PREFIX.length));
+      } catch {
+        return json(400, { error: { code: 'bad_payload', message: 'Malformed money offer.' } });
+      }
+      payload.bought = true;
+      const newText = `${PREFIX}${JSON.stringify(payload)}`;
+      const { error: updateErr } = await supabase
+        .from('direct_messages')
+        .update({ text: newText })
+        .eq('id', messageId);
+      if (updateErr) {
+        return json(500, { error: { code: 'db_error', message: updateErr.message } });
+      }
+      return json(200, { ok: true, text: newText });
     }
 
     if (body?.action === 'toggle_reaction') {

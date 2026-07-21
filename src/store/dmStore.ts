@@ -177,6 +177,10 @@ interface DMState {
     messageServerId: number,
     emoji: string,
   ) => Promise<void>;
+  /** Flip a money-offer message to "bought" — only callable by the
+      offer's recipient (they're the one paying). Optimistic; reconciled
+      by the dm-list response and by realtime for the other tab/device. */
+  markMoneyOfferBought: (peerSteamId: string, messageServerId: number) => Promise<boolean>;
   deleteThread: (peerSteamId: string) => Promise<void>;
   totalUnread: () => number;
   threadUnread: (peerSteamId: string) => number;
@@ -538,7 +542,15 @@ export const useDMStore = create<DMState>()(
         });
         /* Persist server-side (dm-list POST mark_read) so the unread
            badge stays cleared after a refetch — the local flags used to
-           be overwritten by read_at=null rows on the next dm-list. */
+           be overwritten by read_at=null rows on the next dm-list.
+
+           IMPORTANT: this writes `read_at` in the DB, which is what
+           drives the sender's "Seen" indicator — only call this for
+           the thread the user is ACTUALLY looking at. A previous bug
+           called this for every unread thread just from opening
+           /messages, so peers saw "Seen" on messages the recipient
+           never actually opened. For "clear the badge without lying
+           about read state" use clearThreadBadgeLocally instead. */
         if (!mySteamId) return;
         try {
           const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
@@ -640,6 +652,45 @@ export const useDMStore = create<DMState>()(
               },
             });
           }
+        }
+      },
+
+      markMoneyOfferBought: async (peerSteamId, messageServerId) => {
+        const { mySteamId, threads } = get();
+        if (!mySteamId) return false;
+        const t = threads[peerSteamId];
+        const msg = t?.messages.find((m) => m.serverId === messageServerId);
+        if (!msg) return false;
+
+        /* Optimistic flip. */
+        const prevText = msg.text;
+        const patched = prevText.replace(/"bought":\s*false/, '"bought":true');
+        const optimisticText =
+          patched !== prevText ? patched : prevText.replace(/}$/, ',"bought":true}');
+        patchMessage(set, get, peerSteamId, msg.id, { text: optimisticText });
+
+        try {
+          const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+          const res = await fetch(`${supabaseUrl}/functions/v1/dm-list`, {
+            method: 'POST',
+            headers: {
+              'x-steam-id': mySteamId,
+              Authorization: `Bearer ${supabaseKey}`,
+              apikey: supabaseKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ action: 'mark_money_offer_bought', message_id: messageServerId }),
+          });
+          const body = await res.json().catch(() => null);
+          if (!res.ok) throw new Error(body?.error?.message || `mark_money_offer_bought ${res.status}`);
+          if (typeof body?.text === 'string') {
+            patchMessage(set, get, peerSteamId, msg.id, { text: body.text });
+          }
+          return true;
+        } catch (err) {
+          console.warn('[dmStore] markMoneyOfferBought failed, reverting:', err);
+          patchMessage(set, get, peerSteamId, msg.id, { text: prevText });
+          return false;
         }
       },
 
@@ -837,11 +888,13 @@ export const useDMStore = create<DMState>()(
           },
         );
 
-        /* UPDATE listener — covers both read receipts and reactions
-           landing on messages WE sent (from_steam_id = me). The peer's
-           browser is the one calling markThreadRead / toggleReaction,
-           so without this our own bubble never flips to "Seen" or
-           shows their reaction until the next poll. */
+        /* UPDATE listener — covers read receipts, reactions, and money-
+           offer "bought" flips landing on messages WE sent (from_steam_id
+           = me). The peer's browser is the one calling markThreadRead /
+           toggleReaction / markMoneyOfferBought, so without this our own
+           bubble never updates until the next poll. `text` is included
+           because marking a money offer bought rewrites the message's
+           JSON payload in place. */
         channel.on(
           'postgres_changes',
           {
@@ -865,6 +918,7 @@ export const useDMStore = create<DMState>()(
                     m.serverId === row.id
                       ? {
                           ...m,
+                          text: typeof row.text === 'string' ? row.text : m.text,
                           read: !!row.read_at,
                           reactions:
                             row.reactions && typeof row.reactions === 'object'
@@ -904,6 +958,7 @@ export const useDMStore = create<DMState>()(
                     m.serverId === row.id
                       ? {
                           ...m,
+                          text: typeof row.text === 'string' ? row.text : m.text,
                           reactions:
                             row.reactions && typeof row.reactions === 'object'
                               ? row.reactions

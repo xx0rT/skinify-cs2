@@ -9,6 +9,8 @@ import {
   Plus,
   Repeat,
   Banknote,
+  CheckCircle2,
+  ShoppingBag,
   Search as SearchIcon,
   Send,
   Trash2,
@@ -21,6 +23,7 @@ import { useAuthStore } from '../store/authStore';
 import { useDMStore, DMAttachment, DMMessage } from '../store/dmStore';
 import { uploadAttachments, formatBytes } from '../utils/dmAttachments';
 import { useToastStore } from '../store/toastStore';
+import { useBalanceStore } from '../store/balanceStore';
 import { useCurrencyStore } from '../store/currencyStore';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import { spring, tap } from '../lib/motion';
@@ -41,6 +44,9 @@ interface MoneyOfferPayload {
   listingId: number | null;
   listingName: string | null;
   listingImage: string | null;
+  /** Set once the recipient pays — flips the card to the green
+      "Bought" state for both sides via mark_money_offer_bought. */
+  bought?: boolean;
 }
 const buildMoneyOfferText = (payload: MoneyOfferPayload) =>
   `${MONEY_OFFER_PREFIX}${JSON.stringify(payload)}`;
@@ -55,6 +61,7 @@ const parseMoneyOfferText = (text: string): MoneyOfferPayload | null => {
       listingId: Number.isFinite(parsed?.listingId) ? parsed.listingId : null,
       listingName: parsed?.listingName || null,
       listingImage: parsed?.listingImage || null,
+      bought: !!parsed?.bought,
     };
   } catch {
     return null;
@@ -135,21 +142,15 @@ const MessagesPage: React.FC = () => {
     }
   }, [activePeer, threads]);
 
-  /* Mark whichever thread is active as read whenever it changes. */
+  /* Mark whichever thread is active as read whenever it changes. This is
+     the ONLY place that should call markThreadRead — it writes read_at
+     server-side, which is what drives the sender's "Seen" indicator.
+     A previous version also fired this for every thread just from
+     opening /messages (to clear the navbar badge), which meant peers
+     saw "Seen" on conversations the recipient never actually opened. */
   useEffect(() => {
     if (activePeer) markThreadRead(activePeer);
   }, [activePeer, markThreadRead]);
-
-  /* Opening the messages page counts as "seen" — clear every unread
-     badge (navbar bell / avatar counter) by marking all threads read.
-     Guarded so it only fires for threads that actually have unread
-     messages, otherwise the store update would loop this effect. */
-  useEffect(() => {
-    for (const th of Object.values(threadsMap)) {
-      const hasUnread = th.messages.some((m) => !m.read && m.fromSteamId !== 'me');
-      if (hasUnread) markThreadRead(th.peerSteamId);
-    }
-  }, [threadsMap, markThreadRead]);
 
   const filteredThreads = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -571,6 +572,7 @@ const ChatPanel: React.FC<{
   >(null);
   const [peerListingsLoading, setPeerListingsLoading] = useState(false);
   const [selectedListingId, setSelectedListingId] = useState<number | null>(null);
+  const [listingSearch, setListingSearch] = useState('');
   const { formatPrice } = useCurrencyStore();
 
   const openMoneyOffer = async () => {
@@ -600,6 +602,14 @@ const ChatPanel: React.FC<{
       setPeerListingsLoading(false);
     }
   };
+
+  const filteredPeerListings = useMemo(() => {
+    const list = peerListings || [];
+    const q = listingSearch.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((l) => l.name.toLowerCase().includes(q));
+  }, [peerListings, listingSearch]);
+
   /* Tick state every second so the "is the peer still typing" check
      re-evaluates without us having to thread the ts into a useEffect. */
   const [, setNowTick] = useState(0);
@@ -916,6 +926,7 @@ const ChatPanel: React.FC<{
                 <Bubble
                   message={m}
                   peerSteamId={thread.peerSteamId}
+                  peerName={thread.peerName}
                   isLastOfMine={lastMineIndex(thread.messages, mySteamId) === i}
                 />
               </React.Fragment>
@@ -1012,31 +1023,45 @@ const ChatPanel: React.FC<{
                     {thread.peerName} has no active listings right now.
                   </div>
                 ) : (
-                  <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-0.5 px-0.5">
-                    {(peerListings || []).map((l) => {
-                      const active = selectedListingId === l.id;
-                      return (
-                        <button
-                          key={l.id}
-                          type="button"
-                          onClick={() => setSelectedListingId(l.id)}
-                          className={`shrink-0 w-[76px] rounded-xl p-1.5 text-left transition-colors ${
-                            active ? 'bg-accent-soft ring-2 ring-accent' : 'bg-bg hover:bg-bg/70'
-                          }`}
-                        >
-                          <div className="w-full h-11 rounded-md bg-subtle grid place-items-center overflow-hidden">
-                            <img src={l.image} alt="" className="w-[85%] h-[85%] object-contain" />
-                          </div>
-                          <div className="text-[10px] font-semibold text-ink truncate mt-1 leading-tight">
-                            {l.name}
-                          </div>
-                          <div className="text-[10px] font-bold text-accent tabular-nums">
-                            {formatPrice(l.price)}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <>
+                    <input
+                      value={listingSearch}
+                      onChange={(e) => setListingSearch(e.target.value)}
+                      placeholder={`Search ${thread.peerName}'s listings…`}
+                      className="w-full h-8 rounded-lg bg-bg px-2.5 text-[12px] font-medium text-ink outline-none focus:ring-2 focus:ring-accent/40"
+                    />
+                    <div className="flex gap-1.5 overflow-x-auto overflow-y-hidden pt-1.5 pb-1 -mx-0.5 px-0.5">
+                      {filteredPeerListings.length === 0 ? (
+                        <div className="text-[11.5px] text-ink-muted font-medium py-2 px-0.5">
+                          No listings match "{listingSearch}".
+                        </div>
+                      ) : (
+                        filteredPeerListings.map((l) => {
+                          const active = selectedListingId === l.id;
+                          return (
+                            <button
+                              key={l.id}
+                              type="button"
+                              onClick={() => setSelectedListingId(l.id)}
+                              className={`shrink-0 w-[76px] rounded-xl p-1.5 text-left transition-colors ${
+                                active ? 'bg-accent-soft ring-2 ring-accent' : 'bg-bg hover:bg-bg/70'
+                              }`}
+                            >
+                              <div className="w-full h-11 rounded-md bg-subtle grid place-items-center overflow-hidden">
+                                <img src={l.image} alt="" className="w-[85%] h-[85%] object-contain" />
+                              </div>
+                              <div className="text-[10px] font-semibold text-ink truncate mt-1 leading-tight">
+                                {l.name}
+                              </div>
+                              <div className="text-[10px] font-bold text-accent tabular-nums">
+                                {formatPrice(l.price)}
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </>
                 )}
 
                 <div className="flex items-center gap-2">
@@ -1088,10 +1113,10 @@ const ChatPanel: React.FC<{
                 }}
               />
 
-              {/* '+' composer trigger — morphs into a horizontal action
-                  bar (Attach / Trade offer / Money offer) instead of
-                  opening a separate menu, so the transform reads as one
-                  continuous shape change. */}
+              {/* '+' composer trigger — morphs into a VERTICAL action
+                  menu (Attach / Trade offer / Money offer) that grows
+                  upward from the button, so the transform reads as one
+                  continuous shape change rather than a separate popover. */}
               <div className="relative shrink-0">
                 <motion.button
                   layout
@@ -1121,17 +1146,17 @@ const ChatPanel: React.FC<{
                       />
                       <motion.div
                         key="actions-bar"
-                        initial={{ opacity: 0, scale: 0.9, x: -8 }}
-                        animate={{ opacity: 1, scale: 1, x: 0 }}
-                        exit={{ opacity: 0, scale: 0.92, x: -6 }}
+                        initial={{ opacity: 0, scale: 0.9, y: 8, transformOrigin: 'bottom left' }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.92, y: 6 }}
                         transition={{ type: 'spring', stiffness: 460, damping: 32 }}
-                        className="absolute z-50 bottom-full mb-2 left-0 bg-surface ring-1 ring-line rounded-2xl shadow-lg p-1.5 flex items-center gap-1 whitespace-nowrap"
+                        className="absolute z-50 bottom-full mb-2 left-0 bg-surface ring-1 ring-line rounded-2xl shadow-lg p-1.5 flex flex-col gap-0.5 whitespace-nowrap"
                       >
                         <button
                           onClick={() => {
                             fileInputRef.current?.click();
                           }}
-                          className="h-9 px-3 rounded-xl hover:bg-subtle text-ink text-[12.5px] font-semibold inline-flex items-center gap-1.5 transition-colors"
+                          className="h-9 px-3 rounded-xl hover:bg-subtle text-ink text-[12.5px] font-semibold inline-flex items-center gap-2 transition-colors"
                         >
                           <Paperclip size={14} strokeWidth={2.2} />
                           Attach
@@ -1141,14 +1166,14 @@ const ChatPanel: React.FC<{
                             setTradeModalOpen(true);
                             setActionsOpen(false);
                           }}
-                          className="h-9 px-3 rounded-xl hover:bg-subtle text-ink text-[12.5px] font-semibold inline-flex items-center gap-1.5 transition-colors"
+                          className="h-9 px-3 rounded-xl hover:bg-subtle text-ink text-[12.5px] font-semibold inline-flex items-center gap-2 transition-colors"
                         >
                           <Repeat size={14} strokeWidth={2.2} />
                           Trade offer
                         </button>
                         <button
                           onClick={openMoneyOffer}
-                          className="h-9 px-3 rounded-xl hover:bg-subtle text-ink text-[12.5px] font-semibold inline-flex items-center gap-1.5 transition-colors"
+                          className="h-9 px-3 rounded-xl hover:bg-subtle text-ink text-[12.5px] font-semibold inline-flex items-center gap-2 transition-colors"
                         >
                           <Banknote size={14} strokeWidth={2.2} />
                           Money offer
@@ -1206,8 +1231,9 @@ const REACTION_EMOJI = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 const Bubble: React.FC<{
   message: DMMessage;
   peerSteamId: string;
+  peerName: string;
   isLastOfMine: boolean;
-}> = ({ message, peerSteamId, isLastOfMine }) => {
+}> = ({ message, peerSteamId, peerName, isLastOfMine }) => {
   /* "Mine" check: the legacy sentinel `'me'` still appears in older
      localStorage rows; new rows carry the real Steam id and we compare
      against the authenticated user. */
@@ -1222,6 +1248,7 @@ const Bubble: React.FC<{
   });
 
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [moneyOfferDetailOpen, setMoneyOfferDetailOpen] = useState(false);
   const longPressTimer = useRef<number | null>(null);
 
   const startLongPress = () => {
@@ -1274,11 +1301,20 @@ const Bubble: React.FC<{
         {/* Money-offer card — rendered instead of the plain text bubble
             when the message text carries the money-offer prefix. Shows
             the targeted listing's thumbnail so it reads as "offer FOR
-            this skin", not a bare number. */}
+            this skin", not a bare number. Clickable — opens a detail
+            modal with full info and a Buy button (recipient only).
+            Once bought, flips to a green "Bought" state for both
+            sides. */}
         {moneyOffer && (
-          <div
-            className={`rounded-2xl px-3.5 py-3 min-w-[200px] flex items-center gap-3 ${
-              mine ? 'bg-accent text-on-accent' : 'bg-subtle text-ink'
+          <button
+            type="button"
+            onClick={() => setMoneyOfferDetailOpen(true)}
+            className={`rounded-2xl px-3.5 py-3 min-w-[200px] flex items-center gap-3 text-left transition-transform hover:scale-[1.015] active:scale-[0.99] ${
+              moneyOffer.bought
+                ? 'bg-emerald-500/15 ring-1 ring-emerald-500/40'
+                : mine
+                ? 'bg-accent text-on-accent'
+                : 'bg-subtle text-ink'
             }`}
           >
             {moneyOffer.listingImage && (
@@ -1286,23 +1322,60 @@ const Bubble: React.FC<{
                 <img src={moneyOffer.listingImage} alt="" className="w-[85%] h-[85%] object-contain" />
               </div>
             )}
-            <div className="min-w-0">
-              <div className="text-[10px] font-bold uppercase tracking-wider opacity-70">
-                Money offer
+            <div className="min-w-0 flex-1">
+              <div
+                className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
+                  moneyOffer.bought ? 'text-emerald-700 dark:text-emerald-300' : 'opacity-70'
+                }`}
+              >
+                {moneyOffer.bought ? (
+                  <>
+                    <CheckCircle2 size={11} strokeWidth={2.6} />
+                    Bought
+                  </>
+                ) : (
+                  'Money offer'
+                )}
               </div>
               {moneyOffer.listingName && (
-                <div className="text-[11.5px] font-semibold truncate max-w-[160px] opacity-90">
+                <div
+                  className={`text-[11.5px] font-semibold truncate max-w-[160px] ${
+                    moneyOffer.bought ? 'text-ink' : 'opacity-90'
+                  }`}
+                >
                   {moneyOffer.listingName}
                 </div>
               )}
-              <div className="text-[18px] font-bold tracking-tight mt-0.5">
+              <div
+                className={`text-[18px] font-bold tracking-tight mt-0.5 ${
+                  moneyOffer.bought ? 'text-emerald-700 dark:text-emerald-300' : ''
+                }`}
+              >
                 {formatPrice(moneyOffer.amountCZK)}
               </div>
               {moneyOffer.note && (
-                <div className="text-[12px] font-medium mt-1 opacity-90">{moneyOffer.note}</div>
+                <div
+                  className={`text-[12px] font-medium mt-1 ${
+                    moneyOffer.bought ? 'text-ink-muted' : 'opacity-90'
+                  }`}
+                >
+                  {moneyOffer.note}
+                </div>
               )}
             </div>
-          </div>
+          </button>
+        )}
+
+        {moneyOffer && (
+          <MoneyOfferDetailModal
+            isOpen={moneyOfferDetailOpen}
+            onClose={() => setMoneyOfferDetailOpen(false)}
+            offer={moneyOffer}
+            mine={mine}
+            messageServerId={message.serverId}
+            peerSteamId={peerSteamId}
+            peerName={peerName}
+          />
         )}
 
         {/* Text — long-press (mobile) or hover (desktop, via the ⋯
@@ -1414,6 +1487,160 @@ const Bubble: React.FC<{
         </div>
       </div>
     </motion.div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MoneyOfferDetailModal — full info about the offered listing + a Buy
+   button. Only the RECIPIENT of the offer (mine === false, i.e. we
+   didn't send it) can buy — they're the one paying. Once bought, marks
+   the message bought server-side so both sides see the green state.
+   ───────────────────────────────────────────────────────────────────────── */
+const MoneyOfferDetailModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  offer: MoneyOfferPayload;
+  mine: boolean;
+  messageServerId?: number;
+  peerSteamId: string;
+  peerName: string;
+}> = ({ isOpen, onClose, offer, mine, messageServerId, peerSteamId, peerName }) => {
+  const { formatPrice } = useCurrencyStore();
+  const { addToast } = useToastStore();
+  const { user } = useAuthStore();
+  const { balance, purchaseWithBalance } = useBalanceStore();
+  const markMoneyOfferBought = useDMStore((s) => s.markMoneyOfferBought);
+  const [buying, setBuying] = useState(false);
+
+  /* Only the recipient pays, so only they see an actionable Buy button.
+     The sender sees their own offer as read-only (with a "Bought" flip
+     once the recipient pays). */
+  const canBuy = !mine && !offer.bought && !!messageServerId;
+  const canAfford = Number(balance || 0) >= offer.amountCZK;
+
+  const handleBuy = async () => {
+    if (!messageServerId || buying) return;
+    if (!user) {
+      addToast({ type: 'warning', title: 'Sign in required' });
+      return;
+    }
+    if (!canAfford) {
+      addToast({
+        type: 'warning',
+        title: 'Insufficient balance',
+        message: `Add ${formatPrice(offer.amountCZK - Number(balance || 0))} to your balance to accept this offer.`,
+      });
+      return;
+    }
+    setBuying(true);
+    try {
+      const ok = await purchaseWithBalance(offer.amountCZK, [
+        {
+          id: offer.listingId,
+          name: offer.listingName || 'Item',
+          market_name: offer.listingName || 'Item',
+          price: offer.amountCZK,
+          image: offer.listingImage,
+          seller: { steamId: peerSteamId, name: peerName },
+        } as any,
+      ]);
+      if (!ok) {
+        const err = useBalanceStore.getState().error;
+        addToast({ type: 'error', title: 'Purchase failed', message: err || 'Try again.' });
+        return;
+      }
+      await markMoneyOfferBought(peerSteamId, messageServerId);
+      addToast({ type: 'success', title: 'Purchase complete', message: offer.listingName || undefined });
+      onClose();
+    } finally {
+      setBuying(false);
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div
+            key="offer-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          <motion.div
+            key="offer-modal"
+            initial={{ opacity: 0, scale: 0.94, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 8 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+            className="fixed inset-0 z-[120] m-auto w-[min(360px,92vw)] h-fit bg-surface ring-1 ring-line rounded-3xl shadow-2xl p-5"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-ink-dim">
+                {offer.bought ? 'Purchased offer' : 'Money offer'}
+              </span>
+              <button
+                onClick={onClose}
+                className="w-8 h-8 rounded-full bg-subtle hover:bg-bg grid place-items-center text-ink-muted hover:text-ink transition-colors"
+                aria-label="Close"
+              >
+                <XIcon size={14} strokeWidth={2.4} />
+              </button>
+            </div>
+
+            {offer.listingImage && (
+              <div className="w-full h-36 rounded-2xl bg-subtle grid place-items-center overflow-hidden mb-3">
+                <img src={offer.listingImage} alt="" className="w-[70%] h-[70%] object-contain" />
+              </div>
+            )}
+
+            {offer.listingName && (
+              <div className="text-[15px] font-bold text-ink tracking-tight leading-snug">
+                {offer.listingName}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between mt-3">
+              <span className="text-[12px] font-semibold text-ink-muted">Offer amount</span>
+              <span className="text-[22px] font-bold text-ink tabular-nums">
+                {formatPrice(offer.amountCZK)}
+              </span>
+            </div>
+
+            {offer.note && (
+              <div className="mt-3 rounded-xl bg-subtle px-3 py-2.5 text-[12.5px] text-ink font-medium leading-relaxed">
+                {offer.note}
+              </div>
+            )}
+
+            {offer.bought ? (
+              <div className="mt-4 rounded-xl bg-emerald-500/15 ring-1 ring-emerald-500/30 px-3 py-2.5 flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
+                <CheckCircle2 size={16} strokeWidth={2.4} />
+                <span className="text-[13px] font-bold">Bought</span>
+              </div>
+            ) : canBuy ? (
+              <motion.button
+                whileTap={tap}
+                onClick={handleBuy}
+                disabled={buying}
+                className="mt-4 w-full h-11 rounded-full bg-accent text-on-accent font-bold text-[13.5px] inline-flex items-center justify-center gap-2 disabled:opacity-60 transition-opacity"
+              >
+                <ShoppingBag size={14} strokeWidth={2.4} />
+                {buying ? 'Processing…' : `Buy for ${formatPrice(offer.amountCZK)}`}
+              </motion.button>
+            ) : (
+              <p className="mt-4 text-[11.5px] text-ink-dim font-medium text-center leading-relaxed">
+                Waiting for {peerName} to accept this offer.
+              </p>
+            )}
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   );
 };
 

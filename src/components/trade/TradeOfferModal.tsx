@@ -5,8 +5,6 @@ import {
   ArrowRight,
   CheckCircle,
   AlertCircle,
-  TrendingUp,
-  TrendingDown,
   Search,
   Package,
   Loader,
@@ -42,16 +40,15 @@ interface TradeOfferModalProps {
 }
 
 /**
- * TradeOfferModal — compact, no-scroll-on-open layout.
+ * TradeOfferModal — compact, no-scroll-on-open layout, using the same
+ * design tokens (bg-surface/bg-subtle/text-ink/bg-accent/ring-line) as
+ * the rest of the site instead of a one-off dark-purple palette. The
+ * previous hardcoded gray-900/purple-600 theme looked broken on mobile
+ * because it didn't respond to the site's light/dark tokens at all.
  *
- * Previous version stacked a tall gradient header + two item grids +
- * a price panel + notes + buttons, which routinely overflowed a laptop
- * viewport and forced the whole modal to scroll. This version:
- *   - caps overall height at 88dvh and makes ONLY the item grids
- *     scroll internally (header, price bar, and action buttons stay
- *     pinned so Cancel/Send are always reachable without scrolling).
- *   - shrinks the header to a single compact row.
- *   - uses a denser 3-column item grid with smaller thumbnails.
+ *   - caps overall height at 88dvh; only the item grids scroll
+ *     internally, header/price-bar/actions stay pinned.
+ *   - dense 3-column item grid with small thumbnails.
  */
 const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
   isOpen,
@@ -268,25 +265,25 @@ const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[100] p-3 sm:p-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.96 }}
           transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-          className="bg-gray-900 rounded-2xl w-full max-w-4xl h-[88dvh] flex flex-col overflow-hidden border border-purple-500/30 shadow-2xl"
+          className="bg-surface rounded-2xl w-full max-w-4xl h-[88dvh] flex flex-col overflow-hidden ring-1 ring-line shadow-2xl"
         >
           {/* Compact header — single row */}
-          <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-purple-500/25 bg-gradient-to-r from-purple-900/40 to-blue-900/40">
+          <div className="shrink-0 flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-line bg-subtle/60">
             <div className="min-w-0">
-              <h2 className="text-[15px] font-bold text-white leading-none">Create Trade Offer</h2>
-              <p className="text-[12px] text-gray-400 mt-1 truncate">
-                Trading with <span className="text-purple-400 font-semibold">{recipientName}</span>
+              <h2 className="text-[15px] font-bold text-ink leading-none">Create Trade Offer</h2>
+              <p className="text-[12px] text-ink-muted mt-1 truncate">
+                Trading with <span className="text-accent font-semibold">{recipientName}</span>
               </p>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white transition-colors p-1.5 shrink-0"
+              className="text-ink-muted hover:text-ink transition-colors p-1.5 shrink-0"
               aria-label="Close"
             >
               <X size={18} />
@@ -295,13 +292,13 @@ const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
 
           {loading ? (
             <div className="flex-1 flex items-center justify-center">
-              <Loader className="w-7 h-7 animate-spin text-purple-500" />
-              <span className="ml-3 text-[13px] text-gray-300">Loading inventories...</span>
+              <Loader className="w-7 h-7 animate-spin text-accent" />
+              <span className="ml-3 text-[13px] text-ink-muted">Loading inventories...</span>
             </div>
           ) : (
             <>
               {/* Inventories — the ONLY scrollable region */}
-              <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-4 overflow-hidden">
+              <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 sm:p-4 overflow-hidden">
                 {(
                   [
                     {
@@ -312,7 +309,6 @@ const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
                       setSearch: setMySearch,
                       selected: selectedMyItems,
                       toggle: toggleMyItem,
-                      accent: 'green' as const,
                     },
                     {
                       title: `${recipientName}'s Items`,
@@ -322,62 +318,48 @@ const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
                       setSearch: setRecipientSearch,
                       selected: selectedRecipientItems,
                       toggle: toggleRecipientItem,
-                      accent: 'blue' as const,
                     },
                   ]
                 ).map((col) => (
                   <div key={col.title} className="flex flex-col min-h-0">
                     <div className="shrink-0 flex items-center gap-1.5 mb-2">
-                      <Package
-                        size={13}
-                        className={col.accent === 'green' ? 'text-green-400' : 'text-blue-400'}
-                      />
-                      <h3 className="text-[12.5px] font-bold text-white truncate">
+                      <Package size={13} className="text-accent" />
+                      <h3 className="text-[12.5px] font-bold text-ink truncate">
                         {col.title} ({col.count})
                       </h3>
                     </div>
                     <div className="shrink-0 relative mb-2">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 w-3.5 h-3.5" />
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-dim w-3.5 h-3.5" />
                       <input
                         type="text"
                         placeholder="Search..."
                         value={col.search}
                         onChange={(e) => col.setSearch(e.target.value)}
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-8 pr-3 py-1.5 text-[12.5px] text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                        className="w-full bg-subtle rounded-lg pl-8 pr-3 py-1.5 text-[12.5px] text-ink placeholder:text-ink-dim outline-none focus:ring-2 focus:ring-accent/40"
                       />
                     </div>
-                    <div className="flex-1 min-h-0 overflow-y-auto grid grid-cols-3 gap-1.5 content-start pr-1">
+                    <div className="flex-1 min-h-0 overflow-y-auto grid grid-cols-3 gap-1.5 content-start pr-1 pt-0.5">
                       {col.items.map((item) => {
                         const active = col.selected.includes(item.id);
-                        const ring =
-                          col.accent === 'green'
-                            ? active
-                              ? 'border-green-500 ring-1 ring-green-500/50'
-                              : 'border-gray-700 hover:border-green-400'
-                            : active
-                            ? 'border-blue-500 ring-1 ring-blue-500/50'
-                            : 'border-gray-700 hover:border-blue-400';
                         return (
                           <motion.button
                             type="button"
                             key={item.id}
                             onClick={() => col.toggle(item.id)}
                             whileTap={{ scale: 0.96 }}
-                            className={`bg-gray-800 rounded-lg p-1.5 text-left border-2 transition-colors ${ring}`}
+                            className={`bg-subtle rounded-lg p-1.5 text-left ring-2 transition-colors ${
+                              active ? 'ring-accent bg-accent-soft' : 'ring-transparent hover:ring-line'
+                            }`}
                           >
                             <CachedImage
                               src={item.image}
                               alt={item.name}
                               className="w-full h-12 object-contain mb-1"
                             />
-                            <p className="text-[10px] text-white leading-tight line-clamp-2">
+                            <p className="text-[10px] text-ink leading-tight line-clamp-2">
                               {item.name}
                             </p>
-                            <p
-                              className={`text-[10px] font-bold mt-0.5 ${
-                                col.accent === 'green' ? 'text-green-400' : 'text-blue-400'
-                              }`}
-                            >
+                            <p className="text-[10px] font-bold mt-0.5 text-accent tabular-nums">
                               {formatPrice(item.price_estimate)}
                             </p>
                           </motion.button>
@@ -389,21 +371,21 @@ const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
               </div>
 
               {/* Price bar + notes + actions — pinned, never scrolls */}
-              <div className="shrink-0 border-t border-gray-800 bg-gray-800/40 px-4 py-3 space-y-2.5">
+              <div className="shrink-0 border-t border-line bg-subtle/60 px-4 py-3 space-y-2.5">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-center flex-1">
-                    <p className="text-[10px] text-gray-400 uppercase tracking-wide">Offering</p>
-                    <p className="text-[15px] font-bold text-green-400 tabular-nums">
+                    <p className="text-[10px] text-ink-dim uppercase tracking-wide">Offering</p>
+                    <p className="text-[15px] font-bold text-ink tabular-nums">
                       {formatPrice(myTotalValue)}
                     </p>
                   </div>
                   <div className="flex flex-col items-center shrink-0">
-                    <ArrowRight size={16} className="text-purple-400" />
+                    <ArrowRight size={16} className="text-accent" />
                     <span
                       className={`mt-0.5 text-[10.5px] font-bold tabular-nums px-1.5 py-0.5 rounded-full ${
                         isPriceBalanced
-                          ? 'bg-green-500/15 text-green-300'
-                          : 'bg-red-500/15 text-red-300'
+                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                          : 'bg-rose-500/15 text-rose-600 dark:text-rose-400'
                       }`}
                     >
                       {priceDifference > 0 ? '+' : ''}
@@ -411,17 +393,17 @@ const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
                     </span>
                   </div>
                   <div className="text-center flex-1">
-                    <p className="text-[10px] text-gray-400 uppercase tracking-wide">Requesting</p>
-                    <p className="text-[15px] font-bold text-blue-400 tabular-nums">
+                    <p className="text-[10px] text-ink-dim uppercase tracking-wide">Requesting</p>
+                    <p className="text-[15px] font-bold text-ink tabular-nums">
                       {formatPrice(recipientTotalValue)}
                     </p>
                   </div>
                 </div>
 
                 {!isPriceBalanced && (myTotalValue > 0 || recipientTotalValue > 0) && (
-                  <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/25 rounded-lg px-3 py-1.5">
-                    <AlertCircle size={13} className="text-red-400 shrink-0" />
-                    <p className="text-[11px] text-red-300 font-medium">
+                  <div className="flex items-center gap-2 bg-rose-500/10 ring-1 ring-rose-500/25 rounded-lg px-3 py-1.5">
+                    <AlertCircle size={13} className="text-rose-600 dark:text-rose-400 shrink-0" />
+                    <p className="text-[11px] text-rose-700 dark:text-rose-300 font-medium">
                       Price difference must be within 15% — adjust your selections.
                     </p>
                   </div>
@@ -432,13 +414,13 @@ const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Add a note (optional)…"
                   maxLength={200}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-[12.5px] text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                  className="w-full bg-bg ring-1 ring-line rounded-lg px-3 py-2 text-[12.5px] text-ink placeholder:text-ink-dim outline-none focus:ring-2 focus:ring-accent/40"
                 />
 
                 <div className="flex gap-2">
                   <button
                     onClick={onClose}
-                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2.5 rounded-lg transition-colors font-semibold text-[13px]"
+                    className="flex-1 bg-bg hover:bg-line/40 ring-1 ring-line text-ink py-2.5 rounded-lg transition-colors font-semibold text-[13px]"
                   >
                     Cancel
                   </button>
@@ -450,7 +432,7 @@ const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
                       selectedRecipientItems.length === 0 ||
                       !isPriceBalanced
                     }
-                    className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white py-2.5 rounded-lg transition-all font-semibold text-[13px] flex items-center justify-center gap-2"
+                    className="flex-1 bg-accent hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-on-accent py-2.5 rounded-lg transition-opacity font-semibold text-[13px] flex items-center justify-center gap-2"
                   >
                     {creating ? (
                       <>
