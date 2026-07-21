@@ -25,23 +25,40 @@ import { useCurrencyStore } from '../store/currencyStore';
 import useDocumentMeta from '../hooks/useDocumentMeta';
 import { spring, tap } from '../lib/motion';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { getSupabaseCredentials } from '../utils/supabaseHelpers';
 import TradeOfferModal from '../components/trade/TradeOfferModal';
 
 /* Money-offer messages are plain DMs whose text carries a machine-
-   readable prefix — no schema change needed. Bubble detects the prefix
-   and renders a price-offer card instead of a text bubble. */
+   readable JSON payload behind a prefix — no schema change needed.
+   Bubble detects the prefix and renders a price-offer card (with the
+   targeted listing's thumbnail) instead of a text bubble. A JSON body
+   (rather than colon-joined fields) avoids the note text breaking the
+   format if it happens to contain a colon. */
 const MONEY_OFFER_PREFIX = '__money_offer__:';
-const buildMoneyOfferText = (amountCZK: number, note: string) =>
-  `${MONEY_OFFER_PREFIX}${amountCZK}${note ? `:${note}` : ''}`;
-const parseMoneyOfferText = (
-  text: string,
-): { amountCZK: number; note: string } | null => {
+interface MoneyOfferPayload {
+  amountCZK: number;
+  note: string;
+  listingId: number | null;
+  listingName: string | null;
+  listingImage: string | null;
+}
+const buildMoneyOfferText = (payload: MoneyOfferPayload) =>
+  `${MONEY_OFFER_PREFIX}${JSON.stringify(payload)}`;
+const parseMoneyOfferText = (text: string): MoneyOfferPayload | null => {
   if (!text.startsWith(MONEY_OFFER_PREFIX)) return null;
-  const rest = text.slice(MONEY_OFFER_PREFIX.length);
-  const [amountStr, ...noteParts] = rest.split(':');
-  const amountCZK = Number(amountStr);
-  if (!Number.isFinite(amountCZK)) return null;
-  return { amountCZK, note: noteParts.join(':') };
+  try {
+    const parsed = JSON.parse(text.slice(MONEY_OFFER_PREFIX.length));
+    if (!Number.isFinite(parsed?.amountCZK)) return null;
+    return {
+      amountCZK: parsed.amountCZK,
+      note: typeof parsed.note === 'string' ? parsed.note : '',
+      listingId: Number.isFinite(parsed?.listingId) ? parsed.listingId : null,
+      listingName: parsed?.listingName || null,
+      listingImage: parsed?.listingImage || null,
+    };
+  } catch {
+    return null;
+  }
 };
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -545,7 +562,44 @@ const ChatPanel: React.FC<{
   const [moneyOfferOpen, setMoneyOfferOpen] = useState(false);
   const [moneyAmount, setMoneyAmount] = useState('');
   const [moneyNote, setMoneyNote] = useState('');
+  /* Money offers target one of the PEER's active listings (not a bare
+     amount) — the offer card in the bubble then shows what skin the
+     money is for. Fetched lazily the first time the money-offer form
+     opens for this thread. */
+  const [peerListings, setPeerListings] = useState<
+    { id: number; name: string; image: string; price: number }[] | null
+  >(null);
+  const [peerListingsLoading, setPeerListingsLoading] = useState(false);
+  const [selectedListingId, setSelectedListingId] = useState<number | null>(null);
   const { formatPrice } = useCurrencyStore();
+
+  const openMoneyOffer = async () => {
+    setMoneyOfferOpen(true);
+    setActionsOpen(false);
+    if (peerListings !== null) return;
+    setPeerListingsLoading(true);
+    try {
+      const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+      const res = await fetch(
+        `${supabaseUrl}/functions/v1/marketplace-listings?steamId=${thread.peerSteamId}&userOnly=true`,
+        { headers: { Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' } },
+      );
+      const data = await res.json().catch(() => null);
+      const items = Array.isArray(data?.items) ? data.items : [];
+      setPeerListings(
+        items.map((it: any) => ({
+          id: it.id,
+          name: it.name || it.item_name,
+          image: it.image || it.image_url,
+          price: Number(it.price),
+        })),
+      );
+    } catch {
+      setPeerListings([]);
+    } finally {
+      setPeerListingsLoading(false);
+    }
+  };
   /* Tick state every second so the "is the peer still typing" check
      re-evaluates without us having to thread the ts into a useEffect. */
   const [, setNowTick] = useState(0);
@@ -616,6 +670,14 @@ const ChatPanel: React.FC<{
     );
     /* Re-focus the composer whenever you switch threads. */
     setTimeout(() => inputRef.current?.focus(), 50);
+    /* Money-offer state is per-peer (their listings, your pick) — reset
+       it so switching threads doesn't leave the previous peer's
+       listings selectable in the new thread's form. */
+    setMoneyOfferOpen(false);
+    setPeerListings(null);
+    setSelectedListingId(null);
+    setMoneyAmount('');
+    setMoneyNote('');
     return () => window.clearInterval(interval);
   }, [thread.peerSteamId, hydrateThread]);
 
@@ -641,30 +703,39 @@ const ChatPanel: React.FC<{
   const send = async () => {
     if (!text.trim() && pending.length === 0) return;
     if (sending) return;
+
+    /* Clear the composer IMMEDIATELY — sendMessage optimistic-inserts
+       the bubble synchronously, so the perceived "send" is done the
+       instant this function is called. Previously text/pending only
+       cleared after `await sendMessage(...)` resolved, which held the
+       textarea populated and the input effectively locked for the
+       whole network round-trip — the bubble appeared instantly but the
+       composer looked stuck, reading as lag. Attachments still need
+       their upload to finish before we know the real URLs, so those
+       clear right after kicking off the upload instead of waiting on
+       the full send. */
+    const textToSend = text.trim() || ' ';
+    const filesToUpload = pending;
+    setText('');
+    setPending([]);
     setSending(true);
     try {
       let attachments: DMAttachment[] = [];
-      if (pending.length > 0) {
+      if (filesToUpload.length > 0) {
         try {
-          attachments = await uploadAttachments(pending, thread.peerSteamId);
+          attachments = await uploadAttachments(filesToUpload, thread.peerSteamId);
         } catch (e: any) {
           /* Abort the send — shipping a message whose image never
-             uploaded would show the peer a permanently broken file. */
+             uploaded would show the peer a permanently broken file.
+             Restore what the user typed so nothing is silently lost. */
           addToast({ type: 'error', title: 'Upload failed', message: e?.message });
+          setText(textToSend === ' ' ? '' : textToSend);
+          setPending(filesToUpload);
           setSending(false);
           return;
         }
       }
-      /* Async send — sendMessage optimistic-inserts immediately and
-         then resolves with the persisted row (or `failed` status if
-         the server rejected). We don't need to await visually because
-         the optimistic row is already rendered. */
-      const result = await sendMessage(
-        thread.peerSteamId,
-        text.trim() || ' ',
-        undefined,
-        attachments,
-      );
+      const result = await sendMessage(thread.peerSteamId, textToSend, undefined, attachments);
       if (result.status === 'failed') {
         addToast({
           type: 'error',
@@ -675,11 +746,9 @@ const ChatPanel: React.FC<{
           duration: 6000,
         });
       }
-      setText('');
-      setPending([]);
-      setTimeout(() => inputRef.current?.focus(), 0);
     } finally {
       setSending(false);
+      setTimeout(() => inputRef.current?.focus(), 0);
     }
   };
 
@@ -689,27 +758,35 @@ const ChatPanel: React.FC<{
       addToast({ type: 'warning', title: 'Enter a valid amount' });
       return;
     }
-    setSending(true);
-    try {
-      const result = await sendMessage(
-        thread.peerSteamId,
-        buildMoneyOfferText(amount, moneyNote.trim()),
-      );
-      if (result.status === 'failed') {
-        addToast({
-          type: 'error',
-          title: 'Offer not sent',
-          message: result.failureReason || 'Try again.',
-        });
-      } else {
-        addToast({ type: 'success', title: 'Money offer sent', message: formatPrice(amount) });
-      }
-      setMoneyAmount('');
-      setMoneyNote('');
-      setMoneyOfferOpen(false);
-      setActionsOpen(false);
-    } finally {
-      setSending(false);
+    if (!selectedListingId) {
+      addToast({ type: 'warning', title: 'Pick which listing this offer is for' });
+      return;
+    }
+    const listing = (peerListings || []).find((l) => l.id === selectedListingId);
+
+    /* Clear + close immediately, same instant-feel fix as send(). */
+    const payload: MoneyOfferPayload = {
+      amountCZK: amount,
+      note: moneyNote.trim(),
+      listingId: selectedListingId,
+      listingName: listing?.name || null,
+      listingImage: listing?.image || null,
+    };
+    setMoneyAmount('');
+    setMoneyNote('');
+    setSelectedListingId(null);
+    setMoneyOfferOpen(false);
+    setActionsOpen(false);
+
+    const result = await sendMessage(thread.peerSteamId, buildMoneyOfferText(payload));
+    if (result.status === 'failed') {
+      addToast({
+        type: 'error',
+        title: 'Offer not sent',
+        message: result.failureReason || 'Try again.',
+      });
+    } else {
+      addToast({ type: 'success', title: 'Money offer sent', message: formatPrice(amount) });
     }
   };
 
@@ -910,7 +987,7 @@ const ChatPanel: React.FC<{
               exit={{ opacity: 0, height: 0 }}
               className="overflow-hidden"
             >
-              <div className="rounded-2xl bg-subtle p-3 space-y-2">
+              <div className="rounded-2xl bg-subtle p-3 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-ink-dim">
                     Send a money offer
@@ -923,6 +1000,45 @@ const ChatPanel: React.FC<{
                     <XIcon size={13} />
                   </button>
                 </div>
+
+                {/* Listing picker — the offer is always for one of the
+                    peer's active listings, not a bare amount. */}
+                {peerListingsLoading ? (
+                  <div className="text-[12px] text-ink-muted font-medium py-2">
+                    Loading {thread.peerName}'s listings…
+                  </div>
+                ) : (peerListings || []).length === 0 ? (
+                  <div className="text-[12px] text-ink-muted font-medium py-2">
+                    {thread.peerName} has no active listings right now.
+                  </div>
+                ) : (
+                  <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-0.5 px-0.5">
+                    {(peerListings || []).map((l) => {
+                      const active = selectedListingId === l.id;
+                      return (
+                        <button
+                          key={l.id}
+                          type="button"
+                          onClick={() => setSelectedListingId(l.id)}
+                          className={`shrink-0 w-[76px] rounded-xl p-1.5 text-left transition-colors ${
+                            active ? 'bg-accent-soft ring-2 ring-accent' : 'bg-bg hover:bg-bg/70'
+                          }`}
+                        >
+                          <div className="w-full h-11 rounded-md bg-subtle grid place-items-center overflow-hidden">
+                            <img src={l.image} alt="" className="w-[85%] h-[85%] object-contain" />
+                          </div>
+                          <div className="text-[10px] font-semibold text-ink truncate mt-1 leading-tight">
+                            {l.name}
+                          </div>
+                          <div className="text-[10px] font-bold text-accent tabular-nums">
+                            {formatPrice(l.price)}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
@@ -930,9 +1046,9 @@ const ChatPanel: React.FC<{
                     min={0}
                     value={moneyAmount}
                     onChange={(e) => setMoneyAmount(e.target.value)}
-                    placeholder="Amount"
+                    placeholder="Your offer"
                     autoFocus
-                    className="w-32 h-10 rounded-xl bg-bg px-3 text-[13.5px] font-bold text-ink outline-none focus:ring-2 focus:ring-accent/40"
+                    className="w-28 h-10 rounded-xl bg-bg px-3 text-[13.5px] font-bold text-ink outline-none focus:ring-2 focus:ring-accent/40"
                   />
                   <input
                     value={moneyNote}
@@ -944,7 +1060,7 @@ const ChatPanel: React.FC<{
                   <motion.button
                     whileTap={tap}
                     onClick={sendMoneyOffer}
-                    disabled={!moneyAmount || sending}
+                    disabled={!moneyAmount || !selectedListingId || sending}
                     className="h-10 px-4 rounded-xl bg-accent text-on-accent font-bold text-[13px] disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                   >
                     Send
@@ -1031,9 +1147,7 @@ const ChatPanel: React.FC<{
                           Trade offer
                         </button>
                         <button
-                          onClick={() => {
-                            setMoneyOfferOpen(true);
-                          }}
+                          onClick={openMoneyOffer}
                           className="h-9 px-3 rounded-xl hover:bg-subtle text-ink text-[12.5px] font-semibold inline-flex items-center gap-1.5 transition-colors"
                         >
                           <Banknote size={14} strokeWidth={2.2} />
@@ -1158,22 +1272,36 @@ const Bubble: React.FC<{
         ))}
 
         {/* Money-offer card — rendered instead of the plain text bubble
-            when the message text carries the money-offer prefix. */}
+            when the message text carries the money-offer prefix. Shows
+            the targeted listing's thumbnail so it reads as "offer FOR
+            this skin", not a bare number. */}
         {moneyOffer && (
           <div
-            className={`rounded-2xl px-4 py-3 min-w-[180px] ${
+            className={`rounded-2xl px-3.5 py-3 min-w-[200px] flex items-center gap-3 ${
               mine ? 'bg-accent text-on-accent' : 'bg-subtle text-ink'
             }`}
           >
-            <div className="text-[10px] font-bold uppercase tracking-wider opacity-70">
-              Money offer
-            </div>
-            <div className="text-[20px] font-bold tracking-tight mt-0.5">
-              {formatPrice(moneyOffer.amountCZK)}
-            </div>
-            {moneyOffer.note && (
-              <div className="text-[12px] font-medium mt-1 opacity-90">{moneyOffer.note}</div>
+            {moneyOffer.listingImage && (
+              <div className="w-12 h-12 rounded-lg bg-black/10 grid place-items-center overflow-hidden shrink-0">
+                <img src={moneyOffer.listingImage} alt="" className="w-[85%] h-[85%] object-contain" />
+              </div>
             )}
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-wider opacity-70">
+                Money offer
+              </div>
+              {moneyOffer.listingName && (
+                <div className="text-[11.5px] font-semibold truncate max-w-[160px] opacity-90">
+                  {moneyOffer.listingName}
+                </div>
+              )}
+              <div className="text-[18px] font-bold tracking-tight mt-0.5">
+                {formatPrice(moneyOffer.amountCZK)}
+              </div>
+              {moneyOffer.note && (
+                <div className="text-[12px] font-medium mt-1 opacity-90">{moneyOffer.note}</div>
+              )}
+            </div>
           </div>
         )}
 

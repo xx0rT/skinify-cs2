@@ -5,11 +5,9 @@ import {
   ArrowRight,
   CheckCircle,
   AlertCircle,
-  DollarSign,
   TrendingUp,
   TrendingDown,
   Search,
-  Filter,
   Package,
   Loader,
 } from 'lucide-react';
@@ -43,6 +41,18 @@ interface TradeOfferModalProps {
   recipientName: string;
 }
 
+/**
+ * TradeOfferModal — compact, no-scroll-on-open layout.
+ *
+ * Previous version stacked a tall gradient header + two item grids +
+ * a price panel + notes + buttons, which routinely overflowed a laptop
+ * viewport and forced the whole modal to scroll. This version:
+ *   - caps overall height at 88dvh and makes ONLY the item grids
+ *     scroll internally (header, price bar, and action buttons stay
+ *     pinned so Cancel/Send are always reachable without scrolling).
+ *   - shrinks the header to a single compact row.
+ *   - uses a denser 3-column item grid with smaller thumbnails.
+ */
 const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
   isOpen,
   onClose,
@@ -66,6 +76,13 @@ const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
   useEffect(() => {
     if (isOpen && user) {
       fetchInventories();
+    }
+    if (!isOpen) {
+      setSelectedMyItems([]);
+      setSelectedRecipientItems([]);
+      setNotes('');
+      setMySearch('');
+      setRecipientSearch('');
     }
   }, [isOpen, user]);
 
@@ -211,7 +228,6 @@ const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
       });
 
       if (response.ok) {
-        const result = await response.json();
         addToast({
           type: 'success',
           title: 'Trade Offer Sent',
@@ -254,206 +270,175 @@ const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
     <AnimatePresence>
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
+          initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-gray-900 rounded-2xl w-full max-w-7xl max-h-[90vh] overflow-hidden border border-purple-500/30 shadow-2xl"
+          exit={{ opacity: 0, scale: 0.96 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+          className="bg-gray-900 rounded-2xl w-full max-w-4xl h-[88dvh] flex flex-col overflow-hidden border border-purple-500/30 shadow-2xl"
         >
-          {/* Header */}
-          <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 p-6 border-b border-purple-500/30">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-1">Create Trade Offer</h2>
-                <p className="text-gray-300">
-                  Trading with <span className="text-purple-400 font-semibold">{recipientName}</span>
-                </p>
-              </div>
-              <button
-                onClick={onClose}
-                className="text-gray-400 hover:text-white transition-colors p-2"
-              >
-                <X size={24} />
-              </button>
+          {/* Compact header — single row */}
+          <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-purple-500/25 bg-gradient-to-r from-purple-900/40 to-blue-900/40">
+            <div className="min-w-0">
+              <h2 className="text-[15px] font-bold text-white leading-none">Create Trade Offer</h2>
+              <p className="text-[12px] text-gray-400 mt-1 truncate">
+                Trading with <span className="text-purple-400 font-semibold">{recipientName}</span>
+              </p>
             </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-white transition-colors p-1.5 shrink-0"
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader className="w-8 h-8 animate-spin text-purple-500" />
-              <span className="ml-3 text-gray-300">Loading inventories...</span>
+            <div className="flex-1 flex items-center justify-center">
+              <Loader className="w-7 h-7 animate-spin text-purple-500" />
+              <span className="ml-3 text-[13px] text-gray-300">Loading inventories...</span>
             </div>
           ) : (
             <>
-              {/* Inventories Side by Side */}
-              <div className="grid grid-cols-2 gap-4 p-6 overflow-y-auto max-h-[50vh]">
-                {/* My Inventory */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-bold text-white flex items-center">
-                      <Package className="w-5 h-5 mr-2 text-green-400" />
-                      Your Items ({selectedMyItems.length} selected)
-                    </h3>
+              {/* Inventories — the ONLY scrollable region */}
+              <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-4 overflow-hidden">
+                {(
+                  [
+                    {
+                      title: 'Your Items',
+                      count: selectedMyItems.length,
+                      items: filteredMyInventory,
+                      search: mySearch,
+                      setSearch: setMySearch,
+                      selected: selectedMyItems,
+                      toggle: toggleMyItem,
+                      accent: 'green' as const,
+                    },
+                    {
+                      title: `${recipientName}'s Items`,
+                      count: selectedRecipientItems.length,
+                      items: filteredRecipientInventory,
+                      search: recipientSearch,
+                      setSearch: setRecipientSearch,
+                      selected: selectedRecipientItems,
+                      toggle: toggleRecipientItem,
+                      accent: 'blue' as const,
+                    },
+                  ]
+                ).map((col) => (
+                  <div key={col.title} className="flex flex-col min-h-0">
+                    <div className="shrink-0 flex items-center gap-1.5 mb-2">
+                      <Package
+                        size={13}
+                        className={col.accent === 'green' ? 'text-green-400' : 'text-blue-400'}
+                      />
+                      <h3 className="text-[12.5px] font-bold text-white truncate">
+                        {col.title} ({col.count})
+                      </h3>
+                    </div>
+                    <div className="shrink-0 relative mb-2">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 w-3.5 h-3.5" />
+                      <input
+                        type="text"
+                        placeholder="Search..."
+                        value={col.search}
+                        onChange={(e) => col.setSearch(e.target.value)}
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-8 pr-3 py-1.5 text-[12.5px] text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-y-auto grid grid-cols-3 gap-1.5 content-start pr-1">
+                      {col.items.map((item) => {
+                        const active = col.selected.includes(item.id);
+                        const ring =
+                          col.accent === 'green'
+                            ? active
+                              ? 'border-green-500 ring-1 ring-green-500/50'
+                              : 'border-gray-700 hover:border-green-400'
+                            : active
+                            ? 'border-blue-500 ring-1 ring-blue-500/50'
+                            : 'border-gray-700 hover:border-blue-400';
+                        return (
+                          <motion.button
+                            type="button"
+                            key={item.id}
+                            onClick={() => col.toggle(item.id)}
+                            whileTap={{ scale: 0.96 }}
+                            className={`bg-gray-800 rounded-lg p-1.5 text-left border-2 transition-colors ${ring}`}
+                          >
+                            <CachedImage
+                              src={item.image}
+                              alt={item.name}
+                              className="w-full h-12 object-contain mb-1"
+                            />
+                            <p className="text-[10px] text-white leading-tight line-clamp-2">
+                              {item.name}
+                            </p>
+                            <p
+                              className={`text-[10px] font-bold mt-0.5 ${
+                                col.accent === 'green' ? 'text-green-400' : 'text-blue-400'
+                              }`}
+                            >
+                              {formatPrice(item.price_estimate)}
+                            </p>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
                   </div>
-
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input
-                      type="text"
-                      placeholder="Search your items..."
-                      value={mySearch}
-                      onChange={(e) => setMySearch(e.target.value)}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-                    {filteredMyInventory.map((item) => (
-                      <motion.div
-                        key={item.id}
-                        onClick={() => toggleMyItem(item.id)}
-                        whileHover={{ scale: 1.05 }}
-                        className={`bg-gray-800 rounded-lg p-2 cursor-pointer border-2 transition-all ${
-                          selectedMyItems.includes(item.id)
-                            ? 'border-green-500 ring-2 ring-green-500/50'
-                            : 'border-gray-700 hover:border-green-400'
-                        }`}
-                      >
-                        <CachedImage
-                          src={item.image}
-                          alt={item.name}
-                          className="w-full h-20 object-contain mb-2"
-                        />
-                        <p className="text-xs text-white line-clamp-2">{item.name}</p>
-                        <p className="text-xs text-green-400 font-bold mt-1">
-                          {formatPrice(item.price_estimate)}
-                        </p>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Recipient Inventory */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-bold text-white flex items-center">
-                      <Package className="w-5 h-5 mr-2 text-blue-400" />
-                      {recipientName}'s Items ({selectedRecipientItems.length} selected)
-                    </h3>
-                  </div>
-
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input
-                      type="text"
-                      placeholder="Search their items..."
-                      value={recipientSearch}
-                      onChange={(e) => setRecipientSearch(e.target.value)}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-                    {filteredRecipientInventory.map((item) => (
-                      <motion.div
-                        key={item.id}
-                        onClick={() => toggleRecipientItem(item.id)}
-                        whileHover={{ scale: 1.05 }}
-                        className={`bg-gray-800 rounded-lg p-2 cursor-pointer border-2 transition-all ${
-                          selectedRecipientItems.includes(item.id)
-                            ? 'border-blue-500 ring-2 ring-blue-500/50'
-                            : 'border-gray-700 hover:border-blue-400'
-                        }`}
-                      >
-                        <CachedImage
-                          src={item.image}
-                          alt={item.name}
-                          className="w-full h-20 object-contain mb-2"
-                        />
-                        <p className="text-xs text-white line-clamp-2">{item.name}</p>
-                        <p className="text-xs text-blue-400 font-bold mt-1">
-                          {formatPrice(item.price_estimate)}
-                        </p>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
+                ))}
               </div>
 
-              {/* Price Comparison */}
-              <div className="bg-gray-800/50 border-t border-gray-700 p-6">
-                <div className="grid grid-cols-3 gap-6 mb-4">
-                  <div className="text-center">
-                    <p className="text-gray-400 text-sm mb-1">You're Offering</p>
-                    <p className="text-2xl font-bold text-green-400">
+              {/* Price bar + notes + actions — pinned, never scrolls */}
+              <div className="shrink-0 border-t border-gray-800 bg-gray-800/40 px-4 py-3 space-y-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-center flex-1">
+                    <p className="text-[10px] text-gray-400 uppercase tracking-wide">Offering</p>
+                    <p className="text-[15px] font-bold text-green-400 tabular-nums">
                       {formatPrice(myTotalValue)}
                     </p>
                   </div>
-
-                  <div className="text-center flex flex-col items-center justify-center">
-                    <ArrowRight className="w-8 h-8 text-purple-400 mb-2" />
-                    <div
-                      className={`px-4 py-2 rounded-lg ${
+                  <div className="flex flex-col items-center shrink-0">
+                    <ArrowRight size={16} className="text-purple-400" />
+                    <span
+                      className={`mt-0.5 text-[10.5px] font-bold tabular-nums px-1.5 py-0.5 rounded-full ${
                         isPriceBalanced
-                          ? 'bg-green-500/20 border border-green-500/50'
-                          : 'bg-red-500/20 border border-red-500/50'
+                          ? 'bg-green-500/15 text-green-300'
+                          : 'bg-red-500/15 text-red-300'
                       }`}
                     >
-                      <div className="flex items-center space-x-2">
-                        {priceDifference > 0 ? (
-                          <TrendingUp className="w-4 h-4 text-green-400" />
-                        ) : (
-                          <TrendingDown className="w-4 h-4 text-red-400" />
-                        )}
-                        <span
-                          className={`text-sm font-bold ${
-                            isPriceBalanced ? 'text-green-300' : 'text-red-300'
-                          }`}
-                        >
-                          {Math.abs(priceDifference).toFixed(1)}%
-                        </span>
-                      </div>
-                    </div>
+                      {priceDifference > 0 ? '+' : ''}
+                      {priceDifference.toFixed(1)}%
+                    </span>
                   </div>
-
-                  <div className="text-center">
-                    <p className="text-gray-400 text-sm mb-1">You're Requesting</p>
-                    <p className="text-2xl font-bold text-blue-400">
+                  <div className="text-center flex-1">
+                    <p className="text-[10px] text-gray-400 uppercase tracking-wide">Requesting</p>
+                    <p className="text-[15px] font-bold text-blue-400 tabular-nums">
                       {formatPrice(recipientTotalValue)}
                     </p>
                   </div>
                 </div>
 
-                {!isPriceBalanced && (
-                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-4">
-                    <div className="flex items-start space-x-3">
-                      <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-red-300 font-semibold">Price Difference Too Large</p>
-                        <p className="text-red-400 text-sm">
-                          The price difference must be within 15% for a fair trade. Adjust your selections.
-                        </p>
-                      </div>
-                    </div>
+                {!isPriceBalanced && (myTotalValue > 0 || recipientTotalValue > 0) && (
+                  <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/25 rounded-lg px-3 py-1.5">
+                    <AlertCircle size={13} className="text-red-400 shrink-0" />
+                    <p className="text-[11px] text-red-300 font-medium">
+                      Price difference must be within 15% — adjust your selections.
+                    </p>
                   </div>
                 )}
 
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Trade Notes (Optional)
-                  </label>
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Add a message with your trade offer..."
-                    rows={2}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 resize-none"
-                  />
-                </div>
+                <input
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Add a note (optional)…"
+                  maxLength={200}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-[12.5px] text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                />
 
-                <div className="flex space-x-4">
+                <div className="flex gap-2">
                   <button
                     onClick={onClose}
-                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg transition-all font-semibold"
+                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2.5 rounded-lg transition-colors font-semibold text-[13px]"
                   >
                     Cancel
                   </button>
@@ -465,17 +450,17 @@ const TradeOfferModal: React.FC<TradeOfferModalProps> = ({
                       selectedRecipientItems.length === 0 ||
                       !isPriceBalanced
                     }
-                    className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white py-3 rounded-lg transition-all font-semibold flex items-center justify-center space-x-2"
+                    className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white py-2.5 rounded-lg transition-all font-semibold text-[13px] flex items-center justify-center gap-2"
                   >
                     {creating ? (
                       <>
-                        <Loader className="w-5 h-5 animate-spin" />
-                        <span>Creating...</span>
+                        <Loader size={14} className="animate-spin" />
+                        Creating...
                       </>
                     ) : (
                       <>
-                        <CheckCircle className="w-5 h-5" />
-                        <span>Send Trade Offer</span>
+                        <CheckCircle size={14} />
+                        Send Trade Offer
                       </>
                     )}
                   </button>
