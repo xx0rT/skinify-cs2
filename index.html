@@ -16,6 +16,32 @@
     <!-- <meta name="yandex-verification" content="REPLACE_WITH_YANDEX_CODE" /> -->
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
+
+    <!-- Google tag (gtag.js) — Consent Mode v2.
+         The tag itself always loads (Google's "tag not detected" install
+         checker looks for a static <script src="...googletagmanager...">
+         in the page source at load time — a JS-injected-after-consent
+         script, which is what utils/gtag.ts previously did exclusively,
+         never satisfies that checker). GDPR compliance instead comes
+         from Consent Mode: analytics_storage defaults to 'denied' below,
+         so no cookie is set and no data is sent to Google until
+         CookieConsentBanner calls gtag('consent','update',{...granted})
+         on an explicit Accept click. Declining leaves it denied forever
+         for that browser (see utils/gtag.ts's grantAnalyticsConsent /
+         declineAnalyticsConsent). -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-S0Y0MW0NQ8"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('consent', 'default', {
+        analytics_storage: 'denied',
+        ad_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied'
+      });
+      gtag('js', new Date());
+      gtag('config', 'G-S0Y0MW0NQ8');
+    </script>
     <!-- initial-scale=1 so the app renders at true device width (0.9
          made it start zoomed out). The 16px input rule in index.css
          stops iOS from auto-zooming on field focus; pinch-zoom stays

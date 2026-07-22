@@ -1,58 +1,39 @@
 /*
-  Google Analytics 4 — loaded only after consent, only when a
-  measurement ID is configured, and only in production (no noise in
-  local dev). GA4's free tier has no visitor cap for a site this size.
+  Google Analytics 4 — Consent Mode v2.
+
+  The gtag.js tag itself is loaded unconditionally, as a static
+  <script> in index.html's <head> — this is required for Google's own
+  "tag not detected" install checker to find it (it scans the page
+  source at load time; a script injected later via JS after a consent
+  click, which is what this file used to do, never satisfies it).
+
+  GDPR compliance (Skinify is a Czech / EU company) instead comes from
+  Consent Mode: index.html sets `analytics_storage: 'denied'` by
+  default the instant the tag loads, so no cookie is set and no data
+  reaches Google until the user explicitly accepts. This file only
+  flips that consent signal — it never injects or removes the script.
 
   Distinct from utils/analytics.ts (first-party event tracking into our
-  own Supabase user_activity table) — this file is purely for the
-  external GA4 pixel so we get standard acquisition/traffic-source
-  reporting without building it ourselves.
-
-  Why gated behind consent rather than loaded unconditionally in
-  index.html: GDPR (Skinify is a Czech / EU company) requires consent
-  BEFORE any non-essential tracking script runs — loading gtag.js on
-  page load would set a third-party cookie before the user agreed.
-  CookieConsentBanner calls grantAnalyticsConsent() only on an explicit
-  "Accept" click; declining never loads the script.
+  own Supabase user_activity table) — this file is purely the external
+  GA4 pixel, for standard acquisition/traffic-source reporting.
 */
 
 const GA_ID = import.meta.env.VITE_GA_MEASUREMENT_ID as string | undefined;
 const CONSENT_KEY = 'skinify_analytics_consent';
 
-let loaded = false;
-
-function loadGtagScript(): void {
-  if (loaded || !GA_ID) return;
-  loaded = true;
-
-  const script = document.createElement('script');
-  script.async = true;
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
-  document.head.appendChild(script);
-
+function gtag(...args: any[]): void {
   (window as any).dataLayer = (window as any).dataLayer || [];
-  function gtag(...args: any[]) {
-    (window as any).dataLayer.push(args);
-  }
-  (window as any).gtag = gtag;
-  gtag('js', new Date());
-  /* GA4 always truncates IPs server-side; ad-signal flags are off
-     since Skinify doesn't run ads and has no reason to feed Google's
-     ad network with visitor data. */
-  gtag('config', GA_ID, {
-    anonymize_ip: true,
-    allow_google_signals: false,
-    allow_ad_personalization_signals: false,
-  });
+  (window as any).dataLayer.push(args);
 }
 
-/** Call once, on app boot. Loads GA immediately if consent was already
- *  granted in a previous session; otherwise waits for the banner. */
+/** Call once, on app boot. Re-applies a previously granted consent
+ *  choice (index.html's inline script already set the 'denied'
+ *  default, so there's nothing to do here on first visit / decline). */
 export function initGtag(): void {
-  if (!GA_ID || import.meta.env.DEV) return;
+  if (!GA_ID) return;
   try {
     if (localStorage.getItem(CONSENT_KEY) === 'granted') {
-      loadGtagScript();
+      gtag('consent', 'update', { analytics_storage: 'granted' });
     }
   } catch {
     /* private mode — consent can't persist, banner will re-ask each visit */
@@ -73,7 +54,7 @@ export function grantAnalyticsConsent(): void {
   } catch {
     /* best-effort */
   }
-  loadGtagScript();
+  gtag('consent', 'update', { analytics_storage: 'granted' });
 }
 
 export function declineAnalyticsConsent(): void {
@@ -82,14 +63,17 @@ export function declineAnalyticsConsent(): void {
   } catch {
     /* best-effort */
   }
+  /* Already 'denied' by index.html's default — nothing to flip. */
 }
 
-/** SPA route-change pageview — gtag's initial config only auto-fires
- *  once on script load, so client-side navigations need an explicit
- *  event or GA only ever sees the entry page. */
+/** SPA route-change pageview — gtag's initial config call (in
+ *  index.html) only fires once on script load, so client-side
+ *  navigations need an explicit event or GA only ever sees the entry
+ *  page. No-ops harmlessly if consent hasn't been granted (Consent
+ *  Mode drops the hit server-side). */
 export function trackGaPageview(path: string): void {
-  if (!GA_ID || typeof (window as any).gtag !== 'function') return;
-  (window as any).gtag('event', 'page_view', {
+  if (!GA_ID) return;
+  gtag('event', 'page_view', {
     page_path: path,
     page_location: window.location.href,
     page_title: document.title,
