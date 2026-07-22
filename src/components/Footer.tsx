@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronDown,
-  Twitter,
   Github,
   MessageCircle,
   Globe,
@@ -300,7 +299,6 @@ const Footer: React.FC<FooterProps> = ({ slim = false }) => {
             <div className="flex items-center gap-1.5 mt-5">
               {[
                 { Icon: MessageCircle, href: 'https://discord.gg/skinify', label: 'Discord' },
-                { Icon: Twitter, href: 'https://twitter.com/SkinifyCS2', label: 'Twitter' },
                 { Icon: Github, href: 'https://github.com/skinify', label: 'Github' },
               ].map(({ Icon, href, label }) => (
                 <a

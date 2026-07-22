@@ -23,6 +23,8 @@ import AuthCallback from './pages/AuthCallback';
 import LanguageDetector from './components/LanguageDetector';
 import VpnBanner from './components/VpnBanner';
 import MaintenanceBanner from './components/MaintenanceBanner';
+import CookieConsentBanner from './components/CookieConsentBanner';
+import { initGtag, trackGaPageview } from './utils/gtag';
 
 /* lazyWithRetry — wraps React.lazy with retry-and-recover logic for
    dynamic-import failures.
@@ -146,6 +148,10 @@ export default function App() {
     import('./utils/uiScale').then(({ getUiScale, applyUiScale }) =>
       applyUiScale(getUiScale()),
     );
+
+    /* GA4 — no-ops if VITE_GA_MEASUREMENT_ID isn't set or consent
+       hasn't been granted yet (CookieConsentBanner grants it later). */
+    initGtag();
 
     /* Single geo call that yields currency + language code + country.
        Cheaper than the historical pair of HTTP requests (currency-only
@@ -486,6 +492,10 @@ export default function App() {
           event fired by the boot effect, shows a dismissible card.
           Rendered outside the router so it can sit over any page. */}
       <VpnBanner />
+
+      {/* Cookie consent — gates GA4 loading. Outside the Router since
+          it's a global, page-agnostic prompt. */}
+      <CookieConsentBanner />
     </ThemeProvider>
   );
 }
@@ -573,6 +583,13 @@ function OnboardingGate() {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [user?.steamId]);
+
+  /* GA4 pageview on every client-side route change — gtag's initial
+     config call only fires once when the script loads, so without this
+     GA would only ever see the entry page for the whole session. */
+  React.useEffect(() => {
+    trackGaPageview(location.pathname + location.search);
+  }, [location.pathname, location.search]);
 
   React.useEffect(() => {
     if (!user) return;

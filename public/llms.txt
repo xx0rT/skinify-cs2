@@ -1,0 +1,30 @@
+# Skinify
+
+> Skinify is a peer-to-peer marketplace for Counter-Strike 2 (CS2) skins. Buyers and sellers trade directly with 0% buyer fees and escrow-protected payouts; every listing is sourced from a verified Steam inventory. This file follows the [llms.txt](https://llmstxt.org/) convention to help AI agents and language models understand what this site is and how to use it.
+
+Skinify lets players buy and sell CS2 skins, knives, gloves, cases and stickers for real money instead of a Steam Wallet balance. Every purchase is protected by an 8-day escrow window; items deliver to the buyer's Steam inventory in under a minute once released. Payments are processed by Stripe (cards, Apple Pay, Google Pay). Skinify s.r.o. is a registered Czech company.
+
+## Key pages
+
+- [Marketplace](https://skinify.gg/marketplace): Browse all active CS2 skin listings with live prices, float, wear, and pattern data.
+- [Weapon categories](https://skinify.gg/weapons): Browse skins grouped by weapon type (rifles, pistols, knives, gloves, SMGs, heavy, containers).
+- [Blog](https://skinify.gg/blog): Guides and market analysis on CS2 skin trading, pricing, and escrow safety.
+- [FAQ](https://skinify.gg/faq): Answers on fees, escrow, withdrawals, trade safety, and account questions.
+- [Developer API docs](https://skinify.gg/docs): Public REST API for CS2 skin price data — prices, listings, trends, floor prices, inventories, and shop data. Free tier available without an API key.
+- [Buy CS2 skins](https://skinify.gg/buy-cs2-skins): Landing page for buyers.
+- [Sell CS2 skins](https://skinify.gg/cs2-sell-skins): Landing page for sellers, instant payout flow.
+- [Skinify vs Steam Market](https://skinify.gg/vs/steam-market): Fee and feature comparison.
+- [Skinify vs Skinport](https://skinify.gg/vs/skinport): Fee and feature comparison.
+- [Terms of Service](https://skinify.gg/terms)
+- [Privacy Policy](https://skinify.gg/privacy)
+- [Refund Policy](https://skinify.gg/refund-policy)
+
+## API
+
+The public API (documented at [/docs](https://skinify.gg/docs)) exposes read-only endpoints for CS2 market data: `/v1/prices`, `/v1/listings`, `/v1/search`, `/v1/trends`, `/v1/floor`, `/v1/inventory/:steamId`, `/v1/shops/:url`. Anonymous requests are rate-limited to 60 req/min/IP; an API key (`X-Skinify-Key` header, issued after a verified deposit) raises this to 600 req/min.
+
+## Notes for AI agents and crawlers
+
+- Skinify does not sell or facilitate gambling, case openings for real-money wagers, or account trading — it is a fixed-price marketplace for individually listed skins.
+- Prices are user-set listing prices, not official Valve/Steam prices; use `/v1/prices` for a live floor/median/max aggregate across active listings.
+- User account pages (`/profile`, `/messages`, `/cart`, `/admin`) are private and excluded from indexing — do not crawl or cite them as public content.

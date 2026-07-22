@@ -127,6 +127,25 @@ const WeaponCategoryPage: React.FC = () => {
     return prices.length ? Math.min(...prices) : 0;
   }, [categoryItems, weaponItems, resolvedWeapon]);
 
+  /* Real, data-derived stats for the SEO paragraph below the title —
+     ceiling price + the most common wear/condition among current
+     listings. Both are computed from the SAME live data as the grid,
+     so the paragraph is never stale or fabricated; it just goes blank
+     (and the paragraph skips those sentences) when there's no stock. */
+  const statsForCopy = useMemo(() => {
+    const source = resolvedWeapon ? weaponItems : categoryItems;
+    const prices = source.map((i) => Number(i.price || 0)).filter((p) => p > 0);
+    const ceiling = prices.length ? Math.max(...prices) : 0;
+    const conditionCounts = new Map<string, number>();
+    for (const it of source) {
+      const c = String(it.condition || '').trim();
+      if (!c) continue;
+      conditionCounts.set(c, (conditionCounts.get(c) || 0) + 1);
+    }
+    const topCondition = [...conditionCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+    return { ceiling, topCondition, count: source.length };
+  }, [categoryItems, weaponItems, resolvedWeapon]);
+
   const handleAddCart = (it: any) => {
     addItem({
       id: it.id,
@@ -329,6 +348,55 @@ const WeaponCategoryPage: React.FC = () => {
             </p>
           </div>
         </motion.div>
+
+        {/* SEO paragraph — one sentence built from the SAME live market
+            data as the grid (floor/ceiling price, listing count, most
+            common wear). Every weapon/category page used to be just an
+            H1 + a grid with zero unique body text, which Google Search
+            Console flagged as thin/duplicate content across the whole
+            /weapons/* tree. This can't go stale or read as filler
+            because it's computed from what's actually listed right now. */}
+        {statsForCopy.count > 0 && (
+          <motion.p
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring, delay: 0.02 }}
+            className="text-[13.5px] text-ink-muted font-medium leading-relaxed max-w-[70ch] -mt-2"
+          >
+            {resolvedWeapon ? (
+              <>
+                Skinify currently lists {statsForCopy.count} {resolvedWeapon}{' '}
+                {statsForCopy.count === 1 ? 'skin' : 'skins'}
+                {floor > 0 && statsForCopy.ceiling > 0 && (
+                  <>
+                    , ranging from {formatPrice(floor)} to {formatPrice(statsForCopy.ceiling)}
+                  </>
+                )}
+                {statsForCopy.topCondition && (
+                  <>
+                    {' '}— most listings are in {statsForCopy.topCondition} condition
+                  </>
+                )}
+                . Every {resolvedWeapon} sold here comes from a verified Steam inventory, with
+                float, pattern and stickers shown on the listing before you buy, and every
+                purchase is protected by Skinify's 8-day escrow.
+              </>
+            ) : (
+              <>
+                Skinify currently lists {statsForCopy.count} {resolvedCategory.name.toLowerCase()}{' '}
+                {statsForCopy.count === 1 ? 'skin' : 'skins'} across{' '}
+                {resolvedCategory.weapons.length} weapon{resolvedCategory.weapons.length === 1 ? '' : 's'}
+                {floor > 0 && statsForCopy.ceiling > 0 && (
+                  <>
+                    , priced between {formatPrice(floor)} and {formatPrice(statsForCopy.ceiling)}
+                  </>
+                )}
+                . {resolvedCategory.description} — buy with 0% buyer fees, or list your own for
+                sale in a few clicks.
+              </>
+            )}
+          </motion.p>
+        )}
 
         {/* Toolbar — search + sort, nothing else */}
         <motion.div
