@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Loader2, ShieldCheck, X } from 'lucide-react';
+import { ArrowLeft, Check, Loader2, ShieldCheck, Tag, X } from 'lucide-react';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { useCurrencyStore } from '../store/currencyStore';
@@ -49,12 +49,6 @@ const getStripe = () => {
 const QUICK_AMOUNTS = [200, 500, 1000, 2500, 5000, 10000];
 const MIN_AMOUNT = 50;
 
-const PROMO = {
-  enabled: true,
-  code: 'WELCOME10',
-  copy: '+10% bonus on your first deposit · auto-applied',
-};
-
 async function callStripeFn(body: Record<string, unknown>) {
   const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
   const res = await fetch(`${supabaseUrl}/functions/v1/stripe-payment`, {
@@ -72,6 +66,57 @@ async function callStripeFn(body: Record<string, unknown>) {
   return data;
 }
 
+/** Result of validating (or later, redeeming) a promo/referral code
+ *  against the promo-code edge function. */
+interface PromoState {
+  code: string;
+  valid: boolean;
+  bonusAmountCzk: number;
+  kind: 'promo' | 'referral' | null;
+  error: string | null;
+}
+
+async function callPromoFn(body: Record<string, unknown>) {
+  const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+  const res = await fetch(`${supabaseUrl}/functions/v1/promo-code`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  return res.json().catch(() => null);
+}
+
+/* Which promo/referral code (if any) is riding along with the
+   in-flight PaymentIntent — persisted to localStorage rather than kept
+   in React state or a ref, because 3DS/wallet payment methods navigate
+   the whole page away and back; the DepositModal remounts fresh on
+   return with no memory of what was typed before checkout. */
+const PENDING_PROMO_KEY = 'skinify_pending_promo';
+interface PendingPromo {
+  code: string;
+  amount: number;
+  paymentIntentId: string;
+}
+function setPendingPromo(p: PendingPromo | null) {
+  try {
+    if (p) localStorage.setItem(PENDING_PROMO_KEY, JSON.stringify(p));
+    else localStorage.removeItem(PENDING_PROMO_KEY);
+  } catch {
+    /* private mode — redemption just won't survive a redirect, non-fatal */
+  }
+}
+function getPendingPromo(): PendingPromo | null {
+  try {
+    const raw = localStorage.getItem(PENDING_PROMO_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export const DepositModal: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState<number>(500);
@@ -80,11 +125,21 @@ export const DepositModal: React.FC = () => {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const siteFlags = useSiteFlags();
-  const [promoActive, setPromoActive] = useState(PROMO.enabled);
-  /* Sitewide kill-switch (Admin → Developer): hides the deposit-bonus
-     banner + disables the bonus when promo_banner is off. */
-  const promoOn = promoActive && (siteFlags.promo_banner ?? true);
+  /* Sitewide kill-switch (Admin → Developer): hides the promo-code field
+     entirely when promo_banner is off. */
+  const promoFeatureOn = siteFlags.promo_banner ?? true;
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  /* Promo / referral code — one field serves both: a standalone promo
+     code (e.g. WELCOME10) or a friend's personal referral code, both
+     resolved server-side by the promo-code edge function. Debounced so
+     we don't hit the endpoint on every keystroke, and re-validated
+     whenever the amount changes since eligibility (min deposit, bonus
+     size) depends on it. */
+  const [promoInput, setPromoInput] = useState('');
+  const [promoState, setPromoState] = useState<PromoState | null>(null);
+  const [promoChecking, setPromoChecking] = useState(false);
+  const promoDebounceRef = useRef<number | null>(null);
   const { formatPrice } = useCurrencyStore();
   const { addToast } = useToastStore();
   const { user } = useAuthStore();
@@ -112,6 +167,8 @@ export const DepositModal: React.FC = () => {
       setClientSecret(null);
       setPaymentIntentId(null);
       setSubmitting(false);
+      setPromoInput('');
+      setPromoState(null);
     }
   }, [open]);
 
@@ -127,6 +184,38 @@ export const DepositModal: React.FC = () => {
     async (piId: string) => {
       const data = await callStripeFn({ action: 'confirm', paymentIntentId: piId });
       if (data?.credited) {
+        /* Redeem the promo/referral code now that the deposit is
+           actually confirmed server-side — never before payment, so a
+           code can't be "spent" on a deposit that gets abandoned or
+           declined. Read from localStorage (not component state) since
+           this also runs after a 3DS/wallet redirect remounts the
+           modal fresh. */
+        const pending = getPendingPromo();
+        if (pending && pending.paymentIntentId === piId && user?.id) {
+          try {
+            const redeemData = await callPromoFn({
+              action: 'redeem',
+              code: pending.code,
+              userId: user.id,
+              depositAmountCzk: pending.amount,
+              paymentIntentId: piId,
+            });
+            if (redeemData?.valid) {
+              addToast({
+                type: 'success',
+                title: t('deposit.promo.applied', 'Bonus applied'),
+                message: `+${formatPrice(Number(redeemData.bonusAmountCzk || 0))}`,
+              });
+            }
+          } catch (err) {
+            /* Deposit already succeeded — a failed bonus redemption is
+               logged but must never block the credit the user already paid for. */
+            console.warn('[DepositModal] promo redeem failed:', err);
+          } finally {
+            setPendingPromo(null);
+          }
+        }
+
         addToast({
           type: 'success',
           title: t('deposit.success.title', 'Deposit successful'),
@@ -141,7 +230,7 @@ export const DepositModal: React.FC = () => {
           : 'Payment could not be verified.',
       );
     },
-    [addToast, fetchBalance, t, user?.steamId],
+    [addToast, fetchBalance, formatPrice, t, user?.id, user?.steamId],
   );
 
   /* Redirect-return watcher — 3DS / wallet flows leave the page and come
@@ -183,11 +272,55 @@ export const DepositModal: React.FC = () => {
   }, []);
 
   const safeAmount = Number.isFinite(amount) ? Math.max(0, amount) : 0;
-  const bonus = promoOn ? safeAmount * 0.1 : 0;
+  const bonus = promoState?.valid ? promoState.bonusAmountCzk : 0;
   const credited = Math.max(0, safeAmount + bonus);
 
   const belowMin = safeAmount > 0 && safeAmount < MIN_AMOUNT;
   const canSubmit = safeAmount >= MIN_AMOUNT && !submitting;
+
+  /* Validate the typed code against the edge function, debounced. Runs
+     on both code changes and amount changes (eligibility depends on
+     deposit size — a code with a 500 CZK minimum should re-validate as
+     "invalid" the moment the amount drops below it, and re-validate as
+     valid again if it comes back up). */
+  useEffect(() => {
+    if (promoDebounceRef.current) window.clearTimeout(promoDebounceRef.current);
+    const code = promoInput.trim();
+    if (!code) {
+      setPromoState(null);
+      setPromoChecking(false);
+      return;
+    }
+    if (!user?.id || safeAmount < 1) {
+      return;
+    }
+    setPromoChecking(true);
+    promoDebounceRef.current = window.setTimeout(async () => {
+      try {
+        const data = await callPromoFn({
+          action: 'validate',
+          code,
+          userId: user.id,
+          depositAmountCzk: safeAmount,
+        });
+        setPromoState({
+          code,
+          valid: !!data?.valid,
+          bonusAmountCzk: Number(data?.bonusAmountCzk || 0),
+          kind: data?.kind || null,
+          error: data?.error || null,
+        });
+      } catch {
+        setPromoState({ code, valid: false, bonusAmountCzk: 0, kind: null, error: 'Network error — try again.' });
+      } finally {
+        setPromoChecking(false);
+      }
+    }, 500);
+    return () => {
+      if (promoDebounceRef.current) window.clearTimeout(promoDebounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promoInput, safeAmount, user?.id]);
 
   /* Track whether the last change came from a preset click vs raw typing,
      so we only run the rolling-digit animation on the big jumps (preset
@@ -249,6 +382,18 @@ export const DepositModal: React.FC = () => {
       }
       setClientSecret(data.clientSecret);
       setPaymentIntentId(data.paymentIntentId);
+      /* Stash the validated code against this specific PaymentIntent so
+         finalizeCredit can redeem it once payment actually clears —
+         survives a 3DS/wallet redirect that remounts the modal. */
+      if (promoState?.valid && data.paymentIntentId) {
+        setPendingPromo({
+          code: promoState.code,
+          amount: safeAmount,
+          paymentIntentId: data.paymentIntentId,
+        });
+      } else {
+        setPendingPromo(null);
+      }
       setStep('checkout');
     } catch (err) {
       console.error('Stripe deposit failed:', err);
@@ -391,9 +536,9 @@ export const DepositModal: React.FC = () => {
                       label={t('deposit.summary.youPay', 'You pay')}
                       value={formatPrice(safeAmount)}
                     />
-                    {promoOn && (
+                    {bonus > 0 && (
                       <Row
-                        label={`${t('deposit.summary.bonus', 'Bonus')} · ${PROMO.code}`}
+                        label={`${t('deposit.summary.bonus', 'Bonus')} · ${promoState?.code}`}
                         value={`+ ${formatPrice(bonus)}`}
                         tone="accent"
                       />
@@ -448,7 +593,6 @@ export const DepositModal: React.FC = () => {
                     <div className="max-w-[640px] mx-auto lg:mx-0">
                       {/* Mobile-only top section — amount first. */}
                       <div className="lg:hidden space-y-4 mb-5">
-                        {promoOn && <PromoBanner onDismiss={() => setPromoActive(false)} />}
                         <AmountField
                           amount={amount}
                           animatedAmount={animatedAmount}
@@ -457,6 +601,14 @@ export const DepositModal: React.FC = () => {
                           onChange={typeAmount}
                           source={lastSourceRef.current}
                         />
+                        {promoFeatureOn && (
+                          <PromoCodeField
+                            value={promoInput}
+                            onChange={setPromoInput}
+                            checking={promoChecking}
+                            state={promoState}
+                          />
+                        )}
                         <div className="grid grid-cols-3 gap-2">
                           {QUICK_AMOUNTS.map((v) => {
                             const active = amount === v;
@@ -511,9 +663,9 @@ export const DepositModal: React.FC = () => {
                           label={t('deposit.summary.youPay', 'You pay')}
                           value={formatPrice(safeAmount)}
                         />
-                        {promoOn && (
+                        {bonus > 0 && (
                           <Row
-                            label={`${t('deposit.summary.bonus', 'Bonus')} · ${PROMO.code}`}
+                            label={`${t('deposit.summary.bonus', 'Bonus')} · ${promoState?.code}`}
                             value={`+ ${formatPrice(bonus)}`}
                             tone="accent"
                           />
@@ -544,8 +696,6 @@ export const DepositModal: React.FC = () => {
                         </h2>
                       </div>
 
-                      {promoOn && <PromoBanner onDismiss={() => setPromoActive(false)} />}
-
                       <AmountField
                         amount={amount}
                         animatedAmount={animatedAmount}
@@ -554,6 +704,15 @@ export const DepositModal: React.FC = () => {
                         onChange={typeAmount}
                         source={lastSourceRef.current}
                       />
+
+                      {promoFeatureOn && (
+                        <PromoCodeField
+                          value={promoInput}
+                          onChange={setPromoInput}
+                          checking={promoChecking}
+                          state={promoState}
+                        />
+                      )}
 
                       <div className="grid grid-cols-3 gap-2">
                         {QUICK_AMOUNTS.map((v) => {
@@ -580,9 +739,9 @@ export const DepositModal: React.FC = () => {
                           label={t('deposit.summary.youPay', 'You pay')}
                           value={formatPrice(safeAmount)}
                         />
-                        {promoOn && (
+                        {bonus > 0 && (
                           <Row
-                            label={`${t('deposit.summary.bonus', 'Bonus')} · ${PROMO.code}`}
+                            label={`${t('deposit.summary.bonus', 'Bonus')} · ${promoState?.code}`}
                             value={`+ ${formatPrice(bonus)}`}
                             tone="accent"
                           />
@@ -749,32 +908,67 @@ const StripeCheckoutForm: React.FC<{
 };
 
 /* ─────────────────────────────────────────────────────────────────────────
-   PromoBanner — sits above the amount field on the right pane.
+   PromoCodeField — real input for a promo or referral code, sits above
+   the amount field. One field covers both: a standalone promo code
+   (e.g. WELCOME10) or a friend's personal referral code — both are
+   resolved server-side by the promo-code edge function, so the UI
+   doesn't need to know which kind it is until the response comes back.
    ───────────────────────────────────────────────────────────────────────── */
-const PromoBanner: React.FC<{ onDismiss: () => void }> = ({ onDismiss }) => (
-  <div className="rounded-2xl bg-accent-soft p-3 sm:p-3.5 flex items-start gap-3">
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-2 mb-0.5">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-accent">
-          Active
-        </span>
-        <span className="text-[10.5px] font-mono font-bold text-accent">
-          {PROMO.code}
+const PromoCodeField: React.FC<{
+  value: string;
+  onChange: (v: string) => void;
+  checking: boolean;
+  state: PromoState | null;
+}> = ({ value, onChange, checking, state }) => {
+  const showResult = value.trim().length > 0 && !checking;
+  return (
+    <div>
+      <div className="relative">
+        <Tag
+          size={14}
+          strokeWidth={2.2}
+          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-dim shrink-0 pointer-events-none"
+        />
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value.toUpperCase())}
+          placeholder="Promo or referral code (optional)"
+          maxLength={32}
+          autoCapitalize="characters"
+          className={`w-full h-11 rounded-2xl bg-subtle pl-9 pr-9 text-[13px] font-bold tracking-wide text-ink placeholder:text-ink-dim placeholder:font-medium placeholder:tracking-normal outline-none focus:ring-2 transition-shadow ${
+            showResult && state?.valid
+              ? 'focus:ring-emerald-500/40 ring-2 ring-emerald-500/30'
+              : showResult && state && !state.valid
+              ? 'focus:ring-rose-500/40 ring-2 ring-rose-500/30'
+              : 'focus:ring-accent/40'
+          }`}
+        />
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 grid place-items-center">
+          {checking ? (
+            <Loader2 size={14} strokeWidth={2.4} className="animate-spin text-ink-dim" />
+          ) : showResult && state?.valid ? (
+            <Check size={14} strokeWidth={2.6} className="text-emerald-600 dark:text-emerald-400" />
+          ) : showResult && state && !state.valid ? (
+            <X size={14} strokeWidth={2.6} className="text-rose-600 dark:text-rose-400" />
+          ) : null}
         </span>
       </div>
-      <p className="text-[12.5px] font-semibold text-ink leading-snug">
-        {PROMO.copy}
-      </p>
+      {showResult && state && (
+        <p
+          className={`text-[11.5px] font-semibold mt-1.5 px-1 ${
+            state.valid ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+          }`}
+        >
+          {state.valid
+            ? state.kind === 'referral'
+              ? `Referral code applied — bonus added below.`
+              : `Code applied — bonus added below.`
+            : state.error || 'Invalid code.'}
+        </p>
+      )}
     </div>
-    <button
-      onClick={onDismiss}
-      aria-label="Remove promo"
-      className="shrink-0 h-6 w-6 rounded-full bg-bg/60 hover:bg-bg text-ink-muted hover:text-ink grid place-items-center transition-colors"
-    >
-      <X size={11} strokeWidth={2.4} />
-    </button>
-  </div>
-);
+  );
+};
 
 /* ─────────────────────────────────────────────────────────────────────────
    AmountField — input + rolling-digits overlay.
