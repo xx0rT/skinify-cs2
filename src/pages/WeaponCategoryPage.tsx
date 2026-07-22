@@ -21,16 +21,6 @@ import { weaponCategories } from '../data/weaponCategories';
 import { MOCK_MARKET_ITEMS } from '../data/mockMarketItems';
 import { spring, tap } from '../lib/motion';
 
-/* ─────────────────────────────────────────────────────────────────────────
-   WeaponCategoryPage — minimal layout
-
-   /weapons/:category           → listings filtered to that category
-   /weapons/:category/:weapon   → listings filtered to that weapon
-
-   Just: breadcrumb · title row with floor price · toolbar · grid.
-   No chart, no sibling-categories block, no hero stat tiles.
-   ───────────────────────────────────────────────────────────────────────── */
-
 type SortKey = 'price-asc' | 'price-desc' | 'name';
 
 const SORT_LABELS: Record<SortKey, string> = {

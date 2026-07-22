@@ -6,6 +6,39 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 };
 
+/* ── Stripe Connect payout path ──────────────────────────────────────
+   If a seller has completed Stripe Connect onboarding, their matured
+   escrow amount is paid out as a real Stripe Transfer to their
+   connected account instead of flipping into users.pending_balance /
+   current_balance forever, waiting on a manual admin payout. Sellers
+   who never onboarded (the vast majority, at least until this ships)
+   fall through to the existing pending_wallet-flip behavior below,
+   completely unchanged. */
+const STRIPE_API = 'https://api.stripe.com/v1';
+
+async function stripeTransfer(
+  key: string,
+  amountCzk: number,
+  destinationAccountId: string,
+  idempotencyKey: string,
+): Promise<{ ok: boolean; status: number; body: any }> {
+  const res = await fetch(`${STRIPE_API}/transfers`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Idempotency-Key': idempotencyKey,
+    },
+    body: new URLSearchParams({
+      amount: String(Math.round(amountCzk * 100)),
+      currency: 'czk',
+      destination: destinationAccountId,
+    }).toString(),
+  });
+  const body = await res.json().catch(() => null);
+  return { ok: res.ok, status: res.status, body };
+}
+
 /**
  * Create notification for escrow events
  */
@@ -109,12 +142,89 @@ async function releasePendingFunds(supabase: any) {
 
     console.log(`Processing ${userPendingAmounts.size} users for pending fund release`);
 
+    /* Check once, up front, which of these sellers have completed
+       Stripe Connect onboarding — a single query instead of one per
+       user inside the loop. */
+    const steamIds = [...userPendingAmounts.keys()];
+    const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
+    const { data: connectRows } = stripeKey
+      ? await supabase
+          .from('stripe_connect_accounts')
+          .select('user_steam_id, stripe_account_id, payouts_enabled')
+          .in('user_steam_id', steamIds)
+          .eq('payouts_enabled', true)
+      : { data: [] };
+    const connectBySteamId = new Map(
+      (connectRows || []).map((r: any) => [r.user_steam_id, r.stripe_account_id]),
+    );
+
     // Process each user's pending fund release
     for (const [steamId, userData] of userPendingAmounts) {
       try {
         console.log(`=== RELEASING PENDING FUNDS FOR ${steamId} ===`);
         console.log(`Amount to release: ${userData.totalAmount} CZK`);
         console.log(`Transactions: ${userData.transactions.length}`);
+
+        const connectAccountId = connectBySteamId.get(steamId);
+        const releasedAt = new Date().toISOString();
+
+        if (connectAccountId) {
+          /* Connect-onboarded seller: pay out via a real Stripe Transfer
+             instead of moving the DB flag. One transfer per matured
+             transaction (not batched) so each transfer's idempotency
+             key ties 1:1 to a transaction id — safe to re-run this
+             function without double-paying if it's interrupted
+             mid-batch. */
+          for (const tx of userData.transactions) {
+            if (tx.metadata?.transfer_id) {
+              console.log(`Skipping tx ${tx.id} — already transferred (${tx.metadata.transfer_id})`);
+              continue;
+            }
+            const { ok, body } = await stripeTransfer(
+              stripeKey!,
+              Number(tx.amount),
+              connectAccountId,
+              `escrow_release_${tx.id}`,
+            );
+            if (!ok) {
+              console.error(`Stripe transfer failed for tx ${tx.id}:`, JSON.stringify(body?.error || body).slice(0, 500));
+              continue; // leave pending_wallet=true — will retry next run
+            }
+            const patchedMeta = {
+              ...(tx.metadata || {}),
+              pending_wallet: false,
+              released_at: releasedAt,
+              release_type: 'stripe_connect_transfer',
+              escrow_period_days: 8,
+              transfer_id: body.id,
+            };
+            const { error: updateErr } = await supabase
+              .from('user_transactions')
+              .update({ metadata: patchedMeta, updated_at: releasedAt })
+              .eq('id', tx.id);
+            if (updateErr) {
+              console.error(`Transfer ${body.id} succeeded but failed to record tx ${tx.id}:`, updateErr);
+            }
+          }
+
+          console.log('✅ Transferred', userData.totalAmount, 'CZK to Stripe Connect for', steamId);
+
+          await createNotification(
+            supabase,
+            steamId,
+            'success',
+            '🎉 Funds paid out to your bank!',
+            `${userData.totalAmount.toLocaleString('cs-CZ')} Kč has been transferred to your Stripe account. The 8-day security period has completed successfully.`,
+            `/profile?tab=settings&sub=payouts`,
+            {
+              amount: userData.totalAmount,
+              transactions_count: userData.transactions.length,
+              release_type: 'stripe_connect_transfer',
+              escrow_period_completed: true,
+            },
+          );
+          continue;
+        }
 
         // Flip the `pending_wallet` flag on each matured sale transaction
         // to false. The `update_user_balance_from_transactions` trigger
@@ -123,8 +233,6 @@ async function releasePendingFunds(supabase: any) {
         // pending_wallet=true count toward pending_balance, false toward
         // current_balance. Updating the metadata is sufficient — no manual
         // balance arithmetic needed, which avoids double-credit bugs.
-        const txIds = userData.transactions.map((t) => t.id);
-        const releasedAt = new Date().toISOString();
 
         // One update per row so we can patch the metadata jsonb precisely
         // (postgrest can't merge jsonb via PATCH). The trigger fires once per
@@ -166,7 +274,7 @@ async function releasePendingFunds(supabase: any) {
           '🎉 Pending Funds Released!',
           `Your pending funds of ${userData.totalAmount.toLocaleString('cs-CZ')} Kč have been released to your main balance! The 8-day security period has completed successfully.`,
           `/profile?tab=balance`,
-          { 
+          {
             amount: userData.totalAmount,
             transactions_count: userData.transactions.length,
             release_type: 'automatic',

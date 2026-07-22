@@ -443,6 +443,17 @@ verify_jwt = false
 verify_jwt = false
 [functions.sumsub-kyc]
 verify_jwt = false
+
+# Stripe Connect — same x-steam-id pattern as the DM/withdraw functions
+# for stripe-connect itself. stripe-connect-webhook is called directly
+# by Stripe with NO Authorization header at all (auth is the
+# Stripe-Signature HMAC, verified inside the function), so it needs
+# the gateway pre-check disabled or every webhook delivery 401s before
+# our code ever runs.
+[functions.stripe-connect]
+verify_jwt = false
+[functions.stripe-connect-webhook]
+verify_jwt = false
 [functions.account-email]
 verify_jwt = false
 

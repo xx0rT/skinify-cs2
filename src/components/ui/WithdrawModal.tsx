@@ -1,7 +1,7 @@
 import { getSupabaseCredentials } from '../../utils/supabaseHelpers';
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Check, Loader2 } from 'lucide-react';
+import { X, Check, Loader2, Zap } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useToastStore } from '../../store/toastStore';
 import { spring, tap } from '../../lib/motion';
@@ -9,12 +9,20 @@ import { spring, tap } from '../../lib/motion';
 /* ─────────────────────────────────────────────────────────────────────────
    WithdrawModal — flat redesign in the site's design language.
 
-   Two steps on one surface:
-     1. Amount — big centered input, quick 25/50/75/Max chips, live
-        fee/net breakdown as kv-rows.
-     2. Payout — segmented method pills + one details input.
-   Submit calls withdraw-submit (hold + pending request reviewed in the
-   admin panel). Success state confirms the request is queued.
+   Two paths, chosen automatically based on whether the user has
+   completed Stripe Connect onboarding (Settings → Payouts):
+
+     - Connect-onboarded: a single-step "Payout to your bank" flow —
+       amount + one confirm, no method picker, no free-text IBAN/card/
+       PayPal entry (Stripe already has their bank details). Calls
+       stripe-connect's `payout` action, which creates a real Stripe
+       Payout immediately — no admin review queue.
+
+     - Everyone else (the original, still-default flow): two steps —
+       amount, then a method + details form. Submit calls
+       withdraw-submit (hold + pending request reviewed in the admin
+       panel) exactly as before. Nothing changes here for users who
+       haven't set up Connect.
    ───────────────────────────────────────────────────────────────────────── */
 
 interface WithdrawModalProps {
@@ -52,6 +60,43 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
   const [step, setStep] = useState<'amount' | 'method' | 'success'>('amount');
   const [submitting, setSubmitting] = useState(false);
 
+  /* Stripe Connect status — drives which flow renders. null while
+     loading (renders the legacy flow by default so there's no layout
+     flash/jump; it only switches over once we've confirmed Connect is
+     actually ready). */
+  const [connectPayoutsEnabled, setConnectPayoutsEnabled] = useState(false);
+  const [connectChecked, setConnectChecked] = useState(false);
+  const [connectPayoutId, setConnectPayoutId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !user?.steamId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+        const res = await fetch(`${supabaseUrl}/functions/v1/stripe-connect`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${supabaseKey}`,
+            apikey: supabaseKey,
+            'Content-Type': 'application/json',
+            'x-steam-id': user.steamId,
+          },
+          body: JSON.stringify({ action: 'get_status' }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!cancelled) setConnectPayoutsEnabled(!!body?.data?.payouts_enabled);
+      } catch {
+        /* best-effort — falls back to the legacy withdraw flow */
+      } finally {
+        if (!cancelled) setConnectChecked(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, user?.steamId]);
+
   /* Lock background scroll while open. */
   useEffect(() => {
     if (!isOpen) return;
@@ -88,6 +133,56 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
     setDetails({ iban: '', cardNumber: '', email: '' });
     setStep('amount');
     setSubmitting(false);
+    setConnectPayoutId(null);
+  };
+
+  /* Connect payout: no platform fee (Stripe's own payout fee applies on
+     their side, invisible to us), and the amount is validated against
+     the user's actual Stripe Connect balance server-side — the
+     `currentBalance` prop here is the legacy DB balance, which is a
+     DIFFERENT number for a Connect-onboarded seller (their sale
+     proceeds moved to Stripe via Transfer, not into current_balance).
+     We only enforce the minimum client-side; the server is the source
+     of truth on whether they actually have that much available. */
+  const connectAmountValid = parsed >= MIN_WITHDRAW;
+
+  const submitConnectPayout = async () => {
+    if (!user?.steamId || !connectAmountValid || submitting) return;
+    setSubmitting(true);
+    try {
+      const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
+      const res = await fetch(`${supabaseUrl}/functions/v1/stripe-connect`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${supabaseKey}`,
+          apikey: supabaseKey,
+          'Content-Type': 'application/json',
+          'x-steam-id': user.steamId,
+        },
+        body: JSON.stringify({ action: 'payout', amount: parsed }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || 'Payout failed');
+      setConnectPayoutId(body?.data?.payoutId || null);
+      setStep('success');
+      addToast({
+        type: 'success',
+        title: 'Payout sent',
+        message: `${fmtKc(parsed)} is on its way to your bank.`,
+        duration: 5000,
+      });
+      setTimeout(() => {
+        onSuccess();
+        reset();
+      }, 2400);
+    } catch (e) {
+      addToast({
+        type: 'error',
+        title: 'Payout failed',
+        message: e instanceof Error ? e.message : 'Please try again later.',
+      });
+      setSubmitting(false);
+    }
   };
 
   const handleClose = () => {
@@ -193,6 +288,91 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
               </button>
             </div>
 
+            {connectPayoutsEnabled ? (
+              /* ── Stripe Connect flow: one step, no method picker ── */
+              <AnimatePresence mode="wait">
+                {step !== 'success' && (
+                  <motion.div
+                    key="connect-amount"
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -12 }}
+                    transition={{ duration: 0.18 }}
+                    className="space-y-4"
+                  >
+                    <div className="rounded-2xl bg-accent-soft px-4 py-3 flex items-center gap-2.5">
+                      <Zap size={15} strokeWidth={2.4} className="text-accent shrink-0" />
+                      <p className="text-[12px] text-ink font-semibold leading-snug">
+                        Instant payout via Stripe — no review queue, no fee from Skinify.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="label-meta block mb-1.5">Amount</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          value={amount}
+                          onChange={(e) => setAmount(e.target.value)}
+                          min={MIN_WITHDRAW}
+                          placeholder="0"
+                          autoFocus
+                          className="w-full h-16 bg-subtle rounded-2xl px-5 pr-14 text-[26px] font-bold tracking-tight tabular-nums text-ink outline-none focus:ring-2 focus:ring-accent/40 transition-shadow placeholder:text-ink-dim"
+                        />
+                        <span className="absolute right-5 top-1/2 -translate-y-1/2 text-[14px] font-bold text-ink-muted">
+                          Kč
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-ink-dim font-medium mt-1.5">
+                        Minimum {fmtKc(MIN_WITHDRAW)} · paid from your Stripe balance
+                      </p>
+                    </div>
+
+                    <motion.button
+                      whileTap={tap}
+                      onClick={submitConnectPayout}
+                      disabled={!connectAmountValid || submitting}
+                      className="w-full h-12 rounded-full bg-accent text-on-accent text-[14px] font-bold disabled:opacity-40 transition-opacity inline-flex items-center justify-center gap-2"
+                    >
+                      {submitting ? (
+                        <>
+                          <Loader2 size={15} className="animate-spin" />
+                          Sending…
+                        </>
+                      ) : (
+                        `Payout ${fmtKc(parsed || 0)}`
+                      )}
+                    </motion.button>
+                  </motion.div>
+                )}
+
+                {step === 'success' && (
+                  <motion.div
+                    key="connect-success"
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="py-6 text-center"
+                  >
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+                      className="w-14 h-14 rounded-full bg-emerald-500/15 grid place-items-center mx-auto mb-4"
+                    >
+                      <Check size={24} strokeWidth={2.6} className="text-emerald-600 dark:text-emerald-400" />
+                    </motion.div>
+                    <h3 className="text-[17px] font-bold text-ink tracking-tight">Payout sent</h3>
+                    <p className="text-[12.5px] text-ink-muted font-medium mt-1 max-w-[300px] mx-auto">
+                      {fmtKc(parsed)} is on its way to your bank via Stripe.
+                      {connectPayoutId && (
+                        <span className="block mt-1 text-[11px] text-ink-dim font-mono">{connectPayoutId}</span>
+                      )}
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            ) : (
             <AnimatePresence mode="wait">
               {/* ── Step 1: amount ── */}
               {step === 'amount' && (
@@ -442,6 +622,7 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
                 </motion.div>
               )}
             </AnimatePresence>
+            )}
           </motion.div>
         </motion.div>
       )}
