@@ -26,6 +26,8 @@ import { tap } from '../../lib/motion';
 
 type OnboardingStatus = 'not_started' | 'pending' | 'complete' | 'restricted';
 
+const fmtKc = (n: number) => `${n.toLocaleString('cs-CZ', { maximumFractionDigits: 2 })} Kč`;
+
 async function stripeConnectPost(steamId: string, payload: Record<string, unknown>): Promise<any> {
   const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
   const res = await fetch(`${supabaseUrl}/functions/v1/stripe-connect`, {
@@ -48,8 +50,19 @@ const StripeConnectPayouts: React.FC = () => {
   const [status, setStatus] = useState<OnboardingStatus>('not_started');
   const [statusLoading, setStatusLoading] = useState(true);
   const [starting, setStarting] = useState(false);
+  const [balance, setBalance] = useState<number | null>(null);
   const sectionRef = useRef<HTMLDivElement | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const refreshBalance = useCallback(async () => {
+    if (!user?.steamId) return;
+    try {
+      const res = await stripeConnectPost(user.steamId, { action: 'get_balance' });
+      setBalance(Number(res?.data?.available_czk) || 0);
+    } catch {
+      /* leave as null — the card just omits the balance line */
+    }
+  }, [user?.steamId]);
 
   const refreshStatus = useCallback(async () => {
     if (!user?.steamId) {
@@ -58,13 +71,15 @@ const StripeConnectPayouts: React.FC = () => {
     }
     try {
       const res = await stripeConnectPost(user.steamId, { action: 'get_status' });
-      setStatus(res?.data?.onboarding_status || 'not_started');
+      const next = res?.data?.onboarding_status || 'not_started';
+      setStatus(next);
+      if (next === 'complete') refreshBalance();
     } catch {
       /* leave as-is — a failed status check shouldn't block the page */
     } finally {
       setStatusLoading(false);
     }
-  }, [user?.steamId]);
+  }, [user?.steamId, refreshBalance]);
 
   useEffect(() => {
     refreshStatus();
@@ -115,17 +130,25 @@ const StripeConnectPayouts: React.FC = () => {
         </div>
       ) : status === 'complete' ? (
         <div
-          className="rounded-2xl p-4 flex items-center gap-3 bg-emerald-500/10"
+          className="rounded-2xl p-4 bg-emerald-500/10"
           style={{ boxShadow: 'inset 0 0 0 1px rgb(16 185 129 / 0.35)' }}
         >
-          <CheckCircle2 size={20} strokeWidth={2.4} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-          <div>
-            <div className="text-[13.5px] font-bold text-ink">Payouts are set up</div>
-            <p className="text-[12px] text-ink-muted font-medium mt-0.5">
-              New sales pay out to your bank automatically once the 8-day escrow completes. Use
-              the Withdraw button on your balance page for an on-demand payout.
-            </p>
+          <div className="flex items-center gap-3">
+            <CheckCircle2 size={20} strokeWidth={2.4} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <div>
+              <div className="text-[13.5px] font-bold text-ink">Payouts are set up</div>
+              <p className="text-[12px] text-ink-muted font-medium mt-0.5">
+                New sales pay out to your bank automatically once the 8-day escrow completes. Use
+                the Withdraw button on your balance page for an on-demand payout.
+              </p>
+            </div>
           </div>
+          {balance !== null && (
+            <div className="mt-3 pt-3 flex items-center justify-between" style={{ boxShadow: 'inset 0 1px 0 0 rgb(16 185 129 / 0.2)' }}>
+              <span className="text-[12px] text-ink-muted font-semibold">Available on Stripe</span>
+              <span className="text-[15px] font-bold tabular-nums text-ink">{fmtKc(balance)}</span>
+            </div>
+          )}
         </div>
       ) : status === 'restricted' ? (
         <div

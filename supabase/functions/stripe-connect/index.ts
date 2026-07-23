@@ -309,6 +309,31 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  /* ── get_balance ───────────────────────────────────────────────── */
+  if (action === 'get_balance') {
+    const { data: acct } = await supabase
+      .from('stripe_connect_accounts')
+      .select('stripe_account_id, payouts_enabled')
+      .eq('user_id', userRow.id)
+      .maybeSingle();
+    if (!acct?.stripe_account_id || !acct.payouts_enabled) {
+      return json({ data: { available_czk: 0, pending_czk: 0 } });
+    }
+
+    const { ok, body } = await stripeV1(stripeKey, '/balance', 'GET', undefined, acct.stripe_account_id);
+    if (!ok) return json({ error: 'Could not fetch your Stripe balance' }, 502);
+
+    const sumCzk = (rows: any[]) =>
+      (rows || []).filter((b: any) => b.currency === 'czk').reduce((sum: number, b: any) => sum + b.amount, 0) / 100;
+
+    return json({
+      data: {
+        available_czk: sumCzk(body?.available),
+        pending_czk: sumCzk(body?.pending),
+      },
+    });
+  }
+
   /* ── payout ────────────────────────────────────────────────────── */
   if (action === 'payout') {
     const t = await throttle(supabase, ip, 'stripe_connect_payout', 10, 300);

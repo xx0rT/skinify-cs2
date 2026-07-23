@@ -1239,6 +1239,35 @@ const ChatPanel: React.FC<{
 };
 
 const REACTION_EMOJI = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+const RECENT_EMOJI_KEY = 'skinify_recent_reaction_emoji';
+const MAX_RECENT_EMOJI = 8;
+
+function getRecentEmoji(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_EMOJI_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.filter((e) => typeof e === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function addRecentEmoji(emoji: string): string[] {
+  const next = [emoji, ...getRecentEmoji().filter((e) => e !== emoji)].slice(0, MAX_RECENT_EMOJI);
+  try {
+    localStorage.setItem(RECENT_EMOJI_KEY, JSON.stringify(next));
+  } catch {
+    /* private mode */
+  }
+  return next;
+}
+
+/* Grapheme-aware emoji check — rejects plain text/letters typed into
+   the custom-emoji field (a lone "e" shouldn't become a "reaction").
+   Extended_Pictographic covers modern emoji including compound
+   sequences (ZWJ families, skin tones, flags) when combined with \p{M}
+   for the tone-modifier codepoints. */
+const EMOJI_ONLY_RE = /^(?:\p{Extended_Pictographic}|\p{Emoji_Presentation}|️|‍|\p{M})+$/u;
 
 const Bubble: React.FC<{
   message: DMMessage;
@@ -1261,6 +1290,10 @@ const Bubble: React.FC<{
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [moneyOfferDetailOpen, setMoneyOfferDetailOpen] = useState(false);
+  const [customEmojiOpen, setCustomEmojiOpen] = useState(false);
+  const [customEmojiValue, setCustomEmojiValue] = useState('');
+  const [recentEmoji, setRecentEmoji] = useState<string[]>(() => getRecentEmoji());
+  const customEmojiInputRef = useRef<HTMLInputElement | null>(null);
   const longPressTimer = useRef<number | null>(null);
 
   const startLongPress = () => {
@@ -1278,6 +1311,15 @@ const Bubble: React.FC<{
     if (!message.serverId) return;
     toggleReaction(peerSteamId, message.serverId, emoji);
     setPickerOpen(false);
+    setCustomEmojiOpen(false);
+    setCustomEmojiValue('');
+  };
+
+  const submitCustomEmoji = () => {
+    const trimmed = customEmojiValue.trim();
+    if (!trimmed || !EMOJI_ONLY_RE.test(trimmed)) return;
+    setRecentEmoji(addRecentEmoji(trimmed));
+    react(trimmed);
   };
 
   const reactions = message.reactions || {};
@@ -1459,7 +1501,10 @@ const Bubble: React.FC<{
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     className="fixed inset-0 z-40"
-                    onClick={() => setPickerOpen(false)}
+                    onClick={() => {
+                      setPickerOpen(false);
+                      setCustomEmojiOpen(false);
+                    }}
                   />
                   <motion.div
                     key="picker"
@@ -1467,20 +1512,78 @@ const Bubble: React.FC<{
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 4, scale: 0.92 }}
                     transition={{ type: 'spring', stiffness: 480, damping: 32 }}
-                    className={`absolute z-50 bottom-full mb-2 ${mine ? 'right-0' : 'left-0'} bg-surface ring-1 ring-line rounded-full shadow-lg px-1.5 py-1 flex items-center gap-0.5`}
+                    className={`absolute z-50 bottom-full mb-2 ${mine ? 'right-0' : 'left-0'} flex flex-col items-stretch gap-1.5`}
                   >
-                    {REACTION_EMOJI.map((emoji) => (
+                    {customEmojiOpen && (
+                      <div className="bg-surface ring-1 ring-line rounded-2xl shadow-lg p-1.5 flex items-center gap-1.5">
+                        <input
+                          ref={customEmojiInputRef}
+                          autoFocus
+                          value={customEmojiValue}
+                          onChange={(e) => setCustomEmojiValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') submitCustomEmoji();
+                            if (e.key === 'Escape') setCustomEmojiOpen(false);
+                          }}
+                          placeholder="Pick an emoji…"
+                          className="w-32 h-8 px-2.5 rounded-full bg-subtle text-[15px] text-center outline-none focus:ring-2 ring-accent/30"
+                        />
+                        <button
+                          type="button"
+                          onClick={submitCustomEmoji}
+                          disabled={!EMOJI_ONLY_RE.test(customEmojiValue.trim())}
+                          className="h-8 px-3 rounded-full bg-accent text-on-accent text-[11.5px] font-bold disabled:opacity-40 shrink-0"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="bg-surface ring-1 ring-line rounded-full shadow-lg px-1.5 py-1 flex items-center gap-0.5">
+                      {/* "+" — always first: opens a text field that takes
+                          any emoji the OS keyboard can produce, not just
+                          the fixed shortlist below. */}
                       <button
-                        key={emoji}
                         type="button"
-                        onClick={() => react(emoji)}
-                        className={`w-8 h-8 rounded-full grid place-items-center text-[16px] hover:bg-subtle hover:scale-125 transition-all ${
-                          mySteamId && reactions[emoji]?.includes(mySteamId) ? 'bg-accent-soft' : ''
+                        onClick={() => setCustomEmojiOpen((v) => !v)}
+                        aria-label="Pick your own emoji"
+                        className={`w-8 h-8 rounded-full grid place-items-center hover:bg-subtle hover:scale-125 transition-all shrink-0 ${
+                          customEmojiOpen ? 'bg-accent-soft text-accent' : 'text-ink-muted'
                         }`}
                       >
-                        {emoji}
+                        <Plus size={15} strokeWidth={2.6} />
                       </button>
-                    ))}
+
+                      {recentEmoji.length > 0 && (
+                        <div className="w-px self-stretch bg-line mx-0.5 shrink-0" />
+                      )}
+                      {recentEmoji.map((emoji) => (
+                        <button
+                          key={`recent-${emoji}`}
+                          type="button"
+                          onClick={() => react(emoji)}
+                          className={`w-8 h-8 rounded-full grid place-items-center text-[16px] hover:bg-subtle hover:scale-125 transition-all shrink-0 ${
+                            mySteamId && reactions[emoji]?.includes(mySteamId) ? 'bg-accent-soft' : ''
+                          }`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+
+                      <div className="w-px self-stretch bg-line mx-0.5 shrink-0" />
+                      {REACTION_EMOJI.map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => react(emoji)}
+                          className={`w-8 h-8 rounded-full grid place-items-center text-[16px] hover:bg-subtle hover:scale-125 transition-all shrink-0 ${
+                            mySteamId && reactions[emoji]?.includes(mySteamId) ? 'bg-accent-soft' : ''
+                          }`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
                   </motion.div>
                 </>
               )}

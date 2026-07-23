@@ -67,6 +67,8 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
   const [connectPayoutsEnabled, setConnectPayoutsEnabled] = useState(false);
   const [connectChecked, setConnectChecked] = useState(false);
   const [connectPayoutId, setConnectPayoutId] = useState<string | null>(null);
+  const [connectBalance, setConnectBalance] = useState<number | null>(null);
+  const [connectBalanceLoading, setConnectBalanceLoading] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !user?.steamId) return;
@@ -85,7 +87,35 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
           body: JSON.stringify({ action: 'get_status' }),
         });
         const body = await res.json().catch(() => ({}));
-        if (!cancelled) setConnectPayoutsEnabled(!!body?.data?.payouts_enabled);
+        const enabled = !!body?.data?.payouts_enabled;
+        if (cancelled) return;
+        setConnectPayoutsEnabled(enabled);
+
+        /* Only Connect-onboarded sellers have a real Stripe balance to
+           show — everyone else keeps reading the DB's currentBalance
+           prop exactly as before. */
+        if (enabled) {
+          setConnectBalanceLoading(true);
+          try {
+            const balRes = await fetch(`${supabaseUrl}/functions/v1/stripe-connect`, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${supabaseKey}`,
+                apikey: supabaseKey,
+                'Content-Type': 'application/json',
+                'x-steam-id': user.steamId,
+              },
+              body: JSON.stringify({ action: 'get_balance' }),
+            });
+            const balBody = await balRes.json().catch(() => ({}));
+            if (!cancelled) setConnectBalance(Number(balBody?.data?.available_czk) || 0);
+          } catch {
+            /* leave connectBalance null — amount input falls back to
+               server-side-only validation (min amount client-side). */
+          } finally {
+            if (!cancelled) setConnectBalanceLoading(false);
+          }
+        }
       } catch {
         /* best-effort — falls back to the legacy withdraw flow */
       } finally {
@@ -137,14 +167,17 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
   };
 
   /* Connect payout: no platform fee (Stripe's own payout fee applies on
-     their side, invisible to us), and the amount is validated against
-     the user's actual Stripe Connect balance server-side — the
-     `currentBalance` prop here is the legacy DB balance, which is a
-     DIFFERENT number for a Connect-onboarded seller (their sale
-     proceeds moved to Stripe via Transfer, not into current_balance).
-     We only enforce the minimum client-side; the server is the source
-     of truth on whether they actually have that much available. */
-  const connectAmountValid = parsed >= MIN_WITHDRAW;
+     their side, invisible to us). The amount is capped against
+     `connectBalance` — the seller's REAL Stripe Connect balance, fetched
+     live above — not the `currentBalance` prop, which is the legacy DB
+     balance and is a DIFFERENT, frozen number for a Connect-onboarded
+     seller (their sale proceeds move to Stripe via Transfer, never into
+     current_balance, once they're onboarded). The server re-verifies
+     against Stripe directly regardless, so this is a UX cap, not the
+     source of truth. Falls back to a min-only check if the balance
+     fetch failed (connectBalance stays null). */
+  const connectAmountValid =
+    parsed >= MIN_WITHDRAW && (connectBalance === null || parsed <= connectBalance);
 
   const submitConnectPayout = async () => {
     if (!user?.steamId || !connectAmountValid || submitting) return;
@@ -307,6 +340,22 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
                       </p>
                     </div>
 
+                    <div className="rounded-2xl bg-subtle/60 px-4 py-3 flex items-center justify-between">
+                      <span className="text-[12px] text-ink-muted font-semibold">Your Stripe balance</span>
+                      {connectBalanceLoading ? (
+                        <Loader2 size={14} className="animate-spin text-ink-dim" />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => connectBalance !== null && setAmount(String(connectBalance))}
+                          disabled={!connectBalance}
+                          className="text-[14px] font-bold tabular-nums text-ink disabled:opacity-60 hover:text-accent transition-colors"
+                        >
+                          {connectBalance !== null ? fmtKc(connectBalance) : '—'}
+                        </button>
+                      )}
+                    </div>
+
                     <div>
                       <label className="label-meta block mb-1.5">Amount</label>
                       <div className="relative">
@@ -316,6 +365,7 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
                           value={amount}
                           onChange={(e) => setAmount(e.target.value)}
                           min={MIN_WITHDRAW}
+                          max={connectBalance ?? undefined}
                           placeholder="0"
                           autoFocus
                           className="w-full h-16 bg-subtle rounded-2xl px-5 pr-14 text-[26px] font-bold tracking-tight tabular-nums text-ink outline-none focus:ring-2 focus:ring-accent/40 transition-shadow placeholder:text-ink-dim"
@@ -325,7 +375,9 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
                         </span>
                       </div>
                       <p className="text-[11px] text-ink-dim font-medium mt-1.5">
-                        Minimum {fmtKc(MIN_WITHDRAW)} · paid from your Stripe balance
+                        {connectBalance !== null && parsed > connectBalance
+                          ? 'Amount exceeds your Stripe balance.'
+                          : `Minimum ${fmtKc(MIN_WITHDRAW)} · paid from your Stripe balance`}
                       </p>
                     </div>
 
