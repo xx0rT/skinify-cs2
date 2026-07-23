@@ -17,6 +17,15 @@ interface BalanceTransaction {
 
 interface BalanceState {
   balance: number;
+  /** Pre-Connect DB balance still owed to a Connect-onboarded seller.
+   *  0 for everyone else (their DB balance IS `balance`, nothing
+   *  separate to surface). Claimable only through the legacy
+   *  withdraw-submit / admin-review flow. */
+  legacyBalance: number;
+  /** True once `balance` is a live Stripe number rather than the DB's
+   *  current_balance — drives whether the UI shows the "Legacy
+   *  balance" callout at all. */
+  stripeConnectBalance: boolean;
   pendingBalance: number;
   totalDeposited: number;
   totalSpent: number;
@@ -24,7 +33,7 @@ interface BalanceState {
   transactions: BalanceTransaction[];
   loading: boolean;
   error: string | null;
-  
+
   // Actions
   fetchBalance: (steamId: string) => Promise<void>;
   fetchTransactions: (steamId: string) => Promise<void>;
@@ -49,6 +58,8 @@ const BALANCE_RATE_LIMIT_MS = 3000;
 
 export const useBalanceStore = create<BalanceState>((set, get) => ({
   balance: 0,
+  legacyBalance: 0,
+  stripeConnectBalance: false,
   pendingBalance: 0,
   totalDeposited: 0,
   totalSpent: 0,
@@ -81,6 +92,8 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
           const data = await response.json();
           set({
             balance: data.balance || 0,
+            legacyBalance: data.legacy_balance || 0,
+            stripeConnectBalance: !!data.stripe_connect_balance,
             totalDeposited: data.total_deposited || 0,
             totalSpent: data.total_spent || 0,
             transactions: data.transactions || [],
@@ -312,6 +325,8 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
 
   reset: () => set({
     balance: 0,
+    legacyBalance: 0,
+    stripeConnectBalance: false,
     pendingBalance: 0,
     totalDeposited: 0,
     totalSpent: 0,

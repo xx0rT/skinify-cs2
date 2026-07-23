@@ -30,9 +30,12 @@ type TxFilter = 'all' | 'deposits' | 'spent' | 'received';
 const BalanceTab: React.FC = () => {
   const { user } = useAuthStore();
   const [showWithdraw, setShowWithdraw] = useState(false);
+  const [showLegacyWithdraw, setShowLegacyWithdraw] = useState(false);
   const { formatPrice } = useCurrencyStore();
   const {
     balance,
+    legacyBalance,
+    stripeConnectBalance,
     pendingBalance,
     totalDeposited,
     totalSpent,
@@ -127,6 +130,31 @@ const BalanceTab: React.FC = () => {
                 ? `+ ${formatPrice(Number(pendingBalance || 0))} čeká na uvolnění`
                 : 'Žádné prostředky v úschově'}
             </div>
+
+            {/* Pre-Connect DB balance — only shown once `balance` above
+                has switched to being the live Stripe number. Kept
+                separate and withdrawable only via the original
+                admin-review flow (forceLegacy) until it's drawn to
+                zero, rather than silently combined or hidden. */}
+            {stripeConnectBalance && Number(legacyBalance || 0) > 0 && (
+              <div className="mt-3 rounded-2xl bg-amber-500/10 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <div className="text-[11.5px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                    Starší zůstatek
+                  </div>
+                  <div className="text-[15px] font-bold tabular-nums text-ink mt-0.5">
+                    {formatPrice(Number(legacyBalance || 0))}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowLegacyWithdraw(true)}
+                  className="h-9 px-3.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-400 text-[12.5px] font-bold transition-colors"
+                >
+                  Vybrat starší zůstatek
+                </button>
+              </div>
+            )}
+
             <div className="mt-6 flex flex-wrap gap-2">
               <motion.button
                 whileTap={tap}
@@ -341,7 +369,9 @@ const BalanceTab: React.FC = () => {
       </motion.div>
 
       {/* Withdrawal request — user picks amount + payout method; the
-          request lands in the admin panel's Withdrawals queue. */}
+          request lands in the admin panel's Withdrawals queue. Auto-
+          switches to the Stripe Connect one-click flow once onboarded
+          (WithdrawModal detects this itself). */}
       <WithdrawModal
         isOpen={showWithdraw}
         onClose={() => setShowWithdraw(false)}
@@ -350,6 +380,20 @@ const BalanceTab: React.FC = () => {
           if (user?.steamId) fetchBalance(user.steamId);
         }}
         currentBalance={Number(balance || 0)}
+      />
+
+      {/* Separate instance, forced onto the legacy manual flow — for
+          drawing down pre-Connect DB funds that `balance` above no
+          longer includes once Connect is onboarded. */}
+      <WithdrawModal
+        isOpen={showLegacyWithdraw}
+        onClose={() => setShowLegacyWithdraw(false)}
+        onSuccess={() => {
+          setShowLegacyWithdraw(false);
+          if (user?.steamId) fetchBalance(user.steamId);
+        }}
+        currentBalance={Number(legacyBalance || 0)}
+        forceLegacy
       />
     </div>
   );

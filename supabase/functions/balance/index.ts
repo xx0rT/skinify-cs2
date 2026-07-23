@@ -237,18 +237,21 @@ Deno.serve(async (req) => {
 
       /* Connect-onboarded sellers: new sale proceeds move to their real
          Stripe balance instead of current_balance (see
-         auto-escrow-release), so their true spendable total is
-         current_balance (legacy/pre-Connect funds, still spendable) +
-         their live Stripe balance (new funds). Adding them here, in the
-         one place every client reads balance from, means the whole app
-         (header, profile, checkout affordability) sees one combined
-         number without each caller needing its own Stripe fetch, and
-         nothing is ever hidden or stranded in either pot. */
+         auto-escrow-release), so `balance` (the main, "spendable today"
+         number shown everywhere) becomes their live Stripe balance once
+         they're onboarded — current_balance stops being the source of
+         truth for them. Any pre-Connect DB balance isn't erased or
+         combined in though: it's surfaced separately as
+         `legacy_balance`, still claimable through the original
+         withdraw-submit/admin-review flow until it's drawn down to
+         zero. */
       const connectBalance = await getConnectBalanceCzk(supabase, user.id);
+      const isConnectOnboarded = connectBalance !== null;
 
       return new Response(
         JSON.stringify({
-          balance: Number(user.current_balance || 0) + (connectBalance || 0),
+          balance: isConnectOnboarded ? connectBalance : Number(user.current_balance || 0),
+          legacy_balance: isConnectOnboarded ? Number(user.current_balance || 0) : 0,
           pending_balance: Number(user.pending_balance || 0),
           total_deposited: Number(user.total_deposited || 0),
           total_spent: Number(user.total_spent || 0),
@@ -256,7 +259,7 @@ Deno.serve(async (req) => {
           currency: user.currency || 'CZK',
           transactions: transactions || [],
           last_updated: user.updated_at,
-          stripe_connect_balance: connectBalance !== null,
+          stripe_connect_balance: isConnectOnboarded,
         }),
         {
           headers: { 'Content-Type': 'application/json', ...corsHeaders },
