@@ -510,12 +510,17 @@ export const DepositModal: React.FC = () => {
                 setOpen(false);
               }
             }}
-            className="deposit-modal-root fixed inset-x-0 bottom-0 z-[90] bg-bg text-ink flex flex-col overflow-hidden rounded-t-[28px] shadow-[0_-24px_60px_-12px_rgba(0,0,0,0.5)] lg:inset-0 lg:m-auto lg:w-[min(1080px,94vw)] lg:rounded-[24px] lg:shadow-2xl"
+            className={`deposit-modal-root fixed inset-x-0 bottom-0 z-[90] bg-bg text-ink flex flex-col overflow-hidden rounded-t-[28px] shadow-[0_-24px_60px_-12px_rgba(0,0,0,0.5)] lg:inset-0 lg:m-auto lg:rounded-[24px] lg:shadow-2xl ${
+              /* Checkout is a single ~480px column, so on desktop it
+                 shows as a compact centred dialog instead of a wide
+                 two-column sheet with an empty right half. */
+              step === 'checkout' ? 'lg:w-[min(560px,94vw)]' : 'lg:w-[min(1080px,94vw)]'
+            }`}
           >
             <style>{`
               .deposit-modal-root { height: 92dvh; }
               @media (min-width: 1024px) {
-                .deposit-modal-root { height: min(760px, 94dvh); }
+                .deposit-modal-root { height: ${step === 'checkout' ? 'min(720px, 90dvh)' : 'min(760px, 94dvh)'}; }
               }
             `}</style>
 
