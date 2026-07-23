@@ -448,11 +448,17 @@ export const DepositModal: React.FC = () => {
             backgroundColor: surface,
             border: `1px solid ${line}`,
             boxShadow: 'none',
+            color: ink,
           },
           '.AccordionItem--selected': {
             backgroundColor: subtle,
             border: `1px solid ${line}`,
+            color: ink,
           },
+          /* Accordion header label + icon default to colorPrimary
+             (accent purple) when selected — force them to plain ink so
+             "Card" / "PayPal" read as normal text, not links. */
+          '.AccordionItem .Label, .AccordionItemHeader': { color: ink },
           '.Input': {
             backgroundColor: subtle,
             border: `1px solid ${line}`,
@@ -462,11 +468,27 @@ export const DepositModal: React.FC = () => {
             border: `1px solid ${rgb('--accent', '#6d4aff')}`,
             boxShadow: 'none',
           },
+          '.Input::placeholder': { color: inkMuted },
           '.Label': { color: inkMuted },
-          '.Tab, .Block': {
+          '.Tab': {
             backgroundColor: surface,
             border: `1px solid ${line}`,
+            color: ink,
           },
+          '.CheckboxInput': {
+            backgroundColor: subtle,
+            border: `1px solid ${line}`,
+          },
+          '.Dropdown, .DropdownItem, .PickerItem': {
+            backgroundColor: subtle,
+            border: `1px solid ${line}`,
+            color: ink,
+          },
+          /* Stripe Link's inline UI defaults to a light panel + accent
+             text — pin it to the dark tokens as a fallback in case a
+             Link block still renders despite email: 'never'. */
+          '.Block': { backgroundColor: subtle, border: `1px solid ${line}` },
+          '.BlockDivider': { backgroundColor: line },
         },
       },
     };
@@ -930,6 +952,11 @@ const StripeCheckoutForm: React.FC<{
                couldn't see EPS / PayPal / bank options at a glance. */
             layout: { type: 'accordion', defaultCollapsed: false, spacedAccordionItems: true },
             wallets: { applePay: 'auto', googlePay: 'auto' },
+            /* Don't collect the email field inside the card form — it's
+               what triggers Stripe Link's "Save my information" block
+               (the light panel + purple "checkout with Link" text that
+               clashed with the dark theme). */
+            fields: { billingDetails: { email: 'never' } },
           }}
         />
       </div>
@@ -940,21 +967,30 @@ const StripeCheckoutForm: React.FC<{
         </div>
       )}
 
-      <motion.button
-        whileTap={tap}
-        onClick={pay}
-        disabled={!stripe || !elements || paying || !ready}
-        className="mt-4 w-full h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity hover:opacity-95"
-      >
-        {paying ? (
-          <>
-            <Loader2 size={15} strokeWidth={2.4} className="animate-spin" />
-            Processing…
-          </>
-        ) : (
-          `Pay ${amountLabel}`
-        )}
-      </motion.button>
+      {/* Sticky pay bar — a cross-origin Stripe iframe swallows wheel
+          events, so once a tall method (Pay by Bank's bank grid, card +
+          Link email) expands, the user can't scroll down to reach a Pay
+          button that sits after the iframe. Pinning it to the bottom of
+          the scroll container keeps it reachable without scrolling past
+          the iframe. The subtle bg + blur separates it from the form. */}
+      <div className="sticky bottom-0 -mx-4 sm:-mx-8 mt-4 px-4 sm:px-8 pt-3 pb-1 bg-bg/95 backdrop-blur-md">
+        <motion.button
+          whileTap={tap}
+          onClick={pay}
+          disabled={!stripe || !elements || paying || !ready}
+          className="w-full h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity hover:opacity-95"
+          style={{ boxShadow: '0 10px 24px -12px rgb(var(--accent) / 0.65)' }}
+        >
+          {paying ? (
+            <>
+              <Loader2 size={15} strokeWidth={2.4} className="animate-spin" />
+              Processing…
+            </>
+          ) : (
+            `Pay ${amountLabel}`
+          )}
+        </motion.button>
+      </div>
     </div>
   );
 };
