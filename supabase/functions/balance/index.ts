@@ -136,6 +136,42 @@ async function createBalanceTransaction(
 }
 
 /**
+ * For a Connect-onboarded seller, their real balance lives on Stripe
+ * (sale proceeds move there via Transfer, never into current_balance —
+ * see auto-escrow-release), so current_balance is a stale/legacy number
+ * for them. Returns the live Stripe available balance in CZK, or null
+ * if the user isn't Connect-onboarded / payouts aren't enabled / the
+ * Stripe call fails — callers fall back to current_balance in that case.
+ */
+async function getConnectBalanceCzk(supabase: any, userId: string): Promise<number | null> {
+  const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
+  if (!stripeKey) return null;
+
+  const { data: acct } = await supabase
+    .from('stripe_connect_accounts')
+    .select('stripe_account_id, payouts_enabled')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (!acct?.stripe_account_id || !acct.payouts_enabled) return null;
+
+  try {
+    const res = await fetch('https://api.stripe.com/v1/balance', {
+      headers: {
+        Authorization: `Basic ${btoa(stripeKey + ':')}`,
+        'Stripe-Account': acct.stripe_account_id,
+      },
+    });
+    if (!res.ok) return null;
+    const body = await res.json();
+    const sumCzk = (rows: any[]) =>
+      (rows || []).filter((b: any) => b.currency === 'czk').reduce((s: number, b: any) => s + b.amount, 0) / 100;
+    return sumCzk(body?.available);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Main balance handler
  */
 Deno.serve(async (req) => {
@@ -199,18 +235,30 @@ Deno.serve(async (req) => {
         console.warn('user_transactions threw (returning []):', txError);
       }
 
+      /* Connect-onboarded sellers: new sale proceeds move to their real
+         Stripe balance instead of current_balance (see
+         auto-escrow-release), so their true spendable total is
+         current_balance (legacy/pre-Connect funds, still spendable) +
+         their live Stripe balance (new funds). Adding them here, in the
+         one place every client reads balance from, means the whole app
+         (header, profile, checkout affordability) sees one combined
+         number without each caller needing its own Stripe fetch, and
+         nothing is ever hidden or stranded in either pot. */
+      const connectBalance = await getConnectBalanceCzk(supabase, user.id);
+
       return new Response(
         JSON.stringify({
-          balance: Number(user.current_balance || 0),
+          balance: Number(user.current_balance || 0) + (connectBalance || 0),
           pending_balance: Number(user.pending_balance || 0),
           total_deposited: Number(user.total_deposited || 0),
           total_spent: Number(user.total_spent || 0),
           total_earned: Number(user.total_earned || 0),
           currency: user.currency || 'CZK',
           transactions: transactions || [],
-          last_updated: user.updated_at
+          last_updated: user.updated_at,
+          stripe_connect_balance: connectBalance !== null,
         }),
-        { 
+        {
           headers: { 'Content-Type': 'application/json', ...corsHeaders },
           status: 200
         }

@@ -21,7 +21,6 @@ import {
 import QRCode from 'qrcode';
 import { Monitor as MonitorIcon, MapPin } from 'lucide-react';
 import { listDevices, revokeDevice, isCurrentDevice, DeviceRow } from '../../utils/twoFactor';
-import KycVerification from './KycVerification';
 import StripeConnectPayouts from './StripeConnectPayouts';
 import { useAuthStore } from '../../store/authStore';
 import { useToastStore } from '../../store/toastStore';
@@ -849,9 +848,6 @@ const SettingsTab: React.FC = () => {
           </div>
         )}
       </Section>
-
-      {/* ───── Identity verification (KYC) ────────────────────── */}
-      <KycVerification />
 
       {/* ───── Stripe Connect payouts ──────────────────────────── */}
       <StripeConnectPayouts />

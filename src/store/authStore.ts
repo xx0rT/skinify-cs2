@@ -22,10 +22,6 @@ export interface AuthUser {
   tradeLink?: string;
   referred_by?: string;
   referral_code?: string;
-  /** Identity verification (KYC) status. Required — alongside a linked
-      Steam account + trade link — before an email/credentials user can
-      buy. Steam-OpenID users are considered pre-verified by Steam. */
-  kycVerified?: boolean;
 }
 
 interface AuthState {

@@ -62,7 +62,7 @@ const CartPage: React.FC = () => {
      confetti / "order placed" frame) before routing the user away.
      The route push is deferred 1.4s so the user reads the success cue. */
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
-  /* Buy-gate: unmet requirements (Steam link / trade URL / KYC) that must
+  /* Buy-gate: unmet requirements (Steam link / trade URL) that must
      be satisfied before checkout can proceed. */
   const [buyGate, setBuyGate] = useState<BuyRequirement[] | null>(null);
 
@@ -92,8 +92,8 @@ const CartPage: React.FC = () => {
       addToast({ type: 'warning', title: 'Login required', message: 'Sign in to check out.' });
       return;
     }
-    /* Gate: email/credentials users must link Steam, add a trade URL, and
-       pass KYC before buying. Steam-OpenID users clear the Steam step
+    /* Gate: email/credentials users must link Steam and add a trade URL
+       before buying. Steam-OpenID users clear the Steam step
        inherently but still need a trade link. */
     const reqs = getBuyRequirements(user);
     if (reqs.length > 0) {

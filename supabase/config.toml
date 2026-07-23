@@ -441,8 +441,6 @@ verify_jwt = false
 verify_jwt = false
 [functions.steam-item]
 verify_jwt = false
-[functions.sumsub-kyc]
-verify_jwt = false
 
 # Stripe Connect — same x-steam-id pattern as the DM/withdraw functions
 # for stripe-connect itself. stripe-connect-webhook is called directly

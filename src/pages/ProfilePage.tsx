@@ -4,7 +4,6 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Bell,
   ChevronRight,
-  FileCheck,
   Gift,
   MessageCircle,
   LayoutGrid,
@@ -15,7 +14,6 @@ import {
   Users,
   Wallet,
 } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
 import { useAuthStore } from '../store/authStore';
 import { useBalanceStore } from '../store/balanceStore';
 import { useOrderStore } from '../store/orderStore';
@@ -736,45 +734,6 @@ const OverviewTab: React.FC<{
   const navigate = useNavigate();
   const recentTx = (transactions || []).slice(0, 6);
 
-  /* KYC status — the banner used to always say "Dokončit" even for
-     verified users. Seed from the auth store, confirm via sumsub-kyc
-     (same source Settings uses) and flip the row to a success state. */
-  const authUser = useAuthStore((st) => st.user);
-  const patchUser = useAuthStore((st) => (st as any).patchUser);
-  const [kycVerified, setKycVerified] = useState<boolean>(!!(authUser as any)?.kycVerified);
-  useEffect(() => {
-    if (kycVerified) return;
-    let alive = true;
-    (async () => {
-      try {
-        const { getSupabaseCredentials } = await import('../utils/supabaseHelpers');
-        const { supabaseUrl, supabaseKey } = getSupabaseCredentials();
-        const steamId = (authUser as any)?.steamId;
-        const { data: { session } } = await supabase.auth.getSession();
-        const res = await fetch(`${supabaseUrl}/functions/v1/sumsub-kyc`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session?.access_token || supabaseKey}`,
-            ...(steamId ? { 'X-Steam-Id': steamId } : {}),
-          },
-          body: JSON.stringify({ action: 'status' }),
-        });
-        const body = await res.json().catch(() => ({}));
-        if (alive && res.ok && body?.verified) {
-          setKycVerified(true);
-          patchUser?.({ kycVerified: true });
-        }
-      } catch {
-        /* keep CTA */
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   return (
     <motion.div
       variants={overviewParent}
@@ -933,40 +892,6 @@ const OverviewTab: React.FC<{
           </p>
         )}
       </motion.div>
-
-      {/* ── Identity verification ── */}
-      <OverviewRow
-        variants={overviewChild}
-        Icon={FileCheck}
-        iconClass={kycVerified ? 'text-emerald-600 dark:text-emerald-400' : 'text-accent'}
-        chipClass={kycVerified ? 'bg-emerald-500/12' : 'bg-accent-soft'}
-        label={tr('profile.kyc.title', 'Identity Verification')}
-        text={
-          kycVerified
-            ? 'Vaše totožnost je ověřená — můžete obchodovat bez limitů.'
-            : tr('profile.kyc.text', 'Complete KYC to enjoy limitless trading.')
-        }
-        action={
-          kycVerified ? (
-            <span className="h-10 px-4 rounded-full bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 text-[13px] font-bold inline-flex items-center">
-              Ověřeno
-            </span>
-          ) : (
-            <motion.button
-              whileTap={tap}
-              onClick={() =>
-                /* Go to Settings → Account AND flag `verify=1` so the KYC
-                   section auto-launches the Sumsub flow (previously this just
-                   switched tabs and did nothing). */
-                navigate('/profile?tab=settings&sub=profile&verify=1')
-              }
-              className="h-10 px-4 rounded-full bg-accent text-on-accent text-[13px] font-bold transition-opacity hover:opacity-90"
-            >
-              {tr('profile.kyc.cta', 'Complete')}
-            </motion.button>
-          )
-        }
-      />
 
       {/* ── Your account ── */}
       <motion.div variants={overviewChild} className="label-eyebrow pt-4 pb-1">

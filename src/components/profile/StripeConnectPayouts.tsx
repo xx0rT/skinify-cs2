@@ -10,13 +10,14 @@ import { tap } from '../../lib/motion';
 /* ─────────────────────────────────────────────────────────────────────────
    StripeConnectPayouts — Settings section for Stripe Connect onboarding.
 
-   Structured the same way as KycVerification.tsx: a self-contained card
-   with its own fetch lifecycle, dropped into SettingsTab.tsx. Unlike
-   KYC (which uses an embedded Sumsub WebSDK modal), Connect onboarding
-   is a full hosted Stripe flow — clicking "Set up payouts" navigates
-   away to connect.stripe.com and the user lands back on
-   /profile?tab=settings&sub=payouts when done (return_url configured
-   server-side in stripe-connect's start_onboarding action).
+   A self-contained card with its own fetch lifecycle, dropped into
+   SettingsTab.tsx. Connect onboarding is a full hosted Stripe flow —
+   clicking "Set up payouts" navigates away to connect.stripe.com and the
+   user lands back on /profile?tab=settings&sub=payouts when done
+   (return_url configured server-side in stripe-connect's
+   start_onboarding action). Stripe's own KYC/identity check during this
+   flow is the only identity verification in the app — Skinify doesn't
+   run a separate one.
 
    This is entirely opt-in: withdrawing still works the old way
    (WithdrawModal's manual IBAN/card/PayPal form) for anyone who never

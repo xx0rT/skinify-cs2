@@ -51,7 +51,7 @@ const sections: LegalSection[] = [
           <li>Identifikační a kontaktní údaje: jméno/přezdívka, e-mail, Steam ID a veřejný Steam profil</li>
           <li>Transakční údaje: historie objednávek, dobití, výběrů a obchodů</li>
           <li>Platební údaje: identifikátory plateb od poskytovatele Stripe (čísla karet neukládáme)</li>
-          <li>Údaje pro ověření totožnosti (KYC) u vyšších objemů: doklad totožnosti zpracovaný ověřovacím partnerem</li>
+          <li>Údaje pro ověření totožnosti (KYC) při výběru prostředků: doklad totožnosti a bankovní údaje zpracované společností Stripe v rámci Stripe Connect</li>
           <li>Technické údaje: IP adresa, typ zařízení a prohlížeče, protokoly o přihlášení a aktivitě</li>
         </ul>
       </>
@@ -99,10 +99,9 @@ const sections: LegalSection[] = [
       <>
         <p>Osobní údaje sdílíme pouze v nezbytném rozsahu s těmito kategoriemi příjemců:</p>
         <ul className="list-disc pl-5 space-y-1.5">
-          <li><span className="font-semibold text-ink">Stripe Payments Europe, Ltd.</span> — zpracování online plateb a vracení peněz</li>
+          <li><span className="font-semibold text-ink">Stripe Payments Europe, Ltd.</span> — zpracování online plateb, výběrů prostředků a ověření totožnosti (KYC) prodejců v rámci Stripe Connect</li>
           <li><span className="font-semibold text-ink">Supabase Inc.</span> — hosting databáze a aplikační infrastruktury</li>
           <li><span className="font-semibold text-ink">Brevo (Sendinblue SAS)</span> — odesílání transakčních e-mailů</li>
-          <li><span className="font-semibold text-ink">Sumsub</span> — ověření totožnosti (KYC) tam, kde je vyžadováno zákonem</li>
           <li><span className="font-semibold text-ink">Valve Corporation (Steam)</span> — doručování předmětů přes Steam trade</li>
           <li>Orgány veřejné moci, pokud to vyžaduje právní předpis</li>
         </ul>

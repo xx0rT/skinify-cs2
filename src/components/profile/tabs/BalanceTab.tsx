@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
+  ChevronLeft,
+  ChevronRight,
   Coins,
   RefreshCw,
   Search,
@@ -71,8 +73,7 @@ const BalanceTab: React.FC = () => {
           String(tx.description || '').toLowerCase().includes(q) ||
           String(tx.type || '').toLowerCase().includes(q)
         );
-      })
-      .slice(0, 200);
+      });
   }, [transactions, filter, query]);
 
   /* Pagination — the list used to hard-cap at 50 rows with no way to
@@ -242,7 +243,7 @@ const BalanceTab: React.FC = () => {
         ) : (
           <ul className="divide-y divide-line">
             <AnimatePresence initial={false}>
-              {filtered.map((tx: any) => {
+              {paged.map((tx: any) => {
                 const positive = ['deposit', 'sale', 'refund'].includes(String(tx.type));
                 return (
                   <motion.li
@@ -295,6 +296,49 @@ const BalanceTab: React.FC = () => {
               })}
             </AnimatePresence>
           </ul>
+        )}
+
+        {filtered.length > 0 && (
+          <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-line flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11.5px] text-ink-dim font-medium">Na stránku</span>
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <button
+                  key={size}
+                  onClick={() => setPageSize(size)}
+                  className={`h-7 px-2.5 rounded-full text-[11.5px] font-bold tabular-nums transition-colors ${
+                    pageSize === size
+                      ? 'bg-accent text-on-accent'
+                      : 'bg-subtle text-ink-muted hover:text-ink'
+                  }`}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11.5px] text-ink-dim font-medium tabular-nums">
+                Strana {page + 1} z {pageCount}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                aria-label="Předchozí strana"
+                className="icon-chip-sm hover:bg-subtle disabled:opacity-30 disabled:pointer-events-none"
+              >
+                <ChevronLeft size={14} strokeWidth={2.4} />
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                disabled={page >= pageCount - 1}
+                aria-label="Další strana"
+                className="icon-chip-sm hover:bg-subtle disabled:opacity-30 disabled:pointer-events-none"
+              >
+                <ChevronRight size={14} strokeWidth={2.4} />
+              </button>
+            </div>
+          </div>
         )}
       </motion.div>
 

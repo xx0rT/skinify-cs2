@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { X, Link2, ShieldCheck, Send, Check } from 'lucide-react';
+import { X, Link2, Send, Check } from 'lucide-react';
 import { useAuthStore, AuthUser } from '../../store/authStore';
 import { tap } from '../../lib/motion';
 
@@ -11,15 +11,19 @@ import { tap } from '../../lib/motion';
    An email/credentials user must, before they can buy:
      1. Link a Steam account   (so we know where to send skins)
      2. Have a Steam trade URL  (the actual delivery target)
-     3. Pass KYC / identity verification
 
    Steam-OpenID users satisfy (1) inherently; they still need a trade link.
    Every purchase path routes through `checkBuyEligibility` — when it
    returns requirements, callers open <BuyGate> instead of proceeding.
+
+   No identity (KYC) check here — sellers go through Stripe Connect's own
+   KYC when they set up payouts, which covers identity verification for
+   money leaving the platform without Skinify running a duplicate check
+   on the buy side.
    ───────────────────────────────────────────────────────────────────────── */
 
 export interface BuyRequirement {
-  key: 'steam' | 'trade' | 'kyc';
+  key: 'steam' | 'trade';
   label: string;
   desc: string;
 }
@@ -42,13 +46,6 @@ export function getBuyRequirements(user: AuthUser | null): BuyRequirement[] {
       desc: 'This is the exact delivery target sellers use to send you items.',
     });
   }
-  if (!user.kycVerified) {
-    reqs.push({
-      key: 'kyc',
-      label: 'Verify your identity (KYC)',
-      desc: 'A one-time identity check is required before your first purchase.',
-    });
-  }
   return reqs;
 }
 
@@ -60,7 +57,6 @@ export function canBuy(user: AuthUser | null): boolean {
 const ICONS: Record<BuyRequirement['key'], React.ComponentType<any>> = {
   steam: Link2,
   trade: Send,
-  kyc: ShieldCheck,
 };
 
 const BuyGate: React.FC<{
@@ -71,16 +67,9 @@ const BuyGate: React.FC<{
   const navigate = useNavigate();
   const { user } = useAuthStore();
 
-  const go = (key: BuyRequirement['key']) => {
+  const go = () => {
     onClose();
-    if (key === 'steam') {
-      // Steam OpenID begin — same entry the login button uses.
-      navigate('/profile?tab=settings&sub=profile');
-    } else if (key === 'trade') {
-      navigate('/profile?tab=settings&sub=profile');
-    } else {
-      navigate('/profile?tab=settings&sub=profile&verify=1');
-    }
+    navigate('/profile?tab=settings&sub=profile');
   };
 
   return (
@@ -129,7 +118,7 @@ const BuyGate: React.FC<{
                 return (
                   <button
                     key={r.key}
-                    onClick={() => go(r.key)}
+                    onClick={go}
                     className="w-full flex items-center gap-3.5 rounded-2xl bg-subtle/60 hover:bg-subtle p-3.5 text-left transition-colors group"
                   >
                     <div className="w-10 h-10 rounded-2xl bg-accent/12 grid place-items-center shrink-0">
@@ -151,7 +140,7 @@ const BuyGate: React.FC<{
 
             <div className="px-5 pb-5">
               <button
-                onClick={() => go(requirements[0]?.key || 'steam')}
+                onClick={go}
                 className="w-full h-12 rounded-full bg-accent text-on-accent font-bold text-[14px] inline-flex items-center justify-center gap-2"
                 style={{ boxShadow: '0 10px 24px -12px rgb(var(--accent) / 0.7)' }}
               >
