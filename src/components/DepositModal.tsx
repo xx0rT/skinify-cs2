@@ -882,7 +882,11 @@ const StripeCheckoutForm: React.FC<{
         <PaymentElement
           onReady={() => setReady(true)}
           options={{
-            layout: 'tabs',
+            /* Accordion lists every available method stacked and
+               labelled, instead of the `tabs` layout that hid the
+               overflow methods behind a small "⌄" more button — users
+               couldn't see EPS / PayPal / bank options at a glance. */
+            layout: { type: 'accordion', defaultCollapsed: false, spacedAccordionItems: true },
             wallets: { applePay: 'auto', googlePay: 'auto' },
           }}
         />
