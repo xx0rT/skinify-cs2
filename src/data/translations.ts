@@ -439,10 +439,14 @@ export const translations: Record<string, Record<string, string>> = {
 
     // Deposit modal
     'deposit.title': 'Add funds to your Skinify balance',
+    'deposit.title.card': 'Deposit with card or wallet',
+    'deposit.checkout.title': 'Complete your payment',
     'deposit.amount': 'Amount',
     'deposit.amount.minHint': 'Minimum deposit is {min} CZK',
     'deposit.method': 'Payment method',
     'deposit.method.pick': 'Pick how you want to pay',
+    'deposit.method.stripe': 'Pay securely with Stripe',
+    'deposit.method.note': 'You choose the exact method on the next step. Payments are processed by Stripe with 3D Secure where your bank requires it.',
     'deposit.summary.youPay': 'You pay',
     'deposit.summary.fee': 'Fee',
     'deposit.summary.noFee': 'No fee',
@@ -452,6 +456,11 @@ export const translations: Record<string, Record<string, string>> = {
     'deposit.cta.enterAmount': 'Enter an amount',
     'deposit.cta.processing': 'Processing…',
     'deposit.disclaimer': 'Skinify never sees your card details. Payments are encrypted and processed by your provider.',
+    'deposit.disclaimer.stripe': 'Card details go directly to Stripe — Skinify never sees them.',
+    'deposit.disclaimer.eur': 'Charged in EUR at the current exchange rate; your balance is credited in CZK.',
+    'deposit.success.title': 'Deposit successful',
+    'deposit.success.msg': 'Your balance has been credited.',
+    'deposit.promo.applied': 'Bonus applied',
     'deposit.promo.active': 'Active',
     'deposit.promo.copy': '+10% bonus on your first deposit · auto-applied',
 
@@ -1174,10 +1183,14 @@ export const translations: Record<string, Record<string, string>> = {
 
     // Deposit modal
     'deposit.title': 'Dobít zůstatek na Skinify',
+    'deposit.title.card': 'Dobít kartou nebo peněženkou',
+    'deposit.checkout.title': 'Dokončete platbu',
     'deposit.amount': 'Částka',
     'deposit.amount.minHint': 'Minimální vklad je {min} CZK',
     'deposit.method': 'Platební metoda',
     'deposit.method.pick': 'Vyberte způsob platby',
+    'deposit.method.stripe': 'Bezpečná platba přes Stripe',
+    'deposit.method.note': 'Přesnou metodu zvolíte v dalším kroku. Platby zpracovává Stripe s 3D Secure tam, kde to vaše banka vyžaduje.',
     'deposit.summary.youPay': 'Zaplatíte',
     'deposit.summary.fee': 'Poplatek',
     'deposit.summary.noFee': 'Bez poplatku',
@@ -1187,6 +1200,11 @@ export const translations: Record<string, Record<string, string>> = {
     'deposit.cta.enterAmount': 'Zadejte částku',
     'deposit.cta.processing': 'Zpracování…',
     'deposit.disclaimer': 'Skinify nikdy nevidí údaje o vaší kartě. Platby jsou šifrované a zpracovávané vaším poskytovatelem.',
+    'deposit.disclaimer.stripe': 'Údaje o kartě jdou přímo do Stripe — Skinify je nikdy nevidí.',
+    'deposit.disclaimer.eur': 'Účtováno v EUR aktuálním kurzem; zůstatek se připíše v CZK.',
+    'deposit.success.title': 'Vklad proběhl',
+    'deposit.success.msg': 'Váš zůstatek byl připsán.',
+    'deposit.promo.applied': 'Bonus přidán',
     'deposit.promo.active': 'Aktivní',
     'deposit.promo.copy': '+10% bonus na první vklad · automaticky',
 
