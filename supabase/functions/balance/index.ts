@@ -237,21 +237,17 @@ Deno.serve(async (req) => {
 
       /* Connect-onboarded sellers: new sale proceeds move to their real
          Stripe balance instead of current_balance (see
-         auto-escrow-release), so `balance` (the main, "spendable today"
-         number shown everywhere) becomes their live Stripe balance once
-         they're onboarded — current_balance stops being the source of
-         truth for them. Any pre-Connect DB balance isn't erased or
-         combined in though: it's surfaced separately as
-         `legacy_balance`, still claimable through the original
-         withdraw-submit/admin-review flow until it's drawn down to
-         zero. */
+         auto-escrow-release), so `balance` (the main number shown
+         everywhere) becomes their live Stripe balance once they're
+         onboarded — current_balance stops being the source of truth for
+         them. Any pre-Connect DB balance stays in the DB untouched but
+         isn't surfaced here. */
       const connectBalance = await getConnectBalanceCzk(supabase, user.id);
       const isConnectOnboarded = connectBalance !== null;
 
       return new Response(
         JSON.stringify({
           balance: isConnectOnboarded ? connectBalance : Number(user.current_balance || 0),
-          legacy_balance: isConnectOnboarded ? Number(user.current_balance || 0) : 0,
           pending_balance: Number(user.pending_balance || 0),
           total_deposited: Number(user.total_deposited || 0),
           total_spent: Number(user.total_spent || 0),

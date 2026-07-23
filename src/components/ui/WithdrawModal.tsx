@@ -33,12 +33,6 @@ interface WithdrawModalProps {
   onClose: () => void;
   onSuccess: () => void;
   currentBalance: number;
-  /** Skip the Stripe Connect auto-detection and always render the
-   *  manual 3-step flow (amount → method → admin-review submit).
-   *  Used for the "Legacy balance" withdraw button — pre-Connect DB
-   *  funds are only ever claimable through the original flow, even for
-   *  a seller who has since onboarded to Connect for new sales. */
-  forceLegacy?: boolean;
 }
 
 const MIN_WITHDRAW = 100;
@@ -60,7 +54,6 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
   onClose,
   onSuccess,
   currentBalance,
-  forceLegacy,
 }) => {
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
@@ -78,7 +71,7 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
   const [connectBalanceLoading, setConnectBalanceLoading] = useState(false);
 
   useEffect(() => {
-    if (!isOpen || !user?.steamId || forceLegacy) return;
+    if (!isOpen || !user?.steamId) return;
     let cancelled = false;
     (async () => {
       try {
@@ -130,7 +123,7 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, user?.steamId, forceLegacy]);
+  }, [isOpen, user?.steamId]);
 
   useBodyScrollLock(isOpen);
   useEffect(() => {

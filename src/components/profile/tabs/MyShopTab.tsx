@@ -8,7 +8,6 @@ import {
   Eye,
   EyeOff,
   Edit3,
-  TrendingUp,
   ShoppingBag,
   Check,
   Plus,
@@ -27,7 +26,6 @@ import {
 import { supabase } from '../../../lib/supabaseClient';
 import { useAuthStore } from '../../../store/authStore';
 import { useToastStore } from '../../../store/toastStore';
-import { useCurrencyStore } from '../../../store/currencyStore';
 import { spring, tap } from '../../../lib/motion';
 import { useBodyScrollLock } from '../../../hooks/useBodyScrollLock';
 import { AnimatePresence } from 'framer-motion';
@@ -158,9 +156,7 @@ const MyShopTab: React.FC<{ onNavigateToListings: () => void }> = ({
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
-  const { formatPrice } = useCurrencyStore();
   const [shop, setShop] = useState<Shop | null>(null);
-  const [listingCount, setListingCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -191,15 +187,6 @@ const MyShopTab: React.FC<{ onNavigateToListings: () => void }> = ({
 
         if (cancelled) return;
         setShop(shopRow as Shop | null);
-
-        if (shopRow) {
-          const { count } = await supabase
-            .from('marketplace_listings')
-            .select('id', { count: 'exact', head: true })
-            .eq('user_id', u.id)
-            .eq('is_active', true);
-          if (!cancelled) setListingCount(count || 0);
-        }
       } catch (err) {
         console.error('[my-shop] load failed', err);
       } finally {
@@ -423,15 +410,6 @@ const MyShopTab: React.FC<{ onNavigateToListings: () => void }> = ({
         </div>
       </motion.div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="Views"     value={(shop.total_views || 0).toLocaleString()}                    Icon={Eye} />
-        <KpiCard label="Sales"     value={(shop.total_sales || 0).toLocaleString()}                    Icon={ShoppingBag} />
-        <KpiCard label="Revenue"   value={formatPrice(Number(shop.total_revenue || 0))}                Icon={TrendingUp} />
-        <KpiCard label="Listings"  value={listingCount.toLocaleString()}                                Icon={Store}
-                 sub={listingCount === 0 ? 'Add some to your shop' : undefined} />
-      </div>
-
       {/* Quick actions */}
       <div className="card p-5 md:p-6">
         <span className="label-eyebrow">Quick actions</span>
@@ -482,25 +460,6 @@ const MyShopTab: React.FC<{ onNavigateToListings: () => void }> = ({
   );
 };
 
-const KpiCard: React.FC<{
-  label: string;
-  value: string;
-  Icon: React.ComponentType<any>;
-  sub?: string;
-}> = ({ label, value, Icon, sub }) => (
-  <motion.div whileHover={{ y: -2 }} transition={spring} className="card p-4">
-    <div className="flex items-start justify-between mb-3">
-      <span className="label-meta">{label}</span>
-      <div className="icon-chip-sm bg-accent-soft">
-        <Icon size={14} strokeWidth={2.2} className="text-accent" />
-      </div>
-    </div>
-    <div className="text-[22px] font-bold tracking-tight tabular-nums text-ink leading-none">
-      {value}
-    </div>
-    {sub && <div className="text-[11.5px] text-ink-dim font-medium mt-1.5">{sub}</div>}
-  </motion.div>
-);
 
 const ActionRow: React.FC<{
   Icon: React.ComponentType<any>;
