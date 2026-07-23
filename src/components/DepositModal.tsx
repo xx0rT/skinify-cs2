@@ -952,11 +952,6 @@ const StripeCheckoutForm: React.FC<{
                couldn't see EPS / PayPal / bank options at a glance. */
             layout: { type: 'accordion', defaultCollapsed: false, spacedAccordionItems: true },
             wallets: { applePay: 'auto', googlePay: 'auto' },
-            /* Don't collect the email field inside the card form — it's
-               what triggers Stripe Link's "Save my information" block
-               (the light panel + purple "checkout with Link" text that
-               clashed with the dark theme). */
-            fields: { billingDetails: { email: 'never' } },
           }}
         />
       </div>
