@@ -14,6 +14,7 @@ import {
   Users,
   Wallet,
 } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
 import { useAuthStore } from '../store/authStore';
 import { useBalanceStore } from '../store/balanceStore';
 import { useOrderStore } from '../store/orderStore';
@@ -731,7 +732,6 @@ const OverviewTab: React.FC<{
   transactions: any[];
 }> = ({ balance, onGoTo, formatPrice, user, joinedAt, transactions }) => {
   const tr = useT();
-  const navigate = useNavigate();
   const recentTx = (transactions || []).slice(0, 6);
 
   return (

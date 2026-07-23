@@ -9,7 +9,6 @@ import {
   Lock,
   Monitor,
   Moon,
-  Palette,
   Plus,
   Save,
   Shield,

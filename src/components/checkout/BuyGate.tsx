@@ -2,8 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { X, Link2, Send, Check } from 'lucide-react';
-import { useAuthStore, AuthUser } from '../../store/authStore';
-import { tap } from '../../lib/motion';
+import { AuthUser } from '../../store/authStore';
 
 /* ─────────────────────────────────────────────────────────────────────────
    Buy-eligibility gate.
@@ -65,7 +64,6 @@ const BuyGate: React.FC<{
   requirements: BuyRequirement[];
 }> = ({ open, onClose, requirements }) => {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
 
   const go = () => {
     onClose();

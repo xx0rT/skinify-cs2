@@ -53,7 +53,7 @@ const StripeConnectPayouts: React.FC = () => {
   const [starting, setStarting] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const sectionRef = useRef<HTMLDivElement | null>(null);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
 
   const refreshBalance = useCallback(async () => {
     if (!user?.steamId) return;

@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../../store/authStore';
 import { useBalanceStore } from '../../../store/balanceStore';
-import { useToastStore } from '../../../store/toastStore';
 import { useCurrencyStore } from '../../../store/currencyStore';
 import { openDepositModal } from '../../DepositModal';
 import WithdrawModal from '../../ui/WithdrawModal';
@@ -30,7 +29,6 @@ type TxFilter = 'all' | 'deposits' | 'spent' | 'received';
 
 const BalanceTab: React.FC = () => {
   const { user } = useAuthStore();
-  const { addToast } = useToastStore();
   const [showWithdraw, setShowWithdraw] = useState(false);
   const { formatPrice } = useCurrencyStore();
   const {
