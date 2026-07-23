@@ -40,6 +40,31 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+/* Live CZK→EUR rate. Deposits are charged in EUR (so EUR-only methods
+   like Pay by Bank / SEPA surface), but the wallet is still denominated
+   in CZK — the user types a CZK amount, we convert it to EUR only for
+   the Stripe charge, and credit back the exact CZK amount on confirm.
+   frankfurter.app is a free, keyless ECB-data proxy. Falls back to a
+   fixed rate if it's unreachable so a deposit never hard-fails on an
+   FX-API outage. */
+const FALLBACK_CZK_PER_EUR = 24.37;
+
+async function getCzkPerEur(): Promise<number> {
+  try {
+    const res = await fetch('https://api.frankfurter.app/latest?from=EUR&to=CZK', {
+      signal: AbortSignal.timeout(4000),
+    });
+    if (res.ok) {
+      const body = await res.json();
+      const rate = Number(body?.rates?.CZK);
+      if (Number.isFinite(rate) && rate > 10 && rate < 40) return rate;
+    }
+  } catch {
+    /* network/timeout — fall through to the fixed rate */
+  }
+  return FALLBACK_CZK_PER_EUR;
+}
+
 async function stripeFetch(
   key: string,
   path: string,
@@ -120,15 +145,25 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'User not found' }, 404);
     }
 
+    /* Convert the CZK amount the user typed into EUR cents for the
+       Stripe charge. Rate is recorded in metadata for auditability, but
+       the credit on confirm reads `amount_czk` (the exact typed amount),
+       NOT a reverse EUR→CZK conversion — so the user always gets back
+       precisely what the UI promised, with no double-rounding drift. */
+    const czkPerEur = await getCzkPerEur();
+    const amountEurCents = Math.round((amount / czkPerEur) * 100);
+    /* Stripe's per-transaction minimum is ~0.50 EUR; MIN_CZK (50) is
+       always well above that, so no extra guard needed here. */
+
     const { ok, status, body } = await stripeFetch(stripeKey, '/payment_intents', 'POST', {
-      /* Stripe wants the amount in the smallest currency unit (haléře). */
-      amount: String(amount * 100),
-      currency: 'czk',
+      amount: String(amountEurCents),
+      currency: 'eur',
       'automatic_payment_methods[enabled]': 'true',
       description: `Skinify wallet top-up ${amount} CZK`,
       'metadata[user_id]': userId,
       'metadata[steam_id]': steamId,
       'metadata[amount_czk]': String(amount),
+      'metadata[czk_per_eur]': String(czkPerEur),
     });
 
     if (!ok) {
@@ -164,7 +199,14 @@ Deno.serve(async (req: Request) => {
     }
 
     const userId = pi.metadata?.user_id;
-    const amountCzk = Math.round(Number(pi.amount_received ?? pi.amount) / 100);
+    /* Credit the CZK amount the user originally typed (stored in
+       metadata at create time), NOT pi.amount — the intent is now
+       charged in EUR, so pi.amount is EUR cents. Reading amount_czk
+       gives the user back exactly what the deposit UI promised, with no
+       EUR→CZK reverse-conversion drift. Legacy CZK-charged intents
+       (created before the EUR switch) have no amount_czk metadata, so
+       fall back to pi.amount for those. */
+    const amountCzk = Math.round(Number(pi.metadata?.amount_czk ?? (pi.amount_received ?? pi.amount) / 100));
     if (!userId || !/^[a-f0-9-]{36}$/.test(userId) || !(amountCzk > 0)) {
       console.error('[stripe-payment] succeeded intent missing metadata:', piId);
       return json({ error: 'Payment metadata invalid' }, 400);

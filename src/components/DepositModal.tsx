@@ -579,6 +579,12 @@ export const DepositModal: React.FC = () => {
                       'Card details go directly to Stripe — Skinify never sees them.',
                     )}
                   </p>
+                  <p className="text-[10.5px] text-ink-dim font-medium leading-relaxed text-center mt-1.5">
+                    {t(
+                      'deposit.disclaimer.eur',
+                      'Charged in EUR at the current exchange rate; your balance is credited in CZK.',
+                    )}
+                  </p>
                 </div>
               </div>
             ) : (
