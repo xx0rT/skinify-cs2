@@ -16,7 +16,8 @@ import { useAuthStore } from '../store/authStore';
 import { attachSteamIdToCurrentUser } from '../utils/credentialAuth';
 import LandingNav from '../components/LandingNav';
 import { spring, tap } from '../lib/motion';
-import { recordLogin } from '../utils/twoFactor';
+import { checkDevice, recordLogin } from '../utils/twoFactor';
+import TwoFactorChallenge from '../components/auth/TwoFactorChallenge';
 
 /* ─────────────────────────────────────────────────────────────────────────
    AuthCallback — handles the Steam OpenID response
@@ -136,6 +137,31 @@ export default function AuthCallback() {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [failure, setFailure] = useState<FailureInfo | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [pending2fa, setPending2fa] = useState<{ steamId: string; userData: any } | null>(null);
+
+  const finishLogin = (userData: any) => {
+    // Log this Steam session so it appears in Settings → Devices.
+    recordLogin(userData.steamId);
+
+    setStatus('success');
+
+    // Redirect — new users go through onboarding (unless already done)
+    setTimeout(() => {
+      let onboarded = false;
+      try {
+        onboarded = localStorage.getItem('skinify_onboarded') === '1';
+      } catch {
+        /* private window */
+      }
+      const goToOnboarding = userData.isNewUser && !onboarded;
+      const destination = goToOnboarding ? '/onboarding' : '/';
+      try {
+        navigate(destination, { replace: true });
+      } catch {
+        window.location.href = destination;
+      }
+    }, 1400);
+  };
 
   useEffect(() => {
     const handleAuth = async () => {
@@ -313,27 +339,18 @@ export default function AuthCallback() {
           referral_code: userData.referral_code,
         });
 
-        // Log this Steam session so it appears in Settings → Devices.
-        recordLogin(userData.steamId);
+        /* This account may have 2FA enabled — check whether this
+           browser is already trusted before finishing the login.
+           Fails open (needsCode: false) on any error so a 2FA outage
+           never locks someone out of their own account. */
+        const check = await checkDevice(userData.steamId);
+        if (check.needsCode) {
+          setPending2fa({ steamId: userData.steamId, userData });
+          setStatus('loading');
+          return;
+        }
 
-        setStatus('success');
-
-        // Redirect — new users go through onboarding (unless already done)
-        setTimeout(() => {
-          let onboarded = false;
-          try {
-            onboarded = localStorage.getItem('skinify_onboarded') === '1';
-          } catch {
-            /* private window */
-          }
-          const goToOnboarding = userData.isNewUser && !onboarded;
-          const destination = goToOnboarding ? '/onboarding' : '/';
-          try {
-            navigate(destination, { replace: true });
-          } catch {
-            window.location.href = destination;
-          }
-        }, 1400);
+        finishLogin(userData);
       } catch (error) {
         const info = classifyError(error, response);
         console.error('[AUTH ERROR]', info);
@@ -357,6 +374,20 @@ export default function AuthCallback() {
   return (
     <div className="min-h-screen bg-bg text-ink flex flex-col">
       <LandingNav />
+
+      <TwoFactorChallenge
+        open={!!pending2fa}
+        steamId={pending2fa?.steamId}
+        onSuccess={() => {
+          const userData = pending2fa?.userData;
+          setPending2fa(null);
+          if (userData) finishLogin(userData);
+        }}
+        onCancel={() => {
+          setPending2fa(null);
+          navigate('/', { replace: true });
+        }}
+      />
 
       <main className="flex-1 flex items-center justify-center px-4 sm:px-6 py-12">
         <AnimatePresence mode="wait">

@@ -17,31 +17,64 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
 
-    <!-- Google tag (gtag.js) — Consent Mode v2.
-         The tag itself always loads (Google's "tag not detected" install
-         checker looks for a static <script src="...googletagmanager...">
-         in the page source at load time — a JS-injected-after-consent
-         script, which is what utils/gtag.ts previously did exclusively,
-         never satisfies that checker). GDPR compliance instead comes
-         from Consent Mode: analytics_storage defaults to 'denied' below,
-         so no cookie is set and no data is sent to Google until
+    <!-- Consent Mode v2 defaults — MUST run before the GTM container
+         script below so the very first tags GTM fires already see the
+         right consent state (GTM reads window.dataLayer's queued
+         commands on init). GA4 itself is no longer configured here —
+         it's a tag inside the GTM-W4KCRRHQ container, managed from the
+         GTM web UI, along with its own Consent Mode / GA4 Configuration
+         tags mirroring this same region split.
+
+         GDPR compliance: analytics_storage defaults to 'denied' for the
+         EEA/UK/Switzerland (where consent is legally required), so no
+         cookie is set and no data reaches Google until
          CookieConsentBanner calls gtag('consent','update',{...granted})
-         on an explicit Accept click. Declining leaves it denied forever
-         for that browser (see utils/gtag.ts's grantAnalyticsConsent /
-         declineAnalyticsConsent). -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-S0Y0MW0NQ8"></script>
+         on an explicit Accept click there (see utils/gtag.ts's
+         grantAnalyticsConsent / declineAnalyticsConsent). Outside those
+         regions consent isn't legally required, so the region-scoped
+         default below grants analytics_storage immediately — without
+         this split, GA previously reported a 0% consent rate globally
+         (including traffic far outside the EEA) because a single
+         blanket 'denied' default silently dropped every hit everywhere
+         until the banner was accepted. -->
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
+      // Global fallback: denied until proven otherwise.
       gtag('consent', 'default', {
         analytics_storage: 'denied',
         ad_storage: 'denied',
         ad_user_data: 'denied',
         ad_personalization: 'denied'
       });
-      gtag('js', new Date());
-      gtag('config', 'G-S0Y0MW0NQ8');
+      // EEA + UK + Switzerland: explicit consent required — stays denied
+      // (redundant with the line above, listed for clarity/auditability).
+      gtag('consent', 'default', {
+        analytics_storage: 'denied',
+        ad_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied'
+      }, {
+        region: [
+          'AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU',
+          'IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES',
+          'SE','IS','LI','NO','GB','CH'
+        ]
+      });
+      // Everywhere else: no GDPR consent requirement, so analytics can
+      // run immediately (still no ads/personalization signals).
+      gtag('consent', 'default', {
+        analytics_storage: 'granted'
+      });
     </script>
+
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-W4KCRRHQ');</script>
+    <!-- End Google Tag Manager -->
     <!-- initial-scale=1 so the app renders at true device width (0.9
          made it start zoomed out). The 16px input rule in index.css
          stops iOS from auto-zooming on field focus; pinch-zoom stays
@@ -336,6 +369,10 @@
     </style>
   </head>
   <body>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W4KCRRHQ"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
     <!--
       ─── Crawler-visible hero ──────────────────────────────────────────
       This block ships in the raw HTML response. Googlebot and other
