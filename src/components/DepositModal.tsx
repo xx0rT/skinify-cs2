@@ -417,19 +417,56 @@ export const DepositModal: React.FC = () => {
       const v = css.getPropertyValue(name).trim();
       return v ? `rgb(${v.split(' ').join(',')})` : fallback;
     };
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+    /* Colors sampled straight from the site tokens so the Stripe iframe
+       matches both themes. In dark mode the accordion items default to a
+       near-white background (blinding against our bg) — we pin every
+       surface to the site's own dark tokens via explicit `rules`. */
+    const surface = rgb('--surface', isDark ? '#161619' : '#ffffff');
+    const subtle = rgb('--subtle', isDark ? '#202024' : '#f0edf5');
+    const line = rgb('--line', isDark ? '#2c2c32' : '#e2dcea');
+    const ink = rgb('--ink', isDark ? '#f0f0f4' : '#161420');
+    const inkMuted = rgb('--ink-muted', isDark ? '#a5a5af' : '#5a586e');
+
     return {
       clientSecret,
       appearance: {
-        theme: 'flat' as const,
+        theme: (isDark ? 'night' : 'flat') as 'night' | 'flat',
         variables: {
           colorPrimary: rgb('--accent', '#6d4aff'),
-          colorBackground: rgb('--subtle', '#1b1b22'),
-          colorText: rgb('--ink', '#f4f4f5'),
-          colorTextSecondary: rgb('--ink-muted', '#a1a1aa'),
+          colorBackground: surface,
+          colorText: ink,
+          colorTextSecondary: inkMuted,
           colorDanger: '#f43f5e',
           borderRadius: '14px',
           fontFamily: css.getPropertyValue('font-family') || 'inherit',
           spacingUnit: '4px',
+        },
+        rules: {
+          '.AccordionItem': {
+            backgroundColor: surface,
+            border: `1px solid ${line}`,
+            boxShadow: 'none',
+          },
+          '.AccordionItem--selected': {
+            backgroundColor: subtle,
+            border: `1px solid ${line}`,
+          },
+          '.Input': {
+            backgroundColor: subtle,
+            border: `1px solid ${line}`,
+            color: ink,
+          },
+          '.Input:focus': {
+            border: `1px solid ${rgb('--accent', '#6d4aff')}`,
+            boxShadow: 'none',
+          },
+          '.Label': { color: inkMuted },
+          '.Tab, .Block': {
+            backgroundColor: surface,
+            border: `1px solid ${line}`,
+          },
         },
       },
     };
@@ -478,7 +515,7 @@ export const DepositModal: React.FC = () => {
             <style>{`
               .deposit-modal-root { height: 92dvh; }
               @media (min-width: 1024px) {
-                .deposit-modal-root { height: min(680px, 92dvh); }
+                .deposit-modal-root { height: min(760px, 94dvh); }
               }
             `}</style>
 
@@ -529,7 +566,7 @@ export const DepositModal: React.FC = () => {
 
             {step === 'checkout' && clientSecret && elementsOptions ? (
               /* ══════════ STEP 2 — embedded Stripe checkout ══════════ */
-              <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-8 py-5">
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-8 py-5" style={{ WebkitOverflowScrolling: 'touch' }}>
                 <div className="max-w-[480px] mx-auto">
                   <div className="rounded-3xl bg-subtle p-4 mb-4 space-y-2">
                     <Row
