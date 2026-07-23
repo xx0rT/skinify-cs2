@@ -193,10 +193,17 @@ Deno.serve(async (req: Request) => {
          sub-field of recipient.capabilities.stripe_balance (confirmed
          via a live 400: "Unknown field" — it only appears in the
          `merchant` configuration, which this account doesn't need). */
+      /* entity_type: 'individual' — sellers here are private people
+         cashing out skin sales, not registered businesses. Without this,
+         Stripe defaults toward a company-shaped account and immediately
+         lists "Provide a business website" / "Provide a business type"
+         as past-due requirements the seller can never actually satisfy
+         (confirmed live: a test account created without this field sat
+         Restricted with those two as blocking requirements). */
       const { ok, status, body } = await stripeV2(stripeKey, '/core/accounts', 'POST', {
         display_name: `Skinify seller ${steamId}`,
         contact_email: contactEmail,
-        identity: { country: 'cz' },
+        identity: { country: 'cz', entity_type: 'individual' },
         configuration: {
           recipient: {
             capabilities: {
