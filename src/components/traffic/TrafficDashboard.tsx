@@ -687,7 +687,10 @@ function LiveStream({ events }: { events: LiveEvent[] }) {
 // Main
 // ============================================================================
 
-const DashboardContent = () => {
+/* The traffic view's own content (map + KPIs + live stream + country
+   list). Exported so the main admin panel can drop it into its
+   "Dashboard" tab. Renders its own DashboardHeading. */
+export const TrafficContent = () => {
   const { activeNow, eventsPerMin, pageViewsToday, uniqueToday, countries, liveEvents } = useTrafficData();
   return (
     <main className="flex w-full flex-1 flex-col bg-card">
@@ -722,7 +725,7 @@ export default function TrafficDashboard() {
           <div className="h-svh w-full overflow-auto bg-background text-foreground">
             <DashboardHeader />
             <SecondaryNav />
-            <DashboardContent />
+            <TrafficContent />
           </div>
         </SidebarProvider>
       </TooltipProvider>

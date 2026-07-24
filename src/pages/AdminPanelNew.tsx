@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  ArrowLeft,
   Activity,
   BarChart3,
   Bell,
@@ -27,10 +26,10 @@ import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
 import { useAdminAuth } from '../hooks/useAdminAuth';
 import SteamLogin from '../components/auth/SteamLogin';
-import UserProfile from '../components/auth/UserProfile';
 import { createClient } from '@supabase/supabase-js';
 import { spring, tap } from '../lib/motion';
-import DashboardTab from '../components/admin/DashboardTab';
+import AdminShell from '../components/traffic/AdminShell';
+import { TrafficContent } from '../components/traffic/TrafficDashboard';
 import UsersTab from '../components/admin/UsersTab';
 import FinanceTab from '../components/admin/FinanceTab';
 import SettingsTab from '../components/admin/SettingsTab';
@@ -106,15 +105,6 @@ const NAV_GROUPS: NavGroup[] = [
 
 const ALL_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
 
-const sidebarVariants = {
-  hidden: {},
-  shown: { transition: { staggerChildren: 0.03, delayChildren: 0.05 } },
-} as const;
-const sidebarItem = {
-  hidden: { opacity: 0, x: -12 },
-  shown: { opacity: 1, x: 0, transition: spring },
-} as const;
-
 const AdminPanelNew: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -184,154 +174,42 @@ const AdminPanelNew: React.FC = () => {
 
   const activeItem = ALL_ITEMS.find((i) => i.id === activeTab);
 
+  /* The Dashboard tab renders the Dashboard13 traffic view full-bleed;
+     every other tab keeps its existing content inside the shell's
+     padded content region. */
+  const isDashboard = activeTab === 'dashboard';
+
   return (
-    <div className="min-h-screen bg-bg text-ink">
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4 lg:py-6">
-        {/* ── Header ── */}
-        <motion.header
-          initial={{ opacity: 0, y: -8 }}
+    <AdminShell
+      groups={NAV_GROUPS}
+      activeId={activeTab}
+      activeLabel={activeItem?.label || 'Dashboard'}
+      onSelect={(id) => setActiveTab(id as TabId)}
+      bleed={isDashboard}
+    >
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={spring}
-          className="flex items-center gap-3 mb-5"
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ ...spring, mass: 0.6 }}
         >
-          <motion.button
-            whileTap={tap}
-            onClick={() => navigate('/')}
-            className="w-10 h-10 rounded-full bg-subtle hover:bg-surface grid place-items-center text-ink-muted hover:text-ink transition-colors shrink-0"
-            aria-label="Back to site"
-          >
-            <ArrowLeft size={16} strokeWidth={2.4} />
-          </motion.button>
-          <div className="min-w-0 flex-1">
-            <span className="label-eyebrow">Admin</span>
-            <AnimatePresence mode="wait">
-              <motion.h1
-                key={activeTab}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ ...spring, mass: 0.5 }}
-                className="text-[22px] sm:text-[26px] font-bold tracking-tight leading-none mt-1"
-              >
-                {activeItem?.label || 'Dashboard'}
-              </motion.h1>
-            </AnimatePresence>
-          </div>
-          <UserProfile />
-        </motion.header>
-
-        {/* ── Mobile tab strip (<lg) — underline tabs, same pattern as
-              the profile page. ── */}
-        <div className="lg:hidden -mx-4 sm:-mx-6 px-4 sm:px-6 mb-5 border-b border-line overflow-x-auto scrollbar-hide">
-          <nav className="flex gap-5 min-w-max" aria-label="Admin sections">
-            {ALL_ITEMS.map((item) => {
-              const active = activeTab === item.id;
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`relative flex items-center gap-2 py-3 shrink-0 transition-colors ${
-                    active ? 'text-ink' : 'text-ink-muted'
-                  }`}
-                >
-                  <Icon size={15} strokeWidth={active ? 2.4 : 2} />
-                  <span className="text-[13.5px] font-semibold tracking-tight whitespace-nowrap">
-                    {item.label}
-                  </span>
-                  {active && (
-                    <motion.span
-                      layoutId="admin-mobile-underline"
-                      className="absolute bottom-0 left-0 right-0 h-[2.5px] rounded-full bg-accent"
-                      transition={spring}
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-
-        <div className="grid gap-5 lg:grid-cols-[240px_1fr]">
-          {/* ── Sidebar (lg+) ── */}
-          <motion.aside
-            variants={sidebarVariants}
-            initial="hidden"
-            animate="shown"
-            className="hidden lg:block panel p-3 self-start sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto scrollbar-thin"
-          >
-            {NAV_GROUPS.map((group) => (
-              <div key={group.name} className="mb-4 last:mb-0">
-                <motion.div variants={sidebarItem} className="label-meta px-3 mb-1.5">
-                  {group.name}
-                </motion.div>
-                <nav className="flex flex-col gap-0.5">
-                  {group.items.map((item) => {
-                    const active = activeTab === item.id;
-                    const Icon = item.icon;
-                    return (
-                      <motion.button
-                        variants={sidebarItem}
-                        whileTap={tap}
-                        key={item.id}
-                        onClick={() => setActiveTab(item.id)}
-                        className={`relative h-10 px-3 rounded-xl flex items-center gap-2.5 text-left transition-colors ${
-                          active ? 'text-ink' : 'text-ink-muted hover:text-ink hover:bg-subtle'
-                        }`}
-                      >
-                        {active && (
-                          <motion.span
-                            layoutId="admin-sidebar-pill"
-                            className="absolute inset-0 rounded-xl bg-accent-soft"
-                            transition={spring}
-                          />
-                        )}
-                        <Icon
-                          size={15}
-                          strokeWidth={active ? 2.4 : 2}
-                          className={`relative shrink-0 ${active ? 'text-accent' : ''}`}
-                        />
-                        <span className="relative text-[13px] font-semibold tracking-tight">
-                          {item.label}
-                        </span>
-                      </motion.button>
-                    );
-                  })}
-                </nav>
-              </div>
-            ))}
-          </motion.aside>
-
-          {/* ── Content — spring cross-fade between tabs ── */}
-          <div className="min-w-0">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ ...spring, mass: 0.6 }}
-              >
-                {activeTab === 'dashboard' && (
-                  <DashboardTab onGoTo={(t) => setActiveTab(t as TabId)} />
-                )}
-                {activeTab === 'users' && <UsersTab />}
-                {activeTab === 'finance' && <FinanceTab addToast={addToast} />}
-                {activeTab === 'inventory' && <InventoryTab addToast={addToast} />}
-                {activeTab === 'notifications' && <NotificationsTab addToast={addToast} />}
-                {activeTab === 'analytics' && <AnalyticsTab addToast={addToast} />}
-                {activeTab === 'support' && <SupportTab addToast={addToast} user={user} />}
-                {activeTab === 'settings' && <SettingsTab addToast={addToast} />}
-                {activeTab === 'developer' && <DeveloperTab addToast={addToast} />}
-                {activeTab === 'withdrawals' && <WithdrawalsTab addToast={addToast} />}
-                {activeTab === 'blogs' && <BlogsTab addToast={addToast} supabase={supabase} />}
-                {activeTab === 'monitoring' && <MonitoringTab addToast={addToast} />}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        </div>
-      </div>
-    </div>
+          {activeTab === 'dashboard' && <TrafficContent />}
+          {activeTab === 'users' && <UsersTab />}
+          {activeTab === 'finance' && <FinanceTab addToast={addToast} />}
+          {activeTab === 'inventory' && <InventoryTab addToast={addToast} />}
+          {activeTab === 'notifications' && <NotificationsTab addToast={addToast} />}
+          {activeTab === 'analytics' && <AnalyticsTab addToast={addToast} />}
+          {activeTab === 'support' && <SupportTab addToast={addToast} user={user} />}
+          {activeTab === 'settings' && <SettingsTab addToast={addToast} />}
+          {activeTab === 'developer' && <DeveloperTab addToast={addToast} />}
+          {activeTab === 'withdrawals' && <WithdrawalsTab addToast={addToast} />}
+          {activeTab === 'blogs' && <BlogsTab addToast={addToast} supabase={supabase} />}
+          {activeTab === 'monitoring' && <MonitoringTab addToast={addToast} />}
+        </motion.div>
+      </AnimatePresence>
+    </AdminShell>
   );
 };
 
