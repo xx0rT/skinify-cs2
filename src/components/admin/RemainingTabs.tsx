@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Package, Lock, BarChart3, Settings, MessageSquare, Wrench, Wallet, Activity, Search, RefreshCw, Download, Eye, CreditCard as Edit, Trash2, CheckCircle, X, Shield, TrendingUp, Users, DollarSign, AlertTriangle, Bell, Database, Code, TestTube, FileText, MousePointerClick, Calendar, ShoppingCart } from 'lucide-react';
+import { Package, Lock, BarChart3, Settings, MessageSquare, Wrench, Wallet, Activity, Search, RefreshCw, Download, Eye, CreditCard as Edit, Trash2, CheckCircle, X, Shield, TrendingUp, Users, DollarSign, AlertTriangle, Bell, Database, Code, TestTube, FileText, MousePointerClick, Calendar, ShoppingCart, Globe } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useAuthStore } from '../../store/authStore';
@@ -303,7 +303,119 @@ export const InventoryTab: React.FC<{ addToast: any }> = ({ addToast }) => {
   );
 };
 
-const COLORS = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#EC4899'];
+const COLORS = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4', '#84CC16'];
+
+/* ISO-3166 alpha-2 → display name + rough map position (percent of an
+   equirectangular world, x = longitude 0–100, y = latitude 0–100). Only
+   the countries we realistically see traffic from; unknown codes fall
+   back to the raw code and sit off-map. */
+const COUNTRY_NAMES: Record<string, string> = {
+  CZ: 'Czechia', SK: 'Slovakia', DE: 'Germany', PL: 'Poland', AT: 'Austria',
+  GB: 'United Kingdom', US: 'United States', FR: 'France', NL: 'Netherlands',
+  ES: 'Spain', IT: 'Italy', SE: 'Sweden', NO: 'Norway', DK: 'Denmark',
+  FI: 'Finland', RU: 'Russia', UA: 'Ukraine', CA: 'Canada', BR: 'Brazil',
+  AU: 'Australia', JP: 'Japan', IN: 'India', CN: 'China', TR: 'Turkey',
+  RO: 'Romania', HU: 'Hungary', BE: 'Belgium', CH: 'Switzerland', PT: 'Portugal',
+  IE: 'Ireland', GR: 'Greece', BG: 'Bulgaria', HR: 'Croatia', RS: 'Serbia',
+};
+
+/* x,y as % on an equirectangular projection (0,0 = top-left / -180°,+90°). */
+const COUNTRY_COORDS: Record<string, { x: number; y: number }> = {
+  CZ: { x: 53.9, y: 30.5 }, SK: { x: 55.3, y: 31 }, DE: { x: 52.8, y: 29.5 },
+  PL: { x: 55.5, y: 28.5 }, AT: { x: 53.7, y: 31.3 }, GB: { x: 49.5, y: 27 },
+  US: { x: 22, y: 37 }, FR: { x: 50.6, y: 31.5 }, NL: { x: 51.6, y: 28.3 },
+  ES: { x: 48.8, y: 35 }, IT: { x: 53.3, y: 34 }, SE: { x: 54.5, y: 23 },
+  NO: { x: 52.8, y: 22 }, DK: { x: 52.7, y: 27 }, FI: { x: 57, y: 22 },
+  RU: { x: 63, y: 24 }, UA: { x: 58, y: 30 }, CA: { x: 22, y: 26 },
+  BR: { x: 33, y: 63 }, AU: { x: 84, y: 68 }, JP: { x: 87, y: 36 },
+  IN: { x: 70, y: 44 }, CN: { x: 77, y: 37 }, TR: { x: 59, y: 35 },
+  RO: { x: 57, y: 32 }, HU: { x: 55.5, y: 31 }, BE: { x: 51.2, y: 29 },
+  CH: { x: 52.4, y: 31.5 }, PT: { x: 47.5, y: 35 }, IE: { x: 47.8, y: 27 },
+  GR: { x: 57, y: 35.5 }, BG: { x: 57.5, y: 33.5 }, HR: { x: 54.5, y: 32.5 },
+  RS: { x: 56, y: 32.8 },
+};
+
+/* Lightweight sessions map — an equirectangular graticule drawn in SVG
+   (no maplibre / tiles / external deps) with a bubble per country sized
+   by session share. Good enough to see "where traffic comes from" at a
+   glance without shipping a megabyte of map tiles into the admin
+   bundle. Countries without known coords are listed but not plotted. */
+const WorldSessionMap: React.FC<{
+  data: { code: string; name: string; sessions: number; pct: number }[];
+}> = ({ data }) => {
+  const plotted = data.filter((d) => COUNTRY_COORDS[d.code]);
+  const max = Math.max(1, ...plotted.map((d) => d.sessions));
+  const [hover, setHover] = useState<string | null>(null);
+
+  return (
+    <div className="relative w-full overflow-hidden rounded-lg bg-subtle/40" style={{ aspectRatio: '2 / 1' }}>
+      {/* Graticule background */}
+      <svg viewBox="0 0 100 50" preserveAspectRatio="none" className="absolute inset-0 h-full w-full opacity-30">
+        {[10, 20, 30, 40].map((y) => (
+          <line key={`h${y}`} x1="0" y1={y} x2="100" y2={y} stroke="currentColor" strokeWidth="0.15" className="text-ink-muted" />
+        ))}
+        {[20, 40, 60, 80].map((x) => (
+          <line key={`v${x}`} x1={x} y1="0" x2={x} y2="50" stroke="currentColor" strokeWidth="0.15" className="text-ink-muted" />
+        ))}
+        {/* crude continent blobs so dots have context */}
+        <g className="text-ink-muted" fill="currentColor" opacity="0.18">
+          <ellipse cx="24" cy="34" rx="10" ry="9" />
+          <ellipse cx="33" cy="60" rx="6" ry="9" />
+          <ellipse cx="52" cy="30" rx="9" ry="6" />
+          <ellipse cx="58" cy="42" rx="10" ry="8" />
+          <ellipse cx="75" cy="38" rx="12" ry="9" />
+          <ellipse cx="84" cy="66" rx="6" ry="5" />
+        </g>
+      </svg>
+
+      {/* Session bubbles */}
+      {plotted.map((d, i) => {
+        const c = COUNTRY_COORDS[d.code];
+        const size = 8 + (d.sessions / max) * 30;
+        const color = COLORS[i % COLORS.length];
+        return (
+          <div
+            key={d.code}
+            className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-bg/60 transition-transform"
+            style={{
+              left: `${c.x}%`,
+              top: `${c.y}%`,
+              width: size,
+              height: size,
+              background: color,
+              opacity: hover && hover !== d.code ? 0.35 : 0.8,
+              transform: `translate(-50%,-50%) scale(${hover === d.code ? 1.15 : 1})`,
+            }}
+            onMouseEnter={() => setHover(d.code)}
+            onMouseLeave={() => setHover(null)}
+            title={`${d.name}: ${d.sessions} sessions (${d.pct}%)`}
+          />
+        );
+      })}
+
+      {hover && (() => {
+        const d = plotted.find((x) => x.code === hover);
+        const c = d && COUNTRY_COORDS[d.code];
+        if (!d || !c) return null;
+        return (
+          <div
+            className="absolute z-10 -translate-x-1/2 rounded-lg bg-bg border border-line px-2.5 py-1.5 text-xs shadow-lg pointer-events-none whitespace-nowrap"
+            style={{ left: `${c.x}%`, top: `calc(${c.y}% + ${18}px)` }}
+          >
+            <div className="font-bold text-ink">{d.name}</div>
+            <div className="text-ink-muted tabular-nums">{d.sessions} sessions · {d.pct}%</div>
+          </div>
+        );
+      })()}
+
+      {plotted.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center text-ink-muted text-sm text-center px-4">
+          No geo-tagged sessions yet — visitors get located automatically as they browse.
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
   const [loading, setLoading] = useState(true);
@@ -311,12 +423,40 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
   const [activityData, setActivityData] = useState<any[]>([]);
   const [pageStats, setPageStats] = useState<any[]>([]);
   const [eventStats, setEventStats] = useState<any[]>([]);
+  const [countryStats, setCountryStats] = useState<{ code: string; name: string; sessions: number; pct: number }[]>([]);
+  const [liveSessions, setLiveSessions] = useState<any[]>([]);
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('7d');
+  /* Time-series bucket granularity for the "Activity over time" chart —
+     independent of timeRange (the lookback window). */
+  const [granularity, setGranularity] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const adminSteamId = useAuthStore((s) => s.user?.steamId);
 
   useEffect(() => {
     fetchAnalytics();
-  }, [timeRange]);
+  }, [timeRange, granularity]);
+
+  /* Live traffic table — poll recent sessions every 15s while the tab
+     is open, independent of the heavier full-range refresh. */
+  useEffect(() => {
+    fetchLiveSessions();
+    const id = window.setInterval(fetchLiveSessions, 15000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const fetchLiveSessions = async () => {
+    if (!supabase) return;
+    try {
+      const { data } = await supabase
+        .from('user_activity')
+        .select('created_at, event_type, page_url, country_code, user_steam_id, session_id')
+        .order('created_at', { ascending: false })
+        .limit(25);
+      if (data) setLiveSessions(data);
+    } catch {
+      /* non-fatal */
+    }
+  };
 
   const fetchAnalytics = async () => {
     setLoading(true);
@@ -333,18 +473,36 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
 
         const { data: activityRaw } = await supabase
           .from('user_activity')
-          .select('created_at, event_type, event_data')
+          .select('created_at, event_type, event_data, country_code, session_id')
           .gte('created_at', startDate.toISOString())
           .order('created_at', { ascending: true });
 
         if (activityRaw) {
+          /* Bucket key by granularity: day / ISO-week / month. */
+          const bucketKey = (d: Date): string => {
+            if (granularity === 'monthly') {
+              return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
+            }
+            if (granularity === 'weekly') {
+              // Monday-anchored week start.
+              const dow = (d.getDay() + 6) % 7;
+              const monday = new Date(d);
+              monday.setDate(d.getDate() - dow);
+              monday.setHours(0, 0, 0, 0);
+              return monday.toLocaleDateString();
+            }
+            return d.toLocaleDateString();
+          };
+
           const groupedByDate: Record<string, any> = {};
+          const bucketOrder: string[] = [];
 
           activityRaw.forEach((activity: any) => {
-            const date = new Date(activity.created_at).toLocaleDateString();
+            const date = bucketKey(new Date(activity.created_at));
 
             if (!groupedByDate[date]) {
               groupedByDate[date] = { date, visits: 0, users: 0, deposits: 0, purchases: 0 };
+              bucketOrder.push(date);
             }
 
             if (activity.event_type === 'page_view') {
@@ -356,7 +514,29 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
             }
           });
 
-          setActivityData(Object.values(groupedByDate));
+          setActivityData(bucketOrder.map((k) => groupedByDate[k]));
+
+          /* Sessions by country — count DISTINCT session_id per country
+             so it reads as "how many visitors from each country", not
+             raw event volume. */
+          const countrySessions: Record<string, Set<string>> = {};
+          activityRaw.forEach((a: any) => {
+            const cc = (a.country_code || '').toUpperCase();
+            if (!cc) return;
+            (countrySessions[cc] ||= new Set()).add(a.session_id || a.created_at);
+          });
+          const countryEntries = Object.entries(countrySessions)
+            .map(([code, set]) => ({ code, sessions: set.size }))
+            .sort((a, b) => b.sessions - a.sessions);
+          const totalCountrySessions = countryEntries.reduce((s, c) => s + c.sessions, 0) || 1;
+          setCountryStats(
+            countryEntries.map((c) => ({
+              code: c.code,
+              name: COUNTRY_NAMES[c.code] || c.code,
+              sessions: c.sessions,
+              pct: Math.round((c.sessions / totalCountrySessions) * 100),
+            })),
+          );
 
           const pageViews = activityRaw.filter((a: any) => a.event_type === 'page_view');
           const pageCount: Record<string, number> = {};
@@ -417,6 +597,15 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
           <p className="text-ink-muted text-sm mt-1">Monitor user activity and platform metrics</p>
         </div>
         <div className="flex items-center gap-3">
+          <select
+            value={granularity}
+            onChange={(e) => setGranularity(e.target.value as any)}
+            className="bg-subtle text-ink px-4 py-2 rounded-lg border border-line focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
           <select
             value={timeRange}
             onChange={(e) => setTimeRange(e.target.value as any)}
@@ -564,6 +753,118 @@ export const AnalyticsTab: React.FC<{ addToast: any }> = ({ addToast }) => {
               <Bar dataKey="views" fill="#3B82F6" />
             </BarChart>
           </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* ── Sessions by country: world map + pie + ranked list ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-surface border border-line rounded-xl p-6">
+          <h3 className="text-xl font-bold text-ink mb-4 flex items-center gap-2">
+            <Globe className="w-5 h-5 text-accent" />
+            Sessions by country
+          </h3>
+          <WorldSessionMap data={countryStats} />
+        </div>
+
+        <div className="bg-surface border border-line rounded-xl p-6 flex flex-col">
+          <h3 className="text-xl font-bold text-ink mb-4">Top countries</h3>
+          {countryStats.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center text-ink-muted text-sm py-8 text-center">
+              No geo-tagged sessions yet.<br />Data appears as visitors are located.
+            </div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie
+                    data={countryStats.slice(0, 6)}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={80}
+                    paddingAngle={2}
+                    dataKey="sessions"
+                    nameKey="name"
+                  >
+                    {countryStats.slice(0, 6).map((_, i) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }}
+                    formatter={(v: any, _n: any, p: any) => [`${v} sessions`, p?.payload?.name]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="mt-4 space-y-2 overflow-y-auto max-h-[200px]">
+                {countryStats.slice(0, 10).map((c, i) => (
+                  <div key={c.code} className="flex items-center gap-2.5">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ background: COLORS[i % COLORS.length] }}
+                    />
+                    <span className="text-sm text-ink font-medium truncate flex-1">{c.name}</span>
+                    <span className="text-sm text-ink-muted tabular-nums">{c.sessions}</span>
+                    <span className="text-xs text-ink-dim tabular-nums w-9 text-right">{c.pct}%</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Live traffic table (polls every 15s) ── */}
+      <div className="bg-surface border border-line rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold text-ink flex items-center gap-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500/60" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            </span>
+            Live traffic
+          </h3>
+          <span className="text-xs text-ink-muted">Auto-refreshes every 15s · last 25 events</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-ink-muted border-b border-line">
+                <th className="pb-2 font-medium">Time</th>
+                <th className="pb-2 font-medium">Event</th>
+                <th className="pb-2 font-medium">Page</th>
+                <th className="pb-2 font-medium">Country</th>
+                <th className="pb-2 font-medium">User</th>
+              </tr>
+            </thead>
+            <tbody>
+              {liveSessions.length === 0 ? (
+                <tr><td colSpan={5} className="py-6 text-center text-ink-muted">No recent activity.</td></tr>
+              ) : (
+                liveSessions.map((s, i) => (
+                  <tr key={`${s.session_id}-${s.created_at}-${i}`} className="border-b border-line/50">
+                    <td className="py-2 text-ink-muted tabular-nums whitespace-nowrap">
+                      {new Date(s.created_at).toLocaleTimeString()}
+                    </td>
+                    <td className="py-2">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-subtle text-ink">
+                        {String(s.event_type || '').replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="py-2 text-ink truncate max-w-[220px]">{s.page_url || '—'}</td>
+                    <td className="py-2 text-ink">
+                      {s.country_code
+                        ? (COUNTRY_NAMES[String(s.country_code).toUpperCase()] || s.country_code)
+                        : '—'}
+                    </td>
+                    <td className="py-2 text-ink-muted font-mono text-xs truncate max-w-[140px]">
+                      {s.user_steam_id || 'guest'}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
