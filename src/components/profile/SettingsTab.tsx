@@ -270,7 +270,7 @@ const SettingsTab: React.FC = () => {
       });
       setTfaQr(qr);
     } catch (e: any) {
-      addToast({ type: 'error', title: 'Could not start 2FA', message: e?.message });
+      addToast({ type: 'error', title: 'Nepodařilo se spustit 2FA', message: e?.message });
     } finally {
       setTfaBusy(false);
     }
@@ -291,7 +291,7 @@ const SettingsTab: React.FC = () => {
       setTfaStatus({ enabled: true, hasPending: false });
       addToast({ type: 'success', title: 'Dvoufázové ověření zapnuto', message: 'Váš účet je nyní chráněn.' });
     } catch (e: any) {
-      addToast({ type: 'error', title: 'Verification failed', message: e?.message });
+      addToast({ type: 'error', title: 'Ověření selhalo', message: e?.message });
     } finally {
       setTfaBusy(false);
     }
@@ -311,7 +311,7 @@ const SettingsTab: React.FC = () => {
       setTfaBackup(null);
       addToast({ type: 'info', title: 'Dvoufázové ověření vypnuto' });
     } catch (e: any) {
-      addToast({ type: 'error', title: 'Could not disable', message: e?.message });
+      addToast({ type: 'error', title: 'Nelze vypnout', message: e?.message });
     } finally {
       setTfaBusy(false);
     }
@@ -349,9 +349,9 @@ const SettingsTab: React.FC = () => {
     try {
       await revokeDevice(id);
       setDevices((prev) => prev.filter((d) => d.id !== id));
-      addToast({ type: 'info', title: 'Signed out of device' });
+      addToast({ type: 'info', title: 'Zařízení odhlášeno' });
     } catch (e: any) {
-      addToast({ type: 'error', title: 'Could not revoke', message: e?.message });
+      addToast({ type: 'error', title: 'Nelze odvolat', message: e?.message });
     } finally {
       setRevokingDevice(null);
     }
@@ -412,8 +412,8 @@ const SettingsTab: React.FC = () => {
     if (!isVerified) {
       addToast({
         type: 'warning',
-        title: 'Verification required',
-        message: 'Deposit at least $10 to verify your account before creating API keys.',
+        title: 'Vyžadováno ověření',
+        message: 'Před vytvořením API klíčů vložte alespoň  pro ověření účtu.',
         duration: 5000,
       });
       return;
@@ -421,8 +421,8 @@ const SettingsTab: React.FC = () => {
     if (apiKeys.length >= 5) {
       addToast({
         type: 'warning',
-        title: 'Key limit reached',
-        message: 'You can have up to 5 active keys. Revoke an unused one first.',
+        title: 'Dosažen limit klíčů',
+        message: 'Můžete mít až 5 aktivních klíčů. Nejprve odvolejte nepoužívaný.',
       });
       return;
     }
@@ -445,14 +445,14 @@ const SettingsTab: React.FC = () => {
       setNewKeyName('');
       addToast({
         type: 'success',
-        title: 'API key created',
-        message: 'Copy it now — you won\'t see the full value again.',
+        title: 'API klíč vytvořen',
+        message: 'Zkopírujte jej teď — celou hodnotu už znovu neuvidíte.',
         duration: 6000,
       });
     } catch (err: any) {
       addToast({
         type: 'error',
-        title: 'Could not create key',
+        title: 'Nelze vytvořit klíč',
         message: err?.message || 'Unknown error.',
         duration: 6000,
       });
@@ -473,12 +473,12 @@ const SettingsTab: React.FC = () => {
     if (justCreated?.id === id) setJustCreated(null);
     try {
       await revokeKey(id);
-      addToast({ type: 'success', title: 'Key revoked' });
+      addToast({ type: 'success', title: 'Klíč odvolán' });
     } catch (err: any) {
       setApiKeys(snapshot);
       addToast({
         type: 'error',
-        title: 'Could not revoke',
+        title: 'Nelze odvolat',
         message: err?.message || 'Unknown error.',
         duration: 6000,
       });
@@ -493,7 +493,7 @@ const SettingsTab: React.FC = () => {
       setCopiedKeyId(id);
       setTimeout(() => setCopiedKeyId(null), 1500);
     } catch {
-      addToast({ type: 'error', title: 'Copy failed' });
+      addToast({ type: 'error', title: 'Kopírování selhalo' });
     }
   };
 
@@ -505,7 +505,7 @@ const SettingsTab: React.FC = () => {
       addToast({ type: 'success', title: 'Steam ID zkopírováno' });
       setTimeout(() => setCopiedId(false), 1500);
     } catch {
-      addToast({ type: 'error', title: 'Copy failed' });
+      addToast({ type: 'error', title: 'Kopírování selhalo' });
     }
   };
 
@@ -520,7 +520,7 @@ const SettingsTab: React.FC = () => {
     if (!/^https?:\/\/steamcommunity\.com\/tradeoffer\/new\/\?partner=\d+&token=\w+/i.test(link)) {
       addToast({
         type: 'warning',
-        title: 'Doesn’t look like a trade URL',
+        title: 'Nevypadá to jako trade URL',
         message: 'Should look like steamcommunity.com/tradeoffer/new/?partner=…&token=…',
         duration: 5000,
       });
@@ -531,8 +531,8 @@ const SettingsTab: React.FC = () => {
       const ok = await updateTradeLink(link);
       addToast(
         ok
-          ? { type: 'success', title: 'Trade link saved' }
-          : { type: 'error', title: 'Save failed', message: 'Could not update your trade link.' },
+          ? { type: 'success', title: 'Trade odkaz uložen' }
+          : { type: 'error', title: 'Uložení selhalo', message: 'Nepodařilo se aktualizovat trade odkaz.' },
       );
     } finally {
       setSavingTrade(false);
@@ -1359,8 +1359,8 @@ const SettingsTab: React.FC = () => {
             onClick={() =>
               addToast({
                 type: 'info',
-                title: 'Account deletion',
-                message: 'Email support@skinify.gg with the subject "Delete account" to start the process.',
+                title: 'Smazání účtu',
+                message: 'Napište na support@skinify.gg s předmětem „Delete account“ pro zahájení procesu.',
                 duration: 6000,
               })
             }

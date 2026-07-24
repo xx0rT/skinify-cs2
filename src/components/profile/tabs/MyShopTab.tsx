@@ -205,16 +205,16 @@ const MyShopTab: React.FC<{ onNavigateToListings: () => void }> = ({
     try {
       await navigator.clipboard.writeText(publicUrl);
       setCopied(true);
-      addToast({ type: 'success', title: 'Link copied' });
+      addToast({ type: 'success', title: 'Odkaz zkopírován' });
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      addToast({ type: 'error', title: 'Copy failed' });
+      addToast({ type: 'error', title: 'Kopírování selhalo' });
     }
   };
 
   const handleCreate = async () => {
     if (!name.trim()) {
-      addToast({ type: 'warning', title: 'Enter a shop name' });
+      addToast({ type: 'warning', title: 'Zadejte název obchodu' });
       return;
     }
     if (!user?.steamId) return;
@@ -247,11 +247,11 @@ const MyShopTab: React.FC<{ onNavigateToListings: () => void }> = ({
         .single();
       if (error) throw error;
       setShop(created as Shop);
-      addToast({ type: 'success', title: 'Shop created', message: `Visit ${window.location.origin}/shop/${slug}` });
+      addToast({ type: 'success', title: 'Obchod vytvořen', message: `Visit ${window.location.origin}/shop/${slug}` });
     } catch (err: any) {
       addToast({
         type: 'error',
-        title: 'Could not create shop',
+        title: 'Nelze vytvořit obchod',
         message: err?.message || 'Try again',
       });
     } finally {
@@ -301,7 +301,7 @@ const MyShopTab: React.FC<{ onNavigateToListings: () => void }> = ({
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Shop name"
+              placeholder="Název obchodu"
               className="flex-1 h-12 px-4 rounded-2xl bg-subtle text-ink placeholder:text-ink-dim text-[14px] font-medium outline-none focus:bg-bg focus:ring-2 focus:ring-accent/30 transition-all"
             />
             <motion.button
@@ -346,7 +346,7 @@ const MyShopTab: React.FC<{ onNavigateToListings: () => void }> = ({
             <Store size={22} strokeWidth={2.4} />
           </div>
           <div className="flex-1 min-w-0">
-            <span className="label-eyebrow">Your shop</span>
+            <span className="label-eyebrow">Váš obchod</span>
             <h2 className="text-[22px] font-bold tracking-tight text-ink mt-1.5 leading-none truncate">
               {shop.shop_name}
             </h2>
@@ -412,7 +412,7 @@ const MyShopTab: React.FC<{ onNavigateToListings: () => void }> = ({
 
       {/* Quick actions */}
       <div className="card p-5 md:p-6">
-        <span className="label-eyebrow">Quick actions</span>
+        <span className="label-eyebrow">Rychlé akce</span>
         <h3 className="text-[17px] font-bold tracking-tight text-ink mt-1.5 leading-none">
           Manage your shop
         </h3>
@@ -563,7 +563,7 @@ const ShopEditorModal: React.FC<{
                   <Sparkles size={17} strokeWidth={2.4} className="text-accent" />
                 </div>
                 <div className="min-w-0">
-                  <span className="label-eyebrow">Customize shop</span>
+                  <span className="label-eyebrow">Přizpůsobit obchod</span>
                   <h2 className="text-[18px] sm:text-[20px] font-bold text-ink tracking-tight leading-none mt-1 truncate">
                     {shop.shop_name}
                   </h2>
@@ -728,11 +728,11 @@ const ThemeAndBrandingTab: React.FC<{
       setDirty(false);
       addToast({
         type: 'success',
-        title: 'Theme saved',
-        message: 'Your changes are live on the public shop page.',
+        title: 'Vzhled uložen',
+        message: 'Vaše změny jsou živé na veřejné stránce obchodu.',
       });
     } catch (err: any) {
-      addToast({ type: 'error', title: 'Could not save', message: err?.message || 'Try again' });
+      addToast({ type: 'error', title: 'Nelze uložit', message: err?.message || 'Try again' });
     } finally {
       setSaving(false);
     }
@@ -870,7 +870,7 @@ const ThemeAndBrandingTab: React.FC<{
         <input
           value={tagline}
           onChange={(e) => setTagline(e.target.value)}
-          placeholder="Boutique CS2 skins · low floats · fair prices"
+          placeholder="Butik CS2 skinů · nízké floaty · férové ceny"
           maxLength={80}
           className="w-full h-11 px-4 rounded-full bg-subtle outline-none text-ink text-[13.5px] font-medium placeholder:text-ink-dim focus:ring-2 focus:ring-accent transition-shadow"
         />
@@ -1015,13 +1015,13 @@ const ShopLayoutEditor: React.FC<{
       setDirty(false);
       addToast({
         type: 'success',
-        title: 'Layout saved',
-        message: 'Your changes are live on the public shop page.',
+        title: 'Rozvržení uloženo',
+        message: 'Vaše změny jsou živé na veřejné stránce obchodu.',
       });
     } catch (err: any) {
       addToast({
         type: 'error',
-        title: 'Could not save',
+        title: 'Nelze uložit',
         message: err?.message || 'Try again',
       });
     } finally {
@@ -1143,7 +1143,7 @@ const ShopLayoutEditor: React.FC<{
         <input
           value={tagline}
           onChange={(e) => setTagline(e.target.value)}
-          placeholder="Boutique CS2 skins · low floats · fair prices"
+          placeholder="Butik CS2 skinů · nízké floaty · férové ceny"
           maxLength={80}
           className="w-full h-11 px-4 rounded-full bg-subtle outline-none text-ink text-[13.5px] font-medium placeholder:text-ink-dim focus:ring-2 focus:ring-accent transition-shadow"
         />
@@ -1253,7 +1253,7 @@ const ShopLayoutEditor: React.FC<{
             <textarea
               value={aboutBody}
               onChange={(e) => setAboutBody(e.target.value)}
-              placeholder="Tell buyers about your shop, trading hours, dispute policy…"
+              placeholder="Řekněte kupujícím o svém obchodu, otevírací době, pravidlech sporů…"
               rows={4}
               maxLength={800}
               className="w-full bg-bg rounded-2xl p-3 outline-none text-ink text-[13px] font-medium placeholder:text-ink-dim focus:ring-2 focus:ring-accent resize-y transition-shadow"
@@ -1325,8 +1325,8 @@ const CustomDomainCard: React.FC<{
     if (trimmed && !isValid(trimmed)) {
       addToast({
         type: 'error',
-        title: 'Invalid domain',
-        message: 'Enter a bare domain like myshop.com (no https://, no path).',
+        title: 'Neplatná doména',
+        message: 'Zadejte holou doménu jako myshop.com (bez https://, bez cesty).',
       });
       return;
     }
@@ -1351,7 +1351,7 @@ const CustomDomainCard: React.FC<{
     } catch (err: any) {
       addToast({
         type: 'error',
-        title: 'Could not save',
+        title: 'Nelze uložit',
         message: err?.message || 'Try again',
       });
     } finally {
@@ -1371,7 +1371,7 @@ const CustomDomainCard: React.FC<{
           <Globe size={16} strokeWidth={2.4} className="text-accent" />
         </div>
         <div className="flex-1 min-w-0">
-          <span className="label-eyebrow">Custom domain</span>
+          <span className="label-eyebrow">Vlastní doména</span>
           <h3 className="text-[16px] font-bold tracking-tight text-ink mt-1 leading-none">
             Use your own domain
           </h3>
