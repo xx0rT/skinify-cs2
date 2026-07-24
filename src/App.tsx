@@ -90,6 +90,7 @@ const FAQPage = lazyWithRetry(() => import('./pages/FAQPage'));
 const SecurityTipsPage = lazyWithRetry(() => import('./pages/SecurityTipsPage'));
 const AdminPage = lazyWithRetry(() => import('./pages/AdminPage'));
 const AdminPanelNew = lazyWithRetry(() => import('./pages/AdminPanelNew'));
+const TrafficDashboard = lazyWithRetry(() => import('./components/traffic/TrafficDashboard'));
 const ItemDetailPage = lazyWithRetry(() => import('./pages/ItemDetailPage'));
 const WeaponCategoryPage = lazyWithRetry(() => import('./pages/WeaponCategoryPage'));
 const WeaponCategoriesIndexPage = lazyWithRetry(() => import('./pages/WeaponCategoriesIndexPage'));
@@ -343,6 +344,7 @@ export default function App() {
             <Route path={`/:lang(${LANG_PATTERN})/security-tips`} element={<SecurityTipsPage />} />
 
             <Route path="/admin" element={<AdminPanelNew />} />
+            <Route path="/admin/traffic" element={<TrafficDashboard />} />
             <Route path="/admin-old" element={<AdminPage />} />
 
             <Route path="/weapons" element={<WeaponCategoriesIndexPage />} />

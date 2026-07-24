@@ -1,0 +1,74 @@
+/*
+  Scoped shadcn/ui design tokens for the Dashboard13 traffic view only.
+
+  These variables (--background, --primary, --card, --sidebar, …) are the
+  standard shadcn token set, but confined to `.dashboard13-scope` so they
+  can never leak into or clash with the rest of the app's own tokens
+  (--bg, --accent, --ink, …). The values track the site's light/dark
+  themes (driven by html[data-theme]) and reuse the brand accent so the
+  dashboard doesn't look foreign.
+
+  Tailwind utility classes used by the shadcn primitives (bg-background,
+  text-muted-foreground, border-border, bg-sidebar, …) are provided by
+  the `dashboard13` plugin block appended to tailwind.config.js, which
+  maps each utility to these vars via rgb(var(--…)).
+*/
+
+.dashboard13-scope {
+  /* ── light (default) ── */
+  --background: 246 244 250;
+  --foreground: 22 20 32;
+  --card: 255 255 255;
+  --card-foreground: 22 20 32;
+  --popover: 255 255 255;
+  --popover-foreground: 22 20 32;
+  --primary: 139 73 242;
+  --primary-foreground: 255 255 255;
+  --secondary: 240 237 245;
+  --secondary-foreground: 22 20 32;
+  --muted: 240 237 245;
+  --muted-foreground: 90 88 110;
+  --accent-ui: 240 237 245;
+  --accent-ui-foreground: 22 20 32;
+  --border: 226 220 234;
+  --input: 226 220 234;
+  --ring: 139 73 242;
+
+  --sidebar: 255 255 255;
+  --sidebar-foreground: 22 20 32;
+  --sidebar-primary: 139 73 242;
+  --sidebar-primary-foreground: 255 255 255;
+  --sidebar-accent: 240 237 245;
+  --sidebar-accent-foreground: 22 20 32;
+  --sidebar-border: 226 220 234;
+  --sidebar-ring: 139 73 242;
+}
+
+html[data-theme='dark'] .dashboard13-scope {
+  --background: 12 12 14;
+  --foreground: 240 240 244;
+  --card: 22 22 25;
+  --card-foreground: 240 240 244;
+  --popover: 22 22 25;
+  --popover-foreground: 240 240 244;
+  --primary: 181 135 255;
+  --primary-foreground: 12 12 14;
+  --secondary: 32 32 36;
+  --secondary-foreground: 240 240 244;
+  --muted: 32 32 36;
+  --muted-foreground: 165 165 175;
+  --accent-ui: 32 32 36;
+  --accent-ui-foreground: 240 240 244;
+  --border: 44 44 50;
+  --input: 44 44 50;
+  --ring: 181 135 255;
+
+  --sidebar: 18 18 21;
+  --sidebar-foreground: 240 240 244;
+  --sidebar-primary: 181 135 255;
+  --sidebar-primary-foreground: 12 12 14;
+  --sidebar-accent: 32 32 36;
+  --sidebar-accent-foreground: 240 240 244;
+  --sidebar-border: 44 44 50;
+  --sidebar-ring: 181 135 255;
+}

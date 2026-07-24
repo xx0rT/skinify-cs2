@@ -1,9 +1,15 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
   plugins: [react()],
   base: '/',
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   build: {
     sourcemap: false,
     minify: 'terser',
@@ -38,6 +44,12 @@ export default defineConfig({
             id.includes('victory-vendor')
           ) {
             return 'charts';
+          }
+          /* maplibre-gl is ~800KB and only used by the lazy
+             /admin/traffic dashboard — keep it out of the main vendor
+             chunk so it's fetched on-demand, not on every page load. */
+          if (id.includes('maplibre-gl')) {
+            return 'maplibre';
           }
           return 'vendor';
         },
