@@ -143,15 +143,15 @@ const COUNTRY_REF: Record<string, { name: string; flag: string; lat: number; lng
 // ============================================================================
 
 const sidebarData: SidebarData = {
-  logo: { src: '/favicon.png', alt: 'Skinify', title: 'Skinify Traffic', description: 'Realtime' },
+  logo: { src: '/favicon.png', alt: 'Skinify', title: 'Skinify Provoz', description: 'V reálném čase' },
   navGroups: [
     {
       title: 'Main',
       defaultOpen: true,
       items: [
-        { label: 'Live overview', icon: Radio, href: '#', isActive: true },
-        { label: 'Streams', icon: Activity, href: '#' },
-        { label: 'Incidents', icon: ClipboardList, href: '#' },
+        { label: 'Živý přehled', icon: Radio, href: '#', isActive: true },
+        { label: 'Streamy', icon: Activity, href: '#' },
+        { label: 'Incidenty', icon: ClipboardList, href: '#' },
       ],
     },
     {
@@ -167,19 +167,19 @@ const sidebarData: SidebarData = {
             { label: 'Webhooks', icon: Package, href: '#' },
           ],
         },
-        { label: 'Routing', icon: Truck, href: '#' },
+        { label: 'Směrování', icon: Truck, href: '#' },
       ],
     },
     {
       title: 'Analytics',
       items: [
         { label: 'Explorer', icon: Globe, href: '#' },
-        { label: 'Reports', icon: BarChart3, href: '#' },
+        { label: 'Reporty', icon: BarChart3, href: '#' },
         { label: 'Quotas', icon: Wallet, href: '#' },
       ],
     },
-    { title: 'Audience', items: [{ label: 'Segments', icon: Users, href: '#' }, { label: 'Alerts', icon: MessageSquare, href: '#' }] },
-    { title: 'Settings', items: [{ label: 'Settings', icon: Settings, href: '#' }] },
+    { title: 'Audience', items: [{ label: 'Segmenty', icon: Users, href: '#' }, { label: 'Upozornění', icon: MessageSquare, href: '#' }] },
+    { title: 'Settings', items: [{ label: 'Nastavení', icon: Settings, href: '#' }] },
   ],
   user: { name: 'Admin', email: 'admin@skinify.gg', avatar: '' },
 };
@@ -205,6 +205,16 @@ type LiveEvent = {
 // Real data hook — reads user_activity
 // ============================================================================
 
+type BusinessStats = {
+  totalUsers: number;
+  activeUsers: number;
+  revenue: number;
+  totalTransactions: number;
+  pendingWithdrawals: number;
+  activeListings: number;
+  successRate: number;
+};
+
 function useTrafficData() {
   const [activeNow, setActiveNow] = React.useState(0);
   const [eventsPerMin, setEventsPerMin] = React.useState(0);
@@ -212,6 +222,10 @@ function useTrafficData() {
   const [uniqueToday, setUniqueToday] = React.useState(0);
   const [countries, setCountries] = React.useState<GeoCountry[]>([]);
   const [liveEvents, setLiveEvents] = React.useState<LiveEvent[]>([]);
+  const [biz, setBiz] = React.useState<BusinessStats>({
+    totalUsers: 0, activeUsers: 0, revenue: 0, totalTransactions: 0,
+    pendingWithdrawals: 0, activeListings: 0, successRate: 100,
+  });
 
   const load = React.useCallback(async () => {
     if (!supabase) return;
@@ -221,7 +235,7 @@ function useTrafficData() {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    const [dayRes, recentRes] = await Promise.all([
+    const [dayRes, recentRes, usersCount, activeUsersCount, txResult, withdrawalsCount, listingsCount] = await Promise.all([
       supabase
         .from('user_activity')
         .select('event_type, session_id, country_code, created_at')
@@ -231,7 +245,28 @@ function useTrafficData() {
         .select('event_type, page_url, country_code, user_steam_id, session_id, created_at')
         .order('created_at', { ascending: false })
         .limit(12),
+      supabase.from('users').select('*', { count: 'exact', head: true }),
+      supabase.from('users').select('*', { count: 'exact', head: true }).gte('last_login', dayAgo),
+      supabase.from('user_transactions').select('amount, status, type'),
+      supabase.from('user_transactions').select('*', { count: 'exact', head: true }).eq('type', 'withdrawal').eq('status', 'pending'),
+      supabase.from('marketplace_listings').select('*', { count: 'exact', head: true }).eq('is_active', true),
     ]);
+
+    // ── business stats (real, same queries as the old dashboard) ──
+    const tx = (txResult as any).data || [];
+    const completed = tx.filter((t: any) => t.status === 'completed');
+    const revenue = completed
+      .filter((t: any) => t.type === 'deposit' || t.type === 'purchase')
+      .reduce((s: number, t: any) => s + (t.amount || 0), 0);
+    setBiz({
+      totalUsers: (usersCount as any).count || 0,
+      activeUsers: (activeUsersCount as any).count || 0,
+      revenue,
+      totalTransactions: tx.length,
+      pendingWithdrawals: (withdrawalsCount as any).count || 0,
+      activeListings: (listingsCount as any).count || 0,
+      successRate: tx.length > 0 ? Math.round((completed.length / tx.length) * 1000) / 10 : 100,
+    });
 
     const day = dayRes.data || [];
     // active now = distinct sessions in last 5 min
@@ -288,7 +323,7 @@ function useTrafficData() {
     return () => window.clearInterval(id);
   }, [load]);
 
-  return { activeNow, eventsPerMin, pageViewsToday, uniqueToday, countries, liveEvents };
+  return { activeNow, eventsPerMin, pageViewsToday, uniqueToday, countries, liveEvents, biz };
 }
 
 // ============================================================================
@@ -444,7 +479,7 @@ const DashboardHeader = () => (
         <input
           name="search"
           type="search"
-          placeholder="Search streams, regions, dashboards..."
+          placeholder="Hledat streamy, regiony, dashboardy…"
           className="col-start-1 row-start-1 block size-full bg-transparent pl-8 text-sm text-foreground outline-none placeholder:text-muted-foreground"
         />
         <Search aria-hidden className="pointer-events-none col-start-1 row-start-1 size-4 self-center text-muted-foreground" />
@@ -468,12 +503,12 @@ const SecondaryNav = () => (
 const DashboardHeading = () => (
   <div className="border-b border-border px-4 py-4 sm:px-6">
     <h1 className="flex flex-wrap items-center gap-x-3 gap-y-1 text-base/7">
-      <span className="font-semibold text-foreground">Skinify Traffic</span>
+      <span className="font-semibold text-foreground">Skinify Provoz</span>
       <span className="text-muted-foreground/60">/</span>
-      <span className="font-semibold text-foreground">Live operations</span>
+      <span className="font-semibold text-foreground">Živý provoz</span>
     </h1>
     <p className="mt-2 text-xs/6 text-muted-foreground">
-      Real-time sessions, regional load, and page activity across skinify.gg
+      Relace v reálném čase, regionální zátěž a aktivita stránek napříč skinify.gg
     </p>
   </div>
 );
@@ -496,7 +531,7 @@ const LiveKPI = ({ title, value, compact }: { title: string; value: number; comp
     </span>
     <div className="flex items-center gap-1 text-xs text-muted-foreground">
       <Activity className="size-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden />
-      <span>Streaming</span>
+      <span>Streamuje se</span>
     </div>
   </div>
 );
@@ -511,10 +546,23 @@ const StaticKPI = ({ title, value, sub }: { title: string; value: string; sub?: 
 
 const KPIRow = ({ activeNow, eventsPerMin, pageViewsToday, uniqueToday }: { activeNow: number; eventsPerMin: number; pageViewsToday: number; uniqueToday: number }) => (
   <div className="grid grid-cols-2 sm:grid-cols-4 [&>*]:border-r [&>*]:border-border [&>*:last-child]:border-r-0">
-    <LiveKPI title="Active sessions" value={activeNow} />
-    <LiveKPI title="Events per minute" value={eventsPerMin} compact />
-    <StaticKPI title="Page views today" value={numberFormatter.format(pageViewsToday)} sub="since midnight" />
-    <StaticKPI title="Unique visitors today" value={numberFormatter.format(uniqueToday)} sub="distinct sessions" />
+    <LiveKPI title="Aktivní relace" value={activeNow} />
+    <LiveKPI title="Události za minutu" value={eventsPerMin} compact />
+    <StaticKPI title="Zobrazení stránek dnes" value={numberFormatter.format(pageViewsToday)} sub="od půlnoci" />
+    <StaticKPI title="Unikátní návštěvníci dnes" value={numberFormatter.format(uniqueToday)} sub="odlišné relace" />
+  </div>
+);
+
+const czk = (n: number) => `${Math.round(n).toLocaleString('cs-CZ')} Kč`;
+
+const BusinessRow = ({ biz }: { biz: BusinessStats }) => (
+  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 border-t border-border [&>*]:border-r [&>*]:border-border [&>*:last-child]:border-r-0">
+    <StaticKPI title="Uživatelé celkem" value={numberFormatter.format(biz.totalUsers)} sub={`${biz.activeUsers} aktivních za 24h`} />
+    <StaticKPI title="Tržby" value={czk(biz.revenue)} sub="dokončené transakce" />
+    <StaticKPI title="Transakce" value={numberFormatter.format(biz.totalTransactions)} sub="za celou dobu" />
+    <StaticKPI title="Úspěšnost" value={`${biz.successRate}%`} sub="dokončené / všechny" />
+    <StaticKPI title="Aktivní nabídky" value={numberFormatter.format(biz.activeListings)} sub="živé na trhu" />
+    <StaticKPI title="Čekající výběry" value={numberFormatter.format(biz.pendingWithdrawals)} sub="ke schválení" />
   </div>
 );
 
@@ -532,7 +580,7 @@ const SessionsMap = ({ countries }: { countries: GeoCountry[] }) => {
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-muted-foreground">Global live map</span>
+            <span className="text-xs text-muted-foreground">Globální živá mapa</span>
             <span className="flex items-center gap-1 border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-emerald-700 uppercase dark:text-emerald-400">
               <span className="size-1.5 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
               Live
@@ -541,7 +589,7 @@ const SessionsMap = ({ countries }: { countries: GeoCountry[] }) => {
           <span className={cn(jetBrainsMono.className, 'text-2xl font-semibold tabular-nums')}>
             {numberFormatter.format(countries.reduce((s, c) => s + c.users, 0))}
           </span>
-          <p className="text-xs text-muted-foreground">Concurrent sessions by region, last 24h</p>
+          <p className="text-xs text-muted-foreground">Souběžné relace podle regionu, posledních 24 h</p>
         </div>
       </div>
       <div className="relative w-full flex-1 min-h-[min(48vh,480px)] overflow-hidden rounded-lg">
@@ -581,7 +629,7 @@ const SessionsMap = ({ countries }: { countries: GeoCountry[] }) => {
         </Map>
         {countries.length === 0 && (
           <div className="absolute inset-0 z-10 flex items-center justify-center text-muted-foreground text-sm text-center px-6 pointer-events-none">
-            No geo-tagged sessions in the last 24h — visitors get located automatically as they browse.
+            Za posledních 24 h žádné geo-označené relace — návštěvníci se lokalizují automaticky při procházení.
           </div>
         )}
       </div>
@@ -599,16 +647,16 @@ const CountryList = ({ countries }: { countries: GeoCountry[] }) => {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4 bg-card p-4 sm:gap-5 sm:p-5">
       <div className="flex flex-col gap-1">
-        <span className="text-xs text-muted-foreground">Active sessions by country</span>
+        <span className="text-xs text-muted-foreground">Aktivní relace podle země</span>
         <span className={cn(jetBrainsMono.className, 'text-2xl font-semibold tabular-nums sm:text-3xl')}>
           {numberFormatter.format(total)}
-          <span className="text-lg font-medium text-muted-foreground sm:text-xl"> sessions</span>
+          <span className="text-lg font-medium text-muted-foreground sm:text-xl"> relací</span>
         </span>
-        <span className="text-xs text-muted-foreground">Distinct sessions · last 24h</span>
+        <span className="text-xs text-muted-foreground">Odlišné relace · posledních 24 h</span>
       </div>
       <div className="-mx-4 flex flex-col sm:-mx-5">
         {countries.length === 0 ? (
-          <div className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">No geo data yet.</div>
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">Zatím žádná geo data.</div>
         ) : (
           countries.slice(0, 12).map((c, rank) => {
             const share = c.users / maxUsers;
@@ -651,13 +699,13 @@ function LiveStream({ events }: { events: LiveEvent[] }) {
   return (
     <div className="flex h-full flex-col bg-card">
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-4 sm:px-5">
-        <h2 className="text-sm font-medium text-foreground">Live signal stream</h2>
-        <span className="text-xs text-muted-foreground">Streaming</span>
+        <h2 className="text-sm font-medium text-foreground">Živý tok signálů</h2>
+        <span className="text-xs text-muted-foreground">Streamuje se</span>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
         <ul className="flex h-full flex-col divide-y divide-border">
           {events.length === 0 ? (
-            <li className="flex flex-1 items-center justify-center px-4 py-8 text-sm text-muted-foreground">No recent events.</li>
+            <li className="flex flex-1 items-center justify-center px-4 py-8 text-sm text-muted-foreground">Žádné nedávné události.</li>
           ) : (
             events.map((e, i) => (
               <li key={e.id} className="flex min-h-20 flex-none flex-col justify-center px-4 py-3 sm:px-5">
@@ -691,11 +739,12 @@ function LiveStream({ events }: { events: LiveEvent[] }) {
    list). Exported so the main admin panel can drop it into its
    "Dashboard" tab. Renders its own DashboardHeading. */
 export const TrafficContent = () => {
-  const { activeNow, eventsPerMin, pageViewsToday, uniqueToday, countries, liveEvents } = useTrafficData();
+  const { activeNow, eventsPerMin, pageViewsToday, uniqueToday, countries, liveEvents, biz } = useTrafficData();
   return (
     <main className="flex w-full flex-1 flex-col bg-card">
       <DashboardHeading />
       <KPIRow activeNow={activeNow} eventsPerMin={eventsPerMin} pageViewsToday={pageViewsToday} uniqueToday={uniqueToday} />
+      <BusinessRow biz={biz} />
       <div className="grid lg:grid-cols-12 lg:items-stretch">
         <div className="flex min-h-0 flex-col border-b border-border lg:col-span-8 lg:border-r">
           <SessionsMap countries={countries} />

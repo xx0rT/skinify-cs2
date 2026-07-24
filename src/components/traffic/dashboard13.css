@@ -72,3 +72,58 @@ html[data-theme='dark'] .dashboard13-scope {
   --sidebar-border: 44 44 50;
   --sidebar-ring: 181 135 255;
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+   Dashboard13 "sharp grid" aesthetic, applied to every admin tab that
+   renders inside the shell (Users, Finance, Withdrawals, …). Rather
+   than hand-rewriting each large tab, we flatten the shared surface
+   primitives (`.card`, `.panel`, rounded utilities) to the squared,
+   hairline-bordered look the traffic dashboard uses.
+
+   Scoped strictly under `.dashboard13-scope` so none of this touches
+   the rest of the app (profile, marketplace, modals keep their rounded
+   design). The sidebar/map/KPI tiles that already use the shadcn look
+   are unaffected because they don't use these legacy classes.
+   ───────────────────────────────────────────────────────────────────── */
+
+/* 1 — kill rounded corners everywhere in the admin content area
+       (sharp edges). Buttons/pills that genuinely need a pill shape are
+       re-exempted below. */
+.dashboard13-scope .rounded,
+.dashboard13-scope .rounded-md,
+.dashboard13-scope .rounded-lg,
+.dashboard13-scope .rounded-xl,
+.dashboard13-scope .rounded-2xl,
+.dashboard13-scope .rounded-3xl,
+.dashboard13-scope .card,
+.dashboard13-scope .panel {
+  border-radius: 0 !important;
+}
+
+/* keep truly-circular / pill elements round (avatars, toggles, status
+   dots, icon chips, full-radius buttons) */
+.dashboard13-scope .rounded-full,
+.dashboard13-scope .rounded-full * {
+  border-radius: 9999px !important;
+}
+
+/* 2 — surface cards become squared, hairline-bordered panels on the
+       card background, matching the traffic tiles. */
+.dashboard13-scope .card,
+.dashboard13-scope .panel {
+  background-color: rgb(var(--card)) !important;
+  border: 1px solid rgb(var(--border)) !important;
+  box-shadow: none !important;
+}
+
+/* 3 — inset rows / subtle chips get a flat bordered look too. */
+.dashboard13-scope .bg-subtle {
+  border-radius: 0 !important;
+}
+
+/* 4 — inputs / selects squared with a hairline border. */
+.dashboard13-scope input:not([type='checkbox']):not([type='radio']),
+.dashboard13-scope select,
+.dashboard13-scope textarea {
+  border-radius: 0 !important;
+}
